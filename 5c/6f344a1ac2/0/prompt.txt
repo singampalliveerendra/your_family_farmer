@@ -1,0 +1,15 @@
+YFF
+Farmer Login
+రైతు లాగిన్
+
+WhatsApp Number / వాట్సాప్ నంబర్
++91
+9876543210
+Phone number not found. Contact the YFF team to register as a farmer.
+
+Login / లాగిన్ అవ్వండి
+Only registered farmers can log in. Browse produce what number should i type to login
+
+---
+
+what we have to add in farmer page it showing 404
