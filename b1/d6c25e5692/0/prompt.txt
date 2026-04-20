@@ -1,0 +1,144 @@
+Farmer login
+Farmer enters phone number and logs in.
+For now, no OTP / no verification.
+After login, farmer can fill profile details and add produce/items with the fields needed for the project. This is close to the farmer dashboard idea in the brief, except you want login simplified for testing.
+Consumer ordering
+Consumer opens the shared link and sees all available items.
+Consumer can select one or multiple items like a small cart.
+After choosing quantities, clicking order should open WhatsApp to that farmer with all selected items, quantities, and consumer details prefilled. This matches the brief’s WhatsApp-first ordering idea, but you want it to support multiple items, not just one item at a time.
+Pickup only
+For tomorrow, only pickup from farm/specific location is active.
+No courier, no delivery workflow for now. That also matches the MVP brief, where pickup is enabled first and courier is kept disabled/coming soon.
+Very simple bilingual UI
+App must be very easy for real users in the WhatsApp group.
+Need Telugu + English option across the UI so both farmers and consumers can use it comfortably.
+Mobile-first and very clear buttons/text are important because the testing users are normal people, not technical users. The brief also stresses simple mobile usage for farmers and buyers. do this and if you have any suggestions please tell me . for now there is a large whatsapp group with 400 people mixed of farmers and consumer so see my idea if you hae any suggestions please suggest before doing and tell me what i have to do and what you can do
+
+---
+
+New farmers can log in easily without any verification for now(it have to open directly after entering number), but their phone number must be saved in Supabase. The remaining features should work exactly as discussed: farmers can add their details and products, consumers can select one or more items, and the order should go to the farmer on WhatsApp with pickup-only flow
+
+---
+
+Manage Row Level Security policies for your tables
+Docs
+
+schema
+
+public
+
+Filter tables and policies
+demand_intents
+
+Disable RLS
+
+Create policy
+
+Name    Command    Applied to    Actions
+
+public insert demand_intents
+INSERT    
+public
+
+
+public read demand_intents
+SELECT    
+public
+
+farmers
+
+Disable RLS
+
+Create policy
+
+Name    Command    Applied to    Actions
+
+Public read farmers
+SELECT    
+public
+
+media
+
+Disable RLS
+
+Create policy
+
+Name    Command    Applied to    Actions
+
+Public read media
+SELECT    
+public
+
+notify_requests
+
+Disable RLS
+
+Create policy
+
+Name    Command    Applied to    Actions
+
+Public insert notify
+INSERT    
+public
+
+orders
+
+Disable RLS
+
+Create policy
+
+Name    Command    Applied to    Actions
+
+authenticated insert orders
+INSERT    
+public
+
+
+public read orders
+SELECT    
+public
+
+produce_listings
+
+Disable RLS
+
+Create policy
+
+Name    Command    Applied to    Actions
+
+Allow insert produce
+INSERT    
+anon
+
+
+Public read produce
+SELECT    
+public
+
+regions
+
+Disable RLS
+
+Create policy
+
+Name    Command    Applied to    Actions
+
+Public read regions
+SELECT    
+public
+
+reviews
+
+Disable RLS
+
+Create policy
+
+Name    Command    Applied to    Actions
+
+Public read reviews
+SELECT    
+public
+
+---
+
+send me all urls what hae to open till now
