@@ -1,0 +1,6 @@
+Fix tiered pricing bug in cart:
+- When consumer increases/decreases quantity, automatically apply the correct price tier
+- Logic: if qty <= tier1_qty use tier1_price, if qty <= tier2_qty use tier2_price, else use tier3_price
+- Update price per kg display in cart dynamically as quantity changes
+- Recalculate estimated total with the correct tier price
+- Show which tier is active e.g. "Bulk price applied / బల్క్ ధర వర్తింపు"
