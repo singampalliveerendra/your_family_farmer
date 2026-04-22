@@ -1,0 +1,30 @@
+.
+
+---
+
+Fix these issues:
+
+1. Run in Supabase: ALTER TABLE produce_listings ADD COLUMN description text;
+
+2. Fix hero section stretching on desktop - add max-width and center align
+
+3. Replace all "neighbourhood" with "local" in entire codebase
+
+4. Add pickup locations:
+   - Add pickup_locations text[] column to farmers table
+   - Farmer can add multiple pickup locations (e.g. "Bus stand", "Main road")
+   - Buyer selects pickup location dropdown before ordering
+   - Selected location included in WhatsApp pre-fill message
+
+5. Add Telugu translations for ALL text in the app - every label, button, heading, placeholder, error message. Show English and Telugu together like: "Order / ఆర్డర్ చేయండి"
+
+6. Add image upload in farmer section:
+   - Upload from gallery or take photo using camera
+   - Accept image/* with capture option for mobile camera
+   - Upload to Supabase Storage bucket called "farm-images"
+   - Show preview after selection
+   - Save image URL to media tabletell me what you understand
+
+---
+
+yes read everything and start doing
