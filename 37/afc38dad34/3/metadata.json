@@ -1,0 +1,119 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "37afc38dad34",
+  "session_id": "77fc2f58-60cd-42e3-a140-efc592e8128e",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-22T03:31:27.084208537Z",
+  "branch": "main",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "scripts/farm-images-bucket.sql",
+    "src/app/api/produce/route.ts",
+    "src/app/api/produce/search/route.ts",
+    "src/app/consumer/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/app/farmer/login/page.tsx",
+    "src/components/LanguageToggle.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/components/farmer/FarmCover.tsx",
+    "src/components/farmer/StickyBottomBar.tsx",
+    "src/components/farmer/TopNav.tsx",
+    "src/components/farmer/tabs/ProduceTab.tsx",
+    "src/components/region/RegionHero.tsx",
+    "src/components/region/RegionTopBar.tsx",
+    "src/lib/LanguageContext.tsx",
+    "src/lib/translations.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7",
+  "turn_id": "2929c4cf7d5e",
+  "token_usage": {
+    "input_tokens": 118,
+    "cache_creation_tokens": 181341,
+    "cache_read_tokens": 7074664,
+    "output_tokens": 38684,
+    "api_call_count": 88
+  },
+  "session_metrics": {
+    "turn_count": 5
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-22T03:31:27.060914237Z",
+    "agent_lines": 111,
+    "agent_removed": 24,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 151,
+    "total_committed": 111,
+    "total_lines_changed": 286,
+    "agent_percentage": 47.2027972027972,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 499,
+      "user_lines_removed": 151,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "src/app/api/produce/route.ts": 1,
+        "src/app/api/produce/search/route.ts": 1,
+        "src/app/consumer/page.tsx": 63,
+        "src/app/farmer/dashboard/page.tsx": 314,
+        "src/app/farmer/login/page.tsx": 6,
+        "src/components/LanguageToggle.tsx": 3,
+        "src/components/consumer/Cart.tsx": 35,
+        "src/components/farmer/FarmCover.tsx": 1,
+        "src/components/farmer/StickyBottomBar.tsx": 1,
+        "src/components/farmer/tabs/ProduceTab.tsx": 44,
+        "src/components/region/RegionHero.tsx": 1,
+        "src/lib/LanguageContext.tsx": 17,
+        "src/lib/translations.ts": 12
+      },
+      "user_removed_per_file": {
+        "src/app/api/produce/route.ts": 1,
+        "src/app/api/produce/search/route.ts": 1,
+        "src/app/consumer/page.tsx": 46,
+        "src/app/farmer/dashboard/page.tsx": 36,
+        "src/app/farmer/login/page.tsx": 4,
+        "src/components/LanguageToggle.tsx": 26,
+        "src/components/consumer/Cart.tsx": 6,
+        "src/components/farmer/FarmCover.tsx": 1,
+        "src/components/farmer/StickyBottomBar.tsx": 1,
+        "src/components/farmer/tabs/ProduceTab.tsx": 11,
+        "src/components/region/RegionHero.tsx": 1,
+        "src/lib/LanguageContext.tsx": 16,
+        "src/lib/translations.ts": 1
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 645,
+      "agent_lines_removed": 159
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 654,
+      "agent_lines_removed": 158
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 654,
+      "agent_lines_removed": 158
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 530,
+      "agent_lines_removed": 174
+    }
+  ]
+}

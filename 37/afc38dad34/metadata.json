@@ -3,8 +3,9 @@
   "checkpoint_id": "37afc38dad34",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 16,
+  "checkpoints_count": 21,
   "files_touched": [
+    "scripts/farm-images-bucket.sql",
     "scripts/produce-listings-delete-policy.sql",
     "src/app/api/produce/route.ts",
     "src/app/api/produce/search/route.ts",
@@ -40,13 +41,19 @@
       "transcript": "/37/afc38dad34/2/full.jsonl",
       "content_hash": "/37/afc38dad34/2/content_hash.txt",
       "prompt": "/37/afc38dad34/2/prompt.txt"
+    },
+    {
+      "metadata": "/37/afc38dad34/3/metadata.json",
+      "transcript": "/37/afc38dad34/3/full.jsonl",
+      "content_hash": "/37/afc38dad34/3/content_hash.txt",
+      "prompt": "/37/afc38dad34/3/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 312,
-    "cache_creation_tokens": 297079,
-    "cache_read_tokens": 12409166,
-    "output_tokens": 99869,
-    "api_call_count": 184
+    "input_tokens": 430,
+    "cache_creation_tokens": 478420,
+    "cache_read_tokens": 19483830,
+    "output_tokens": 138553,
+    "api_call_count": 272
   }
 }

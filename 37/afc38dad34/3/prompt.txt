@@ -1,0 +1,48 @@
+Fix these 3 issues:
+
+1. Supabase Storage bucket fix:
+   - Create a bucket called "farm-images" in Supabase Storage
+   - Add this SQL in Supabase: INSERT INTO storage.buckets (id, name, public) VALUES ('farm-images', 'farm-images', true);
+   - Update storage policy to allow public uploads
+
+2. Move image upload inside "Add new produce" form (4th screen):
+   - Add photo upload field at the bottom of the new produce listing form
+   - Allow gallery or camera capture (accept="image/*" capture)
+   - Show image preview after selection
+   - Upload to farm-images bucket and save URL to produce listing
+
+3. Show farmer's produce photo on buyer's product card:
+   - If farmer uploaded a photo for that listing, show it instead of the leaf emoji
+   - If no photo, keep the emoji as fallback
+
+---
+
+1. Move image upload (gallery/camera) inside the Add new produce form - place it after the description field, before quality parameters. Show preview after selection. Upload to farm-images bucket on save.
+
+2. Bucket name in code may be wrong - find all references to storage bucket name and make sure they all use exactly "farm-images"  . first tell me what should i do manually
+
+---
+
+Fix these issues:
+
+1. Remove the "Farm photos" upload section from dashboard - keep photo upload ONLY inside the Add new produce form
+
+2. Add delete button on each produce listing in farmer's profile:
+   - Show "Delete / తొలగించు" button on each produce card
+   - Ask confirmation before deleting: "Are you sure? / మీరు నిశ్చితంగా ఉన్నారా?"
+   - Delete from Supabase and refresh the list
+
+3. Add Home button to every page:
+   - Link to main/home page
+   - Label: "Home / హోమ్"Fix back navigation bug:
+- When farmer clicks "View Profile" it opens /farmer/[slug] 
+- Pressing back should return to /farmer/dashboard NOT /region page
+- Fix by using router.push with shallow routing or add a "Back to Dashboard / డాష్‌బోర్డ్‌కు తిరిగి" button on the farmer profile page that explicitly links to /farmer/dashboardtell me what you understand
+
+---
+
+farmer can delete there produce when he wants and then it have to delete in consumer also . and second keep that home button to only for farmer dashboar it have to go to  farmer dashboard if i click home button in any page(farmers dashboard )
+
+---
+
+where is the delete produce that you added
