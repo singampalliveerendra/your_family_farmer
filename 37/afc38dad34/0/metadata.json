@@ -1,0 +1,94 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "37afc38dad34",
+  "session_id": "187ffd29-8715-435f-9863-e10c90659d73",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-22T03:31:26.464280498Z",
+  "branch": "main",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "src/components/LanguageToggle.tsx",
+    "src/components/farmer/FarmCover.tsx",
+    "src/components/farmer/StickyBottomBar.tsx",
+    "src/components/farmer/TopNav.tsx",
+    "src/components/farmer/tabs/ProduceTab.tsx",
+    "src/components/region/RegionHero.tsx",
+    "src/components/region/RegionTopBar.tsx",
+    "src/lib/LanguageContext.tsx",
+    "src/lib/translations.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-4-6",
+  "turn_id": "fc4a647428d2",
+  "token_usage": {
+    "input_tokens": 193,
+    "cache_creation_tokens": 112714,
+    "cache_read_tokens": 8745566,
+    "output_tokens": 68660,
+    "api_call_count": 111
+  },
+  "session_metrics": {
+    "turn_count": 40
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-22T03:31:26.420043678Z",
+    "agent_lines": 891,
+    "agent_removed": 0,
+    "human_added": 708,
+    "human_modified": 91,
+    "human_removed": 0,
+    "total_committed": 1690,
+    "total_lines_changed": 1788,
+    "agent_percentage": 49.832214765100666,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 6989,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".gitignore": 41,
+        "AGENTS.md": 5,
+        "CLAUDE.md": 26,
+        "eslint.config.mjs": 18,
+        "next.config.ts": 7,
+        "package-lock.json": 6695,
+        "package.json": 27,
+        "postcss.config.mjs": 7,
+        "public/file.svg": 1,
+        "public/globe.svg": 1,
+        "public/next.svg": 1,
+        "public/vercel.svg": 1,
+        "public/window.svg": 1,
+        "src/app/globals.css": 26,
+        "src/app/layout.tsx": 33,
+        "src/app/page.tsx": 65,
+        "tsconfig.json": 34
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}

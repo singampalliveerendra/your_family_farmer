@@ -1,0 +1,167 @@
+hi
+
+---
+
+read YFF_Developer_Brief_v1.pdf and tell me what you understand
+
+---
+
+ok can we start the project in step by step not all at a a before that how we can do this project how it works and the stack
+
+---
+
+okay now what i have to extranally and what you can do by your ow from end to end
+
+---
+
+okay now what i have to do  extranally and what you can do by your own from end to end
+
+---
+
+it seems the project is easy can we do this today itself ?
+
+---
+
+can we deploy in netlify right is that easy than vercel and render
+
+---
+
+ok can we deploy only by vercel without u
+
+---
+
+ok can we deploy only by vercel without using render ?
+
+---
+
+ok go for firstly what i have to do now externally
+
+---
+
+in supabase i have another databse if i copy api should it effect to old one ?
+
+---
+
+ok where the api key in supabase tell me step by step
+
+---
+
+https://bzwczufnlqwlirtrccwr.supabase.co       the anon key is api key should i copy secret key or public kley
+
+---
+
+REDACTED
+
+---
+
+its done but it showing unrstricted
+
+---
+
+in new tab or old
+
+---
+
+ok done whats next
+
+---
+
+v20.20.2
+
+---
+
+done
+
+---
+
+but after taping whatspp it goin to whatsup but it showing no number
+
+---
+
++91 7601059161
+
+---
+
+still same
+
+---
+
+update number to 6303425843
+
+---
+
+done
+
+---
+
+ok its working whats the next step
+
+---
+
+they didnt mentioned in doc ?
+
+---
+
+ok add by your own as per ap and telangana data
+
+---
+
+done
+
+---
+
+it nice whats next
+
+---
+
+done
+
+---
+
+we did everything end to end they asked in develpoer brief?
+
+---
+
+no i want to build everything today in step by step form with little learning
+
+---
+
+singampalliveerendra
+
+---
+
+Next.js logo
+To get started, edit the page.tsx file.
+Looking for a starting point or more instructions? Head over to Templates or the Learning center.deployment dome while i enter vist iam getting this deploy now  and documentation
+
+---
+
+we dont have to redeploy?
+
+---
+
+but while opening in my frnd phone it asking login i dont want that
+
+---
+
+ok good its working but slow
+
+---
+
+ok done next step
+
+---
+
+start
+
+---
+
+yeah i see everything but how the add a farmer works
+
+---
+
+ok remind this again this feature is not for now . so what about the language in project the farmers only know telugu language mostly so can we add option like selection linguage for both telugu and english
+
+---
+
+yes add

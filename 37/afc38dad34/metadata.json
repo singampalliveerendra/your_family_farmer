@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "37afc38dad34",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "src/components/LanguageToggle.tsx",
+    "src/components/farmer/FarmCover.tsx",
+    "src/components/farmer/StickyBottomBar.tsx",
+    "src/components/farmer/TopNav.tsx",
+    "src/components/farmer/tabs/ProduceTab.tsx",
+    "src/components/region/RegionHero.tsx",
+    "src/components/region/RegionTopBar.tsx",
+    "src/lib/LanguageContext.tsx",
+    "src/lib/translations.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/37/afc38dad34/0/metadata.json",
+      "transcript": "/37/afc38dad34/0/full.jsonl",
+      "content_hash": "/37/afc38dad34/0/content_hash.txt",
+      "prompt": "/37/afc38dad34/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 193,
+    "cache_creation_tokens": 112714,
+    "cache_read_tokens": 8745566,
+    "output_tokens": 68660,
+    "api_call_count": 111
+  }
+}
