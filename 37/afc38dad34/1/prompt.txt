@@ -1,0 +1,29 @@
+Update name from Yadagiri to Kapil Korlepara. Also only list following products for now :
+Papaya
+Bananas 
+Tomatoes 
+Ladies Finger. Also let’s give a flexibility to upload what he wants. And default page to products this is my client needed to update for now
+
+---
+
+how to insert send me the qury
+
+---
+
+next
+
+---
+
+you added add produce right so who will add the product the farmer or user
+
+---
+
+how opt a works
+
+---
+
+ok if farmer add new product its also update in ui and supabase databse also right
+
+---
+
+ok please do
