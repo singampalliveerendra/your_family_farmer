@@ -3,9 +3,16 @@
   "checkpoint_id": "37afc38dad34",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 11,
+  "checkpoints_count": 16,
   "files_touched": [
+    "scripts/produce-listings-delete-policy.sql",
+    "src/app/api/produce/route.ts",
+    "src/app/api/produce/search/route.ts",
+    "src/app/consumer/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/app/farmer/login/page.tsx",
     "src/components/LanguageToggle.tsx",
+    "src/components/consumer/Cart.tsx",
     "src/components/farmer/FarmCover.tsx",
     "src/components/farmer/StickyBottomBar.tsx",
     "src/components/farmer/TopNav.tsx",
@@ -27,13 +34,19 @@
       "transcript": "/37/afc38dad34/1/full.jsonl",
       "content_hash": "/37/afc38dad34/1/content_hash.txt",
       "prompt": "/37/afc38dad34/1/prompt.txt"
+    },
+    {
+      "metadata": "/37/afc38dad34/2/metadata.json",
+      "transcript": "/37/afc38dad34/2/full.jsonl",
+      "content_hash": "/37/afc38dad34/2/content_hash.txt",
+      "prompt": "/37/afc38dad34/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 243,
-    "cache_creation_tokens": 152009,
-    "cache_read_tokens": 9993324,
-    "output_tokens": 84162,
-    "api_call_count": 145
+    "input_tokens": 312,
+    "cache_creation_tokens": 297079,
+    "cache_read_tokens": 12409166,
+    "output_tokens": 99869,
+    "api_call_count": 184
   }
 }

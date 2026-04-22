@@ -1,0 +1,64 @@
+the feature i want it the farmer can delete there produce when he wants so please add that feature . ok do this in
+  this 4
+Active listings
+చురుకైన పంటలు
+0
+Orders this week
+ఈ వారం ఆర్డర్లు
+—
+Avg rating
+సగటు రేటింగ్
+0
+Total buyers
+మొత్తం కొనుగోలుదారులు when i click 4 active listing it have to show all items that i produced so in that keep option like delete produce than it have to delete in every where (dont forgot to add telugu language everywhere )
+
+---
+
+hey after deleting 3 items in 4  it still showing 4
+
+---
+
+Potential issue detected with your query
+Review the warnings below before running this query.
+The following potential issue has been detected:
+Ensure that these are intentional before executing this query
+
+Query has destructive operations
+Make sure you are not accidentally removing something important.
+Please confirm that you would like to execute this query.
+
+
+Cancel
+
+Run this query
+
+---
+
+veerendra@DESKTOP-A42QL39:~/farmer/yourfamilyfarmer$ npm run dev
+
+> yourfamilyfarmer@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.4 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://10.255.255.254:3000
+- Environments: .env.local
+✓ Ready in 512ms
+⚠ Slow filesystem detected. The benchmark took 305ms. If /home/veerendra/farmer/yourfamilyfarmer/.next/dev is a network drive, consider moving it to a local folder.
+See more: https://nextjs.org/docs/app/guides/local-development
+
+ GET /farmer/dashboard 200 in 737ms (next.js: 328ms, application-code: 409ms)
+ GET /farmer/dashboard 200 in 79ms (next.js: 11ms, application-code: 68ms)
+ GET /consumer 200 in 185ms (next.js: 34ms, application-code: 150ms)
+ GET /api/produce?status=coming_soon 200 in 480ms (next.js: 182ms, application-code: 298ms)
+ GET /api/produce 200 in 621ms (next.js: 160ms, application-code: 460ms)
+ GET /farmer/dashboard 200 in 53ms (next.js: 7ms, application-code: 46ms)
+ GET /api/produce?status=coming_soon 200 in 362ms (next.js: 7ms, application-code: 355ms)
+ GET /api/produce 200 in 517ms (next.js: 10ms, application-code: 507ms)
+ GET /api/produce?status=coming_soon 200 in 196ms (next.js: 4ms, application-code: 192ms)
+ GET
+
+---
+
+⚠ Slow filesystem detected. The benchmark took 305ms. If /home/veerendra/farmer/yourfamilyfarmer/.next/dev is a network drive,
+  consider moving it to a local folder.
