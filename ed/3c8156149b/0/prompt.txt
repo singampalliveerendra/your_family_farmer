@@ -1,0 +1,8 @@
+Fix stock limit in cart popup:
+- "+" button inside cart must also check stock_qty limit
+- When quantity reaches stock_qty, disable "+" button and show toast popup: "No more stock available / స్టాక్ అయిపోయింది"
+- Cart quantity should never exceed stock_qty whether changed from product card or inside cart.once please check all cases while doing .dont go blind
+
+---
+
+the npm run dev not working at all from morning wht will be the issue
