@@ -1,0 +1,56 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "3374f32472ef",
+  "session_id": "6cd74578-e970-48cd-876f-c46444bec26c",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-23T11:17:44.469109775Z",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "src/app/api/farmer/update-listing/route.ts",
+    "src/app/farmer/dashboard/page.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-4-6",
+  "turn_id": "92e5ba0c3eb6",
+  "checkpoint_transcript_start": 354,
+  "transcript_lines_at_start": 354,
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 37493,
+    "cache_read_tokens": 836908,
+    "output_tokens": 16276,
+    "api_call_count": 16
+  },
+  "session_metrics": {
+    "turn_count": 10
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-23T11:17:44.428407617Z",
+    "agent_lines": 74,
+    "agent_removed": 8,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 74,
+    "total_lines_changed": 82,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 48,
+      "agent_lines_removed": 2
+    }
+  ]
+}
