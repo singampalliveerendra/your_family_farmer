@@ -1,0 +1,20 @@
+Fix stock limit bug:
+- "+" button in cart must stop at available stock_qty
+- If stock is 10kg, max quantity consumer can add is 10
+- Disable "+" button when quantity reaches stock_qty
+- Show warning: "Maximum available / గరిష్ట పరిమాణం: X kg"
+- Also disable "Add to cart" button on product card if stock is 0
+- Show "Out of stock / అయిపోయింది" instead when stock_qty is 0Fix these 2 bugs:
+
+1. Farmer edits not reflecting in consumer section:
+   - After farmer saves edited produce, force revalidate/refresh the product data
+   - Use Supabase realtime or revalidatePath on save to ensure consumer sees updated price, quantity, description immediately
+   - Check if consumer page is caching old data - disable cache on produce listings fetch
+
+2. Stock quantity sync:
+   - When consumer adds to cart, check live stock_qty from Supabase at that moment
+   - If stock changed since page loaded, show: "Stock updated / స్టాక్ మారింది, only X kg available". and tell me what i have to manually
+
+---
+
+Go to Supabase dashboard → Database → Replication, find supabase_realtime publication, and toggle on produce_listings. i didint find this is that needed
