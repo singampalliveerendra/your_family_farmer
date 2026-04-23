@@ -1,0 +1,5 @@
+Fix farmer edits not updating in consumer section:
+- After farmer saves/edits produce listing, the consumer page still shows old data
+- Fix by adding cache: 'no-store' or revalidatePath('/') on all produce listing fetch calls
+- Make sure the edit save function updates Supabase and then triggers a full revalidation
+- Consumer product cards must always fetch fresh data from Supabase, not cached version
