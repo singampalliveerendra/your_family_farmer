@@ -1,0 +1,78 @@
+×
+Pick an icon
+
+🍅
+🍌
+🥭
+🫑
+🥬
+🍆
+🥕
+🌽
+🧅
+🧄
+🥦
+🌿
+🍓
+🫒
+🌾
+🥥
+Unit / కొలత
+kg
+Produce details
+Onion
+Variety (optional) — e.g. Naati heirloom
+Availability
+497
+Period (e.g. Apr–May)
+Farming method
+🌱 Natural
+Delivery method
+Pickup only
+I will courier
+Coming soon
+Pricing tiers
+Tier 1
+5
+kg →
+₹
+20
+Tier 2
+20
+kg →
+₹
+15
+Tier 3
+21+ kg
+→
+₹
+10
+Description — Growing notes
+Organic
+7/500
+
+Photo (optional)
+Preview×
+Buyers will see this on the product card
+
+Quality parameters (optional)
+BRIX reading
+
+8.5
+Soil Organic Carbon %
+
+2.1
+Preview
+Save changesOnion
+Onion
+🧑‍🌾 veerendra
+📍 gudem
+₹20/kg
+Natural / సహజం
+50 kg left / మిగిలాయి
+
++ Add to cart / చేర్చుsee here i added 50 to 500 quantity and saved the canges but still not updated in consumer secion
+
+---
+
+my npm run dev and server not opeining
