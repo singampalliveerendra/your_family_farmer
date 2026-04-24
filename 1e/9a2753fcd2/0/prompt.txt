@@ -1,0 +1,15 @@
+Fix these 3 issues:
+
+1. Rename "WhatsApp clicks" to "Orders this week / ఈ వారం ఆర్డర్లు" in farmer dashboard stats
+
+2. Fix edit produce not saving:
+   - When farmer edits existing listing from "Manage active listings", changes are not reflecting
+   - Debug the edit/update function - check if it's doing UPDATE by id in Supabase or accidentally INSERT
+   - After save, refresh the listings list immediately
+   - Show success message: "Saved / సేవ్ అయింది"
+
+3. Fix new produce not showing in consumer page:
+   - After farmer publishes a new listing, it does not appear in consumer section
+   - Check if status field is being set correctly to 'available' on publish
+   - Check if consumer page query filters by status='available' - make sure new listings pass this filter
+   - Add revalidatePath or no-store cache on consumer produce fetchonce check if iam wrong
