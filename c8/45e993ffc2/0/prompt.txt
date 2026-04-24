@@ -1,0 +1,89 @@
+after deployment the changes didnt changed
+
+---
+
+Deployment Details
+Build Failed
+Command "npm run build" exited with 1
+Created
+github/singampalliveerendra
+singampalliveerendra
+9m ago
+Status
+Error
+Latest
+Duration
+19s
+9m ago
+Environment
+Production
+Domains
+your-family-farmer-git-main-singampalliveerendras-projects.vercel.app
+your-family-farmer-bv0c5g317-singampalliveerendras-projects.vercel.app
+Source
+main
+1472dfe
+added orders board
+
+Deployment Settings
+4 Recommendations
+Build Logs
+19s
+41 lines
+Find in logs
+CtrlF
+13:49:41.485 
+✓ Compiled successfully in 7.1s
+13:49:41.489 
+  Running TypeScript ...
+13:49:46.469 
+  Finished TypeScript in 5.0s ...
+13:49:46.476 
+  Collecting page data using 1 worker ...
+13:49:46.893 
+Error: supabaseKey is required.
+13:49:46.893 
+    at module evaluation (.next/server/chunks/[root-of-the-server]__022f.gk._.js:1:1301)
+13:49:46.894 
+    at instantiateModule (.next/server/chunks/[turbopack]_runtime.js:853:9)
+13:49:46.894 
+    at instantiateRuntimeModule (.next/server/chunks/[turbopack]_runtime.js:882:12)
+13:49:46.894 
+    at getOrInstantiateRuntimeModule (.next/server/chunks/[turbopack]_runtime.js:895:12)
+13:49:46.894 
+    at Object.m (.next/server/chunks/[turbopack]_runtime.js:898:18)
+13:49:46.894 
+    at Object.<anonymous> (.next/server/app/api/farmer/update-listing/route.js:6:3)
+13:49:47.398 
+13:49:47.399 
+> Build error occurred
+13:49:47.402 
+Error: Failed to collect page data for /api/farmer/update-listing
+13:49:47.402 
+    at ignore-listed frames {
+13:49:47.403 
+  type: 'Error'
+13:49:47.403 
+}
+13:49:47.448 
+Error: Command "npm run build" exited with 1
+Deployment Summary
+Deployment Checks
+Assigning Custom Domains
+Runtime Logs
+
+View and debug runtime logs & errors
+
+Observability
+
+Monitor app health & performance
+
+Speed Insights
+
+Not Enabled
+Performance metrics from real users
+
+Web Analytics
+
+Not Enabled
+Analyze visitors & traffic in real-time
