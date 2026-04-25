@@ -1,0 +1,125 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "937d57dd63fb",
+  "session_id": "f16f9700-6f4e-4e2c-8dda-4b9be6912757",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T09:45:03.522554684Z",
+  "branch": "main",
+  "checkpoints_count": 10,
+  "files_touched": [
+    "src/app/api/reviews/route.ts",
+    "src/app/farmer/dashboard/orders/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/components/farmer/TabSection.tsx",
+    "src/components/farmer/tabs/ReviewsTab.tsx",
+    "src/components/region/RegionContent.tsx",
+    "src/components/region/tabs/BrowseProduceTab.tsx",
+    "src/components/region/tabs/FarmersTab.tsx",
+    "src/lib/translations.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-4-6",
+  "turn_id": "a74fc982b490",
+  "token_usage": {
+    "input_tokens": 74,
+    "cache_creation_tokens": 155157,
+    "cache_read_tokens": 4980006,
+    "output_tokens": 80052,
+    "api_call_count": 48
+  },
+  "session_metrics": {
+    "turn_count": 11
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T09:45:03.491048296Z",
+    "agent_lines": 1083,
+    "agent_removed": 159,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1083,
+    "total_lines_changed": 1242,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 419,
+      "agent_lines_removed": 7
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 419,
+      "agent_lines_removed": 7
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 419,
+      "agent_lines_removed": 7
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 419,
+      "agent_lines_removed": 7
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 419,
+      "agent_lines_removed": 7
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 419,
+      "agent_lines_removed": 7
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1081,
+      "agent_lines_removed": 159
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1081,
+      "agent_lines_removed": 159
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1083,
+      "agent_lines_removed": 159
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1083,
+      "agent_lines_removed": 159
+    }
+  ]
+}
