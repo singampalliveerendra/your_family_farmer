@@ -1,0 +1,67 @@
+Read all files in this project carefully and give me a complete list of:
+
+1. What features are already built
+2. What is broken or incomplete
+3. What features should be added to make this a complete farm-to-consumer platform (not a general ecommerce - only vegetables, fruits, natural produce)
+
+Focus on features that:
+- Farmers with basic smartphone knowledge can use easily
+- Work well on slow 4G Android phones
+- Are specific to fresh produce buying/selling
+- Build trust between farmer and consumer
+
+Give output as a clear list with priority: High / Medium / Low. so suggest some best ideas to implement
+
+---
+
+continue
+
+---
+
+contiue
+
+---
+
+continue
+
+---
+
+2. 📸 Photo Upload for Produce + Farm Cover
+Buyers want to see the actual vegetable before ordering. The bucket already exists in Supabase — just needs the upload button. This directly increases orders. we already added this feature right
+
+---
+
+this 5 and 1. 🔐 OTP Login (Critical)
+Right now anyone who knows a farmer's phone number can access their dashboard. This is a serious security issue. Simple WhatsApp OTP fixes it.
+
+2. 📸 Photo Upload for Produce + Farm Cover
+Buyers want to see the actual vegetable before ordering. The bucket already exists in Supabase — just needs the upload button. This directly increases orders.
+
+3. 🌾 Harvest Date per Listing
+Farmer sets "harvested today" when adding produce. Buyer sees "🟢 Picked today" or "🟡 Yesterday" on the card. This is the #1 trust signal for fresh produce buyers.
+
+4. 📅 Pickup Slot Booking
+Farmer sets available pickup times (e.g. "Saturday 8am–11am"). Buyer selects slot at checkout. Reduces 10+ WhatsApp messages just to agree on pickup time.
+
+5. 📊 Farmer Earnings Summary
+Simple dashboard card showing "This month: ₹4,200 from 12 orders." Farmers stay motivated when they can see their earnings clearly.. these two 3. 📋 Consumer Order History
+Buyer can see all past orders linked to their phone number. "You ordered from Kapil 3 times." Builds loyalty and makes reordering easy without searching again.
+
+4. 🧪 Pesticide Test Certificate Upload
+Farmer uploads photo of lab test result. Shown in Quality tab. This is the biggest trust differentiator in this region — buyers specifically look for chemical-free proof.. and farmers photo upload option .so go very step by step and dont mislead any information and the logic dont miss and dont forot to add language . and tell me what i have to do manually or externally and what you can do .
+
+---
+
+continue
+
+---
+
+i added query and tell me the process of getting twilio api process step by step
+
+---
+
+any number will work right for farmers login
+
+---
+
+can you have any other option doing it for free now
