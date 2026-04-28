@@ -1,0 +1,237 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "104b35e3c334",
+  "session_id": "9b8e5d4c-9ca5-4226-9bf7-a8c601c8e40b",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-28T13:30:59.637827088Z",
+  "branch": "main",
+  "checkpoints_count": 16,
+  "files_touched": [
+    "scripts/feature-migration.sql",
+    "src/app/api/produce/route.ts",
+    "src/app/api/produce/search/route.ts",
+    "src/app/consumer/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/app/farmer/login/page.tsx",
+    "src/app/layout.tsx",
+    "src/components/FreshnessBadge.tsx",
+    "src/components/LocationSearch.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/components/farmer/FarmCover.tsx",
+    "src/components/farmer/TabSection.tsx",
+    "src/components/farmer/TopNav.tsx",
+    "src/components/farmer/tabs/ProduceTab.tsx",
+    "src/components/farmer/tabs/QualityTab.tsx",
+    "src/components/region/RegionTopBar.tsx",
+    "src/components/region/tabs/AddFarmerTab.tsx",
+    "src/components/region/tabs/FarmersTab.tsx",
+    "src/lib/location.ts",
+    "src/lib/translations.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-4-6",
+  "turn_id": "46e640ee7329",
+  "token_usage": {
+    "input_tokens": 7577,
+    "cache_creation_tokens": 287075,
+    "cache_read_tokens": 15666753,
+    "output_tokens": 97816,
+    "api_call_count": 183
+  },
+  "session_metrics": {
+    "turn_count": 16
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-28T13:30:59.054599696Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 110,
+    "human_modified": 564,
+    "human_removed": 0,
+    "total_committed": 413,
+    "total_lines_changed": 674,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 1323,
+      "user_lines_removed": 116,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "scripts/feature-migration.sql": 40,
+        "src/app/api/auth/login/route.ts": 100,
+        "src/app/api/auth/send-otp/route.ts": 80,
+        "src/app/api/auth/verify-otp/route.ts": 88,
+        "src/app/api/produce/route.ts": 1,
+        "src/app/api/produce/search/route.ts": 1,
+        "src/app/consumer/orders/page.tsx": 202,
+        "src/app/consumer/page.tsx": 21,
+        "src/app/farmer/dashboard/page.tsx": 493,
+        "src/app/farmer/login/page.tsx": 59,
+        "src/components/consumer/Cart.tsx": 37,
+        "src/components/farmer/FarmCover.tsx": 63,
+        "src/components/farmer/tabs/ProduceTab.tsx": 3,
+        "src/components/farmer/tabs/QualityTab.tsx": 21,
+        "src/lib/translations.ts": 114
+      },
+      "user_removed_per_file": {
+        "src/app/api/produce/route.ts": 1,
+        "src/app/api/produce/search/route.ts": 1,
+        "src/app/farmer/dashboard/page.tsx": 11,
+        "src/app/farmer/login/page.tsx": 63,
+        "src/components/farmer/FarmCover.tsx": 40
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1437,
+      "agent_lines_removed": 135
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 79,
+      "user_lines_removed": 42,
+      "agent_lines_added": 1447,
+      "agent_lines_removed": 139,
+      "user_added_per_file": {
+        "src/components/farmer/TabSection.tsx": 2,
+        "src/components/farmer/tabs/ProduceTab.tsx": 77
+      },
+      "user_removed_per_file": {
+        "src/components/farmer/tabs/ProduceTab.tsx": 42
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1526,
+      "agent_lines_removed": 181
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1526,
+      "agent_lines_removed": 241
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1528,
+      "agent_lines_removed": 266
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1541,
+      "agent_lines_removed": 285
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1541,
+      "agent_lines_removed": 285
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1541,
+      "agent_lines_removed": 285
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1908,
+      "agent_lines_removed": 290
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 85,
+      "user_lines_removed": 58,
+      "agent_lines_added": 2146,
+      "agent_lines_removed": 291,
+      "user_added_per_file": {
+        "src/components/LocationSearch.tsx": 85
+      },
+      "user_removed_per_file": {
+        "src/components/LocationSearch.tsx": 58
+      }
+    },
+    {
+      "checkpoint_number": 12,
+      "user_lines_added": 85,
+      "user_lines_removed": 58,
+      "agent_lines_added": 2163,
+      "agent_lines_removed": 291,
+      "user_added_per_file": {
+        "src/components/LocationSearch.tsx": 85
+      },
+      "user_removed_per_file": {
+        "src/components/LocationSearch.tsx": 58
+      }
+    },
+    {
+      "checkpoint_number": 13,
+      "user_lines_added": 85,
+      "user_lines_removed": 58,
+      "agent_lines_added": 2163,
+      "agent_lines_removed": 291,
+      "user_added_per_file": {
+        "src/components/LocationSearch.tsx": 85
+      },
+      "user_removed_per_file": {
+        "src/components/LocationSearch.tsx": 58
+      }
+    },
+    {
+      "checkpoint_number": 14,
+      "user_lines_added": 85,
+      "user_lines_removed": 58,
+      "agent_lines_added": 2163,
+      "agent_lines_removed": 291,
+      "user_added_per_file": {
+        "src/components/LocationSearch.tsx": 85
+      },
+      "user_removed_per_file": {
+        "src/components/LocationSearch.tsx": 58
+      }
+    },
+    {
+      "checkpoint_number": 15,
+      "user_lines_added": 85,
+      "user_lines_removed": 58,
+      "agent_lines_added": 2163,
+      "agent_lines_removed": 291,
+      "user_added_per_file": {
+        "src/components/LocationSearch.tsx": 85
+      },
+      "user_removed_per_file": {
+        "src/components/LocationSearch.tsx": 58
+      }
+    },
+    {
+      "checkpoint_number": 16,
+      "user_lines_added": 85,
+      "user_lines_removed": 58,
+      "agent_lines_added": 2208,
+      "agent_lines_removed": 297,
+      "user_added_per_file": {
+        "src/components/LocationSearch.tsx": 85
+      },
+      "user_removed_per_file": {
+        "src/components/LocationSearch.tsx": 58
+      }
+    }
+  ]
+}

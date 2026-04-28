@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "104b35e3c334",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 16,
+  "files_touched": [
+    "scripts/feature-migration.sql",
+    "src/app/api/produce/route.ts",
+    "src/app/api/produce/search/route.ts",
+    "src/app/consumer/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/app/farmer/login/page.tsx",
+    "src/app/layout.tsx",
+    "src/components/FreshnessBadge.tsx",
+    "src/components/LocationSearch.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/components/farmer/FarmCover.tsx",
+    "src/components/farmer/TabSection.tsx",
+    "src/components/farmer/TopNav.tsx",
+    "src/components/farmer/tabs/ProduceTab.tsx",
+    "src/components/farmer/tabs/QualityTab.tsx",
+    "src/components/region/RegionTopBar.tsx",
+    "src/components/region/tabs/AddFarmerTab.tsx",
+    "src/components/region/tabs/FarmersTab.tsx",
+    "src/lib/location.ts",
+    "src/lib/translations.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/10/4b35e3c334/0/metadata.json",
+      "transcript": "/10/4b35e3c334/0/full.jsonl",
+      "content_hash": "/10/4b35e3c334/0/content_hash.txt",
+      "prompt": "/10/4b35e3c334/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 7577,
+    "cache_creation_tokens": 287075,
+    "cache_read_tokens": 15666753,
+    "output_tokens": 97816,
+    "api_call_count": 183
+  }
+}

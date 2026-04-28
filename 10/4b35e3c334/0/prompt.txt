@@ -1,0 +1,458 @@
+Add Cash on Delivery (COD) payment option to checkout:
+
+1. In cart/checkout replace the current WhatsApp button flow with:
+   - Payment method selection:
+     * "Cash on Delivery / నగదు చెల్లింపు" (active, selectable)
+     * "UPI Payment / యూపీఐ చెల్లింపు" (show as "Coming soon / త్వరలో వస్తుంది", disabled/greyed out)
+
+2. When consumer selects COD and clicks confirm:
+   - Save order to Supabase orders table with payment_method='cod' and payment_status='pending'
+   - Then open WhatsApp with pre-filled message that includes:
+     "Payment: Cash on Delivery / చెల్లింపు: నగదు డెలివరీ సమయంలో"
+
+3. Add payment_method and payment_status columns to orders table:
+   ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method text DEFAULT 'cod';
+   ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_status text DEFAULT 'pending';
+
+4. Show payment method on farmer dashboard order cards:
+   - "COD / నగదు" badge on each order card
+   - When farmer approves order, they can mark as "Payment received / చెల్లింపు అందింది"
+   - This updates payment_status to 'completed' in Supabase
+
+5. Keep UPI code ready but hidden - just show coming soon label for now. dont forgot add telugu
+
+---
+
+Pending orders need your response
+
+View history →
+Today
+This week
+This month
+📭
+No pending orders
+
+New orders will appear hereagain not gettign  the requests . and 2nd bug veerendra@DESKTOP-A42QL39:~/farmer/yourfamilyfarmer$ npm run dev
+
+> yourfamilyfarmer@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.4 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://10.255.255.254:3000
+- Environments: .env.local
+✓ Ready in 564ms
+
+ GET / 307 in 495ms (next.js: 273ms, application-code: 222ms)
+ GET /consumer 200 in 204ms (next.js: 24ms, application-code: 180ms)
+ GET /api/produce?status=coming_soon 200 in 2.0s (next.js: 5ms, application-code: 1995ms)
+ GET /api/produce 200 in 2.4s (next.js: 116ms, application-code: 2.3s)
+ GET /farmer/dashboard 200 in 71ms (next.js: 24ms, application-code: 47ms)
+ GET /api/produce?status=coming_soon 200 in 372ms (next.js: 11ms, application-code: 361ms)
+ GET /api/produce?status=coming_soon 200 in 603ms (next.js: 18ms, application-code: 584ms)
+ GET /api/produce 200 in 620ms (next.js: 25ms, application-code: 595ms)
+ GET /api/produce 200 in 816ms (next.js: 12ms, application-code: 803ms)
+[browser] [YFF] Order save failed: Could not find the 'payment_method' column of 'orders' in the schema cache null null
+    at <unknown> (src/components/consumer/Cart.tsx:265:28)
+  263 |         payment_status: 'pending',
+  264 |       }).then(({ error }) => {
+> 265 |         if (error) console.error('[YFF] Order save failed:', error.message, error.details, error.hint)
+      |                            ^
+  266 |       })
+  267 |     }
+  268 | (src/components/consumer/Cart.tsx:265:28)
+ GET /api/produce?status=coming_soon 200 in 683ms (next.js: 16ms, application-code: 668ms)
+ GET /api/produce 200 in 879ms (next.js: 7ms, application-code: 872ms)
+ GET /farmer/dashboard 200 in 50ms (next.js: 8ms, application-code: 42ms)
+ GET /api/produce 200 in 963ms (next.js: 3ms, application-code: 960ms)
+ GET /api/produce?status=coming_soon 200 in 1007ms (next.js: 12ms, application-code: 994ms)
+ GET /api/produce?status=coming_soon 200 in 623ms (next.js: 7ms, application-code: 616ms)
+ GET /api/produce 200 in 742ms (next.js: 2ms, application-code: 740ms)
+[browser] [YFF] Order save failed: Could not find the 'payment_method' column of 'orders' in the schema cache null null
+    at <unknown> (src/components/consumer/Cart.tsx:265:28)
+  263 |         payment_status: 'pending',
+  264 |       }).then(({ error }) => {
+> 265 |         if (error) console.error('[YFF] Order save failed:', error.message, error.details, error.hint)
+      |                            ^
+  266 |       })
+  267 |     }
+  268 | (src/components/consumer/Cart.tsx:265:28)
+ GET /api/produce?status=coming_soon 200 in 3.9s (next.js: 3ms, application-code: 3.9s)
+ GET /api/produce 200 in 4.2s (next.js: 5ms, application-code: 4.2s)
+[browser] [YFF] Order save failed: Could not find the 'payment_method' column of 'orders' in the schema cache null null
+    at <unknown> (src/components/consumer/Cart.tsx:265:28)
+  263 |         payment_status: 'pending',
+  264 |       }).then(({ error }) => {
+> 265 |         if (error) console.error('[YFF] Order save failed:', error.message, error.details, error.hint)
+      |                            ^
+  266 |       })
+  267 |     }
+  268 | (src/components/consumer/Cart.tsx:265:28)
+ GET /api/produce?status=coming_soon 200 in 1088ms (next.js: 13ms, application-code: 1075ms)
+ GET /api/produce 200 in 1296ms (next.js: 49ms, application-code: 1248ms)
+ GET /farmer/dashboard 200 in 63ms (next.js: 13ms, application-code: 50ms)
+ GET /farmer/dashboard/orders 200 in 158ms (next.js: 108ms, application-code: 50ms)
+ GET /api/produce?status=coming_soon 200 in 619ms (next.js: 6ms, application-code: 613ms)
+ GET /api/produce?status=coming_soon 200 in 830ms (next.js: 20ms, application-code: 810ms)
+ GET /api/produce 200 in 863ms (next.js: 14ms, application-code: 850ms)
+ GET /api/produce 200 in 1404ms (next.js: 10ms, application-code: 1394ms)
+[browser] [YFF] Order save failed: Could not find the 'payment_method' column of 'orders' in the schema cache null null
+    at <unknown> (src/components/consumer/Cart.tsx:265:28)
+  263 |         payment_status: 'pending',
+  264 |       }).then(({ error }) => {
+> 265 |         if (error) console.error('[YFF] Order save failed:', error.message, error.details, error.hint)
+      |                            ^
+  266 |       })
+  267 |     }
+  268 | (src/components/consumer/Cart.tsx:265:28)
+ GET /api/produce?status=coming_soon 200 in 397ms (next.js: 7ms, application-code: 391ms)
+ GET /api/produce 200 in 695ms (next.js: 4ms, application-code: 690ms)
+ GET /farmer/dashboard 200 in 66ms (next.js: 9ms, application-code: 57ms)
+
+---
+
+Back / వెనక్కు
+EN
+తె
+Home / హోమ్
+veerendra's farmNatural farm / సహజ పొలం · since 2008
+veerendra
+veerendra
+gudem, vizag, Andhra Pradesh
+
+✓ Following
+18
+Years farming
+5 ★
+Star rating
+2
+Buyers
+0
+Chemicals
+1
+Produce now
+Story
+Produce
+Quality
+Reviews
+Farm
+Available now
+strawberry
+strawberry
+natural
+
+200 kg left
+natural
+very tasty and natural
+
+1–19 kg: ₹250
+20–20 kg: ₹230
+21+ kg: ₹197
+Order via WhatsApp . in farmers profile also when user click order from whats it have to redirect to cart and details
+
+---
+
+<task-notification>
+<task-id>bwh5rgv38</task-id>
+<tool-use-id>toolu_01Hh5RjvbYRxxKv1TM8kNUuK</tool-use-id>
+<output-file>/tmp/claude-1000/-home-veerendra-farmer-yourfamilyfarmer/9b8e5d4c-9ca5-4226-9bf7-a8c601c8e40b/tasks/bwh5rgv38.output</output-file>
+<status>completed</status>
+<summary>Background command "npm run build 2&gt;&amp;1 | tail -35" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+📱
+WhatsApp onboarding
+Share a WhatsApp link with the farmer. They answer 5 simple questions in Telugu and their profile goes live within 2 hours.
+
+Share onboarding link
+👥
+Refer a farmer
+Know a natural farmer nearby? Share their name and number with us. We will onboard them and credit you as a referrer.
+
+Refer via WhatsApp
+🌾
+Are you a farmer?
+Sell your natural produce directly to local buyers. No middlemen. Set your own prices. Get paid directly.
+
+Join as a farmer. remove this options
+
+---
+
+Home / హోమ్.. remove these hoe option every where
+
+---
+
+Back / వెనక్కు
+EN
+తె
+veerendra's farmNatural farm / సహజ పొలం · since 2008
+veerendra
+veerendra
+gudem, vizag, Andhra Pradesh
+
+✓ Following
+18
+Years farming
+5 ★
+Star rating
+2
+Buyers
+0
+Chemicals
+1
+Produce now
+Story
+Produce
+Quality
+Reviews
+Farm
+Available now
+strawberry
+strawberry
+natural
+
+200 kg left
+natural
+very tasty and natural
+
+1–19 kg: ₹250
+20–20 kg: ₹230
+21+ kg: ₹197
+
++
+Add to cart / బుట్టకు చేర్చండి . after clicking back why its goint to this page YourFamilyFarmer
+Tadepalligudem
+EN
+తె
+Natural food from farmers near you
+West Godavari district / జిల్లా · Krishna river belt
+
+4
+
+Active farmers
+
+8
+
+Produce listed
+
+0
+
+Middlemen
+
+All
+Vegetables
+Fruits
+Leafy greens
+Natural only
+Natural farmers within 25 km · West Godavari
+
+Krishna River
+KA
+YA
+VE
+TA
++
+invite farmer
+Tadepalligudem
+Farmers
+Browse produce
+Add a farmer
+Search farmers...
+Newest
+Top rated
+KA
+Kapil Korlepara
+co-founder
+Tadepalligudem · 14 yrs farming
+
+★
+★
+★
+★
+★
+4.9
+· 43 buyers
+🫒 Pickle Mango
+🌿 Pulla Gongoora
+🥭 Papaya
+🍌 Bananas
++2 more
+🌱 Natural farming
+View shop
+YA
+Yadagiri
+new
+Tadepalligudem · 16 yrs farming
+
+🌱 Natural farming
+View shop
+VE
+veerendra
+gudem · 18 yrs farming
+
+★
+★
+★
+★
+★
+5.0
+· 2 buyers
+🌿 strawberry
+🌱 Natural farming
+View shop
+TA
+tagore
+new
+gajuwaka · 16 yrs farming
+
+🌿 papaya
+🌱 Natural farming
+View shop
+Know a natural farmer nearby?
+
+Help them reach more buyers
+
+Add a farmer → .please fix that . give any suggestion for nearby locations produces and farmers
+
+---
+
+Add complete location system for both farmer and consumer:
+
+1. Supabase setup:
+   ALTER TABLE farmers ADD COLUMN IF NOT EXISTS lat numeric(10,7);
+   ALTER TABLE farmers ADD COLUMN IF NOT EXISTS lng numeric(10,7);
+   ALTER TABLE farmers ADD COLUMN IF NOT EXISTS location_name text;
+
+2. Consumer location (on consumer page):
+   - On first visit show location bottom sheet with two options:
+     * "Use my current location / నా లొకేషన్ వాడండి" (GPS button)
+     * "Enter location manually / చేతితో లొకేషన్ నమోదు చేయండి" (text input)
+   - Manual entry text input:
+     * As user types, call OpenStreetMap Nominatim API (free, no key needed):
+       https://nominatim.openstreetmap.org/search?q={input}&countrycodes=in&format=json&limit=5
+     * Show dropdown suggestions below input with matching location names
+     * User selects suggestion → saves lat/lng and location name to localStorage
+     * Use regex to clean input: remove special characters, trim spaces, minimum 3 chars before searching
+   - Show selected location in header: "📍 Tadepalligudem" with edit option
+   - Save to localStorage: consumer_lat, consumer_lng, consumer_location_name
+
+3. Farmer location (in farmer dashboard edit profile):
+   - Add location section with two options:
+     * "Use current location / ప్రస్తుత లొకేషన్" (GPS button)  
+     * "Search farm location / పొలం లొకేషన్ వెతకండి" (text input with suggestions)
+   - Same Nominatim autocomplete as consumer
+   - Regex validation: only allow letters, numbers, spaces, commas
+   - Save lat, lng, location_name to farmers table in Supabase
+   - Show on dashboard: "📍 Farm location set / పొలం లొకేషన్ సెట్ అయింది" confirmation
+
+4. Nominatim autocomplete function (reusable for both):
+   - Debounce API calls by 400ms to avoid too many requests
+   - Minimum 3 characters before searching
+   - Regex: /^[a-zA-Z0-9\u0C00-\u0C7F\s,.-]+$/ (supports Telugu characters too)
+   - Show max 5 suggestions in dropdown
+   - Each suggestion shows: place name + district + state
+   - Loading spinner while fetching
+   - "No results found / ఫలితాలు లేవు" if empty
+
+5. Distance calculation on consumer page:
+   - Haversine formula to calculate distance between consumer and each farmer
+   - Show on produce card: "2.3 km away / 2.3 కి.మీ దూరం"
+   - Sort produce by nearest first
+   - Filter chips: "< 5 km" | "< 10 km" | "< 25 km" | "All / అన్నీ"
+
+6. If location not set:
+   - Farmer: show "Set location / లొకేషన్ పెట్టండి" banner in dashboard
+   - Consumer: show location prompt on first visit only, skip after that
+   - Produce without farmer location shows "Location not set" instead of distance. dont implemnt just tell me is this work accurately
+
+---
+
+the main problem is the consumers want nearby products so how it can be implemnt suggest best idea and this is very important from client
+
+---
+
+ok implement this
+
+---
+
+not accurate . please add manual location like enter location so it have to suggest the locations from ap and tg if farmer of cosnumer vish so it have to suggest vishakapnam like that make it very accurate without any bugs and i have to prove and satisfy in every where . if consumer select vishakatnam it have to come all produces in vishakapatnam like that .
+
+---
+
+Tadepal
+×
+No results found / ఫలితాలు లేవు
+
+Try a nearby larger town / దగ్గరలోని పెద్ద పట్టణం వెతకండి. its not that accurate some are showing and some not showing and its also even major city please improve search results
+
+---
+
+continue
+
+---
+
+how to see passwords in supabase
+
+---
+
+I'm a junior developer and tomorrow my team's Angular app goes live for 
+real farmers. I worked on specific components (title section and stepper) 
+in the Community Engagement page. The rest of the app was built by CLI/team.
+
+Please help me with a FOCUSED review of ONLY my changes:
+
+## MY COMPONENTS TO REVIEW:
+1. Community Engagement page (.ce-page, .ce-title, .ce-title-row)
+2. CE Stepper component (.ce-stepper and all its child elements)
+3. Chatbot launcher styles (.ce-chatbot-launcher)
+
+## CHECK FOR:
+
+### 1. RESPONSIVE DESIGN
+- Does it look correct on desktop (1440px)?
+- Does it look correct on tablet (768px)?
+- Does it look correct on mobile (320px-414px)?
+- Are there any horizontal scrollbars?
+- Is text readable on all screen sizes?
+
+### 2. UI MATCHES FIGMA
+- Title width and padding (1378px width, 31px sides, 36px top)
+- Stepper height (80px) and width (1378px)
+- Connector colors (rgba(174, 180, 186, 1))
+- Circle sizes and colors
+- 3px gap between circles and connectors
+
+### 3. COMMON BUGS TO CHECK
+- Title not wrapping into multiple lines
+- Stepper not getting squeezed
+- Mobile circles not too small
+- Buttons full-width on mobile
+- No content overflow issues
+- Proper spacing between sections
+
+### 4. INTEGRATION CHECK
+- My changes don't break the parent layout (.alignTabTop)
+- ::ng-deep overrides only affect what they should
+- Material stepper still works correctly
+- Chatbot button doesn't overlap content
+
+I'll share my CSS and HTML files. Please tell me:
+1. Any critical issues that need fixing TONIGHT
+2. Any quick improvements I should make
+3. What to test on real devices tomorrow. check end to end and suggest me any important feature to add and fix any bugs and . the main is optimization the ui have to be very fast and accurate so please do . tommorow we are working this app with farmers
+
+---
+
+bro all files and pages with you only right
+
+---
+
+sorry . iam asking you to check YourFamilyFarmer Next.js project only
+
+---
+
+Failed to run sql query: ERROR:  42601: syntax error at or near "NOT"
+LINE 79: CREATE POLICY IF NOT EXISTS "anon insert wa_clicks"
+                          ^
