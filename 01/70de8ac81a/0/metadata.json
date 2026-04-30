@@ -1,0 +1,211 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "0170de8ac81a",
+  "session_id": "04ac97e7-5625-4070-b169-ce6b0086562f",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-30T11:10:37.944299382Z",
+  "branch": "main",
+  "checkpoints_count": 16,
+  "files_touched": [
+    "paymentideas.txt",
+    "scripts/upi-payment.sql",
+    "src/app/consumer/orders/page.tsx",
+    "src/app/farmer/[slug]/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/components/farmer/tabs/ProduceTab.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-4-6",
+  "turn_id": "67a34b8357f3",
+  "token_usage": {
+    "input_tokens": 101,
+    "cache_creation_tokens": 120861,
+    "cache_read_tokens": 5501538,
+    "output_tokens": 53628,
+    "api_call_count": 69
+  },
+  "session_metrics": {
+    "turn_count": 16
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-30T11:10:37.915032723Z",
+    "agent_lines": 773,
+    "agent_removed": 64,
+    "human_added": 69,
+    "human_modified": 10,
+    "human_removed": 0,
+    "total_committed": 851,
+    "total_lines_changed": 916,
+    "agent_percentage": 91.37554585152839,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 5,
+      "agent_lines_removed": 2
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 5,
+      "agent_lines_removed": 2
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 5,
+      "agent_lines_removed": 2
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 5,
+      "agent_lines_removed": 2
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 5,
+      "agent_lines_removed": 2
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 5,
+      "agent_lines_removed": 2
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 7,
+      "user_lines_removed": 1,
+      "agent_lines_added": 431,
+      "agent_lines_removed": 2,
+      "user_added_per_file": {
+        "paymentideas.txt": 7
+      },
+      "user_removed_per_file": {
+        "paymentideas.txt": 1
+      }
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 8,
+      "user_lines_removed": 1,
+      "agent_lines_added": 431,
+      "agent_lines_removed": 2,
+      "user_added_per_file": {
+        "paymentideas.txt": 8
+      },
+      "user_removed_per_file": {
+        "paymentideas.txt": 1
+      }
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 8,
+      "user_lines_removed": 1,
+      "agent_lines_added": 431,
+      "agent_lines_removed": 2,
+      "user_added_per_file": {
+        "paymentideas.txt": 8
+      },
+      "user_removed_per_file": {
+        "paymentideas.txt": 1
+      }
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 8,
+      "user_lines_removed": 1,
+      "agent_lines_added": 431,
+      "agent_lines_removed": 2,
+      "user_added_per_file": {
+        "paymentideas.txt": 8
+      },
+      "user_removed_per_file": {
+        "paymentideas.txt": 1
+      }
+    },
+    {
+      "checkpoint_number": 12,
+      "user_lines_added": 8,
+      "user_lines_removed": 1,
+      "agent_lines_added": 431,
+      "agent_lines_removed": 2,
+      "user_added_per_file": {
+        "paymentideas.txt": 8
+      },
+      "user_removed_per_file": {
+        "paymentideas.txt": 1
+      }
+    },
+    {
+      "checkpoint_number": 13,
+      "user_lines_added": 8,
+      "user_lines_removed": 1,
+      "agent_lines_added": 431,
+      "agent_lines_removed": 2,
+      "user_added_per_file": {
+        "paymentideas.txt": 8
+      },
+      "user_removed_per_file": {
+        "paymentideas.txt": 1
+      }
+    },
+    {
+      "checkpoint_number": 14,
+      "user_lines_added": 8,
+      "user_lines_removed": 1,
+      "agent_lines_added": 431,
+      "agent_lines_removed": 2,
+      "user_added_per_file": {
+        "paymentideas.txt": 8
+      },
+      "user_removed_per_file": {
+        "paymentideas.txt": 1
+      }
+    },
+    {
+      "checkpoint_number": 15,
+      "user_lines_added": 8,
+      "user_lines_removed": 1,
+      "agent_lines_added": 431,
+      "agent_lines_removed": 2,
+      "user_added_per_file": {
+        "paymentideas.txt": 8
+      },
+      "user_removed_per_file": {
+        "paymentideas.txt": 1
+      }
+    },
+    {
+      "checkpoint_number": 16,
+      "user_lines_added": 8,
+      "user_lines_removed": 1,
+      "agent_lines_added": 832,
+      "agent_lines_removed": 73,
+      "user_added_per_file": {
+        "paymentideas.txt": 8
+      },
+      "user_removed_per_file": {
+        "paymentideas.txt": 1
+      }
+    }
+  ]
+}

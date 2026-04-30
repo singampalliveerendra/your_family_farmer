@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "0170de8ac81a",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 16,
+  "files_touched": [
+    "paymentideas.txt",
+    "scripts/upi-payment.sql",
+    "src/app/consumer/orders/page.tsx",
+    "src/app/farmer/[slug]/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/components/farmer/tabs/ProduceTab.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/01/70de8ac81a/0/metadata.json",
+      "transcript": "/01/70de8ac81a/0/full.jsonl",
+      "content_hash": "/01/70de8ac81a/0/content_hash.txt",
+      "prompt": "/01/70de8ac81a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 101,
+    "cache_creation_tokens": 120861,
+    "cache_read_tokens": 5501538,
+    "output_tokens": 53628,
+    "api_call_count": 69
+  }
+}

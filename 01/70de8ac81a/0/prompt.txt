@@ -1,0 +1,137 @@
+Fix farmer profile image update bug.
+
+Problem:
+When I edit my farmer profile and upload/change profile image or farm cover image, the UI still shows the old image in the farmer profile page.
+
+Goal:
+After editing profile images, the farmer profile page must immediately show the updated image.
+
+Tasks:
+1. Find the edit profile image upload code.
+2. Check where image URL is saved in Supabase/database.
+3. Ensure the new uploaded image URL replaces the old image URL in farmer profile table.
+4. Check farmer profile page data fetching.
+5. Make sure it reads the latest image URL from database, not hardcoded/default image.
+6. If browser cache is showing old image, add cache-busting like:
+   imageUrl + "?t=" + updated_at
+7. After successful save, refresh/refetch farmer profile data.
+8. If using React state, update local state immediately after save.
+9. Do not change unrelated UI.
+10. Test both:
+   - profile avatar image
+   - farm cover/banner image
+
+Expected result:
+When farmer edits profile image and clicks save, the new image appears in farmer profile immediately without showing old image.
+
+---
+
+so the client wants wants me to implement the payment gateway so tell me process and suggest very cheap and best payment gateways
+
+---
+
+ok but i have doubt before doing . how the farmer add there bank details
+
+---
+
+My Recommendation for You
+
+  Start with Option A (UPI ID on farmer profile):
+  1. Add a upi_id field to the farmer profile form
+  2. Show it on the order confirmation screen
+  3. Buyer pays directly via GPay/PhonePe
+  4. Zero payment gateway needed right now
+explain the flow in detail
+
+---
+
+manually they have to open upi and enter manually by consumers ? . and how the backend know whether they paid or no t
+
+---
+
+farmers have to collect money from razor pay?
+
+---
+
+okay send me three ideas and save it file name called paymentideas.txt so i will send it to my clients first one is without any razor pay and also add another two ideas which is eaier
+
+---
+
+okay send me three ideas and save it file name called paymentideas.txt so i will send it to my clients first one is without any razor pay and also add another two ideas which is eaier. and also add risk and comfort. and the commition per transaction and every details in detail add three ideas too
+
+---
+
+for 2nd idea farmer have to install razor pay and they withdraw their money in every weekend right
+
+---
+
+why the idea one best . tell me in single line
+
+---
+
+onother line
+
+---
+
+farmers can use easyly right
+
+---
+
+farmers can setup easyly
+
+---
+
+yes sir. and the farmers setup is very easy . correct this line
+
+---
+
+correct that line
+
+---
+
+my client said go with option one . so tell me process . have to implemnt with security and no errors
+
+---
+
+Your name / మీ పేరు
+veeru
+Your WhatsApp number / వాట్సాప్ నంబర్
++91
+7386575650
+The farmer needs this to confirm pickup time.
+పికప్ సమయం కోసం రైతుకు ఇది అవసరం.
+
+Payment method / చెల్లింపు విధానం
+
+
+💵
+Cash on Delivery / నగదు చెల్లింపు
+
+📲
+UPI Payment / యూపీఐ చెల్లింపు
+✓
+🧑‍🌾 veerendra
+
+📍 gudem
+
+Pickup
+🌿
+Coconut
+
+₹20/piece
+
+−
+1
++
+×
+Estimated total / మొత్తం
+₹20
+Pickup day / పికప్ రోజు
+Available 08:00–12:00
+
+
+Select a day / రోజు ఎంచుకోండి
+⚠️ This farmer hasn't set up UPI yet. Using Cash on Delivery.
+
+Cash on Delivery
+Clear cart / బుట్ట ఖాళీ చేయండి. i added upi id but it still showing this
