@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "90592202ef09",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "scripts/payment-qr-migration.sql",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/components/consumer/Cart.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/90/592202ef09/0/metadata.json",
+      "transcript": "/90/592202ef09/0/full.jsonl",
+      "content_hash": "/90/592202ef09/0/content_hash.txt",
+      "prompt": "/90/592202ef09/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 45,
+    "cache_creation_tokens": 100088,
+    "cache_read_tokens": 2568359,
+    "output_tokens": 36847,
+    "api_call_count": 37
+  }
+}
