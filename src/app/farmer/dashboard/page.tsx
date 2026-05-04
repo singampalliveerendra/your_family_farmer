@@ -227,9 +227,11 @@ export default function FarmerDashboard() {
 
   const handleUpdatePaymentStatus = async (orderId: string, status: 'completed' | 'failed' | 'pending') => {
     setProcessingPaidId(orderId)
-    await supabase.from('orders').update({ payment_status: status }).eq('id', orderId)
+    const update: Record<string, string> = { payment_status: status }
+    if (status === 'completed') update.status = 'approved'
+    await supabase.from('orders').update(update).eq('id', orderId)
     setPendingOrders((prev) =>
-      prev.map((o) => o.id === orderId ? { ...o, payment_status: status } : o)
+      prev.map((o) => o.id === orderId ? { ...o, payment_status: status, ...(status === 'completed' ? { status: 'approved' } : {}) } : o)
     )
     setProcessingPaidId(null)
   }

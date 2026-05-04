@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
 type PickupSlots = {
@@ -210,11 +211,17 @@ function CartSheet({
   type UpiPaymentState = {
     farmerName: string
     farmerVillage: string
+    farmerPhone: string
     upiId: string
     qrCodeUrl?: string
     amount: number
     orderIds: string[]
     farmerId: string
+    buyerName: string
+    buyerPhone: string
+    items: Array<{ name: string; variety?: string; emoji?: string; qty: number; unit?: string; pricePerKg?: number }>
+    pickupLocation?: string
+    pickupDay?: string
   }
   const [upiScreen, setUpiScreen] = useState<UpiPaymentState | null>(null)
 
@@ -380,11 +387,24 @@ function CartSheet({
     setUpiScreen({
       farmerName: f.farmerName,
       farmerVillage: f.farmerVillage,
+      farmerPhone: f.farmerPhone,
       upiId,
       qrCodeUrl,
       amount: total,
       orderIds,
       farmerId: f.farmerId,
+      buyerName: name.trim(),
+      buyerPhone: buyerPhone,
+      items: group.map((it) => ({
+        name: it.name,
+        variety: it.variety,
+        emoji: it.emoji,
+        qty: it.qty,
+        unit: it.unit,
+        pricePerKg: it.pricePerKg,
+      })),
+      pickupLocation: selectedPickup || undefined,
+      pickupDay: pickupDayByFarmer[f.farmerId] || undefined,
     })
   }
 
@@ -401,6 +421,33 @@ function CartSheet({
     clearFarmer(upiScreen.farmerId)
     setSubmittingResult(false)
     setPaidDone(true)
+
+    // Notify farmer on WhatsApp (same as COD flow)
+    const lines = upiScreen.items.map((it) => {
+      const unit = it.unit || 'kg'
+      const price = it.pricePerKg ? ` @ ₹${it.pricePerKg}/${unit}` : ''
+      return `• ${it.emoji ?? '🌿'} ${it.name}${it.variety ? ` (${it.variety})` : ''} — ${it.qty} ${unit}${price}`
+    })
+    const pickupLine = upiScreen.pickupLocation
+      ? `\n\n*Pickup location / పికప్ స్థలం:* ${upiScreen.pickupLocation} (${upiScreen.farmerVillage})`
+      : `\n\n*Pickup from your farm / మీ పొలం నుండి పికప్* (${upiScreen.farmerVillage})`
+    const dayLine = upiScreen.pickupDay ? `\n*Pickup day / రోజు:* ${upiScreen.pickupDay}` : ''
+    const utrLine = utrNote.trim() ? `\nTransaction ref / రిఫరెన్స్: ${utrNote.trim()}` : ''
+    const msg =
+      `Hello ${upiScreen.farmerName} anna! 🙏\n` +
+      `New UPI order from YourFamilyFarmer:\n\n` +
+      lines.join('\n') +
+      pickupLine +
+      dayLine +
+      `\n\n*Payment: UPI ₹${upiScreen.amount} — buyer says paid*\n` +
+      `చెల్లింపు: UPI ₹${upiScreen.amount} — కొనుగోలుదారు చెల్లించారు, మీ UPI యాప్ తనిఖీ చేయండి` +
+      utrLine +
+      `\n\nBuyer / కొనుగోలుదారు: ${upiScreen.buyerName}\n` +
+      `WhatsApp: +91 ${upiScreen.buyerPhone}\n\n` +
+      `Please confirm pickup time. / పికప్ సమయం తెలియజేయండి, ధన్యవాదాలు 🌱`
+    const digits = upiScreen.farmerPhone.replace(/\D/g, '').replace(/^0+/, '')
+    const waPhone = digits.length === 10 ? `91${digits}` : digits
+    window.open(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
   }
 
   const handleCashOnPickup = async () => {
@@ -480,9 +527,15 @@ function CartSheet({
               </p>
             </>
           )}
+          <Link
+            href="/consumer/orders"
+            className="w-full text-center text-sm font-semibold text-green-700 underline"
+          >
+            Check order status / ఆర్డర్ స్థితి చూడండి
+          </Link>
           <button
             onClick={onClose}
-            className="w-full bg-green-700 text-white font-bold py-4 rounded-xl text-base active:bg-green-800 mt-2"
+            className="w-full bg-green-700 text-white font-bold py-4 rounded-xl text-base active:bg-green-800"
           >
             Done / మూసివేయి
           </button>

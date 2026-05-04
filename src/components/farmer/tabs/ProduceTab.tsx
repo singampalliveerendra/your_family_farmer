@@ -58,7 +58,7 @@ export default function ProduceTab({
   const f = farmer as Farmer
   const { addItem } = useCart()
   const [listings, setListings] = useState<Produce[]>(produce as Produce[])
-  const available = listings.filter((p) => p.status === 'available')
+  const available = listings.filter((p) => p.status === 'available' && p.stock_qty !== 0)
   const comingSoon = listings.filter((p) => p.status === 'coming_soon')
 
   const handleProduceAdded = (newItem: Produce) => {
