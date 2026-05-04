@@ -418,13 +418,30 @@ function CartSheet({
   }
 
   const handleOpenUpiApp = () => {
-    if (!upiScreen?.upiId) return
     setShowUpiAppFallback(false)
-    const link = `upi://pay?pa=${encodeURIComponent(upiScreen.upiId)}&pn=${encodeURIComponent(upiScreen.farmerName)}&am=${upiScreen.amount}&cu=INR`
-    window.location.href = link
+    window.location.href = 'upi://pay'
     const t = setTimeout(() => setShowUpiAppFallback(true), 2500)
     const cleanup = () => { clearTimeout(t); setShowUpiAppFallback(false) }
     window.addEventListener('blur', cleanup, { once: true })
+  }
+
+  const handleDownloadQR = async () => {
+    if (!upiScreen?.qrCodeUrl) return
+    try {
+      const response = await fetch(upiScreen.qrCodeUrl)
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${upiScreen.farmerName.replace(/\s+/g, '_')}_UPI_QR.png`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      showToast('QR saved! / గ్యాలరీకి సేవ్ అయింది')
+    } catch {
+      showToast('Could not save — please screenshot the QR')
+    }
   }
 
   // Success screen — shown after I Have Paid or Cash on Pickup
@@ -503,53 +520,87 @@ function CartSheet({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={upiScreen.qrCodeUrl} alt="UPI QR Code" className="w-48 h-48 object-contain rounded-xl" />
                 <p className="text-[11px] text-gray-500 text-center">Open any UPI app → Scan QR / QR స్కాన్ చేయండి</p>
-              </div>
-            )}
-
-            {/* UPI ID + copy (if UPI ID exists) */}
-            {upiScreen.upiId && (
-              <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-gray-500 mb-0.5">UPI ID</p>
-                  <p className="font-mono text-sm font-semibold text-gray-900 break-all">{upiScreen.upiId}</p>
-                </div>
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(upiScreen.upiId).catch(() => {})
-                    showToast('UPI ID copied! / కాపీ అయింది')
-                  }}
-                  className="flex-shrink-0 bg-gray-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs active:bg-gray-900"
+                  onClick={handleDownloadQR}
+                  className="w-full border border-gray-300 text-gray-700 font-bold py-2.5 rounded-xl text-sm active:bg-gray-50 flex items-center justify-center gap-1.5 mt-1"
                 >
-                  Copy
+                  <span>⬇️</span> Save QR to Gallery / గ్యాలరీకి సేవ్ చేయండి
                 </button>
               </div>
             )}
 
-            {/* Open UPI App (only if UPI ID exists) */}
+            {/* UPI pay instructions */}
             {upiScreen.upiId && (
-              <div className="space-y-2">
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-4 space-y-3">
+                <p className="text-xs font-extrabold text-blue-800 uppercase tracking-wide">
+                  How to pay / చెల్లింపు విధానం
+                </p>
+
+                {/* Steps */}
+                <ol className="space-y-2.5">
+                  <li className="flex gap-3 items-start">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">1</span>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Copy the UPI ID below</p>
+                      <p className="text-xs text-gray-500">క్రింద ఉన్న UPI ID కాపీ చేయండి</p>
+                    </div>
+                  </li>
+                  <li className="flex gap-3 items-start">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">2</span>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Open your UPI app (PhonePe / GPay / Paytm)</p>
+                      <p className="text-xs text-gray-500">మీ UPI యాప్ తెరవండి</p>
+                    </div>
+                  </li>
+                  <li className="flex gap-3 items-start">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">3</span>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Tap &quot;Pay&quot; → &quot;Enter UPI ID&quot; → paste the ID</p>
+                      <p className="text-xs text-gray-500">&quot;Pay&quot; నొక్కి → &quot;UPI ID&quot; నమోదు చేసి → పేస్ట్ చేయండి</p>
+                    </div>
+                  </li>
+                  <li className="flex gap-3 items-start">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">4</span>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Enter ₹{upiScreen.amount} and complete payment</p>
+                      <p className="text-xs text-gray-500">₹{upiScreen.amount} నమోదు చేసి చెల్లింపు పూర్తి చేయండి</p>
+                    </div>
+                  </li>
+                </ol>
+
+                {/* UPI ID copy row */}
+                <div className="bg-white border border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-bold text-gray-500 mb-0.5 uppercase tracking-wide">UPI ID</p>
+                    <p className="font-mono text-sm font-bold text-gray-900 break-all">{upiScreen.upiId}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(upiScreen.upiId).catch(() => {})
+                      showToast('UPI ID copied! / కాపీ అయింది')
+                    }}
+                    className="flex-shrink-0 bg-blue-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs active:bg-blue-700"
+                  >
+                    Copy / కాపీ
+                  </button>
+                </div>
+
+                {/* Open UPI App button */}
                 <button
                   onClick={handleOpenUpiApp}
                   className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl text-base active:bg-blue-700 flex items-center justify-center gap-2"
                 >
                   📲 Open UPI App / UPI యాప్ తెరవండి
                 </button>
+
                 {showUpiAppFallback && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                    <p className="text-sm font-semibold text-amber-800 text-center">App did not open automatically.</p>
-                    <p className="text-xs text-amber-700 text-center mt-1">
-                      Please copy the UPI ID and pay manually using PhonePe, Google Pay, Paytm, or BHIM.
-                    </p>
-                  </div>
+                  <p className="text-xs text-blue-700 text-center">
+                    App didn&apos;t open? Copy the UPI ID and pay manually in PhonePe, GPay, or Paytm.<br />
+                    యాప్ తెరుచుకోలేదా? UPI ID కాపీ చేసి మాన్యువల్‌గా చెల్లించండి.
+                  </p>
                 )}
               </div>
             )}
-
-            {/* Instruction */}
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-center">
-              <p className="text-sm font-semibold text-amber-800">Enter the amount manually in your UPI app</p>
-              <p className="text-xs text-amber-700 mt-0.5">మీ UPI యాప్‌లో మీరే మొత్తం నమోదు చేయండి</p>
-            </div>
 
             {/* Cash on Pickup option */}
             <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 space-y-2">
