@@ -1,0 +1,11 @@
+is there features that you suggest
+
+---
+
+1. Order status page for buyers — right now after paying, buyers have no way to check their order. A simple /consumer/orders page
+  (already exists as a route) showing order status would reduce WhatsApp follow-up messages.
+  2. Farmer confirms payment — in the dashboard, show pending UPI orders with a "Mark as Confirmed" button so the farmer can
+  acknowledge payment. Right now it just sits as pending_confirmation forever.
+  3. Stock sold-out auto-hide — when stock_qty hits 0, auto-hide the listing from the farmer page without the farmer needing to log
+  in and delete it.
+add this and . i find one bug if i pay through online the order in whatsapp should me send in whatsapp i need this ites and consumer details as cod
