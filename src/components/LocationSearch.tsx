@@ -80,9 +80,11 @@ export default function LocationSearch({
   const [loading, setLoading]         = useState(false)
   const [showDrop, setShowDrop]       = useState(false)
   const [noResults, setNoResults]     = useState(false)
+  const [dropUp, setDropUp]           = useState(false)
   const abortRef     = useRef<AbortController | null>(null)
   const timerRef     = useRef<ReturnType<typeof setTimeout> | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef     = useRef<HTMLInputElement>(null)
 
   const doSearch = async (q: string) => {
     abortRef.current?.abort()
@@ -140,6 +142,26 @@ export default function LocationSearch({
     abortRef.current?.abort()
   }
 
+  // Flip dropdown upward when the keyboard shrinks the visual viewport and
+  // leaves insufficient space below the input to show results
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const update = () => {
+      if (!inputRef.current) return
+      const rect = inputRef.current.getBoundingClientRect()
+      // Pixels available between the bottom of the input and the top of the keyboard
+      const spaceBelow = vv.height + vv.offsetTop - rect.bottom
+      setDropUp(spaceBelow < 220)
+    }
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
+  }, [])
+
   // Close on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -166,6 +188,7 @@ export default function LocationSearch({
           <path d="m21 21-4.35-4.35" />
         </svg>
         <input
+          ref={inputRef}
           type="text"
           value={query}
           onChange={handleChange}
@@ -193,7 +216,7 @@ export default function LocationSearch({
 
       {/* Suggestions dropdown */}
       {showDrop && suggestions.length > 0 && (
-        <div className="absolute z-30 top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-xl mt-1 overflow-hidden max-h-64 overflow-y-auto">
+        <div className={`absolute z-30 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto ${dropUp ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
           {suggestions.map((s, i) => (
             <button
               key={i}
@@ -212,7 +235,7 @@ export default function LocationSearch({
 
       {/* No results */}
       {showDrop && noResults && !loading && (
-        <div className="absolute z-30 top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-xl mt-1 px-4 py-4 text-center">
+        <div className={`absolute z-30 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-xl px-4 py-4 text-center ${dropUp ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
           <p className="text-sm font-semibold text-gray-600">
             No results / ఫలితాలు లేవు
           </p>

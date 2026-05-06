@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
@@ -42,6 +42,8 @@ export type ConsumerInfo = { name: string; phone: string }
 const CART_KEY = 'yff_cart_v1'
 const CONSUMER_KEY = 'yff_consumer_v1'
 const CART_EVENT = 'yff:cart-change'
+const UPI_PENDING_KEY = 'yff_upi_pending_v1'
+const UPI_LAUNCHED_KEY = 'yff_upi_launched_v1'
 
 const readCart = (): CartState => {
   if (typeof window === 'undefined') return {}
@@ -151,10 +153,40 @@ export function useConsumerInfo() {
   return { info, save }
 }
 
+type UpiPaymentState = {
+  farmerName: string
+  farmerVillage: string
+  farmerPhone: string
+  upiId: string
+  qrCodeUrl?: string
+  amount: number
+  orderIds: string[]
+  farmerId: string
+  buyerName: string
+  buyerPhone: string
+  items: Array<{ name: string; variety?: string; emoji?: string; qty: number; unit?: string; pricePerKg?: number }>
+  pickupLocation?: string
+  pickupDay?: string
+}
+
 /* ─── Cart FAB + Sheet ───────────────────────────────── */
 export function CartFab() {
   const { items, count } = useCart()
   const [open, setOpen] = useState(false)
+
+  // Auto-open if a UPI payment was in progress (handles page refresh mid-payment)
+  useEffect(() => {
+    const pending = localStorage.getItem(UPI_PENDING_KEY)
+    const launched = localStorage.getItem(UPI_LAUNCHED_KEY)
+    if (pending && launched) setOpen(true)
+  }, [])
+
+  const handleClose = () => {
+    // Wipe both UPI keys — user is explicitly closing, whatever the payment state
+    localStorage.removeItem(UPI_LAUNCHED_KEY)
+    localStorage.removeItem(UPI_PENDING_KEY)
+    setOpen(false)
+  }
 
   if (count === 0 && !open) return null
 
@@ -163,7 +195,7 @@ export function CartFab() {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-6 right-4 z-40 bg-green-700 active:bg-green-800 text-white rounded-full shadow-2xl flex items-center gap-2 pl-4 pr-5 py-3.5"
+          className="fixed bottom-6 right-4 z-[60] bg-green-700 active:bg-green-800 text-white rounded-full shadow-2xl flex items-center gap-2 pl-4 pr-5 py-3.5"
           style={{ bottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}
           aria-label="View cart"
         >
@@ -174,7 +206,7 @@ export function CartFab() {
         </button>
       )}
       {open && (
-        <CartSheet items={items} onClose={() => setOpen(false)} />
+        <CartSheet items={items} onClose={handleClose} />
       )}
     </>
   )
@@ -192,7 +224,8 @@ function CartSheet({
   const { info, save: saveInfo } = useConsumerInfo()
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'upi'>('cod')
+  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'upi'>('upi')
+  const [showMorePayment, setShowMorePayment] = useState(false)
   const [sentFarmers, setSentFarmers] = useState<Record<string, boolean>>({})
   const [pickupByFarmer, setPickupByFarmer] = useState<Record<string, string>>({})
   const [pickupDayByFarmer, setPickupDayByFarmer] = useState<Record<string, string>>({})
@@ -207,28 +240,97 @@ function CartSheet({
   const [utrNote, setUtrNote] = useState('')
   const [cashMode, setCashMode] = useState(false)
   const [switchingToCash, setSwitchingToCash] = useState(false)
-
-  type UpiPaymentState = {
-    farmerName: string
-    farmerVillage: string
-    farmerPhone: string
-    upiId: string
-    qrCodeUrl?: string
-    amount: number
-    orderIds: string[]
-    farmerId: string
-    buyerName: string
-    buyerPhone: string
-    items: Array<{ name: string; variety?: string; emoji?: string; qty: number; unit?: string; pricePerKg?: number }>
-    pickupLocation?: string
-    pickupDay?: string
-  }
   const [upiScreen, setUpiScreen] = useState<UpiPaymentState | null>(null)
 
-  const showToast = (msg: string) => {
-    setToast(msg)
-    setTimeout(() => setToast(''), 3000)
-  }
+  // Refs for use inside event listeners (avoids stale closures)
+  const upiScreenRef = useRef<UpiPaymentState | null>(null)
+  const autoTriggeredRef = useRef(false)
+
+  useEffect(() => { upiScreenRef.current = upiScreen }, [upiScreen])
+
+  // Core action: update DB status, clear cart, open WhatsApp, show success
+  const triggerPostPayment = useCallback(async (screen: UpiPaymentState, utrRef: string) => {
+    setSubmittingResult(true)
+    const updateData: Record<string, unknown> = { payment_status: 'pending_confirmation' }
+    if (utrRef.trim()) updateData.utr_number = utrRef.trim()
+    await Promise.all(
+      screen.orderIds.map((id) =>
+        supabase.from('orders').update(updateData).eq('id', id)
+      )
+    )
+    clearFarmer(screen.farmerId)
+    localStorage.removeItem(UPI_PENDING_KEY)
+    localStorage.removeItem(UPI_LAUNCHED_KEY)
+    setSubmittingResult(false)
+    setPaidDone(true)
+
+    const lines = screen.items.map((it) => {
+      const unit = it.unit || 'kg'
+      const price = it.pricePerKg ? ` @ ₹${it.pricePerKg}/${unit}` : ''
+      return `• ${it.emoji ?? '🌿'} ${it.name}${it.variety ? ` (${it.variety})` : ''} — ${it.qty} ${unit}${price}`
+    })
+    const pickupLine = screen.pickupLocation
+      ? `\n\n*Pickup location / పికప్ స్థలం:* ${screen.pickupLocation} (${screen.farmerVillage})`
+      : `\n\n*Pickup from your farm / మీ పొలం నుండి పికప్* (${screen.farmerVillage})`
+    const dayLine = screen.pickupDay ? `\n*Pickup day / రోజు:* ${screen.pickupDay}` : ''
+    const utrLine = utrRef.trim() ? `\nTransaction ref / రిఫరెన్స్: ${utrRef.trim()}` : ''
+    const msg =
+      `Hello ${screen.farmerName} anna! 🙏\n` +
+      `New UPI order from YourFamilyFarmer:\n\n` +
+      lines.join('\n') +
+      pickupLine +
+      dayLine +
+      `\n\n*Payment: UPI ₹${screen.amount} — buyer says paid*\n` +
+      `చెల్లింపు: UPI ₹${screen.amount} — కొనుగోలుదారు చెల్లించారు, మీ UPI యాప్ తనిఖీ చేయండి` +
+      utrLine +
+      `\n\nBuyer / కొనుగోలుదారు: ${screen.buyerName}\n` +
+      `WhatsApp: +91 ${screen.buyerPhone}\n\n` +
+      `Please confirm pickup time. / పికప్ సమయం తెలియజేయండి, ధన్యవాదాలు 🌱`
+    const digits = screen.farmerPhone.replace(/\D/g, '').replace(/^0+/, '')
+    const waPhone = digits.length === 10 ? `91${digits}` : digits
+    window.open(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
+  }, [clearFarmer])
+
+  // Keep a ref to triggerPostPayment so visibilitychange handler is never stale
+  const triggerPostPaymentRef = useRef(triggerPostPayment)
+  useEffect(() => { triggerPostPaymentRef.current = triggerPostPayment }, [triggerPostPayment])
+
+  // On mount: only restore payment screen when UPI app was actually launched.
+  // If launched is missing the user just viewed (or closed) the payment screen — don't restore.
+  useEffect(() => {
+    const pending = localStorage.getItem(UPI_PENDING_KEY)
+    const launched = localStorage.getItem(UPI_LAUNCHED_KEY)
+    if (!pending || !launched) return
+    try {
+      const saved = JSON.parse(pending) as UpiPaymentState
+      setUpiScreen(saved)
+      if (!autoTriggeredRef.current) {
+        autoTriggeredRef.current = true
+        triggerPostPayment(saved, '')
+      }
+    } catch { /* ignore corrupt data */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // intentionally runs once on mount only
+
+  // Persist upiScreen to localStorage whenever it changes
+  useEffect(() => {
+    if (upiScreen) localStorage.setItem(UPI_PENDING_KEY, JSON.stringify(upiScreen))
+  }, [upiScreen])
+
+  // When user returns from UPI app (no page reload): auto-trigger WhatsApp
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return
+      if (!localStorage.getItem(UPI_LAUNCHED_KEY)) return
+      if (autoTriggeredRef.current) return
+      const screen = upiScreenRef.current
+      if (!screen) return
+      autoTriggeredRef.current = true
+      triggerPostPaymentRef.current(screen, '')
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [])
 
   // Fetch latest UPI IDs and QR codes for all farmers in cart when sheet opens
   useEffect(() => {
@@ -264,6 +366,11 @@ function CartSheet({
   const farmerGroups = Object.values(byFarmer)
 
   const detailsMissing = !name.trim() || phone.replace(/\D/g, '').length < 10
+
+  const showToast = (msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(''), 3000)
+  }
 
   // COD flow: save order + open WhatsApp (existing behaviour)
   const handleCodOrderFarmer = (group: CartItem[]) => {
@@ -346,19 +453,19 @@ function CartSheet({
 
     const selectedPickup = pickupByFarmer[f.farmerId] || null
     const buyerPhone = phone.replace(/\D/g, '').slice(-10)
-    const orderIds: string[] = []
-    let total = 0
 
-    for (const it of group) {
-      const price = it.pricePerKg ? Math.round(it.pricePerKg * it.qty) : null
-      if (price) total += price
+    // Pre-calculate total and guard — UPI payment with ₹0 is meaningless
+    const total = group.reduce((s, it) => s + (it.pricePerKg ? Math.round(it.pricePerKg * it.qty) : 0), 0)
+    if (total === 0) {
+      setPlacingUpiOrder(null)
+      showToast('Price not set — message the farmer first / రైతుని ధర అడగండి')
+      return
     }
 
-    total = 0
+    const orderIds: string[] = []
 
     for (const it of group) {
       const price = it.pricePerKg ? Math.round(it.pricePerKg * it.qty) : null
-      if (price) total += price
       const { data, error } = await supabase.from('orders').insert({
         farmer_id: it.farmerId,
         produce_listing_id: it.listingId,
@@ -384,6 +491,7 @@ function CartSheet({
       return
     }
 
+    autoTriggeredRef.current = false
     setUpiScreen({
       farmerName: f.farmerName,
       farmerVillage: f.farmerVillage,
@@ -410,44 +518,7 @@ function CartSheet({
 
   const handlePaymentSuccess = async () => {
     if (!upiScreen) return
-    setSubmittingResult(true)
-    const updateData: Record<string, unknown> = { payment_status: 'pending_confirmation' }
-    if (utrNote.trim()) updateData.utr_number = utrNote.trim()
-    await Promise.all(
-      upiScreen.orderIds.map((id) =>
-        supabase.from('orders').update(updateData).eq('id', id)
-      )
-    )
-    clearFarmer(upiScreen.farmerId)
-    setSubmittingResult(false)
-    setPaidDone(true)
-
-    // Notify farmer on WhatsApp (same as COD flow)
-    const lines = upiScreen.items.map((it) => {
-      const unit = it.unit || 'kg'
-      const price = it.pricePerKg ? ` @ ₹${it.pricePerKg}/${unit}` : ''
-      return `• ${it.emoji ?? '🌿'} ${it.name}${it.variety ? ` (${it.variety})` : ''} — ${it.qty} ${unit}${price}`
-    })
-    const pickupLine = upiScreen.pickupLocation
-      ? `\n\n*Pickup location / పికప్ స్థలం:* ${upiScreen.pickupLocation} (${upiScreen.farmerVillage})`
-      : `\n\n*Pickup from your farm / మీ పొలం నుండి పికప్* (${upiScreen.farmerVillage})`
-    const dayLine = upiScreen.pickupDay ? `\n*Pickup day / రోజు:* ${upiScreen.pickupDay}` : ''
-    const utrLine = utrNote.trim() ? `\nTransaction ref / రిఫరెన్స్: ${utrNote.trim()}` : ''
-    const msg =
-      `Hello ${upiScreen.farmerName} anna! 🙏\n` +
-      `New UPI order from YourFamilyFarmer:\n\n` +
-      lines.join('\n') +
-      pickupLine +
-      dayLine +
-      `\n\n*Payment: UPI ₹${upiScreen.amount} — buyer says paid*\n` +
-      `చెల్లింపు: UPI ₹${upiScreen.amount} — కొనుగోలుదారు చెల్లించారు, మీ UPI యాప్ తనిఖీ చేయండి` +
-      utrLine +
-      `\n\nBuyer / కొనుగోలుదారు: ${upiScreen.buyerName}\n` +
-      `WhatsApp: +91 ${upiScreen.buyerPhone}\n\n` +
-      `Please confirm pickup time. / పికప్ సమయం తెలియజేయండి, ధన్యవాదాలు 🌱`
-    const digits = upiScreen.farmerPhone.replace(/\D/g, '').replace(/^0+/, '')
-    const waPhone = digits.length === 10 ? `91${digits}` : digits
-    window.open(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
+    await triggerPostPayment(upiScreen, utrNote)
   }
 
   const handleCashOnPickup = async () => {
@@ -459,17 +530,25 @@ function CartSheet({
       )
     )
     clearFarmer(upiScreen.farmerId)
+    localStorage.removeItem(UPI_PENDING_KEY)
+    localStorage.removeItem(UPI_LAUNCHED_KEY)
     setSwitchingToCash(false)
     setCashMode(true)
     setPaidDone(true)
   }
 
   const handleOpenUpiApp = () => {
+    localStorage.setItem(UPI_LAUNCHED_KEY, '1')
     setShowUpiAppFallback(false)
-    window.location.href = 'upi://pay'
-    const t = setTimeout(() => setShowUpiAppFallback(true), 2500)
-    const cleanup = () => { clearTimeout(t); setShowUpiAppFallback(false) }
-    window.addEventListener('blur', cleanup, { once: true })
+    // target="_blank" keeps the current page alive when the OS hands off to the UPI app
+    const a = document.createElement('a')
+    a.href = 'upi://pay'
+    a.target = '_blank'
+    a.rel = 'noopener noreferrer'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => setShowUpiAppFallback(true), 2500)
   }
 
   const handleDownloadQR = async () => {
@@ -494,7 +573,7 @@ function CartSheet({
   // Success screen — shown after I Have Paid or Cash on Pickup
   if (upiScreen && paidDone) {
     return (
-      <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center">
+      <div className="fixed inset-0 z-[200] bg-black/50 flex items-end justify-center">
         <div className="bg-white w-full max-w-md rounded-t-3xl px-6 py-10 flex flex-col items-center text-center gap-4">
           <div className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl ${cashMode ? 'bg-amber-100' : 'bg-green-100'}`}>
             {cashMode ? '💵' : '✓'}
@@ -547,7 +626,7 @@ function CartSheet({
   // Payment screen shown after placing an order
   if (upiScreen) {
     return (
-      <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center">
+      <div className="fixed inset-0 z-[200] bg-black/50 flex items-end justify-center">
         <div className="bg-white w-full max-w-md rounded-t-3xl max-h-[92vh] flex flex-col">
           <div className="sticky top-0 bg-white flex items-center justify-between px-4 py-3 border-b border-gray-100 rounded-t-3xl">
             <div>
@@ -655,19 +734,6 @@ function CartSheet({
               </div>
             )}
 
-            {/* Cash on Pickup option */}
-            <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 space-y-2">
-              <p className="text-sm font-bold text-gray-700">💵 Prefer Cash on Pickup? / నగదు చెల్లించాలా?</p>
-              <p className="text-xs text-gray-500">Pay cash directly to the farmer when you collect your order.</p>
-              <button
-                onClick={handleCashOnPickup}
-                disabled={switchingToCash || submittingResult}
-                className="w-full border-2 border-gray-300 text-gray-700 font-bold py-3 rounded-xl text-sm active:bg-gray-100 disabled:opacity-50"
-              >
-                {switchingToCash ? 'Switching... / మారుతోంది' : 'Switch to Cash on Pickup / నగదు పికప్‌కు మారండి'}
-              </button>
-            </div>
-
             {/* Optional transaction note */}
             <div>
               <label className="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1.5">
@@ -686,7 +752,7 @@ function CartSheet({
             {/* I Have Paid */}
             <button
               onClick={handlePaymentSuccess}
-              disabled={submittingResult || switchingToCash}
+              disabled={submittingResult}
               className="w-full bg-green-700 text-white font-bold py-4 rounded-xl text-base disabled:opacity-50 active:bg-green-800"
             >
               {submittingResult ? 'Saving...' : '✓ I Have Paid / చెల్లించాను'}
@@ -698,10 +764,10 @@ function CartSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center">
+    <div className="fixed inset-0 z-[200] bg-black/50 flex items-end justify-center">
       {/* Toast */}
       {toast && (
-        <div className="fixed top-5 left-0 right-0 flex justify-center z-[60] pointer-events-none px-4">
+        <div className="fixed top-5 left-0 right-0 flex justify-center z-[210] pointer-events-none px-4">
           <div className="bg-gray-900 text-white text-sm font-semibold px-5 py-2.5 rounded-full shadow-xl">
             {toast}
           </div>
@@ -774,22 +840,6 @@ function CartSheet({
                   Payment method / చెల్లింపు విధానం
                 </p>
                 <button
-                  onClick={() => setPaymentMethod('cod')}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-sm font-bold transition-colors ${
-                    paymentMethod === 'cod'
-                      ? 'border-green-600 bg-green-50 text-green-900'
-                      : 'border-gray-200 bg-white text-gray-700'
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="text-base">💵</span>
-                    Cash on Delivery / నగదు చెల్లింపు
-                  </span>
-                  {paymentMethod === 'cod' && (
-                    <span className="text-green-600 text-base">✓</span>
-                  )}
-                </button>
-                <button
                   onClick={() => setPaymentMethod('upi')}
                   className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-sm font-bold transition-colors ${
                     paymentMethod === 'upi'
@@ -805,6 +855,31 @@ function CartSheet({
                     <span className="text-blue-600 text-base">✓</span>
                   )}
                 </button>
+                {showMorePayment ? (
+                  <button
+                    onClick={() => setPaymentMethod('cod')}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-sm font-bold transition-colors ${
+                      paymentMethod === 'cod'
+                        ? 'border-green-600 bg-green-50 text-green-900'
+                        : 'border-gray-200 bg-white text-gray-700'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="text-base">💵</span>
+                      Cash on Delivery / నగదు చెల్లింపు
+                    </span>
+                    {paymentMethod === 'cod' && (
+                      <span className="text-green-600 text-base">✓</span>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowMorePayment(true)}
+                    className="w-full text-xs text-gray-400 py-1 text-center active:text-gray-600"
+                  >
+                    + More options / మరిన్ని ఎంపికలు
+                  </button>
+                )}
               </div>
 
               {/* Farmer groups */}

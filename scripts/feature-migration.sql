@@ -65,7 +65,11 @@ CREATE TABLE IF NOT EXISTS media (
 CREATE INDEX IF NOT EXISTS idx_media_farmer_id ON media(farmer_id);
 CREATE INDEX IF NOT EXISTS idx_media_type      ON media(type);
 
--- 11. WhatsApp click analytics (insert-only, no auth needed)
+-- 11. Reviewer phone for duplicate-review prevention
+ALTER TABLE reviews ADD COLUMN IF NOT EXISTS reviewer_phone text;
+CREATE INDEX IF NOT EXISTS idx_reviews_farmer_phone ON reviews(farmer_id, reviewer_phone);
+
+-- 12. WhatsApp click analytics (insert-only, no auth needed)
 CREATE TABLE IF NOT EXISTS wa_clicks (
   id         uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
   farmer_id  uuid        REFERENCES farmers(id) ON DELETE SET NULL,

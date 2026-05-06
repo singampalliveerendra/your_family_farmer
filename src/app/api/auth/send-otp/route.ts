@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
   const smsJson = await smsRes.json().catch(() => ({}))
   if (smsJson.return === false) {
     return NextResponse.json(
-      { error: smsJson.message?.[0] ?? 'Failed to send OTP. Please try again.' },
+      { error: 'OTP service is temporarily unavailable. Please use password login instead.' },
       { status: 502 },
     )
   }

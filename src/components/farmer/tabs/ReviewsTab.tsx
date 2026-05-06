@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLang } from '@/lib/LanguageContext'
 
 type Review = {
@@ -32,6 +32,11 @@ export default function ReviewsTab({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
+
+  // Restore already-reviewed state from localStorage on mount
+  useEffect(() => {
+    if (localStorage.getItem(`yff_reviewed_${farmerId}`)) setDone(true)
+  }, [farmerId])
 
   const avg =
     reviews.length > 0
@@ -67,6 +72,7 @@ export default function ReviewsTab({
       body: JSON.stringify({
         farmer_id: farmerId,
         reviewer_name: name.trim(),
+        reviewer_phone: phone.replace(/\D/g, '').slice(-10),
         star_rating: rating,
         review_text: reviewText.trim() || null,
         produce_ordered: produceBought.trim() || null,
@@ -76,12 +82,21 @@ export default function ReviewsTab({
     const json = await res.json().catch(() => ({}))
     setSubmitting(false)
 
+    if (res.status === 409 || json.error === 'already_reviewed') {
+      localStorage.setItem(`yff_reviewed_${farmerId}`, '1')
+      setDone(true)
+      setShowForm(false)
+      resetForm()
+      return
+    }
+
     if (!res.ok) {
       setError(json.error ?? tx.reviewError)
       return
     }
 
     if (json.review) setReviews((prev) => [json.review as Review, ...prev])
+    localStorage.setItem(`yff_reviewed_${farmerId}`, '1')
     setDone(true)
     setShowForm(false)
     resetForm()

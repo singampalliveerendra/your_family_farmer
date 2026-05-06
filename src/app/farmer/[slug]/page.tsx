@@ -7,7 +7,7 @@ import TopNav from '@/components/farmer/TopNav'
 import FarmCover from '@/components/farmer/FarmCover'
 import TrustStrip from '@/components/farmer/TrustStrip'
 import TabSection from '@/components/farmer/TabSection'
-import StickyBottomBar from '@/components/farmer/StickyBottomBar'
+import { CartFab } from '@/components/consumer/Cart'
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -96,7 +96,7 @@ export default async function FarmerPage({ params }: { params: Promise<{ slug: s
           media={media ?? []}
         />
       </Suspense>
-      <StickyBottomBar farmer={farmer} />
+      <CartFab />
     </main>
   )
 }

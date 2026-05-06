@@ -280,6 +280,7 @@ export const t = {
     loginAgain: 'Log in again',
 
     // Consumer page
+    viewFarmerProfile: 'View Farmer Profile',
     consumerHeroTitle: 'Fresh from your local farmer',
     consumerHeroSubtitle: 'Straight from farm · No middlemen',
     farmersLabel: 'Farmers',
@@ -634,6 +635,7 @@ export const t = {
     loginAgain: 'మళ్ళీ లాగిన్',
 
     // Consumer page
+    viewFarmerProfile: 'రైతు ప్రొఫైల్ చూడండి',
     consumerHeroTitle: 'మీ పక్కింటి రైతు నుండి తాజా ఆహారం',
     consumerHeroSubtitle: 'నేరుగా పొలం నుండి · మధ్యవర్తులు లేరు',
     farmersLabel: 'రైతులు',

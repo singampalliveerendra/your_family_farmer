@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { farmer_id, reviewer_name, star_rating, review_text, produce_ordered } = body
+    const { farmer_id, reviewer_name, reviewer_phone, star_rating, review_text, produce_ordered } = body
 
     if (!farmer_id || !reviewer_name?.trim() || !star_rating) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -13,21 +13,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid rating' }, { status: 400 })
     }
 
+    const phone = reviewer_phone ? String(reviewer_phone).replace(/\D/g, '').slice(-10) : null
+
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
 
+    // Check for an existing review from the same phone on this farmer
+    if (phone) {
+      const { data: existing } = await supabase
+        .from('reviews')
+        .select('id')
+        .eq('farmer_id', farmer_id)
+        .eq('reviewer_phone', phone)
+        .maybeSingle()
+      if (existing) {
+        return NextResponse.json({ error: 'already_reviewed' }, { status: 409 })
+      }
+    }
+
+    const insertPayload: Record<string, unknown> = {
+      farmer_id,
+      reviewer_name: reviewer_name.trim(),
+      star_rating,
+      review_text: review_text?.trim() || null,
+      produce_ordered: produce_ordered?.trim() || null,
+      approved: true,
+    }
+    if (phone) insertPayload.reviewer_phone = phone
+
     const { data: review, error } = await supabase
       .from('reviews')
-      .insert({
-        farmer_id,
-        reviewer_name: reviewer_name.trim(),
-        star_rating,
-        review_text: review_text?.trim() || null,
-        produce_ordered: produce_ordered?.trim() || null,
-        approved: true,
-      })
+      .insert(insertPayload)
       .select('*')
       .single()
 

@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { FreshnessBadge } from '@/components/FreshnessBadge'
 import { haversineKm, nearestTown, formatDistance } from '@/lib/location'
 import LocationSearch from '@/components/LocationSearch'
+import { useLang } from '@/lib/LanguageContext'
 
 type PickupSlots = {
   days: string[]
@@ -99,8 +100,8 @@ export default function ConsumerPage() {
   const [showLocationSheet, setShowLocationSheet]       = useState(false)
   const [distanceFilter, setDistanceFilter]             = useState<number | null>(null)
 
-  const fetchData = useCallback(async () => {
-    setLoading(true)
+  const fetchData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const [avRes, csRes] = await Promise.all([
         fetch('/api/produce', { cache: 'no-store' }),
@@ -115,16 +116,17 @@ export default function ConsumerPage() {
       setComingSoon(csArr)
       setFarmerCount(new Set(avArr.map((p) => p.farmer_id)).size)
     } catch { /* silent */ }
-    setLoading(false)
+    if (!silent) setLoading(false)
   }, [])
 
   useEffect(() => {
     fetchData()
-    const onVisible = () => { if (document.visibilityState === 'visible') fetchData() }
+    // Background refreshes — no skeleton flash
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchData(true) }
     document.addEventListener('visibilitychange', onVisible)
     const channel = supabase
       .channel('produce_listings_consumer')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'produce_listings' }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'produce_listings' }, () => fetchData(true))
       .subscribe()
     return () => {
       document.removeEventListener('visibilitychange', onVisible)
@@ -405,6 +407,7 @@ function ProduceCard({ item, distanceKm }: { item: ProduceListing; distanceKm?: 
   const farmerHref = farmer ? `/farmer/${farmer.slug}` : '#'
   const unit       = item.unit || 'kg'
 
+  const { tx } = useLang()
   const { cart, addItem, setQty } = useCart()
   const inCart = cart[item.id]
 
@@ -513,10 +516,18 @@ function ProduceCard({ item, distanceKm }: { item: ProduceListing; distanceKm?: 
 
         {/* Farmer info */}
         {farmer && (
-          <Link href={farmerHref} className="text-xs text-gray-500 leading-snug">
-            🧑‍🌾 {farmer.name}<br />
-            📍 {farmer.village}
-          </Link>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-gray-500 leading-snug">
+              🧑‍🌾 {farmer.name}<br />
+              📍 {farmer.village}
+            </span>
+            <Link
+              href={farmerHref}
+              className="flex-shrink-0 text-[11px] font-semibold text-green-700 border border-green-300 rounded-full px-2.5 py-1 bg-green-50 active:bg-green-100 whitespace-nowrap"
+            >
+              {tx.viewFarmerProfile}
+            </Link>
+          </div>
         )}
 
         {/* Distance badge */}
@@ -740,7 +751,7 @@ function LocationBottomSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center">
+    <div className="fixed inset-0 z-[100] bg-black/50 flex items-end justify-center">
       <div className="bg-white w-full max-w-md rounded-t-3xl p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div>

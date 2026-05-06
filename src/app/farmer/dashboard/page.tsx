@@ -103,6 +103,34 @@ type PreviewData = {
 
 const EMOJI_OPTIONS = ['🍅', '🍌', '🥭', '🫑', '🥬', '🍆', '🥕', '🌽', '🧅', '🧄', '🥦', '🌿', '🍓', '🫒', '🌾', '🥥']
 
+async function compressImage(file: File, maxPx = 800, quality = 0.7): Promise<File> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    const blobUrl = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(blobUrl)
+      const scale = Math.min(1, maxPx / Math.max(img.naturalWidth, img.naturalHeight))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.naturalWidth * scale)
+      canvas.height = Math.round(img.naturalHeight * scale)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { resolve(file); return }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) { resolve(file); return }
+          const name = file.name.replace(/\.[^.]+$/, '.jpg')
+          resolve(new File([blob], name, { type: 'image/jpeg' }))
+        },
+        'image/jpeg',
+        quality,
+      )
+    }
+    img.onerror = () => { URL.revokeObjectURL(blobUrl); resolve(file) }
+    img.src = blobUrl
+  })
+}
+
 const isProfileComplete = (f: Farmer | null) =>
   !!f && f.name?.trim().length > 0 && f.village?.trim().length > 0
 
@@ -555,6 +583,14 @@ function ProfileEditModal({
   const [qrPreview, setQrPreview] = useState('')
   const [existingQrUrl, setExistingQrUrl] = useState(farmer.upi_qr_code_url ?? '')
 
+  // Change password
+  const [showPwSection, setShowPwSection] = useState(false)
+  const [newPassword, setNewPassword]     = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [pwLoading, setPwLoading]         = useState(false)
+  const [pwError, setPwError]             = useState('')
+  const [pwSuccess, setPwSuccess]         = useState(false)
+
   // Farm GPS location
   const [farmerLat, setFarmerLat] = useState<number | null>(farmer.lat ?? null)
   const [farmerLng, setFarmerLng] = useState<number | null>(farmer.lng ?? null)
@@ -593,7 +629,7 @@ function ProfileEditModal({
     )
   }
 
-  const handlePickFile = (
+  const handlePickFile = async (
     e: React.ChangeEvent<HTMLInputElement>,
     setFile: (f: File | null) => void,
     setPreview: (s: string) => void,
@@ -605,8 +641,9 @@ function ProfileEditModal({
     if (file.size > 8 * 1024 * 1024) { setError(tx.imageTooLarge); return }
     setError('')
     if (currentPreview) URL.revokeObjectURL(currentPreview)
-    setFile(file)
-    setPreview(URL.createObjectURL(file))
+    const compressed = await compressImage(file)
+    setFile(compressed)
+    setPreview(URL.createObjectURL(compressed))
   }
 
   const uploadProfileImage = async (file: File, pathSuffix: string): Promise<{ url: string | null; err: string | null }> => {
@@ -708,6 +745,26 @@ function ProfileEditModal({
 
     localStorage.setItem('yff_farmer_slug', data.slug)
     onSaved(data)
+  }
+
+  const handleChangePassword = async () => {
+    if (newPassword.length < 4) { setPwError('Minimum 4 characters / కనీసం 4 అక్షరాలు'); return }
+    if (newPassword !== confirmPassword) { setPwError('Passwords do not match / పాస్‌వర్డ్‌లు సరిపోలలేదు'); return }
+    setPwLoading(true)
+    setPwError('')
+    const farmerId = localStorage.getItem('yff_farmer_id') ?? ''
+    const res = await fetch('/api/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ farmerId, newPassword }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setPwLoading(false)
+    if (!res.ok) { setPwError(json.error ?? 'Could not update password.'); return }
+    setPwSuccess(true)
+    setNewPassword('')
+    setConfirmPassword('')
+    setTimeout(() => { setPwSuccess(false); setShowPwSection(false) }, 2000)
   }
 
   return (
@@ -1053,6 +1110,55 @@ function ProfileEditModal({
             </div>
           </div>
 
+          {/* Change Password */}
+          <div className="border border-gray-200 rounded-xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => { setShowPwSection((v) => !v); setPwError(''); setPwSuccess(false) }}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-gray-700 bg-gray-50 active:bg-gray-100"
+            >
+              <span>🔑 Change Password / పాస్‌వర్డ్ మార్చండి</span>
+              <span className="text-gray-400 text-lg leading-none">{showPwSection ? '−' : '+'}</span>
+            </button>
+
+            {showPwSection && (
+              <div className="px-4 py-3 space-y-3">
+                {pwSuccess ? (
+                  <p className="text-sm text-green-700 bg-green-50 rounded-xl px-3 py-2 text-center font-semibold">
+                    ✓ Password updated! / పాస్‌వర్డ్ మార్చబడింది!
+                  </p>
+                ) : (
+                  <>
+                    <input
+                      type="password"
+                      placeholder="New password / కొత్త పాస్‌వర్డ్"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
+                    />
+                    <input
+                      type="password"
+                      placeholder="Confirm password / నిర్ధారించండి"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
+                    />
+                    {pwError && (
+                      <p className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2">{pwError}</p>
+                    )}
+                    <button
+                      onClick={handleChangePassword}
+                      disabled={pwLoading || newPassword.length < 4}
+                      className="w-full bg-gray-800 text-white font-bold py-3 rounded-xl text-sm disabled:opacity-50 active:bg-gray-900"
+                    >
+                      {pwLoading ? 'Updating… / మారుస్తోంది…' : 'Update Password / పాస్‌వర్డ్ అప్‌డేట్ చేయండి'}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
           {error && (
             <p className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2">{error}</p>
           )}
@@ -1108,7 +1214,7 @@ function ProfilePhotoUpload({
     <div className="grid grid-cols-2 gap-2">
       <label className="flex items-center justify-center gap-2 border-2 border-dashed border-green-300 rounded-xl py-4 px-2 text-green-700 text-xs font-bold cursor-pointer active:bg-green-50">
         <span>📷</span> {takeLabel}
-        <input type="file" accept="image/*" capture="environment" onChange={onPick} className="hidden" />
+        <input type="file" accept="image/*" onChange={onPick} className="hidden" />
       </label>
       <label className="flex items-center justify-center gap-2 border-2 border-dashed border-green-300 rounded-xl py-4 px-2 text-green-700 text-xs font-bold cursor-pointer active:bg-green-50">
         <span>🖼</span> {galleryLabel}
@@ -1191,7 +1297,7 @@ function ProduceListingForm({
   const [publishedSlug, setPublishedSlug] = useState('')
   const [saved, setSaved] = useState(false)
 
-  const handlePickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     if (!file.type.startsWith('image/')) {
@@ -1204,8 +1310,9 @@ function ProduceListingForm({
     }
     setError('')
     if (imagePreview) URL.revokeObjectURL(imagePreview)
-    setImageFile(file)
-    setImagePreview(URL.createObjectURL(file))
+    const compressed = await compressImage(file)
+    setImageFile(compressed)
+    setImagePreview(URL.createObjectURL(compressed))
   }
 
   const clearImage = () => {
@@ -1597,7 +1704,6 @@ function ProduceListingForm({
                 <input
                   type="file"
                   accept="image/*"
-                  capture="environment"
                   onChange={handlePickImage}
                   className="hidden"
                 />
@@ -1692,7 +1798,7 @@ function PreviewModal({ data, onClose }: { data: PreviewData; onClose: () => voi
   const bg = EMOJI_BG[data.emoji] ?? 'bg-green-50'
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 z-[80] flex items-end justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <p className="font-bold text-gray-800 text-sm">
@@ -2224,11 +2330,11 @@ function FarmPhotosSection({ farmerId }: { farmerId: string }) {
     setError('')
     setUploading(true)
 
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-    const path = `${farmerId}/gallery/${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`
+    const compressed = await compressImage(file)
+    const path = `${farmerId}/gallery/${Date.now()}-${Math.random().toString(36).slice(2, 6)}.jpg`
     const { error: upErr } = await supabase.storage
       .from('farm-images')
-      .upload(path, file, { contentType: file.type, upsert: false })
+      .upload(path, compressed, { contentType: 'image/jpeg', upsert: false })
 
     if (upErr) { setError(`Upload failed: ${upErr.message}`); setUploading(false); return }
 

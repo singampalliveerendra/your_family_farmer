@@ -16,6 +16,7 @@ type Farmer = {
 export default function FarmCover({ farmer }: { farmer: Farmer }) {
   const { tx } = useLang()
   const [followed, setFollowed] = useState(false)
+  const [lightbox, setLightbox] = useState(false)
 
   useEffect(() => {
     const saved = localStorage.getItem(`follow_${farmer.name}`)
@@ -102,12 +103,19 @@ export default function FarmCover({ farmer }: { farmer: Farmer }) {
             {/* Avatar — real photo if uploaded, initials otherwise */}
             <div className="flex-shrink-0 -mt-8">
               {farmer.photo_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={farmer.photo_url}
-                  alt={farmer.name}
-                  className="w-14 h-14 rounded-full object-cover border-3 border-white shadow-md"
-                />
+                <button
+                  type="button"
+                  onClick={() => setLightbox(true)}
+                  className="block rounded-full focus:outline-none"
+                  aria-label="View full photo"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={farmer.photo_url}
+                    alt={farmer.name}
+                    className="w-14 h-14 rounded-full object-cover border-3 border-white shadow-md"
+                  />
+                </button>
               ) : (
                 <div className="w-14 h-14 rounded-full bg-green-700 flex items-center justify-center text-white font-bold text-lg border-3 border-white shadow-md">
                   {initials}
@@ -134,6 +142,23 @@ export default function FarmCover({ farmer }: { farmer: Farmer }) {
           </button>
         </div>
       </div>
+
+      {/* Full-size photo lightbox */}
+      {lightbox && farmer.photo_url && (
+        <button
+          type="button"
+          onClick={() => setLightbox(false)}
+          className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4"
+          aria-label="Close photo"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={farmer.photo_url}
+            alt={farmer.name}
+            className="max-w-full max-h-full rounded-2xl object-contain shadow-2xl"
+          />
+        </button>
+      )}
     </div>
   )
 }
