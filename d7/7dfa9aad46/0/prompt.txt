@@ -1,0 +1,50 @@
+tell me last 6 fixex that we fixed
+
+---
+
+Phone Number / ఫోన్ నంబర్
++91
+7601059161
+We'll send a 6-digit code to your phone.
+మీ ఫోన్‌కు 6-అంకెల కోడ్ పంపుతాం.
+
+You need to complete one transaction of 100 INR or more before using API route.
+
+Send OTP / OTP పంపండి← Back to password login / పాస్‌వర్డ్‌తో లాగిన్
+Browse produce instead / పంట బ్రౌజ్ చేయండి
+
+---
+
+ok no need for now hide forgot password option
+
+---
+
+You are doing a full end-to-end bug fix audit of this farmer-consumer marketplace webapp. We are live testing with real farmers and consumers so quality is critical.
+
+Go through ALL files in the project and fix the following confirmed bugs:
+
+1. **Z-INDEX / OVERLAPPING** - Bottom product cards overlapping the cart modal. Fix z-index so cart modal always appears on top of everything.
+
+2. **UPI PAYMENT FLOW** - After user opens UPI app and returns to website, page is refreshing and reloading from scratch. Fix it to:
+   - Remember payment state using localStorage/sessionStorage
+   - NOT reload the page when returning from UPI app
+   - Auto redirect to WhatsApp with full order details (items, quantity, price, farmer name, UPI reference)
+
+3. **FARM PHOTO UPLOAD** - Clicking "+ Add Photo" on farmer dashboard is not uploading. Fix the file input, upload handler and API call. Show upload progress and confirm success.
+
+4. **CAMERA CAPTURE REFRESH** - After taking photo with camera and confirming (tick), page is restarting from beginning. Fix to:
+   - Prevent page reload on camera capture
+   - Compress image before upload (max 800px, quality 0.7)
+   - Stay on same page after upload
+
+5. **LOCATION SEARCH KEYBOARD OVERLAP** - On both farmer and consumer pages, location search dropdown is hidden behind the mobile keyboard. Fix using window.visualViewport resize event or scrollIntoView so results always show above keyboard.
+
+6. **CONSUMER SIDE - MAKE IT VERY CLEAR AND SIMPLE**:
+   - Product listings must be easy to read (clear price, farmer name, location, quantity left)
+   - Cart flow must be simple and step by step
+   - Payment steps must be clear with no confusion
+   - All text should be bilingual (English + Telugu) and readable
+   - Buttons must be large enough for mobile touch
+   - No overlapping elements anywhere on consumer pages
+
+Go file by file, find any other bugs, broken flows, missing error handling, and fix everything. Make the consumer experience smooth, simple and trustworthy for first-time users.. do step by step
