@@ -81,6 +81,7 @@ type Order = {
   payment_method: string | null
   payment_status: string | null
   utr_number: string | null
+  decline_reason: string | null
   created_at: string
 }
 
@@ -147,6 +148,7 @@ export default function FarmerDashboard() {
   const [ordersFilter, setOrdersFilter] = useState<'today' | 'week' | 'month'>('week')
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null)
   const [processingPaidId, setProcessingPaidId] = useState<string | null>(null)
+  const [decliningOrder, setDecliningOrder] = useState<Order | null>(null)
   const [demandBars, setDemandBars] = useState<DemandBar[]>([])
   const [monthlyRevenue, setMonthlyRevenue] = useState(0)
   const [monthlyOrderCount, setMonthlyOrderCount] = useState(0)
@@ -223,6 +225,71 @@ export default function FarmerDashboard() {
     }
   }, [loading, farmer])
 
+  // Realtime subscription: new orders + payment status changes.
+  // Replaces the old "consumer opens WhatsApp to notify farmer" flow.
+  // Fires a browser notification when:
+  //   - A new pending order is inserted
+  //   - An existing order's payment_status flips to payment_claimed (incl. retries)
+  useEffect(() => {
+    if (!farmer) return
+
+    const fireNotification = (title: string, body: string) => {
+      if (typeof window === 'undefined') return
+      if (!('Notification' in window)) return
+      if (Notification.permission !== 'granted') return
+      try {
+        new Notification(title, { body, icon: '/icon-192.png', tag: 'yff-order' })
+      } catch { /* some browsers throw on background tabs — ignore */ }
+    }
+
+    const channel = supabase
+      .channel(`orders_${farmer.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'orders', filter: `farmer_id=eq.${farmer.id}` },
+        (payload) => {
+          const row = payload.new as Order
+          if (row.status !== 'pending') return
+          setPendingOrders((prev) => prev.some((o) => o.id === row.id) ? prev : [row, ...prev])
+          fireNotification(
+            `New order from ${row.buyer_name ?? 'buyer'}`,
+            `${row.produce_name ?? ''} ${row.quantity ?? ''} ${row.unit ?? ''}${row.total_price ? ` · ₹${row.total_price}` : ''}`.trim(),
+          )
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders', filter: `farmer_id=eq.${farmer.id}` },
+        (payload) => {
+          const row = payload.new as Order
+          const prev = payload.old as Partial<Order>
+          // Order moved out of pending — drop from list
+          if (row.status !== 'pending') {
+            setPendingOrders((cur) => cur.filter((o) => o.id !== row.id))
+            return
+          }
+          // Update or insert in pending list
+          setPendingOrders((cur) => {
+            const exists = cur.some((o) => o.id === row.id)
+            return exists ? cur.map((o) => o.id === row.id ? row : o) : [row, ...cur]
+          })
+          // Fire notification when buyer claims payment (covers initial pay AND retry)
+          const becameClaimed =
+            (row.payment_status === 'payment_claimed' || row.payment_status === 'pending_confirmation')
+            && prev.payment_status !== row.payment_status
+          if (becameClaimed) {
+            fireNotification(
+              `Buyer paid — verify payment`,
+              `${row.buyer_name ?? 'Buyer'} sent ₹${row.total_price ?? '?'} for ${row.produce_name ?? 'order'}`,
+            )
+          }
+        },
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [farmer])
+
   const handleLogout = () => {
     localStorage.removeItem('yff_farmer_id')
     localStorage.removeItem('yff_farmer_slug')
@@ -237,11 +304,15 @@ export default function FarmerDashboard() {
     setProcessingOrderId(null)
   }
 
-  const handleDecline = async (orderId: string) => {
+  const handleConfirmDecline = async (orderId: string, reason: string) => {
     setProcessingOrderId(orderId)
-    await supabase.from('orders').update({ status: 'declined' }).eq('id', orderId)
+    await supabase
+      .from('orders')
+      .update({ status: 'declined', decline_reason: reason })
+      .eq('id', orderId)
     setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
     setProcessingOrderId(null)
+    setDecliningOrder(null)
   }
 
   const handleMarkPaid = async (orderId: string) => {
@@ -329,6 +400,11 @@ export default function FarmerDashboard() {
       </div>
 
       <div className="px-4 -mt-5 space-y-4">
+        {/* Notification permission banner — shown only if browser supports it
+            and the farmer hasn't decided yet. Permission must be requested via
+            a user gesture so we can't auto-call it on mount. */}
+        <NotificationPermissionBanner />
+
         {/* Complete profile banner */}
         {!profileComplete && (
           <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 flex items-start gap-3">
@@ -426,7 +502,7 @@ export default function FarmerDashboard() {
                   processing={processingOrderId === order.id}
                   processingPaid={processingPaidId === order.id}
                   onApprove={() => handleApprove(order.id)}
-                  onDecline={() => handleDecline(order.id)}
+                  onDecline={() => setDecliningOrder(order)}
                   onMarkPaid={() => handleMarkPaid(order.id)}
                   onUpdatePaymentStatus={(s) => handleUpdatePaymentStatus(order.id, s)}
                 />
@@ -529,7 +605,202 @@ export default function FarmerDashboard() {
           }}
         />
       )}
+
+      {/* Decline reason sheet — mandatory reason capture */}
+      {decliningOrder && (
+        <DeclineReasonSheet
+          order={decliningOrder}
+          processing={processingOrderId === decliningOrder.id}
+          onCancel={() => setDecliningOrder(null)}
+          onConfirm={(reason) => handleConfirmDecline(decliningOrder.id, reason)}
+        />
+      )}
     </main>
+  )
+}
+
+/* ─── Decline reason bottom sheet ──────────────────────────── */
+const DECLINE_PRESETS = [
+  'Stock finished',
+  'Not available this week',
+  'Price changed',
+  'Incorrect order details',
+]
+
+function DeclineReasonSheet({
+  order,
+  processing,
+  onCancel,
+  onConfirm,
+}: {
+  order: Order
+  processing: boolean
+  onCancel: () => void
+  onConfirm: (reason: string) => void
+}) {
+  const [selected, setSelected] = useState<string | null>(null)
+  const [custom, setCustom] = useState('')
+
+  const finalReason = selected ?? custom.trim()
+  const canSubmit = finalReason.length >= 3 && !processing
+
+  return (
+    <div className="fixed inset-0 z-[120] bg-black/50 flex items-end justify-center">
+      <div className="bg-white w-full max-w-md rounded-t-3xl p-5 space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-extrabold text-gray-900 text-lg leading-tight">
+              Why decline this order? / ఎందుకు తిరస్కరిస్తున్నారు?
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5 leading-snug">
+              The reason will be shown to the buyer / కారణం కొనుగోలుదారుకు చూపబడుతుంది
+            </p>
+          </div>
+          <button
+            onClick={onCancel}
+            disabled={processing}
+            className="text-gray-400 text-3xl leading-none p-1 disabled:opacity-50"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="bg-gray-50 rounded-xl px-3 py-2 text-xs text-gray-700">
+          <span className="font-semibold">{order.buyer_name || 'Buyer'}</span>
+          {order.produce_name && <> · {order.produce_name}</>}
+          {order.quantity != null && <> · {order.quantity} {order.unit || 'kg'}</>}
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
+            Pick a reason / కారణం ఎంచుకోండి
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {DECLINE_PRESETS.map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => { setSelected(preset); setCustom('') }}
+                className={`px-3 py-2.5 rounded-xl text-xs font-bold border-2 transition-colors text-left leading-snug ${
+                  selected === preset
+                    ? 'border-red-500 bg-red-50 text-red-800'
+                    : 'border-gray-200 bg-white text-gray-700 active:bg-gray-50'
+                }`}
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-bold text-gray-700 uppercase tracking-wide block mb-1.5">
+            Or type your reason / లేదా టైప్ చేయండి
+          </label>
+          <textarea
+            value={custom}
+            onChange={(e) => { setCustom(e.target.value); if (e.target.value.trim()) setSelected(null) }}
+            placeholder="e.g. Heavy rain damaged the harvest"
+            rows={2}
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none resize-none"
+          />
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={onCancel}
+            disabled={processing}
+            className="flex-1 border-2 border-gray-300 text-gray-700 font-bold py-3 rounded-xl text-sm disabled:opacity-50"
+          >
+            Cancel / రద్దు
+          </button>
+          <button
+            onClick={() => onConfirm(finalReason)}
+            disabled={!canSubmit}
+            className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl text-sm disabled:opacity-50 active:bg-red-700"
+          >
+            {processing ? 'Declining...' : 'Confirm decline'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Notification permission banner ───────────────────────── */
+function NotificationPermissionBanner() {
+  const [perm, setPerm] = useState<'unsupported' | 'default' | 'granted' | 'denied'>('unsupported')
+  const [dismissed, setDismissed] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setPerm('unsupported')
+      return
+    }
+    setPerm(Notification.permission as 'default' | 'granted' | 'denied')
+    setDismissed(localStorage.getItem('yff_notif_banner_dismissed') === '1')
+  }, [])
+
+  const handleEnable = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return
+    const result = await Notification.requestPermission()
+    setPerm(result)
+    if (result === 'granted') {
+      try { new Notification('YourFamilyFarmer', { body: 'You will be alerted on every new order.' }) } catch {}
+    }
+  }
+
+  const handleDismiss = () => {
+    localStorage.setItem('yff_notif_banner_dismissed', '1')
+    setDismissed(true)
+  }
+
+  if (perm === 'unsupported' || perm === 'granted') return null
+  if (dismissed) return null
+
+  if (perm === 'denied') {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-start gap-3">
+        <span className="text-xl flex-shrink-0">🔕</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-bold text-amber-900 leading-snug">
+            Notifications blocked / నోటిఫికేషన్‌లు బ్లాక్
+          </p>
+          <p className="text-[11px] text-amber-700 mt-0.5 leading-snug">
+            Enable notifications in your browser settings to get alerted on new orders.
+          </p>
+        </div>
+        <button onClick={handleDismiss} className="text-amber-700 text-xl leading-none px-1">×</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-start gap-3">
+      <span className="text-xl flex-shrink-0">🔔</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-bold text-blue-900 leading-snug">
+          Get notified instantly / తక్షణ నోటిఫికేషన్
+        </p>
+        <p className="text-[11px] text-blue-700 mt-0.5 leading-snug">
+          Allow notifications to be alerted the moment a buyer places an order.
+        </p>
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={handleEnable}
+            className="bg-blue-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs active:bg-blue-700"
+          >
+            Enable / ఆన్ చేయండి
+          </button>
+          <button
+            onClick={handleDismiss}
+            className="border border-blue-300 text-blue-700 font-semibold px-3 py-1.5 rounded-lg text-xs"
+          >
+            Not now
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 

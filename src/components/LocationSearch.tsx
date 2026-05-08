@@ -60,10 +60,20 @@ async function fetchSuggestions(q: string, signal: AbortSignal): Promise<Suggest
   url.searchParams.set('bbox', BBOX)
   url.searchParams.set('lang', 'en')
 
-  const res = await fetch(url.toString(), { signal })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const json = await res.json()
-  return parsePhoton(json)
+  // 8s hard timeout — Photon hangs on slow Indian 4G otherwise.
+  // Combine the parent abort + a local timeout into one signal.
+  const ctrl = new AbortController()
+  const onParentAbort = () => ctrl.abort()
+  signal.addEventListener('abort', onParentAbort)
+  const timer = setTimeout(() => ctrl.abort(), 8000)
+  try {
+    const res = await fetch(url.toString(), { signal: ctrl.signal })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return parsePhoton(await res.json())
+  } finally {
+    clearTimeout(timer)
+    signal.removeEventListener('abort', onParentAbort)
+  }
 }
 
 export default function LocationSearch({

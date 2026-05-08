@@ -6,7 +6,7 @@ import GlobalNav from '@/components/consumer/GlobalNav'
 import { CartFab, useCart } from '@/components/consumer/Cart'
 import { supabase } from '@/lib/supabase'
 import { FreshnessBadge } from '@/components/FreshnessBadge'
-import { haversineKm, nearestTown, formatDistance } from '@/lib/location'
+import { haversineKm, nearestTown, formatDistance, farmerCoords } from '@/lib/location'
 import LocationSearch from '@/components/LocationSearch'
 import { useLang } from '@/lib/LanguageContext'
 
@@ -186,13 +186,19 @@ export default function ConsumerPage() {
 
   // Sort + distance-filter produce
   const displayItems = useMemo(() => {
-    type WithDist = ProduceListing & { distKm: number | null }
-    const withDist: WithDist[] = filtered.map((item) => ({
-      ...item,
-      distKm: (consumerLat && consumerLng && item.farmer?.lat && item.farmer?.lng)
-        ? haversineKm(consumerLat, consumerLng, item.farmer.lat, item.farmer.lng)
-        : null,
-    }))
+    type WithDist = ProduceListing & { distKm: number | null; distApprox: boolean }
+    const withDist: WithDist[] = filtered.map((item) => {
+      let distKm: number | null = null
+      let distApprox = false
+      if (consumerLat && consumerLng && item.farmer) {
+        const coords = farmerCoords(item.farmer)
+        if (coords) {
+          distKm = haversineKm(consumerLat, consumerLng, coords.lat, coords.lng)
+          distApprox = coords.approximate
+        }
+      }
+      return { ...item, distKm, distApprox }
+    })
     if (!consumerLat || !consumerLng) return withDist
     let result = withDist
     if (distanceFilter) {
@@ -353,7 +359,12 @@ export default function ConsumerPage() {
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {displayItems.map((item) => (
-              <ProduceCard key={item.id} item={item} distanceKm={'distKm' in item ? (item as ProduceListing & { distKm: number | null }).distKm : null} />
+              <ProduceCard
+                key={item.id}
+                item={item}
+                distanceKm={'distKm' in item ? (item as ProduceListing & { distKm: number | null }).distKm : null}
+                distanceApprox={'distApprox' in item ? (item as ProduceListing & { distApprox: boolean }).distApprox : false}
+              />
             ))}
           </div>
         )}
@@ -397,7 +408,7 @@ export default function ConsumerPage() {
 }
 
 /* ─── Produce card ──────────────────────────────────────── */
-function ProduceCard({ item, distanceKm }: { item: ProduceListing; distanceKm?: number | null }) {
+function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListing; distanceKm?: number | null; distanceApprox?: boolean }) {
   const emoji      = item.emoji ?? '🌿'
   const emojiBg    = EMOJI_BG[emoji] ?? 'bg-green-50'
   const method     = item.method?.toLowerCase() ?? 'natural'
@@ -533,7 +544,7 @@ function ProduceCard({ item, distanceKm }: { item: ProduceListing; distanceKm?: 
         {/* Distance badge */}
         {distanceKm != null && (
           <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full self-start">
-            📍 {formatDistance(distanceKm)} away
+            📍 {distanceApprox ? '~' : ''}{formatDistance(distanceKm)} away
           </span>
         )}
 

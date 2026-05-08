@@ -16,6 +16,7 @@ type Order = {
   status: 'pending' | 'approved' | 'declined'
   payment_method: string | null
   payment_status: string | null
+  decline_reason: string | null
   created_at: string
   farmer?: {
     name: string
@@ -32,9 +33,32 @@ export default function ConsumerOrdersPage() {
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
   const [error, setError]     = useState('')
+  const [retryingId, setRetryingId] = useState<string | null>(null)
 
   const digits = phone.replace(/\D/g, '').slice(-10)
   const canSearch = digits.length === 10
+
+  // Reset payment_status to 'pending' so the consumer can pay again. The order
+  // remains in pending status; once the consumer claims payment, the farmer's
+  // realtime subscription on the dashboard surfaces it for re-confirmation.
+  const handleRetryPayment = async (order: Order) => {
+    if (order.status === 'declined') return
+    setRetryingId(order.id)
+    const { error: err } = await supabase
+      .from('orders')
+      .update({ payment_status: 'pending' })
+      .eq('id', order.id)
+    setRetryingId(null)
+    if (err) {
+      setError(err.message)
+      return
+    }
+    setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, payment_status: 'pending' } : o))
+    if (order.farmer?.upi_id && order.total_price) {
+      const upiLink = `upi://pay?pa=${encodeURIComponent(order.farmer.upi_id)}&pn=${encodeURIComponent(order.farmer.name)}&am=${order.total_price}&cu=INR&tn=YourFamilyFarmer%20Order`
+      window.location.href = upiLink
+    }
+  }
 
   const handleSearch = async () => {
     if (!canSearch) return
@@ -44,7 +68,7 @@ export default function ConsumerOrdersPage() {
 
     const { data, error: err } = await supabase
       .from('orders')
-      .select('id, produce_name, quantity, unit, total_price, pickup_location, status, payment_method, payment_status, created_at, farmer_id')
+      .select('id, produce_name, quantity, unit, total_price, pickup_location, status, payment_method, payment_status, decline_reason, created_at, farmer_id')
       .eq('buyer_phone', digits)
       .order('created_at', { ascending: false })
       .limit(50)
@@ -169,7 +193,13 @@ export default function ConsumerOrdersPage() {
               const badge = paymentBadge(order)
               const needsPayment = order.payment_method === 'upi'
                 && order.payment_status === 'pending'
+                && order.status !== 'declined'
                 && order.farmer?.upi_id
+              const canRetry = order.payment_method === 'upi'
+                && order.payment_status === 'failed'
+                && order.status !== 'declined'
+                && !!order.farmer?.upi_id
+                && !!order.total_price
               const upiLink = needsPayment
                 ? `upi://pay?pa=${encodeURIComponent(order.farmer!.upi_id!)}&pn=${encodeURIComponent(order.farmer!.name)}&am=${order.total_price ?? 0}&cu=INR&tn=YourFamilyFarmer%20Order`
                 : null
@@ -221,6 +251,16 @@ export default function ConsumerOrdersPage() {
                       })}
                     </p>
 
+                    {/* Decline reason — shown only when farmer declined */}
+                    {order.status === 'declined' && order.decline_reason && (
+                      <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 mt-1">
+                        <p className="text-[10px] font-bold text-red-700 uppercase tracking-wide">
+                          Reason / కారణం
+                        </p>
+                        <p className="text-xs text-red-800 mt-0.5 leading-snug">{order.decline_reason}</p>
+                      </div>
+                    )}
+
                     {/* Pay Now button for pending UPI orders */}
                     {needsPayment && upiLink && (
                       <div className="pt-1 space-y-2">
@@ -229,6 +269,30 @@ export default function ConsumerOrdersPage() {
                           className="w-full bg-green-700 text-white font-bold py-3 rounded-xl text-sm active:bg-green-800"
                         >
                           📲 Pay ₹{order.total_price} via UPI
+                        </button>
+                        <p className="text-[11px] text-gray-500 text-center">
+                          UPI ID: <span className="font-mono font-semibold">{order.farmer?.upi_id}</span>
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Retry payment — shown when farmer marked payment not received */}
+                    {canRetry && (
+                      <div className="pt-1 space-y-2">
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                          <p className="text-xs font-bold text-amber-800">
+                            Farmer did not receive your payment / రైతుకు చెల్లింపు అందలేదు
+                          </p>
+                          <p className="text-[11px] text-amber-700 mt-0.5">
+                            Tap retry to pay again. The farmer will be re-notified.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleRetryPayment(order)}
+                          disabled={retryingId === order.id}
+                          className="w-full bg-amber-600 text-white font-bold py-3 rounded-xl text-sm active:bg-amber-700 disabled:opacity-50"
+                        >
+                          {retryingId === order.id ? 'Opening UPI...' : `🔄 Retry payment ₹${order.total_price}`}
                         </button>
                         <p className="text-[11px] text-gray-500 text-center">
                           UPI ID: <span className="font-mono font-semibold">{order.farmer?.upi_id}</span>

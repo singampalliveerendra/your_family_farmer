@@ -248,7 +248,8 @@ function CartSheet({
 
   useEffect(() => { upiScreenRef.current = upiScreen }, [upiScreen])
 
-  // Core action: update DB status, clear cart, open WhatsApp, show success
+  // Update payment status to claimed and clear cart. The farmer is alerted via
+  // the realtime subscription on their dashboard — no WhatsApp message opened.
   const triggerPostPayment = useCallback(async (screen: UpiPaymentState, utrRef: string) => {
     setSubmittingResult(true)
     const updateData: Record<string, unknown> = { payment_status: 'pending_confirmation' }
@@ -263,32 +264,6 @@ function CartSheet({
     localStorage.removeItem(UPI_LAUNCHED_KEY)
     setSubmittingResult(false)
     setPaidDone(true)
-
-    const lines = screen.items.map((it) => {
-      const unit = it.unit || 'kg'
-      const price = it.pricePerKg ? ` @ ₹${it.pricePerKg}/${unit}` : ''
-      return `• ${it.emoji ?? '🌿'} ${it.name}${it.variety ? ` (${it.variety})` : ''} — ${it.qty} ${unit}${price}`
-    })
-    const pickupLine = screen.pickupLocation
-      ? `\n\n*Pickup location / పికప్ స్థలం:* ${screen.pickupLocation} (${screen.farmerVillage})`
-      : `\n\n*Pickup from your farm / మీ పొలం నుండి పికప్* (${screen.farmerVillage})`
-    const dayLine = screen.pickupDay ? `\n*Pickup day / రోజు:* ${screen.pickupDay}` : ''
-    const utrLine = utrRef.trim() ? `\nTransaction ref / రిఫరెన్స్: ${utrRef.trim()}` : ''
-    const msg =
-      `Hello ${screen.farmerName} anna! 🙏\n` +
-      `New UPI order from YourFamilyFarmer:\n\n` +
-      lines.join('\n') +
-      pickupLine +
-      dayLine +
-      `\n\n*Payment: UPI ₹${screen.amount} — buyer says paid*\n` +
-      `చెల్లింపు: UPI ₹${screen.amount} — కొనుగోలుదారు చెల్లించారు, మీ UPI యాప్ తనిఖీ చేయండి` +
-      utrLine +
-      `\n\nBuyer / కొనుగోలుదారు: ${screen.buyerName}\n` +
-      `WhatsApp: +91 ${screen.buyerPhone}\n\n` +
-      `Please confirm pickup time. / పికప్ సమయం తెలియజేయండి, ధన్యవాదాలు 🌱`
-    const digits = screen.farmerPhone.replace(/\D/g, '').replace(/^0+/, '')
-    const waPhone = digits.length === 10 ? `91${digits}` : digits
-    window.open(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
   }, [clearFarmer])
 
   // Keep a ref to triggerPostPayment so visibilitychange handler is never stale
@@ -372,39 +347,14 @@ function CartSheet({
     setTimeout(() => setToast(''), 3000)
   }
 
-  // COD flow: save order + open WhatsApp (existing behaviour)
+  // COD flow: save order. Farmer is alerted via realtime subscription on their
+  // dashboard — the consumer is no longer required to send a WhatsApp message.
   const handleCodOrderFarmer = (group: CartItem[]) => {
     if (detailsMissing) return
     saveInfo({ name: name.trim(), phone: phone.trim() })
 
     const f = group[0]
-    const lines = group.map((it) => {
-      const unit = it.unit || 'kg'
-      const price = it.pricePerKg ? ` @ ₹${it.pricePerKg}/${unit}` : ''
-      return `• ${it.emoji ?? '🌿'} ${it.name}${it.variety ? ` (${it.variety})` : ''} — ${it.qty} ${unit}${price}`
-    })
-
     const selectedPickup = pickupByFarmer[f.farmerId]
-    const selectedDay    = pickupDayByFarmer[f.farmerId]
-    const pickupLine = selectedPickup
-      ? `\n\n*Pickup location / పికప్ స్థలం:* ${selectedPickup} (${f.farmerVillage})`
-      : `\n\n*Pickup from your farm / మీ పొలం నుండి పికప్* (${f.farmerVillage})`
-    const dayLine = selectedDay ? `\n*Pickup day / రోజు:* ${selectedDay}` : ''
-
-    const msg =
-      `Hello ${f.farmerName} anna! 🙏\n` +
-      `I saw your produce on YourFamilyFarmer and would like to order:\n\n` +
-      lines.join('\n') +
-      pickupLine +
-      dayLine +
-      `\n\n*Payment: Cash on Delivery / చెల్లింపు: నగదు డెలివరీ సమయంలో*\n\n` +
-      `My name / నా పేరు: ${name.trim()}\n` +
-      `My WhatsApp / నా వాట్సాప్: +91 ${phone.replace(/\D/g, '').slice(-10)}\n\n` +
-      `Please share a good pickup time. Thank you! / పికప్ సమయం తెలియజేయండి, ధన్యవాదాలు 🌱`
-
-    const digits = f.farmerPhone.replace(/\D/g, '').replace(/^0+/, '')
-    const waPhone = digits.length === 10 ? `91${digits}` : digits
-    const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`
 
     const buyerPhone = phone.replace(/\D/g, '').slice(-10)
     for (const it of group) {
@@ -431,9 +381,7 @@ function CartSheet({
         })
     }
 
-    window.open(waUrl, '_blank', 'noopener,noreferrer')
     clearFarmer(f.farmerId)
-    supabase.from('wa_clicks').insert({ farmer_id: f.farmerId }).then()
     setSentFarmers((s) => ({ ...s, [f.farmerId]: true }))
   }
 
@@ -1037,7 +985,7 @@ function CartSheet({
                                     : 'bg-green-700 text-white active:bg-green-800'
                               }`}
                             >
-                              {sent ? <>✓ Order sent</> : <><WhatsAppIcon /> Cash on Pickup</>}
+                              {sent ? <>✓ Order placed</> : <>💵 Place order — Cash on Pickup</>}
                             </button>
                           </div>
                         )
@@ -1054,11 +1002,10 @@ function CartSheet({
                           }`}
                         >
                           {sent ? (
-                            <>✓ Order sent — tap to resend</>
+                            <>✓ Order placed</>
                           ) : (
                             <>
-                              <WhatsAppIcon />
-                              Send to {f.farmerName.split(' ')[0] || 'farmer'} / వాట్సాప్
+                              ✓ Place order with {f.farmerName.split(' ')[0] || 'farmer'}
                             </>
                           )}
                         </button>
@@ -1070,8 +1017,8 @@ function CartSheet({
 
               {farmerGroups.length > 1 && (
                 <p className="text-xs text-gray-500 text-center px-4 leading-snug">
-                  One WhatsApp chat opens per farmer, since each farm handles its own pickup.<br />
-                  ప్రతి రైతుకు ప్రత్యేక వాట్సాప్ చాట్ తెరుచుకుంటుంది.
+                  Each farmer is notified separately, since each farm handles its own pickup.<br />
+                  ప్రతి రైతుకు విడివిడిగా తెలియజేస్తాము.
                 </p>
               )}
 

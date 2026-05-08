@@ -54,3 +54,44 @@ export function formatDistance(km: number): string {
   if (km < 10) return `${km.toFixed(1)} km`
   return `${Math.round(km)} km`
 }
+
+// Look up a town in AP_TOWNS by name. Case-insensitive, also matches when the
+// user-entered name contains a town name (e.g. "Tadepalligudem Rural" → matches
+// "Tadepalligudem"). Returns null if no town matches.
+export function townByName(name: string | null | undefined): Town | null {
+  if (!name) return null
+  const q = name.toLowerCase().trim()
+  if (!q) return null
+  // Exact match first, then substring match
+  const exact = AP_TOWNS.find((t) => t.name.toLowerCase() === q)
+  if (exact) return exact
+  return AP_TOWNS.find(
+    (t) => q.includes(t.name.toLowerCase()) || t.name.toLowerCase().includes(q),
+  ) ?? null
+}
+
+// Resolve coordinates for a farmer in this priority:
+//   1. farmer.lat / farmer.lng if both are valid finite numbers
+//   2. nearest town match against farmer.location_name, then village
+// Returns null if neither yields coordinates.
+//
+// Why this exists: many farmers save their profile without using GPS — they
+// only type the village name. Without a fallback, the consumer's distance
+// filter drops them entirely, so 5km searches return zero results even for
+// farmers in the same town.
+export function farmerCoords(farmer: {
+  lat?: number | string | null
+  lng?: number | string | null
+  location_name?: string | null
+  village?: string | null
+}): { lat: number; lng: number; approximate: boolean } | null {
+  // Defensive Number cast — Supabase numeric(10,7) can serialize as string
+  const lat = farmer.lat == null ? NaN : Number(farmer.lat)
+  const lng = farmer.lng == null ? NaN : Number(farmer.lng)
+  if (Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0)) {
+    return { lat, lng, approximate: false }
+  }
+  const town = townByName(farmer.location_name) ?? townByName(farmer.village)
+  if (town) return { lat: town.lat, lng: town.lng, approximate: true }
+  return null
+}
