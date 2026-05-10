@@ -1,0 +1,59 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "f4b416b5097c",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "scripts/cod-toggle-migration.sql",
+    "scripts/consumer-auth-migration.sql",
+    "scripts/orders-consumer-id-migration.sql",
+    "scripts/payment-proof-migration.sql",
+    "src/app/api/consumer/login/route.ts",
+    "src/app/api/consumer/logout/route.ts",
+    "src/app/api/consumer/me/route.ts",
+    "src/app/api/consumer/orders/[id]/route.ts",
+    "src/app/api/consumer/orders/count/route.ts",
+    "src/app/api/consumer/orders/route.ts",
+    "src/app/api/consumer/register/route.ts",
+    "src/app/api/orders/[id]/proof/route.ts",
+    "src/app/api/orders/[id]/retry/route.ts",
+    "src/app/api/orders/place/route.ts",
+    "src/app/api/orders/upload-proof/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/consumer/orders/page.tsx",
+    "src/app/consumer/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/app/layout.tsx",
+    "src/components/consumer/AuthModal.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/components/consumer/GlobalNav.tsx",
+    "src/components/consumer/MyOrdersChip.tsx",
+    "src/components/consumer/RoleGateModal.tsx",
+    "src/components/farmer/tabs/ProduceTab.tsx",
+    "src/components/region/tabs/BrowseProduceTab.tsx",
+    "src/lib/ConsumerAuthContext.tsx",
+    "src/lib/imageCompress.ts",
+    "src/lib/password.ts",
+    "src/lib/phone.ts",
+    "src/lib/pricing.ts",
+    "src/lib/rate-limit.ts",
+    "src/lib/session.ts",
+    "src/lib/translations.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f4/b416b5097c/0/metadata.json",
+      "transcript": "/f4/b416b5097c/0/full.jsonl",
+      "content_hash": "/f4/b416b5097c/0/content_hash.txt",
+      "prompt": "/f4/b416b5097c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 184,
+    "cache_creation_tokens": 356202,
+    "cache_read_tokens": 17710795,
+    "output_tokens": 109554,
+    "api_call_count": 144
+  }
+}

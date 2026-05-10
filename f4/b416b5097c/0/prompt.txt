@@ -1,0 +1,176 @@
+1. Payment status is good
+Client said "After payment the status of pending and awaiting farmer is good" ✅ No change needed.
+
+2. PhonePe is the main UPI app
+Client said "I only have PhonePe, majority usage is PhonePe." Focus on making PhonePe work properly.
+
+3. Consumer registration needed
+Consumer always has to enter phone number every time to see orders. Client said "we have to create registration for consumers too" so phone number is saved automatically.
+
+4. Location search not working
+Client set location to Tadepalligudem, farmer location also set to Tadepalligudem, but 5km search shows zero results. Location distance calculation is broken.
+
+5. Farmer can save produce without entering price
+Validation missing — price field is not mandatory. Farmer saves listing with no price.
+
+6. Disable COD for now
+Client said "Disable COD for now" — remove Cash on Delivery option temporarily.
+
+7. Payment screenshot should be mandatory
+Client said "Better to make attachment mandatory if we proceed this way temporarily" — buyer must upload payment screenshot before submitting order.
+
+8. Avoid WhatsApp step
+Client asked "Is there a way to avoid sending order notification to farmer via WhatsApp?" wants it to happen automatically behind the scenes without opening WhatsApp.
+
+9. Consumer and Farmer tabs both visible
+When someone opens consumer link they see both Consumer and Farmer tabs. Client asked should we ask user their role first and show only relevant tab.
+
+10. No way to switch back from Farmer to Consumer
+When user switches to Farmer tab there is no way to go back or launch directly as farmer.
+
+11. Order status wording needs change
+When farmer confirms payment received it shows "Confirmed" and "UPI Paid" separately. Client said change "Approve" button to "Payment received and approved" — one combined status.
+
+12. Retry payment option needed
+When farmer says payment not received, consumer should get a "Retry payment" button to pay again.
+
+13. Farmer must give reason when declining
+When farmer declines order, reason should be mandatory (e.g. "stock finished", "not available"). Consumer should see that reason. Declined orders should NOT allow consumer to retry payment.
+
+14. Farmer should be able to say payment received again after retry
+After consumer retries payment, farmer should see updated status and be able to confirm again.. out of this how many we are implemented
+
+---
+
+implemnt one by one and also implement Implement these 2 features:
+
+1. COD - Farmer choice:
+   - In farmer dashboard settings add toggle:
+     "Accept Cash on Delivery / నగదు చెల్లింపు అంగీకరించు"
+   - If farmer turns ON: buyer sees COD option in cart
+   - If farmer turns OFF: buyer sees UPI only
+   - Default: OFF
+   - Save to farmers table:
+     ALTER TABLE farmers ADD COLUMN IF NOT EXISTS cod_enabled boolean DEFAULT false;
+
+2. Consumer Login/Registration:
+   - Consumer can browse and explore site WITHOUT login - no forced login
+   - Login/Register popup appears ONLY when consumer taps "Add to cart" or "Place order"
+   - Registration fields: Name + Phone number + Password
+   - Login fields: Phone number + Password
+   - Create table:
+     CREATE TABLE IF NOT EXISTS consumers_auth (
+       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       name text,
+       phone varchar(15) UNIQUE NOT NULL,
+       password_hash text NOT NULL,
+       created_at timestamptz DEFAULT now()
+     );
+   - After login save to localStorage: consumer_id, consumer_name, consumer_phone
+   - Show consumer name in header after login: "Hi Ramu / హాయ్ రాము"
+   - Add logout option in consumer menu
+
+3. After consumer login add these pages:
+
+   A. My Orders page (/consumer/orders):
+      - Show all orders linked to consumer phone
+      - Each order shows:
+        * Produce name, quantity, price
+        * Farmer name and village
+        * Order date and time
+        * Payment status badge: Paid/Pending/Failed
+        * Order status badge: Confirmed/Pending/Declined
+        * Decline reason if declined
+
+   B. Order Details page (/consumer/orders/[id]):
+      - Full order details
+      - Payment screenshot they uploaded
+      - Farmer details
+      - "Contact Farmer / రైతును సంప్రదించు" green button
+        → opens WhatsApp with farmer's number pre-filled
+        → message: "Hello [farmer name] anna, regarding my order of [produce] on [date]"
+
+   C. Add "My Orders / నా ఆర్డర్లు" button on consumer home page
+      - Visible only after login
+      - Shows count of pending orders as badge
+
+   - All text bilingual English/Telugu. go one by one tell me before doing
+
+---
+
+❯ implemnt one by one and also implement Implement these 2 features:
+
+  1. COD - Farmer choice:
+     - In farmer dashboard settings add toggle:
+       "Accept Cash on Delivery / నగదు చెల్లింపు అంగీకరించు"                                                                               
+     - If farmer turns ON: buyer sees COD option in cart
+     - If farmer turns OFF: buyer sees UPI only
+     - Default: OFF
+     - Save to farmers table:
+       ALTER TABLE farmers ADD COLUMN IF NOT EXISTS cod_enabled boolean DEFAULT false;
+
+  2. Consumer Login/Registration:
+     - Consumer can browse and explore site WITHOUT login - no forced login
+     - Login/Register popup appears ONLY when consumer taps "Add to cart" or "Place order"
+     - Registration fields: Name + Phone number + Password
+     - Login fields: Phone number + Password
+     - Create table:
+       CREATE TABLE IF NOT EXISTS consumers_auth (
+         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+         name text,
+         phone varchar(15) UNIQUE NOT NULL,
+         password_hash text NOT NULL,
+         created_at timestamptz DEFAULT now()
+       );
+     - After login save to localStorage: consumer_id, consumer_name, consumer_phone
+     - Show consumer name in header after login: "Hi Ramu / హాయ్ రాము"                                                                  
+     - Add logout option in consumer menu
+
+  3. After consumer login add these pages:
+
+       );
+     - After login save to localStorage: consumer_id, consumer_name, consumer_phone
+     - Show consumer name in header after login: "Hi Ramu / హాయ్ రాము"
+     - Add logout option in consumer menu
+
+  3. After consumer login add these pages:
+
+     A. My Orders page (/consumer/orders):
+        - Show all orders linked to consumer phone
+        - Each order shows:
+          * Produce name, quantity, price
+          * Farmer name and village
+          * Order date and time
+          * Payment status badge: Paid/Pending/Failed
+          * Order status badge: Confirmed/Pending/Declined
+          * Decline reason if declined
+
+     B. Order Details page (/consumer/orders/[id]):
+        - Full order details
+        - Payment screenshot they uploaded
+        - Farmer details
+        - "Contact Farmer / రైతును సంప్రదించు" green button
+          → opens WhatsApp with farmer's number pre-filled
+          → message: "Hello [farmer name] anna, regarding my order of [produce] on [date]"
+
+     C. Add "My Orders / నా ఆర్డర్లు" button on consumer home page
+        - Visible only after login
+        - Shows count of pending orders as badge
+
+     - All text bilingual English/Telugu. go one by one tell me before doing
+
+---
+
+go and think like we doing a e commerce type website so implemnt according that and think like that how we can implement with secure
+
+---
+
+go ahead
+
+---
+
+i will run the queries at last . so go ahead next step
+
+---
+
+send all queries line by line
