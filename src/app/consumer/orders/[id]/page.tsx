@@ -1,0 +1,259 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useParams } from 'next/navigation'
+import LanguageToggle from '@/components/LanguageToggle'
+import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
+
+type Order = {
+  id: string
+  produce_name: string | null
+  quantity: number | null
+  unit: string | null
+  total_price: number | null
+  pickup_location: string | null
+  status: 'pending' | 'approved' | 'declined'
+  payment_method: string | null
+  payment_status: string | null
+  decline_reason: string | null
+  payment_proof_path: string | null
+  created_at: string
+  farmer_id: string
+  farmer?: {
+    name: string
+    slug: string
+    village: string
+    phone: string | null
+    upi_id: string | null
+  } | null
+}
+
+export default function OrderDetailsPage() {
+  const params = useParams<{ id: string }>()
+  const id = typeof params?.id === 'string' ? params.id : ''
+  const { state, openAuth } = useConsumerAuth()
+  const [order, setOrder] = useState<Order | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [proofUrl, setProofUrl] = useState<string | null>(null)
+  const [proofLoading, setProofLoading] = useState(false)
+
+  useEffect(() => {
+    if (state.status !== 'authenticated' || !id) {
+      if (state.status === 'anonymous') setLoading(false)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setError('')
+    fetch(`/api/consumer/orders/${id}`, { credentials: 'same-origin' })
+      .then(async (r) => {
+        const json = await r.json().catch(() => ({}))
+        if (cancelled) return
+        if (!r.ok) {
+          setError(json?.error ?? 'Could not load order.')
+          setLoading(false)
+          return
+        }
+        setOrder(json.order as Order)
+        setLoading(false)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setError('Network error. Please try again.')
+        setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [id, state.status])
+
+  // Resolve a fresh signed URL for the payment screenshot
+  useEffect(() => {
+    if (!order?.payment_proof_path) { setProofUrl(null); return }
+    let cancelled = false
+    setProofLoading(true)
+    fetch(`/api/orders/${order.id}/proof`, { credentials: 'same-origin' })
+      .then(async (r) => {
+        const json = await r.json().catch(() => ({}))
+        if (cancelled) return
+        setProofUrl(typeof json?.url === 'string' ? json.url : null)
+        setProofLoading(false)
+      })
+      .catch(() => { if (!cancelled) setProofLoading(false) })
+    return () => { cancelled = true }
+  }, [order?.id, order?.payment_proof_path])
+
+  const statusColor = (s: string) =>
+    s === 'approved' ? 'bg-green-100 text-green-800'
+      : s === 'declined' ? 'bg-red-100 text-red-700'
+      : 'bg-amber-100 text-amber-800'
+
+  const statusLabel = (s: string) =>
+    s === 'approved' ? '✓ Confirmed' : s === 'declined' ? '✕ Declined' : '⏳ Pending'
+
+  const paymentLabel = (o: Order) => {
+    if (o.payment_method === 'cod') return 'Cash on Delivery / నగదు చెల్లింపు'
+    if (o.payment_method === 'upi') {
+      if (o.payment_status === 'completed') return 'UPI ✓ Paid'
+      if (o.payment_status === 'pending_confirmation' || o.payment_status === 'payment_claimed')
+        return 'UPI ⏳ Awaiting farmer confirmation'
+      if (o.payment_status === 'failed') return 'UPI ✕ Not received'
+      return 'UPI · Pending'
+    }
+    return o.payment_method ?? '—'
+  }
+
+  const orderDate = order
+    ? new Date(order.created_at).toLocaleDateString('en-IN', {
+        day: 'numeric', month: 'short', year: 'numeric',
+      })
+    : ''
+  const orderTime = order
+    ? new Date(order.created_at).toLocaleTimeString('en-IN', {
+        hour: '2-digit', minute: '2-digit',
+      })
+    : ''
+
+  const whatsappHref = order?.farmer?.phone && order?.produce_name
+    ? `https://wa.me/91${order.farmer.phone.replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(
+        `Hello ${order.farmer.name} anna, regarding my order of ${order.produce_name} on ${orderDate}.`,
+      )}`
+    : null
+
+  return (
+    <main className="min-h-screen bg-gray-50 pb-16">
+      <div className="bg-green-900 px-4 pt-6 pb-10">
+        <div className="flex items-center justify-between mb-4">
+          <Link href="/consumer/orders" className="text-green-300 text-sm flex items-center gap-1">
+            ← Back / వెనక్కు
+          </Link>
+          <LanguageToggle />
+        </div>
+        <h1 className="text-white text-xl font-extrabold leading-tight">
+          Order details / ఆర్డర్ వివరాలు
+        </h1>
+      </div>
+
+      <div className="px-4 -mt-5 space-y-4 max-w-lg mx-auto">
+        {state.status === 'anonymous' ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center space-y-4">
+            <div className="text-5xl">🔒</div>
+            <p className="font-bold text-gray-900">Log in to view this order</p>
+            <button
+              onClick={openAuth}
+              className="w-full bg-green-700 text-white font-bold py-3.5 rounded-xl text-sm active:bg-green-800"
+            >
+              Log in / లాగిన్
+            </button>
+          </div>
+        ) : loading ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center text-sm text-gray-500">
+            Loading... / లోడ్ అవుతోంది
+          </div>
+        ) : error ? (
+          <div className="bg-white rounded-2xl border border-red-100 p-6 text-sm text-red-600">{error}</div>
+        ) : !order ? null : (
+          <>
+            {/* Status + payment summary */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Order</p>
+                  <p className="text-base font-extrabold text-gray-900 leading-tight">
+                    {order.produce_name || '—'}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {order.quantity} {order.unit || 'kg'}
+                    {order.total_price ? ` · ₹${order.total_price}` : ''}
+                  </p>
+                </div>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${statusColor(order.status)}`}>
+                  {statusLabel(order.status)}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1 border-t border-gray-100 mt-3">
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">Placed</p>
+                  <p className="text-xs font-semibold text-gray-700">{orderDate}</p>
+                  <p className="text-[11px] text-gray-500">{orderTime}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">Payment</p>
+                  <p className="text-xs font-semibold text-gray-700">{paymentLabel(order)}</p>
+                </div>
+              </div>
+
+              {order.pickup_location && (
+                <div className="pt-1 border-t border-gray-100 mt-1">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">Pickup</p>
+                  <p className="text-xs font-semibold text-gray-700">📍 {order.pickup_location}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Decline reason */}
+            {order.status === 'declined' && order.decline_reason && (
+              <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+                <p className="text-xs font-bold text-red-700 uppercase tracking-wide">Decline reason / కారణం</p>
+                <p className="text-sm text-red-800 mt-1 leading-snug">{order.decline_reason}</p>
+              </div>
+            )}
+
+            {/* Payment screenshot */}
+            {order.payment_method === 'upi' && (
+              <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                  Payment screenshot / చెల్లింపు స్క్రీన్‌షాట్
+                </p>
+                {!order.payment_proof_path ? (
+                  <p className="text-xs text-gray-500">No screenshot uploaded yet.</p>
+                ) : proofLoading ? (
+                  <p className="text-xs text-gray-500">Loading...</p>
+                ) : proofUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={proofUrl}
+                    alt="Payment screenshot"
+                    className="w-full max-h-96 object-contain rounded-xl border border-gray-200 bg-gray-50"
+                  />
+                ) : (
+                  <p className="text-xs text-red-600">Could not load screenshot. Please refresh.</p>
+                )}
+              </div>
+            )}
+
+            {/* Farmer details */}
+            {order.farmer && (
+              <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                  Farmer / రైతు
+                </p>
+                <div>
+                  <p className="text-base font-extrabold text-gray-900 leading-tight">🧑‍🌾 {order.farmer.name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">📍 {order.farmer.village}</p>
+                </div>
+                <Link
+                  href={`/farmer/${order.farmer.slug}`}
+                  className="block text-center text-sm font-bold text-green-700 underline"
+                >
+                  View farm profile / రైతు ప్రొఫైల్ చూడండి ↗
+                </Link>
+                {whatsappHref && (
+                  <a
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full bg-green-600 text-white font-bold py-3.5 rounded-xl text-sm active:bg-green-700 flex items-center justify-center gap-2"
+                  >
+                    💬 Contact Farmer / రైతును సంప్రదించు
+                  </a>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </main>
+  )
+}

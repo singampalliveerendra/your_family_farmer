@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
 import LanguageToggle from '@/components/LanguageToggle'
+import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 
 type Order = {
   id: string
@@ -17,98 +17,72 @@ type Order = {
   payment_method: string | null
   payment_status: string | null
   decline_reason: string | null
+  payment_proof_path: string | null
   created_at: string
+  farmer_id: string
   farmer?: {
     name: string
     slug: string
     village: string
+    phone: string | null
     upi_id: string | null
   } | null
 }
 
 export default function ConsumerOrdersPage() {
   const { tx } = useLang()
-  const [phone, setPhone]     = useState('')
-  const [orders, setOrders]   = useState<Order[]>([])
-  const [loading, setLoading] = useState(false)
-  const [searched, setSearched] = useState(false)
-  const [error, setError]     = useState('')
+  const { state, openAuth } = useConsumerAuth()
+  const [orders, setOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [retryingId, setRetryingId] = useState<string | null>(null)
 
-  const digits = phone.replace(/\D/g, '').slice(-10)
-  const canSearch = digits.length === 10
+  const refresh = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    const r = await fetch('/api/consumer/orders', { credentials: 'same-origin' }).catch(() => null)
+    if (!r) { setError('Could not load orders. Check your connection.'); setLoading(false); return }
+    const json = await r.json().catch(() => ({}))
+    if (!r.ok) { setError(json?.error ?? 'Could not load orders.'); setLoading(false); return }
+    setOrders((json.orders ?? []) as Order[])
+    setLoading(false)
+  }, [])
 
-  // Reset payment_status to 'pending' so the consumer can pay again. The order
-  // remains in pending status; once the consumer claims payment, the farmer's
-  // realtime subscription on the dashboard surfaces it for re-confirmation.
+  useEffect(() => {
+    if (state.status === 'authenticated') {
+      void refresh()
+    } else if (state.status === 'anonymous') {
+      setLoading(false)
+    }
+  }, [state.status, refresh])
+
   const handleRetryPayment = async (order: Order) => {
     if (order.status === 'declined') return
     setRetryingId(order.id)
-    const { error: err } = await supabase
-      .from('orders')
-      .update({ payment_status: 'pending' })
-      .eq('id', order.id)
+    const r = await fetch(`/api/orders/${order.id}/retry`, {
+      method: 'POST',
+      credentials: 'same-origin',
+    }).catch(() => null)
     setRetryingId(null)
-    if (err) {
-      setError(err.message)
-      return
-    }
-    setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, payment_status: 'pending' } : o))
+    if (!r) { setError('Network error.'); return }
+    const json = await r.json().catch(() => ({}))
+    if (!r.ok) { setError(json?.error ?? 'Could not retry payment.'); return }
+
+    setOrders((prev) => prev.map((o) =>
+      o.id === order.id ? { ...o, payment_status: 'pending', payment_proof_path: null } : o,
+    ))
     if (order.farmer?.upi_id && order.total_price) {
       const upiLink = `upi://pay?pa=${encodeURIComponent(order.farmer.upi_id)}&pn=${encodeURIComponent(order.farmer.name)}&am=${order.total_price}&cu=INR&tn=YourFamilyFarmer%20Order`
       window.location.href = upiLink
     }
   }
 
-  const handleSearch = async () => {
-    if (!canSearch) return
-    setLoading(true)
-    setError('')
-    setSearched(false)
-
-    const { data, error: err } = await supabase
-      .from('orders')
-      .select('id, produce_name, quantity, unit, total_price, pickup_location, status, payment_method, payment_status, decline_reason, created_at, farmer_id')
-      .eq('buyer_phone', digits)
-      .order('created_at', { ascending: false })
-      .limit(50)
-
-    if (err) {
-      setError(err.message)
-      setLoading(false)
-      return
-    }
-
-    // Fetch farmer names in one query
-    const farmerIds = [...new Set((data ?? []).map((o) => o.farmer_id).filter(Boolean))]
-    let farmerMap: Record<string, { name: string; slug: string; village: string; upi_id: string | null }> = {}
-
-    if (farmerIds.length > 0) {
-      const { data: farmers } = await supabase
-        .from('farmers')
-        .select('id, name, slug, village, upi_id')
-        .in('id', farmerIds)
-      farmerMap = Object.fromEntries(
-        (farmers ?? []).map((f) => [f.id, { name: f.name, slug: f.slug, village: f.village, upi_id: (f.upi_id as string | null) ?? null }]),
-      )
-    }
-
-    const result: Order[] = (data ?? []).map((o) => ({
-      ...o,
-      farmer: farmerMap[o.farmer_id] ?? null,
-    }))
-
-    setOrders(result)
-    setSearched(true)
-    setLoading(false)
-  }
-
   const statusColor = (s: string) =>
     s === 'approved'
       ? 'bg-green-100 text-green-800'
       : s === 'declined'
-      ? 'bg-red-100 text-red-700'
-      : 'bg-amber-100 text-amber-800'
+        ? 'bg-red-100 text-red-700'
+        : 'bg-amber-100 text-amber-800'
 
   const statusLabel = (s: string) =>
     s === 'approved' ? '✓ Confirmed' : s === 'declined' ? '✕ Declined' : '⏳ Pending'
@@ -117,7 +91,8 @@ export default function ConsumerOrdersPage() {
     if (!order.payment_method || order.payment_method === 'cod') return null
     if (order.payment_method === 'upi') {
       if (order.payment_status === 'completed') return { label: '✓ UPI Paid', cls: 'bg-green-100 text-green-800' }
-      if (order.payment_status === 'pending_confirmation' || order.payment_status === 'payment_claimed') return { label: '⏳ Payment sent — awaiting farmer', cls: 'bg-blue-100 text-blue-800' }
+      if (order.payment_status === 'pending_confirmation' || order.payment_status === 'payment_claimed')
+        return { label: '⏳ Payment sent — awaiting farmer', cls: 'bg-blue-100 text-blue-800' }
       if (order.payment_status === 'failed') return { label: '✕ Payment not received', cls: 'bg-red-100 text-red-800' }
       return { label: '📲 UPI — Pay now', cls: 'bg-orange-100 text-orange-800' }
     }
@@ -141,40 +116,37 @@ export default function ConsumerOrdersPage() {
       </div>
 
       <div className="px-4 -mt-5 space-y-4 max-w-lg mx-auto">
-        {/* Phone lookup card */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
-          <p className="text-sm text-gray-600 leading-snug">
-            {tx.enterPhoneForOrders}
-          </p>
-          <div className="flex gap-2">
-            <span className="flex items-center px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-600 font-medium whitespace-nowrap">
-              +91
-            </span>
-            <input
-              type="tel"
-              inputMode="numeric"
-              placeholder="9876543210"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-base focus:border-green-500 focus:outline-none"
-              maxLength={10}
-            />
+        {state.status === 'loading' || loading ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center text-sm text-gray-500">
+            Loading... / లోడ్ అవుతోంది
           </div>
-          {error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2">{error}</p>
-          )}
-          <button
-            onClick={handleSearch}
-            disabled={loading || !canSearch}
-            className="w-full bg-green-700 text-white font-bold py-4 rounded-xl text-base disabled:opacity-50 active:bg-green-800"
-          >
-            {loading ? 'Searching... / వెతుకుతోంది' : tx.lookupOrders}
-          </button>
-        </div>
-
-        {/* Results */}
-        {searched && orders.length === 0 && (
+        ) : state.status === 'anonymous' ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center space-y-4">
+            <div className="text-5xl">🔒</div>
+            <div>
+              <p className="font-bold text-gray-900">Log in to see your orders</p>
+              <p className="text-xs text-gray-500 mt-1">
+                మీ ఆర్డర్‌లు చూడటానికి లాగిన్ అవ్వండి
+              </p>
+            </div>
+            <button
+              onClick={openAuth}
+              className="w-full bg-green-700 text-white font-bold py-3.5 rounded-xl text-sm active:bg-green-800"
+            >
+              Log in / లాగిన్
+            </button>
+          </div>
+        ) : error ? (
+          <div className="bg-white rounded-2xl border border-red-100 p-6 space-y-3">
+            <p className="text-sm text-red-600">{error}</p>
+            <button
+              onClick={() => void refresh()}
+              className="text-sm font-bold text-green-700 underline"
+            >
+              Try again
+            </button>
+          </div>
+        ) : orders.length === 0 ? (
           <div className="text-center py-14">
             <div className="text-5xl mb-3">📭</div>
             <p className="font-semibold text-gray-500 text-sm">{tx.noOrdersYet}</p>
@@ -182,9 +154,7 @@ export default function ConsumerOrdersPage() {
               Browse produce → / పంట చూడండి
             </Link>
           </div>
-        )}
-
-        {orders.length > 0 && (
+        ) : (
           <div className="space-y-3">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
               {orders.length} order{orders.length !== 1 ? 's' : ''} found
@@ -204,103 +174,101 @@ export default function ConsumerOrdersPage() {
                 ? `upi://pay?pa=${encodeURIComponent(order.farmer!.upi_id!)}&pn=${encodeURIComponent(order.farmer!.name)}&am=${order.total_price ?? 0}&cu=INR&tn=YourFamilyFarmer%20Order`
                 : null
               return (
-                <div key={order.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                  <div className="p-4 space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-extrabold text-gray-900 text-sm leading-tight">
-                          {order.produce_name || '—'}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {order.quantity} {order.unit || 'kg'}
-                          {order.total_price ? ` · ₹${order.total_price}` : ''}
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${statusColor(order.status)}`}>
-                          {statusLabel(order.status)}
-                        </span>
-                        {badge && (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${badge.cls}`}>
-                            {badge.label}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {order.farmer && (
-                      <Link
-                        href={`/farmer/${order.farmer.slug}`}
-                        className="flex items-center gap-1.5 text-xs text-green-700 font-semibold"
-                      >
-                        🧑‍🌾 {tx.orderedFrom} {order.farmer.name} · {order.farmer.village} ↗
-                      </Link>
-                    )}
-
-                    {order.pickup_location && (
-                      <p className="text-xs text-gray-500">📍 {tx.pickedUpAt}: {order.pickup_location}</p>
-                    )}
-
-                    <p className="text-[11px] text-gray-400">
-                      {new Date(order.created_at).toLocaleDateString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </p>
-
-                    {/* Decline reason — shown only when farmer declined */}
-                    {order.status === 'declined' && order.decline_reason && (
-                      <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 mt-1">
-                        <p className="text-[10px] font-bold text-red-700 uppercase tracking-wide">
-                          Reason / కారణం
-                        </p>
-                        <p className="text-xs text-red-800 mt-0.5 leading-snug">{order.decline_reason}</p>
-                      </div>
-                    )}
-
-                    {/* Pay Now button for pending UPI orders */}
-                    {needsPayment && upiLink && (
-                      <div className="pt-1 space-y-2">
-                        <button
-                          onClick={() => { window.location.href = upiLink }}
-                          className="w-full bg-green-700 text-white font-bold py-3 rounded-xl text-sm active:bg-green-800"
-                        >
-                          📲 Pay ₹{order.total_price} via UPI
-                        </button>
-                        <p className="text-[11px] text-gray-500 text-center">
-                          UPI ID: <span className="font-mono font-semibold">{order.farmer?.upi_id}</span>
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Retry payment — shown when farmer marked payment not received */}
-                    {canRetry && (
-                      <div className="pt-1 space-y-2">
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                          <p className="text-xs font-bold text-amber-800">
-                            Farmer did not receive your payment / రైతుకు చెల్లింపు అందలేదు
+                <Link key={order.id} href={`/consumer/orders/${order.id}`} className="block">
+                  <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden active:bg-gray-50">
+                    <div className="p-4 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-extrabold text-gray-900 text-sm leading-tight">
+                            {order.produce_name || '—'}
                           </p>
-                          <p className="text-[11px] text-amber-700 mt-0.5">
-                            Tap retry to pay again. The farmer will be re-notified.
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {order.quantity} {order.unit || 'kg'}
+                            {order.total_price ? ` · ₹${order.total_price}` : ''}
                           </p>
                         </div>
-                        <button
-                          onClick={() => handleRetryPayment(order)}
-                          disabled={retryingId === order.id}
-                          className="w-full bg-amber-600 text-white font-bold py-3 rounded-xl text-sm active:bg-amber-700 disabled:opacity-50"
-                        >
-                          {retryingId === order.id ? 'Opening UPI...' : `🔄 Retry payment ₹${order.total_price}`}
-                        </button>
-                        <p className="text-[11px] text-gray-500 text-center">
-                          UPI ID: <span className="font-mono font-semibold">{order.farmer?.upi_id}</span>
-                        </p>
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${statusColor(order.status)}`}>
+                            {statusLabel(order.status)}
+                          </span>
+                          {badge && (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${badge.cls}`}>
+                              {badge.label}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    )}
+
+                      {order.farmer && (
+                        <p className="flex items-center gap-1.5 text-xs text-green-700 font-semibold">
+                          🧑‍🌾 {tx.orderedFrom} {order.farmer.name} · {order.farmer.village}
+                        </p>
+                      )}
+
+                      {order.pickup_location && (
+                        <p className="text-xs text-gray-500">📍 {tx.pickedUpAt}: {order.pickup_location}</p>
+                      )}
+
+                      <p className="text-[11px] text-gray-400">
+                        {new Date(order.created_at).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+
+                      {/* Decline reason — shown only when farmer declined */}
+                      {order.status === 'declined' && order.decline_reason && (
+                        <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 mt-1">
+                          <p className="text-[10px] font-bold text-red-700 uppercase tracking-wide">
+                            Reason / కారణం
+                          </p>
+                          <p className="text-xs text-red-800 mt-0.5 leading-snug">{order.decline_reason}</p>
+                        </div>
+                      )}
+
+                      {/* Pay Now button for pending UPI orders */}
+                      {needsPayment && upiLink && (
+                        <div className="pt-1 space-y-2">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); window.location.href = upiLink }}
+                            className="w-full bg-green-700 text-white font-bold py-3 rounded-xl text-sm active:bg-green-800"
+                          >
+                            📲 Pay ₹{order.total_price} via UPI
+                          </button>
+                          <p className="text-[11px] text-gray-500 text-center">
+                            UPI ID: <span className="font-mono font-semibold">{order.farmer?.upi_id}</span>
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Retry payment */}
+                      {canRetry && (
+                        <div className="pt-1 space-y-2">
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                            <p className="text-xs font-bold text-amber-800">
+                              Farmer did not receive your payment / రైతుకు చెల్లింపు అందలేదు
+                            </p>
+                            <p className="text-[11px] text-amber-700 mt-0.5">
+                              Tap retry to pay again. The farmer will be re-notified.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); void handleRetryPayment(order) }}
+                            disabled={retryingId === order.id}
+                            className="w-full bg-amber-600 text-white font-bold py-3 rounded-xl text-sm active:bg-amber-700 disabled:opacity-50"
+                          >
+                            {retryingId === order.id ? 'Opening UPI...' : `🔄 Retry payment ₹${order.total_price}`}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                </Link>
               )
             })}
           </div>

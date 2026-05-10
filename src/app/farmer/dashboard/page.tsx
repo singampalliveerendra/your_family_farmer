@@ -37,6 +37,7 @@ type Farmer = {
   location_name: string | null
   upi_id: string | null
   upi_qr_code_url: string | null
+  cod_enabled: boolean | null
 }
 
 type DemandBar = {
@@ -854,6 +855,9 @@ function ProfileEditModal({
   const [qrPreview, setQrPreview] = useState('')
   const [existingQrUrl, setExistingQrUrl] = useState(farmer.upi_qr_code_url ?? '')
 
+  // Cash on Delivery acceptance — default off
+  const [codEnabled, setCodEnabled] = useState<boolean>(farmer.cod_enabled === true)
+
   // Change password
   const [showPwSection, setShowPwSection] = useState(false)
   const [newPassword, setNewPassword]     = useState('')
@@ -991,6 +995,7 @@ function ProfileEditModal({
       pesticide_cert_url: (certRes.url ?? existingCertUrl) || null,
       upi_id:           upiId.trim() || null,
       upi_qr_code_url:  (qrRes.url ?? existingQrUrl) || null,
+      cod_enabled:      codEnabled,
       pickup_slots: slotDays.length > 0
         ? { days: slotDays, time_from: slotFrom, time_to: slotTo }
         : null,
@@ -1379,6 +1384,28 @@ function ProfileEditModal({
                 />
               )}
             </div>
+
+            {/* Cash on Delivery toggle */}
+            <div>
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={codEnabled}
+                  onChange={(e) => setCodEnabled(e.target.checked)}
+                  className="mt-1 h-5 w-5 accent-green-600"
+                />
+                <span className="flex-1">
+                  <span className="block text-sm font-bold text-gray-900">
+                    Accept Cash on Delivery / నగదు చెల్లింపు అంగీకరించు
+                  </span>
+                  <span className="block text-[11px] text-gray-500 mt-0.5">
+                    {codEnabled
+                      ? 'Buyers can choose to pay in cash on pickup. / కొనుగోలుదారులు పికప్ సమయంలో నగదు చెల్లించవచ్చు.'
+                      : 'Off — buyers must pay via UPI before pickup. / ఆఫ్ — కొనుగోలుదారులు పికప్‌కు ముందు UPI ద్వారా చెల్లించాలి.'}
+                  </span>
+                </span>
+              </label>
+            </div>
           </div>
 
           {/* Change Password */}
@@ -1618,6 +1645,11 @@ function ProduceListingForm({
 
   const handlePublish = async () => {
     if (!name.trim()) { setError(tx.produceNameRequired); return }
+    const price1Num = Number(price1)
+    if (!price1 || !Number.isFinite(price1Num) || price1Num <= 0) {
+      setError(tx.priceRequired)
+      return
+    }
     setLoading(true)
     setError('')
 
@@ -2454,13 +2486,14 @@ function OrderCard({
           <p className="text-xs font-bold text-gray-700">
             Update Payment Status / చెల్లింపు స్థితి నవీకరించండి
           </p>
+          <p className="text-[11px] text-gray-500 -mt-1">{tx.receivedApprovesOrderHint}</p>
           <div className="grid grid-cols-3 gap-2">
             <button
               onClick={() => onUpdatePaymentStatus('completed')}
               disabled={processingPaid}
-              className="bg-green-700 text-white font-bold py-2.5 rounded-xl text-xs disabled:opacity-50 active:bg-green-800"
+              className="bg-green-700 text-white font-bold py-2.5 rounded-xl text-[11px] leading-tight disabled:opacity-50 active:bg-green-800 px-1"
             >
-              ✓ Received<br /><span className="font-normal">అందింది</span>
+              ✓ Received<br />& Approve<br /><span className="font-normal">అందింది & ఆమోదం</span>
             </button>
             <button
               onClick={() => onUpdatePaymentStatus('failed')}
@@ -2481,14 +2514,16 @@ function OrderCard({
       )}
 
       <div className="px-3 pb-3 space-y-2">
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={onApprove}
-            disabled={processing}
-            className="bg-green-600 text-white font-bold py-3 rounded-xl text-sm active:bg-green-700 disabled:opacity-50"
-          >
-            {processing ? tx.approving : `✓ ${tx.approve}`}
-          </button>
+        <div className={`grid gap-2 ${isUpi && isPaymentClaimed ? 'grid-cols-1' : 'grid-cols-2'}`}>
+          {!(isUpi && isPaymentClaimed) && (
+            <button
+              onClick={onApprove}
+              disabled={processing}
+              className="bg-green-600 text-white font-bold py-3 rounded-xl text-sm active:bg-green-700 disabled:opacity-50"
+            >
+              {processing ? tx.approving : `✓ ${tx.approve}`}
+            </button>
+          )}
           <button
             onClick={onDecline}
             disabled={processing}

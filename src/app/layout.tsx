@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { LanguageProvider } from "@/lib/LanguageContext";
+import { ConsumerAuthProvider } from "@/lib/ConsumerAuthContext";
 
 export const metadata: Metadata = {
   title: "YourFamilyFarmer — Natural food from farmers near you",
@@ -22,7 +23,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <body className="min-h-full bg-gray-50 antialiased">
-        <LanguageProvider>{children}</LanguageProvider>
+        <LanguageProvider>
+          <ConsumerAuthProvider>{children}</ConsumerAuthProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

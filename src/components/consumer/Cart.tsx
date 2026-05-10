@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
+import { compressImage } from '@/lib/imageCompress'
 
 type PickupSlots = {
   days: string[]
@@ -222,6 +224,7 @@ function CartSheet({
 }) {
   const { setQty, removeItem, clear, clearFarmer } = useCart()
   const { info, save: saveInfo } = useConsumerInfo()
+  const { consumer, requireAuth } = useConsumerAuth()
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'upi'>('upi')
@@ -236,8 +239,16 @@ function CartSheet({
   // Live UPI IDs and QR codes fetched from DB — always up to date, overrides stale cart data
   const [liveUpiIds, setLiveUpiIds] = useState<Record<string, string>>({})
   const [liveQrUrls, setLiveQrUrls] = useState<Record<string, string>>({})
+  // Live COD acceptance per farmer (default false until fetched)
+  const [liveCodEnabled, setLiveCodEnabled] = useState<Record<string, boolean>>({})
   const [showUpiAppFallback, setShowUpiAppFallback] = useState(false)
   const [utrNote, setUtrNote] = useState('')
+  // Mandatory payment screenshot upload (UPI flow)
+  const [proofFile, setProofFile] = useState<File | null>(null)
+  const [proofPreview, setProofPreview] = useState('')
+  const [proofUploading, setProofUploading] = useState(false)
+  const [proofUploaded, setProofUploaded] = useState(false)
+  const [proofError, setProofError] = useState('')
   const [cashMode, setCashMode] = useState(false)
   const [switchingToCash, setSwitchingToCash] = useState(false)
   const [upiScreen, setUpiScreen] = useState<UpiPaymentState | null>(null)
@@ -313,18 +324,21 @@ function CartSheet({
     if (farmerIds.length === 0) return
     supabase
       .from('farmers')
-      .select('id, upi_id, upi_qr_code_url')
+      .select('id, upi_id, upi_qr_code_url, cod_enabled')
       .in('id', farmerIds)
       .then(({ data }) => {
         if (!data) return
         const upiMap: Record<string, string> = {}
         const qrMap: Record<string, string> = {}
+        const codMap: Record<string, boolean> = {}
         for (const f of data) {
           if (f.upi_id) upiMap[f.id] = f.upi_id
           if (f.upi_qr_code_url) qrMap[f.id] = f.upi_qr_code_url
+          codMap[f.id] = f.cod_enabled === true
         }
         setLiveUpiIds(upiMap)
         setLiveQrUrls(qrMap)
+        setLiveCodEnabled(codMap)
       })
   }, [items])
 
@@ -332,6 +346,14 @@ function CartSheet({
     setName(info.name)
     setPhone(info.phone)
   }, [info])
+
+  // When the consumer logs in, prefer their authenticated profile over any
+  // stale form data from the legacy localStorage entry.
+  useEffect(() => {
+    if (!consumer) return
+    if (consumer.name) setName(consumer.name)
+    if (consumer.phone) setPhone(consumer.phone)
+  }, [consumer])
 
   // Group items by farmer
   const byFarmer = items.reduce<Record<string, CartItem[]>>((acc, item) => {
@@ -347,45 +369,48 @@ function CartSheet({
     setTimeout(() => setToast(''), 3000)
   }
 
-  // COD flow: save order. Farmer is alerted via realtime subscription on their
-  // dashboard — the consumer is no longer required to send a WhatsApp message.
-  const handleCodOrderFarmer = (group: CartItem[]) => {
+  // Server-authoritative order placement. Prices, buyer identity, and COD
+  // permission are computed/checked on the server using the consumer's
+  // session cookie — never trusted from the cart's client-side state.
+  const placeOrderViaApi = async (
+    group: CartItem[],
+    paymentMethod: 'upi' | 'cod',
+  ): Promise<{ ok: true; orderIds: string[]; total: number } | { ok: false; error: string }> => {
+    const f = group[0]
+    const r = await fetch('/api/orders/place', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        farmerId: f.farmerId,
+        paymentMethod,
+        pickupLocation: pickupByFarmer[f.farmerId] || null,
+        pickupDay: pickupDayByFarmer[f.farmerId] || null,
+        items: group.map((it) => ({ listingId: it.listingId, qty: it.qty })),
+      }),
+    }).catch(() => null)
+    if (!r) return { ok: false, error: 'Network error. Please try again.' }
+    const json = await r.json().catch(() => ({}))
+    if (!r.ok || !json?.ok) return { ok: false, error: json?.error ?? 'Could not place order.' }
+    return { ok: true, orderIds: json.orderIds, total: json.total }
+  }
+
+  // COD flow: save order via server endpoint. Farmer is alerted via realtime
+  // subscription on their dashboard — no WhatsApp opened on the consumer side.
+  const handleCodOrderFarmer = async (group: CartItem[]) => {
     if (detailsMissing) return
     saveInfo({ name: name.trim(), phone: phone.trim() })
-
     const f = group[0]
-    const selectedPickup = pickupByFarmer[f.farmerId]
-
-    const buyerPhone = phone.replace(/\D/g, '').slice(-10)
-    for (const it of group) {
-      const baseRow = {
-        farmer_id: it.farmerId,
-        produce_listing_id: it.listingId,
-        produce_name: it.name,
-        quantity: it.qty,
-        unit: it.unit || 'kg',
-        total_price: it.pricePerKg ? Math.round(it.pricePerKg * it.qty) : null,
-        buyer_name: name.trim(),
-        buyer_phone: buyerPhone,
-        pickup_location: selectedPickup || null,
-        status: 'pending',
-      }
-      supabase.from('orders').insert({ ...baseRow, payment_method: 'cod', payment_status: 'pending' })
-        .then(async ({ error }) => {
-          if (error?.message?.includes('payment_method') || error?.message?.includes('payment_status')) {
-            const { error: err2 } = await supabase.from('orders').insert(baseRow)
-            if (err2) console.error('[YFF] Order save failed:', err2.message)
-          } else if (error) {
-            console.error('[YFF] Order save failed:', error.message, error.details, error.hint)
-          }
-        })
+    const result = await placeOrderViaApi(group, 'cod')
+    if (!result.ok) {
+      showToast(result.error)
+      return
     }
-
     clearFarmer(f.farmerId)
     setSentFarmers((s) => ({ ...s, [f.farmerId]: true }))
   }
 
-  // UPI flow: save orders, collect IDs, show payment screen
+  // UPI flow: save orders via server endpoint, then show the payment screen.
   const handleUpiOrderFarmer = async (group: CartItem[]) => {
     if (detailsMissing) return
     const f = group[0]
@@ -396,46 +421,22 @@ function CartSheet({
     setUtrNote('')
     setShowUpiAppFallback(false)
     setCashMode(false)
+    // Fresh UPI session — clear any previous screenshot state
+    if (proofPreview) URL.revokeObjectURL(proofPreview)
+    setProofFile(null)
+    setProofPreview('')
+    setProofUploaded(false)
+    setProofUploading(false)
+    setProofError('')
     saveInfo({ name: name.trim(), phone: phone.trim() })
     setPlacingUpiOrder(f.farmerId)
 
-    const selectedPickup = pickupByFarmer[f.farmerId] || null
     const buyerPhone = phone.replace(/\D/g, '').slice(-10)
-
-    // Pre-calculate total and guard — UPI payment with ₹0 is meaningless
-    const total = group.reduce((s, it) => s + (it.pricePerKg ? Math.round(it.pricePerKg * it.qty) : 0), 0)
-    if (total === 0) {
-      setPlacingUpiOrder(null)
-      showToast('Price not set — message the farmer first / రైతుని ధర అడగండి')
-      return
-    }
-
-    const orderIds: string[] = []
-
-    for (const it of group) {
-      const price = it.pricePerKg ? Math.round(it.pricePerKg * it.qty) : null
-      const { data, error } = await supabase.from('orders').insert({
-        farmer_id: it.farmerId,
-        produce_listing_id: it.listingId,
-        produce_name: it.name,
-        quantity: it.qty,
-        unit: it.unit || 'kg',
-        total_price: price,
-        buyer_name: name.trim(),
-        buyer_phone: buyerPhone,
-        pickup_location: selectedPickup,
-        status: 'pending',
-        payment_method: 'upi',
-        payment_status: 'pending',
-      }).select('id').single()
-
-      if (!error && data) orderIds.push(data.id)
-      else if (error) console.error('[YFF] UPI order save failed:', error.message)
-    }
-
+    const result = await placeOrderViaApi(group, 'upi')
     setPlacingUpiOrder(null)
-    if (orderIds.length === 0) {
-      showToast('Could not place order. Please try again.')
+
+    if (!result.ok) {
+      showToast(result.error)
       return
     }
 
@@ -446,8 +447,8 @@ function CartSheet({
       farmerPhone: f.farmerPhone,
       upiId,
       qrCodeUrl,
-      amount: total,
-      orderIds,
+      amount: result.total,
+      orderIds: result.orderIds,
       farmerId: f.farmerId,
       buyerName: name.trim(),
       buyerPhone: buyerPhone,
@@ -459,13 +460,60 @@ function CartSheet({
         unit: it.unit,
         pricePerKg: it.pricePerKg,
       })),
-      pickupLocation: selectedPickup || undefined,
+      pickupLocation: pickupByFarmer[f.farmerId] || undefined,
       pickupDay: pickupDayByFarmer[f.farmerId] || undefined,
     })
   }
 
+  const handlePickProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.files?.[0]
+    e.target.value = '' // allow re-selecting the same file after error
+    if (!raw) return
+    if (!raw.type.startsWith('image/')) {
+      setProofError('Please pick an image (JPG/PNG/WEBP). / దయచేసి చిత్రం ఎంచుకోండి.')
+      return
+    }
+    if (raw.size > 12 * 1024 * 1024) {
+      setProofError('Screenshot too large (max 12MB before compression).')
+      return
+    }
+    setProofError('')
+    if (proofPreview) URL.revokeObjectURL(proofPreview)
+    setProofUploaded(false)
+    const compressed = await compressImage(raw, 1400, 0.75)
+    setProofFile(compressed)
+    setProofPreview(URL.createObjectURL(compressed))
+
+    // Auto-upload immediately so the user knows it's saved before they tap "I Have Paid"
+    if (!upiScreen) return
+    setProofUploading(true)
+    const fd = new FormData()
+    fd.append('orderIds', upiScreen.orderIds.join(','))
+    fd.append('file', compressed)
+    const r = await fetch('/api/orders/upload-proof', {
+      method: 'POST',
+      body: fd,
+      credentials: 'same-origin',
+    }).catch(() => null)
+    setProofUploading(false)
+    if (!r) {
+      setProofError('Upload failed — check your connection and try again.')
+      return
+    }
+    const json = await r.json().catch(() => ({}))
+    if (!r.ok || !json?.ok) {
+      setProofError(json?.error ?? 'Upload failed.')
+      return
+    }
+    setProofUploaded(true)
+  }
+
   const handlePaymentSuccess = async () => {
     if (!upiScreen) return
+    if (!proofUploaded) {
+      setProofError('Please attach your payment screenshot first.')
+      return
+    }
     await triggerPostPayment(upiScreen, utrNote)
   }
 
@@ -697,13 +745,75 @@ function CartSheet({
               />
             </div>
 
+            {/* Mandatory payment screenshot */}
+            <div className={`rounded-2xl p-4 border-2 ${proofUploaded ? 'border-green-300 bg-green-50' : 'border-amber-300 bg-amber-50'}`}>
+              <p className="text-xs font-extrabold uppercase tracking-wide mb-1.5 text-amber-800">
+                Payment screenshot (required) / చెల్లింపు స్క్రీన్‌షాట్ తప్పనిసరి
+              </p>
+              <p className="text-[11px] text-gray-600 mb-3 leading-snug">
+                Attach the success screen from your UPI app so the farmer can verify.<br />
+                మీ UPI యాప్ నుండి సక్సెస్ స్క్రీన్‌షాట్ జతచేయండి.
+              </p>
+
+              {proofPreview ? (
+                <div className="space-y-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={proofPreview}
+                    alt="Payment screenshot"
+                    className="w-full max-h-64 object-contain rounded-xl border border-gray-200 bg-white"
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`text-xs font-bold ${proofUploaded ? 'text-green-700' : 'text-amber-700'}`}>
+                      {proofUploading
+                        ? 'Uploading... / అప్‌లోడ్ అవుతోంది...'
+                        : proofUploaded
+                          ? '✓ Saved / సేవ్ అయింది'
+                          : 'Not uploaded yet'}
+                    </span>
+                    <label className="text-xs font-bold text-blue-700 underline cursor-pointer">
+                      Change / మార్చండి
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        capture="environment"
+                        className="hidden"
+                        onChange={handlePickProof}
+                      />
+                    </label>
+                  </div>
+                </div>
+              ) : (
+                <label className="w-full bg-white border-2 border-dashed border-amber-400 text-amber-800 font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 cursor-pointer active:bg-amber-100">
+                  📎 Attach screenshot / స్క్రీన్‌షాట్ జతచేయండి
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handlePickProof}
+                  />
+                </label>
+              )}
+
+              {proofError && (
+                <p className="text-xs text-red-700 mt-2 font-semibold">{proofError}</p>
+              )}
+            </div>
+
             {/* I Have Paid */}
             <button
               onClick={handlePaymentSuccess}
-              disabled={submittingResult}
+              disabled={submittingResult || proofUploading || !proofUploaded}
               className="w-full bg-green-700 text-white font-bold py-4 rounded-xl text-base disabled:opacity-50 active:bg-green-800"
             >
-              {submittingResult ? 'Saving...' : '✓ I Have Paid / చెల్లించాను'}
+              {submittingResult
+                ? 'Saving...'
+                : proofUploading
+                  ? 'Uploading screenshot...'
+                  : !proofUploaded
+                    ? 'Attach screenshot first / మొదట స్క్రీన్‌షాట్ జతచేయండి'
+                    : '✓ I Have Paid / చెల్లించాను'}
             </button>
           </div>
         </div>
@@ -782,53 +892,64 @@ function CartSheet({
                 </p>
               </div>
 
-              {/* Payment method selection */}
-              <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
-                <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
-                  Payment method / చెల్లింపు విధానం
-                </p>
-                <button
-                  onClick={() => setPaymentMethod('upi')}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-sm font-bold transition-colors ${
-                    paymentMethod === 'upi'
-                      ? 'border-blue-600 bg-blue-50 text-blue-900'
-                      : 'border-gray-200 bg-white text-gray-700'
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="text-base">📲</span>
-                    UPI Payment / యూపీఐ చెల్లింపు
-                  </span>
-                  {paymentMethod === 'upi' && (
-                    <span className="text-blue-600 text-base">✓</span>
-                  )}
-                </button>
-                {showMorePayment ? (
-                  <button
-                    onClick={() => setPaymentMethod('cod')}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-sm font-bold transition-colors ${
-                      paymentMethod === 'cod'
-                        ? 'border-green-600 bg-green-50 text-green-900'
-                        : 'border-gray-200 bg-white text-gray-700'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <span className="text-base">💵</span>
-                      Cash on Delivery / నగదు చెల్లింపు
-                    </span>
-                    {paymentMethod === 'cod' && (
-                      <span className="text-green-600 text-base">✓</span>
+              {/* Payment method selection — COD only shown if at least one farmer accepts it */}
+              {(() => {
+                const anyFarmerAcceptsCod = farmerGroups.some((g) => liveCodEnabled[g[0].farmerId])
+                if (!anyFarmerAcceptsCod && paymentMethod === 'cod') {
+                  // Defensive: ensure UPI is selected when no farmer in cart accepts COD
+                  setTimeout(() => setPaymentMethod('upi'), 0)
+                }
+                return (
+                  <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
+                    <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
+                      Payment method / చెల్లింపు విధానం
+                    </p>
+                    <button
+                      onClick={() => setPaymentMethod('upi')}
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-sm font-bold transition-colors ${
+                        paymentMethod === 'upi'
+                          ? 'border-blue-600 bg-blue-50 text-blue-900'
+                          : 'border-gray-200 bg-white text-gray-700'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="text-base">📲</span>
+                        UPI Payment / యూపీఐ చెల్లింపు
+                      </span>
+                      {paymentMethod === 'upi' && (
+                        <span className="text-blue-600 text-base">✓</span>
+                      )}
+                    </button>
+                    {anyFarmerAcceptsCod && (
+                      showMorePayment ? (
+                        <button
+                          onClick={() => setPaymentMethod('cod')}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-sm font-bold transition-colors ${
+                            paymentMethod === 'cod'
+                              ? 'border-green-600 bg-green-50 text-green-900'
+                              : 'border-gray-200 bg-white text-gray-700'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className="text-base">💵</span>
+                            Cash on Delivery / నగదు చెల్లింపు
+                          </span>
+                          {paymentMethod === 'cod' && (
+                            <span className="text-green-600 text-base">✓</span>
+                          )}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setShowMorePayment(true)}
+                          className="w-full text-xs text-gray-400 py-1 text-center active:text-gray-600"
+                        >
+                          + More options / మరిన్ని ఎంపికలు
+                        </button>
+                      )
                     )}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setShowMorePayment(true)}
-                    className="w-full text-xs text-gray-400 py-1 text-center active:text-gray-600"
-                  >
-                    + More options / మరిన్ని ఎంపికలు
-                  </button>
-                )}
-              </div>
+                  </div>
+                )
+              })()}
 
               {/* Farmer groups */}
               {farmerGroups.map((group) => {
@@ -954,62 +1075,89 @@ function CartSheet({
                         </div>
                       )}
 
-                      {paymentMethod === 'upi' ? (
-                        (liveUpiIds[f.farmerId] || f.farmerUpiId || liveQrUrls[f.farmerId]) ? (
+                      {(() => {
+                        const farmerHasUpi = !!(liveUpiIds[f.farmerId] || f.farmerUpiId || liveQrUrls[f.farmerId])
+                        const farmerCodOk = liveCodEnabled[f.farmerId] === true
+
+                        if (paymentMethod === 'upi') {
+                          if (farmerHasUpi) {
+                            return (
+                              <button
+                                onClick={() => requireAuth(() => handleUpiOrderFarmer(group))}
+                                disabled={detailsMissing || placingUpiOrder === f.farmerId}
+                                className={`mt-1 w-full font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 ${
+                                  detailsMissing
+                                    ? 'bg-gray-200 text-gray-500'
+                                    : 'bg-blue-600 text-white active:bg-blue-700 disabled:opacity-50'
+                                }`}
+                              >
+                                {placingUpiOrder === f.farmerId
+                                  ? 'Placing order...'
+                                  : `📲 Order & Pay ₹${Math.round(group.reduce((s, it) => s + (it.pricePerKg ?? 0) * it.qty, 0))}`}
+                              </button>
+                            )
+                          }
+                          if (farmerCodOk) {
+                            return (
+                              <div className="mt-1 space-y-2">
+                                <p className="text-[11px] text-amber-700 bg-amber-50 rounded-xl px-3 py-2 text-center">
+                                  ⚠️ This farmer hasn&apos;t set up UPI yet. Using Cash on Pickup.
+                                </p>
+                                <button
+                                  onClick={() => requireAuth(() => handleCodOrderFarmer(group))}
+                                  disabled={detailsMissing}
+                                  className={`w-full font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 ${
+                                    sent
+                                      ? 'bg-green-100 text-green-800'
+                                      : detailsMissing
+                                        ? 'bg-gray-200 text-gray-500'
+                                        : 'bg-green-700 text-white active:bg-green-800'
+                                  }`}
+                                >
+                                  {sent ? <>✓ Order placed</> : <>💵 Place order — Cash on Pickup</>}
+                                </button>
+                              </div>
+                            )
+                          }
+                          return (
+                            <p className="mt-1 text-[12px] text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-center">
+                              ⚠️ This farmer is not accepting orders right now.<br />
+                              ఈ రైతు ప్రస్తుతం ఆర్డర్‌లు తీసుకోవట్లేదు.
+                            </p>
+                          )
+                        }
+
+                        // paymentMethod === 'cod'
+                        if (!farmerCodOk) {
+                          return (
+                            <p className="mt-1 text-[12px] text-amber-700 bg-amber-50 rounded-xl px-3 py-2.5 text-center">
+                              This farmer accepts UPI only. Switch above.<br />
+                              ఈ రైతు UPI మాత్రమే అంగీకరిస్తారు.
+                            </p>
+                          )
+                        }
+                        return (
                           <button
-                            onClick={() => handleUpiOrderFarmer(group)}
-                            disabled={detailsMissing || placingUpiOrder === f.farmerId}
+                            onClick={() => requireAuth(() => handleCodOrderFarmer(group))}
+                            disabled={detailsMissing}
                             className={`mt-1 w-full font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 ${
-                              detailsMissing
-                                ? 'bg-gray-200 text-gray-500'
-                                : 'bg-blue-600 text-white active:bg-blue-700 disabled:opacity-50'
+                              sent
+                                ? 'bg-green-100 text-green-800'
+                                : detailsMissing
+                                  ? 'bg-gray-200 text-gray-500'
+                                  : 'bg-green-700 text-white active:bg-green-800'
                             }`}
                           >
-                            {placingUpiOrder === f.farmerId
-                              ? 'Placing order...'
-                              : `📲 Order & Pay ₹${Math.round(group.reduce((s, it) => s + (it.pricePerKg ?? 0) * it.qty, 0))}`}
+                            {sent ? (
+                              <>✓ Order placed</>
+                            ) : (
+                              <>
+                                ✓ Place order with {f.farmerName.split(' ')[0] || 'farmer'}
+                              </>
+                            )}
                           </button>
-                        ) : (
-                          <div className="mt-1 space-y-2">
-                            <p className="text-[11px] text-amber-700 bg-amber-50 rounded-xl px-3 py-2 text-center">
-                              ⚠️ This farmer hasn&apos;t set up UPI yet. Using Cash on Pickup.
-                            </p>
-                            <button
-                              onClick={() => handleCodOrderFarmer(group)}
-                              disabled={detailsMissing}
-                              className={`w-full font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 ${
-                                sent
-                                  ? 'bg-green-100 text-green-800'
-                                  : detailsMissing
-                                    ? 'bg-gray-200 text-gray-500'
-                                    : 'bg-green-700 text-white active:bg-green-800'
-                              }`}
-                            >
-                              {sent ? <>✓ Order placed</> : <>💵 Place order — Cash on Pickup</>}
-                            </button>
-                          </div>
                         )
-                      ) : (
-                        <button
-                          onClick={() => handleCodOrderFarmer(group)}
-                          disabled={detailsMissing}
-                          className={`mt-1 w-full font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 ${
-                            sent
-                              ? 'bg-green-100 text-green-800'
-                              : detailsMissing
-                                ? 'bg-gray-200 text-gray-500'
-                                : 'bg-green-700 text-white active:bg-green-800'
-                          }`}
-                        >
-                          {sent ? (
-                            <>✓ Order placed</>
-                          ) : (
-                            <>
-                              ✓ Place order with {f.farmerName.split(' ')[0] || 'farmer'}
-                            </>
-                          )}
-                        </button>
-                      )}
+                      })()}
                     </div>
                   </div>
                 )

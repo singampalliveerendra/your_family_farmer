@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
 import { FreshnessBadge } from '@/components/FreshnessBadge'
 import { useCart } from '@/components/consumer/Cart'
+import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 
 type Produce = {
   id: string
@@ -57,6 +58,7 @@ export default function ProduceTab({
   const { tx } = useLang()
   const f = farmer as Farmer
   const { addItem } = useCart()
+  const { requireAuth } = useConsumerAuth()
   const [listings, setListings] = useState<Produce[]>(produce as Produce[])
   const available = listings.filter((p) => p.status === 'available' && p.stock_qty !== 0)
   const comingSoon = listings.filter((p) => p.status === 'coming_soon')
@@ -101,7 +103,7 @@ export default function ProduceTab({
                 key={item.id}
                 item={item}
                 farmerInfo={farmerCartInfo}
-                onAddToCart={(qty) => addItem({
+                onAddToCart={(qty) => requireAuth(() => addItem({
                   listingId: item.id,
                   name: item.name,
                   variety: item.variety,
@@ -115,7 +117,7 @@ export default function ProduceTab({
                   unit: undefined,
                   stockQty: item.stock_qty,
                   ...farmerCartInfo,
-                }, qty)}
+                }, qty))}
                 onDelete={isEditMode ? () => handleDelete(item.id) : undefined}
               />
             ))}

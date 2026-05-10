@@ -4,11 +4,14 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import GlobalNav from '@/components/consumer/GlobalNav'
 import { CartFab, useCart } from '@/components/consumer/Cart'
+import MyOrdersChip from '@/components/consumer/MyOrdersChip'
+import RoleGateModal from '@/components/consumer/RoleGateModal'
 import { supabase } from '@/lib/supabase'
 import { FreshnessBadge } from '@/components/FreshnessBadge'
 import { haversineKm, nearestTown, formatDistance, farmerCoords } from '@/lib/location'
 import LocationSearch from '@/components/LocationSearch'
 import { useLang } from '@/lib/LanguageContext'
+import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 
 type PickupSlots = {
   days: string[]
@@ -214,6 +217,7 @@ export default function ConsumerPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 pb-12">
+      <RoleGateModal />
       <GlobalNav activeTab="consumer" />
 
       {/* ── Hero ─────────────────────────────── */}
@@ -243,6 +247,11 @@ export default function ConsumerPage() {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* My Orders quick link (only when logged in) */}
+          <div className="mt-5">
+            <MyOrdersChip />
           </div>
 
           {/* Location pill */}
@@ -420,6 +429,7 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
 
   const { tx } = useLang()
   const { cart, addItem, setQty } = useCart()
+  const { requireAuth } = useConsumerAuth()
   const inCart = cart[item.id]
 
   const canAdd = !!farmer && !!farmer.phone
@@ -434,6 +444,11 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
   const atMax        = liveStock !== null && inCart != null && inCart.qty >= liveStock
 
   const handleAdd = async () => {
+    if (!farmer) return
+    requireAuth(() => { void doAdd() })
+  }
+
+  const doAdd = async () => {
     if (!farmer) return
     setAdding(true)
     setStockMsg('')

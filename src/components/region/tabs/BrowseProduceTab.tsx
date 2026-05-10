@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
 import { useCart } from '@/components/consumer/Cart'
+import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 
 type ProduceItem = {
   id: string
@@ -40,6 +41,7 @@ export default function BrowseProduceTab({
 }) {
   const { tx } = useLang()
   const { addItem, cart } = useCart()
+  const { requireAuth } = useConsumerAuth()
   const [search, setSearch] = useState('')
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
 
@@ -60,7 +62,11 @@ export default function BrowseProduceTab({
   const handleAddToCart = (item: ProduceItem) => {
     const farmer = getFarmer(item.farmer_id)
     if (!farmer?.phone) return
+    const farmerWithPhone = farmer as Farmer & { phone: string }
+    requireAuth(() => doAddToCart(item, farmerWithPhone))
+  }
 
+  const doAddToCart = (item: ProduceItem, farmer: Farmer & { phone: string }) => {
     addItem({
       listingId: item.id,
       name: item.name,
