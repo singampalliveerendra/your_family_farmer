@@ -776,7 +776,6 @@ function CartSheet({
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/webp"
-                        capture="environment"
                         className="hidden"
                         onChange={handlePickProof}
                       />
@@ -789,7 +788,6 @@ function CartSheet({
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
-                    capture="environment"
                     className="hidden"
                     onChange={handlePickProof}
                   />
