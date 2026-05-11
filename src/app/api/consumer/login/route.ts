@@ -93,6 +93,12 @@ export async function POST(req: NextRequest) {
     ok: true,
     consumer: { id: user.id, name: user.name, phone: user.phone },
   })
-  setSessionCookie(res, user.id)
+  try {
+    setSessionCookie(res, user.id)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Session setup failed.'
+    console.error('[YFF login] setSessionCookie failed:', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
   return res
 }
