@@ -14,10 +14,10 @@ export async function GET(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  const { data, error } = await supabase
+  const { data: orders, error } = await supabase
     .from('orders')
     .select(
-      'id, produce_name, quantity, unit, total_price, pickup_location, status, payment_method, payment_status, decline_reason, payment_proof_path, created_at, farmer_id, farmer:farmers(name, slug, village, phone, upi_id)',
+      'id, produce_name, quantity, unit, total_price, pickup_location, status, payment_method, payment_status, decline_reason, payment_proof_path, created_at, farmer_id',
     )
     .eq('consumer_id', session.consumerId)
     .order('created_at', { ascending: false })
@@ -27,5 +27,23 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ orders: data ?? [] })
+  // Manual join — orders.farmer_id has no FK constraint, so PostgREST can't
+  // embed the farmer resource for us. One extra query keeps it simple.
+  const farmerIds = [...new Set((orders ?? []).map((o) => o.farmer_id).filter(Boolean))]
+  let farmerMap: Record<string, { name: string; slug: string; village: string; phone: string | null; upi_id: string | null }> = {}
+  if (farmerIds.length > 0) {
+    const { data: farmers } = await supabase
+      .from('farmers')
+      .select('id, name, slug, village, phone, upi_id')
+      .in('id', farmerIds)
+    farmerMap = Object.fromEntries(
+      (farmers ?? []).map((f) => [
+        f.id,
+        { name: f.name, slug: f.slug, village: f.village, phone: f.phone ?? null, upi_id: (f.upi_id as string | null) ?? null },
+      ]),
+    )
+  }
+
+  const enriched = (orders ?? []).map((o) => ({ ...o, farmer: farmerMap[o.farmer_id] ?? null }))
+  return NextResponse.json({ orders: enriched })
 }

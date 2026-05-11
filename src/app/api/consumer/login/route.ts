@@ -41,26 +41,53 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  const { data: user } = await supabase
+  console.log('[YFF login] attempt phone=%s', phone)
+
+  const { data: user, error: lookupErr } = await supabase
     .from('consumers_auth')
     .select('id, name, phone, password_hash')
     .eq('phone', phone)
     .maybeSingle()
 
-  // Generic message either way — don't reveal whether the phone is registered
-  const generic = NextResponse.json(
-    { error: 'Incorrect phone or password.' },
-    { status: 401 },
-  )
+  if (lookupErr) {
+    console.error('[YFF login] lookup failed:', lookupErr.code, lookupErr.message)
+    if (
+      lookupErr.message?.includes('does not exist')
+      || lookupErr.code === '42P01'
+    ) {
+      return NextResponse.json(
+        { error: 'consumers_auth table is missing. Run scripts/consumer-auth-migration.sql in Supabase first.' },
+        { status: 500 },
+      )
+    }
+    return NextResponse.json(
+      { error: `Database error: ${lookupErr.message}` },
+      { status: 500 },
+    )
+  }
 
-  if (!user) return generic
-  if (!user.password_hash) return generic
-  if (!verifyPassword(password, user.password_hash)) return generic
+  if (!user) {
+    console.log('[YFF login] no account for phone=%s', phone)
+    return NextResponse.json(
+      { error: 'No account found. Please sign up. / ఖాతా లేదు, సైన్ అప్ చేయండి' },
+      { status: 404 },
+    )
+  }
+
+  if (!user.password_hash || !verifyPassword(password, user.password_hash)) {
+    console.log('[YFF login] wrong password phone=%s', phone)
+    return NextResponse.json(
+      { error: 'Wrong password / తప్పు పాస్‌వర్డ్' },
+      { status: 401 },
+    )
+  }
 
   await supabase
     .from('consumers_auth')
     .update({ last_login_at: new Date().toISOString() })
     .eq('id', user.id)
+
+  console.log('[YFF login] success id=%s', user.id)
 
   const res = NextResponse.json({
     ok: true,

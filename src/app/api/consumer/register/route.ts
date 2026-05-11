@@ -45,15 +45,35 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
+  console.log('[YFF register] attempt phone=%s name=%s', phone, name)
+
   // Reject duplicate phone (UNIQUE constraint also enforces, but check first
   // to give a clean error message)
-  const { data: existing } = await supabase
+  const { data: existing, error: lookupErr } = await supabase
     .from('consumers_auth')
     .select('id')
     .eq('phone', phone)
     .maybeSingle()
 
+  if (lookupErr) {
+    console.error('[YFF register] lookup failed:', lookupErr.code, lookupErr.message)
+    if (
+      lookupErr.message?.includes('does not exist')
+      || lookupErr.code === '42P01'
+    ) {
+      return NextResponse.json(
+        { error: 'consumers_auth table is missing. Run scripts/consumer-auth-migration.sql in Supabase first.' },
+        { status: 500 },
+      )
+    }
+    return NextResponse.json(
+      { error: `Database error: ${lookupErr.message}` },
+      { status: 500 },
+    )
+  }
+
   if (existing) {
+    console.log('[YFF register] phone already registered, id=%s', existing.id)
     return NextResponse.json(
       { error: 'An account already exists for this phone. Please log in instead.' },
       { status: 409 },
@@ -68,11 +88,15 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (insertErr || !created) {
+    console.error('[YFF register] insert failed:', insertErr?.code, insertErr?.message)
+    // Surface the underlying error so we can debug instead of guessing
     return NextResponse.json(
-      { error: 'Could not create account. Please try again.' },
+      { error: insertErr?.message || 'Could not create account. Please try again.' },
       { status: 500 },
     )
   }
+
+  console.log('[YFF register] success id=%s', created.id)
 
   const res = NextResponse.json({
     ok: true,

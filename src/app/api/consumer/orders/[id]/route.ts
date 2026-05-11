@@ -22,7 +22,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { data: order, error } = await supabase
     .from('orders')
     .select(
-      'id, consumer_id, produce_name, quantity, unit, total_price, pickup_location, status, payment_method, payment_status, decline_reason, payment_proof_path, created_at, farmer_id, farmer:farmers(name, slug, village, phone, upi_id)',
+      'id, consumer_id, produce_name, quantity, unit, total_price, pickup_location, status, payment_method, payment_status, decline_reason, payment_proof_path, created_at, farmer_id',
     )
     .eq('id', id)
     .maybeSingle()
@@ -33,5 +33,24 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return NextResponse.json({ error: 'Not your order.' }, { status: 403 })
   }
 
-  return NextResponse.json({ order })
+  // Manual farmer join (no FK on orders.farmer_id → farmers.id, so embedding fails)
+  let farmer: { name: string; slug: string; village: string; phone: string | null; upi_id: string | null } | null = null
+  if (order.farmer_id) {
+    const { data: f } = await supabase
+      .from('farmers')
+      .select('id, name, slug, village, phone, upi_id')
+      .eq('id', order.farmer_id)
+      .maybeSingle()
+    if (f) {
+      farmer = {
+        name: f.name,
+        slug: f.slug,
+        village: f.village,
+        phone: f.phone ?? null,
+        upi_id: (f.upi_id as string | null) ?? null,
+      }
+    }
+  }
+
+  return NextResponse.json({ order: { ...order, farmer } })
 }
