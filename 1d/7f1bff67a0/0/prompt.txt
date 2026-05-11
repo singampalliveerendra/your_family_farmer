@@ -1,0 +1,80 @@
+Create account / ఖాతా సృష్టించండి
+×
+Log in / లాగిన్
+Sign up / సైన్ అప్
+Your name / మీ పేరు
+navi 
+Phone number / ఫోన్ నంబర్
++91
+9676649246
+Password / పాస్‌వర్డ్
+786786
+Hide
+Minimum 6 characters / కనీసం 6 అక్షరాలు
+
+SESSION_SECRET env var is missing or too short. Set a 32+ char random string in your environment (e.g. `openssl rand -hex 32`)..
+
+---
+
+its still not working . did i forgot to add any env varibles or keys in verecel
+
+---
+
+SESSION_SECRET env var is missing or too short. Set a 32+ char random string in your environment (e.g. `openssl rand -hex 32`).
+
+---
+
+Environment Variables
+Environment Variables
+Store API keys, tokens, and config securely. Learn more
+
+Project
+Shared
+Search…
+All Environments
+All Editors…
+
+All Variables
+
+Last Updated
+
+SUPABASE_SERVICE_ROLE_KEY
+Sensitive
+Production and Preview
+Added 
+Apr 24
+
+
+NEXT_PUBLIC_SUPABASE_URL
+All Environments
+•••••••••••••••
+
+Added 
+Apr 16
+
+
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+All Environments
+•••••••••••••••
+
+Added 
+Apr 16
+
+
+Enable access to System Environment Variablesonly these
+
+---
+
+can you explain me in detail i didnt understand the process
+
+---
+
+SESSION_SECRET=REDACTED
+
+---
+
+working
+
+---
+
+while consumer  uploading screenshot need option for they can add through gallery not only camery becouse how he take phooto of hus transaction so add gallery option
