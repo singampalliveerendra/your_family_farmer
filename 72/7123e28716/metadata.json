@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "727123e28716",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/app/api/consumer/login/route.ts",
+    "src/app/api/consumer/orders/[id]/route.ts",
+    "src/app/api/consumer/orders/route.ts",
+    "src/app/api/consumer/register/route.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/72/7123e28716/0/metadata.json",
+      "transcript": "/72/7123e28716/0/full.jsonl",
+      "content_hash": "/72/7123e28716/0/content_hash.txt",
+      "prompt": "/72/7123e28716/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 29795,
+    "cache_read_tokens": 77685,
+    "output_tokens": 703,
+    "api_call_count": 4
+  }
+}
