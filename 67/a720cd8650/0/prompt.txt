@@ -1,0 +1,75 @@
+there is an issue in loginn after deploying but in local host it is working
+
+---
+
+there is an issue in loginn after deploying but in local host it is working
+
+---
+
+Failed to load resource: the server responded with a status of 500 ()Understand this error
+register:1  Failed to load resource: the server responded with a status of 409 ()Understand this error
+register:1  Failed to load resource: the server responded with a status of 409 ()Understand this error
+register:1  Failed to load resource: the server responded with a status of 409 ()Understand this error
+register:1  Failed to load resource: the server responded with a status of 409 ()Understand this error
+register:1  Failed to load resource: the server responded with a status of 409 ()Understand this error
+register:1  Failed to load resource: the server responded with a status of 409 ()Understand this error
+api/consumer/login:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+api/consumer/login:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+api/consumer/login:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+api/consumer/login:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+register:1  Failed to load resource: the server responded with a status of 409 ()Understand this error
+register:1  Failed to load resource: the server responded with a status of 409 ()Understand this error
+register:1  Failed to load resource: the server responded with a status of 409 ()Understand this error
+register:1  Failed to load resource: the server responded with a status of 409 ()Understand this error
+api/consumer/login:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+api/consumer/login:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+api/consumer/login:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+register:1  Failed to load resource: the server responded with a status of 409 ()Understand this error
+register:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+register:1  Failed to load resource: the server responded with a status of 409 ()Understand this error
+register:1  Failed to load resource: the server responded with a status of 409 ()Understand this error
+0ux31jcxru9w1.js:1  POST https://yourfamilyfarmer.6281400.xyz/api/consumer/register 429 (Too Many Requests)
+(anonymous) @ 0ux31jcxru9w1.js:1
+k @ 00m_1g6ia4c9t.js:1
+sJ @ 0n~dq4kpx9xxx.js:1
+(anonymous) @ 0n~dq4kpx9xxx.js:1
+tD @ 0n~dq4kpx9xxx.js:1
+s4 @ 0n~dq4kpx9xxx.js:1
+fz @ 0n~dq4kpx9xxx.js:1
+fT @ 0n~dq4kpx9xxx.js:1Understand this error
+0ux31jcxru9w1.js:1  POST https://yourfamilyfarmer.6281400.xyz/api/consumer/register 429 (Too Many Requests)
+(anonymous) @ 0ux31jcxru9w1.js:1
+k @ 00m_1g6ia4c9t.js:1
+sJ @ 0n~dq4kpx9xxx.js:1
+(anonymous) @ 0n~dq4kpx9xxx.js:1
+tD @ 0n~dq4kpx9xxx.js:1
+s4 @ 0n~dq4kpx9xxx.js:1
+fz @ 0n~dq4kpx9xxx.js:1
+fT @ 0n~dq4kpx9xxx.js:1Understand this error
+0ux31jcxru9w1.js:1  POST https://yourfamilyfarmer.6281400.xyz/api/consumer/register 429 (Too Many Requests)
+(anonymous) @ 0ux31jcxru9w1.js:1
+k @ 00m_1g6ia4c9t.js:1
+sJ @ 0n~dq4kpx9xxx.js:1
+(anonymous) @ 0n~dq4kpx9xxx.js:1
+tD @ 0n~dq4kpx9xxx.js:1
+s4 @ 0n~dq4kpx9xxx.js:1
+fz @ 0n~dq4kpx9xxx.js:1
+fT @ 0n~dq4kpx9xxx.js:1Understand this error
+0ux31jcxru9w1.js:1  POST https://yourfamilyfarmer.6281400.xyz/api/consumer/register 429 (Too Many this is console . Create account / ఖాతా సృష్టించండి
+×
+Log in / లాగిన్
+Sign up / సైన్ అప్
+Your name / మీ పేరు
+hii
+Phone number / ఫోన్ నంబర్
++91
+9676649237
+Password / పాస్‌వర్డ్
+••••••
+Show
+Minimum 6 characters / కనీసం 6 అక్షరాలు
+
+Too many sign-up attempts. Try again in an hour.
+
+Create account / ఖాతా సృష్టించండి
+Already have an account? Tap Log in. / ఖాతా ఉందా? లాగిన్ నొక్కండి.this is registartion
