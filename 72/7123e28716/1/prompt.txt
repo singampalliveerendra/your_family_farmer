@@ -1,0 +1,183 @@
+what are the features we add till now . tell me without technical terms just normal
+
+---
+
+Fix consumer login/signup bugs:
+
+1. Check consumers_auth table in Supabase:
+   - Make sure table exists with correct columns
+   - Run this SQL to recreate cleanly:
+     DROP TABLE IF EXISTS consumers_auth;
+     CREATE TABLE consumers_auth (
+       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       name text,
+       phone varchar(15) UNIQUE NOT NULL,
+       password_hash text NOT NULL,
+       created_at timestamptz DEFAULT now()
+     );
+
+2. Fix signup:
+   - Before showing "account already exists" error, check if the phone actually exists in DB
+   - Hash password using bcrypt before saving: npm install bcryptjs
+   - Save name, phone, hashed password to consumers_auth table
+   - Show success message after signup and auto login
+
+3. Fix login:
+   - Fetch consumer by phone from consumers_auth table
+   - Compare entered password with stored hash using bcrypt.compare()
+   - If match: save consumer_id, name, phone to localStorage and close popup
+   - If no match: show "Wrong password / తప్పు పాస్‌వర్డ్"
+   - If phone not found: show "No account found, please sign up / ఖాతా లేదు, సైన్ అప్ చేయండి"
+
+4. Debug:
+   - Add console.log to show exactly what is being saved and compared
+   - Make sure Supabase anon key has INSERT and SELECT permissions on consumers_auth table
+   - Check RLS policies - add policy to allow public insert and select on consumers_auth. please check
+
+---
+
+veerendra@DESKTOP-A42QL39:~/farmer/yourfamilyfarmer$ npm run dev
+
+> yourfamilyfarmer@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.4 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://10.255.255.254:3000
+- Environments: .env.local
+✓ Ready in 696ms
+
+○ Compiling / ...
+ GET / 307 in 5.2s (next.js: 4.2s, application-code: 1061ms)
+ GET /consumer 200 in 449ms (next.js: 111ms, application-code: 338ms)
+ GET /api/consumer/me 200 in 976ms (next.js: 965ms, application-code: 11ms)
+ GET /api/produce?status=coming_soon 200 in 1214ms (next.js: 441ms, application-code: 773ms)
+ GET /api/produce 200 in 1299ms (next.js: 379ms, application-code: 920ms)
+[YFF register] attempt phone=7601059161 name=veeru
+[YFF register] success id=a2f59d22-8a50-454d-8479-85ab2458e8b7
+⨯ Error: SESSION_SECRET env var is missing or too short. Set a 32+ char random string in your environment (e.g. `openssl rand -hex 32`).
+    at getSessionSecret (src/lib/session.ts:17:11)
+    at sign (src/lib/session.ts:29:18)
+    at createSessionToken (src/lib/session.ts:36:15)
+    at setSessionCookie (src/lib/session.ts:70:17)
+    at POST (src/app/api/consumer/register/route.ts:105:19)
+  15 |   const secret = process.env.SESSION_SECRET
+  16 |   if (!secret || secret.length < 32) {
+> 17 |     throw new Error(
+     |           ^
+  18 |       'SESSION_SECRET env var is missing or too short. Set a 32+ char random string in your environment (e.g. `ope...
+  19 |     )
+  20 |   }
+ POST /api/consumer/register 500 in 2.0s (next.js: 400ms, application-code: 1633ms)
+[YFF register] attempt phone=7601059161 name=veeru
+[YFF register] phone already registered, id=a2f59d22-8a50-454d-8479-85ab2458e8b7
+ POST /api/consumer/register 409 in 426ms (next.js: 6ms, application-code: 421ms)
+[YFF register] attempt phone=7601059161 name=veeru
+[YFF register] phone already registered, id=a2f59d22-8a50-454d-8479-85ab2458e8b7
+ POST /api/consumer/register 409 in 74ms (next.js: 3ms, application-code: 70ms)
+[YFF register] attempt phone=7601059161 name=veeru
+[YFF register] phone already registered, id=a2f59d22-8a50-454d-8479-85ab2458e8b7
+ POST /api/consumer/register 409 in 58ms (next.js: 4ms, application-code: 53ms)
+[YFF register] attempt phone=7601059161 name=veeru
+[YFF register] phone already registered, id=a2f59d22-8a50-454d-8479-85ab2458e8b7
+ POST /api/consumer/register 409 in 53ms (next.js: 3ms, application-code: 50ms)
+[YFF login] attempt phone=7601059161
+[YFF login] success id=a2f59d22-8a50-454d-8479-85ab2458e8b7
+⨯ Error: SESSION_SECRET env var is missing or too short. Set a 32+ char random string in your environment (e.g. `openssl rand -hex 32`).
+    at getSessionSecret (src/lib/session.ts:17:11)
+    at sign (src/lib/session.ts:29:18)
+    at createSessionToken (src/lib/session.ts:36:15)
+    at setSessionCookie (src/lib/session.ts:70:17)
+    at POST (src/app/api/consumer/login/route.ts:96:19)
+  15 |   const secret = process.env.SESSION_SECRET
+  16 |   if (!secret || secret.length < 32) {
+> 17 |     throw new Error(
+     |           ^
+  18 |       'SESSION_SECRET env var is missing or too short. Set a 32+ char random string in your environment (e.g. `ope...
+  19 |     )
+  20 |   }
+ POST /api/consumer/login 500 in 966ms (next.js: 224ms, application-code: 742ms)
+[YFF login] attempt phone=7601059161
+[YFF login] success id=a2f59d22-8a50-454d-8479-85ab2458e8b7
+⨯ Error: SESSION_SECRET env var is missing or too short. Set a 32+ char random string in your environment (e.g. `openssl rand -hex 32`).
+    at getSessionSecret (src/lib/session.ts:17:11)
+    at sign (src/lib/session.ts:29:18)
+    at createSessionToken (src/lib/session.ts:36:15)
+    at setSessionCookie (src/lib/session.ts:70:17)
+    at POST (src/app/api/consumer/login/route.ts:96:19)
+  15 |   const secret = process.env.SESSION_SECRET
+  16 |   if (!secret || secret.length < 32) {
+> 17 |     throw new Error(
+     |           ^
+  18 |       'SESSION_SECRET env var is missing or too short. Set a 32+ char random string in your environment (e.g. `ope...
+  19 |     )
+  20 |   }
+ POST /api/consumer/login 500 in 215ms (next.js: 5ms, application-code: 210ms)
+[YFF login] attempt phone=7601059161
+[YFF login] success id=a2f59d22-8a50-454d-8479-85ab2458e8b7
+⨯ Error: SESSION_SECRET env var is missing or too short. Set a 32+ char random string in your environment (e.g. `openssl rand -hex 32`).
+    at getSessionSecret (src/lib/session.ts:17:11)
+    at sign (src/lib/session.ts:29:18)
+    at createSessionToken (src/lib/session.ts:36:15)
+    at setSessionCookie (src/lib/session.ts:70:17)
+    at POST (src/app/api/consumer/login/route.ts:96:19)
+  15 |   const secret = process.env.SESSION_SECRET
+  16 |   if (!secret || secret.length < 32) {
+> 17 |     throw new Error(
+     |           ^
+  18 |       'SESSION_SECRET env var is missing or too short. Set a 32+ char random string in your environment (e.g. `ope...
+  19 |     )
+  20 |   }
+ POST /api/consumer/login 500 in 214ms (next.js: 5ms, application-code: 209ms)
+[YFF login] attempt phone=7601059161
+[YFF login] success id=a2f59d22-8a50-454d-8479-85ab2458e8b7
+⨯ Error: SESSION_SECRET env var is missing or too short. Set a 32+ char random string in your environment (e.g. `openssl rand -hex 32`).
+    at getSessionSecret (src/lib/session.ts:17:11)
+    at sign (src/lib/session.ts:29:18)
+    at createSessionToken (src/lib/session.ts:36:15)
+    at setSessionCookie (src/lib/session.ts:70:17)
+    at POST (src/app/api/consumer/login/route.ts:96:19)
+  15 |   const secret = process.env.SESSION_SECRET
+  16 |   if (!secret || secret.length < 32) {
+> 17 |     throw new Error(
+     |           ^
+  18 |       'SESSION_SECRET env var is missing or too short. Set a 32+ char random string in your environment (e.g. `ope...
+  19 |     )
+  20 |   }
+ POST /api/consumer/login 500 in 223ms (next.js: 4ms, application-code: 219ms)
+[YFF login] attempt phone=7601059161
+[YFF login] success id=a2f59d22-8a50-454d-8479-85ab2458e8b7
+⨯ Error: SESSION_SECRET env var is missing or too short. Set a 32+ char random string in your environment (e.g. `openssl rand -hex 32`).
+    at getSessionSecret (src/lib/session.ts:17:11)
+    at sign (src/lib/session.ts:29:18)
+    at createSessionToken (src/lib/session.ts:36:15)
+    at setSessionCookie (src/lib/session.ts:70:17)
+    at POST (src/app/api/consumer/login/route.ts:96:19)
+  15 |   const secret = process.env.SESSION_SECRET
+  16 |   if (!secret || secret.length < 32) {
+> 17 |     throw new Error(
+     |           ^
+  18 |       'SESSION_SECRET env var is missing or too short. Set a 32+ char random string in your environment (e.g. `ope...
+  19 |     )
+  20 |   }
+ POST /api/consumer/login 500 in 209ms (next.js: 4ms, application-code: 205ms)
+ POST /api/consumer/login 429 in 17ms (next.js: 6ms, application-code: 10ms)
+ POST /api/consumer/login 429 in 7ms (next.js: 3ms, application-code: 4ms)
+not working registration and login
+
+---
+
+← Back / వెనక్కు
+EN
+తె
+My Orders / నా ఆర్డర్లు
+Your complete order history / మీ ఆర్డర్ల చరిత్ర
+
+Could not find a relationship between 'orders' and 'farmers' in the schema cache
+
+Try again
+
+---
+
+Failed to run sql query: ERROR:  23503: insert or update on table "orders" violates foreign key constraint "orders_farmer_id_fkey"
+DETAIL:  Key (farmer_id)=(46f64ee0-d3e8-44a2-b70d-d86ba0b657c0) is not present in table "farmers".
