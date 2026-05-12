@@ -15,7 +15,7 @@ export default function GlobalNav({ activeTab = 'consumer' }: { activeTab?: Acti
   const tabs = [
     { key: 'consumer' as const, href: '/consumer', label: tx.consumerNav },
     { key: 'farmer' as const, href: '/farmer/dashboard', label: tx.farmerNav },
-    { key: 'delivery' as const, href: '#', label: tx.deliveryNav, disabled: true },
+    { key: 'delivery' as const, href: '/rider', label: tx.deliveryNav },
     { key: 'moderator' as const, href: '#', label: tx.moderatorNav, disabled: true },
   ]
 
