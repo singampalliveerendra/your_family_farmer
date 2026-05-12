@@ -1,0 +1,95 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "a4ff4f707a0a",
+  "session_id": "fac31e04-d2ad-41d2-b515-37f00b1ab72b",
+  "strategy": "manual-commit",
+  "created_at": "2026-05-12T09:02:01.161651378Z",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "scripts/delivery-feature-migration.sql",
+    "src/app/admin/login/page.tsx",
+    "src/app/admin/page.tsx",
+    "src/app/api/admin/deliveries/route.ts",
+    "src/app/api/admin/login/route.ts",
+    "src/app/api/admin/logout/route.ts",
+    "src/app/api/admin/me/route.ts",
+    "src/app/api/admin/orders/[id]/reassign/route.ts",
+    "src/app/api/admin/riders/[id]/approve/route.ts",
+    "src/app/api/admin/riders/[id]/reinstate/route.ts",
+    "src/app/api/admin/riders/[id]/suspend/route.ts",
+    "src/app/api/admin/riders/route.ts",
+    "src/app/api/consumer/orders/[id]/route.ts",
+    "src/app/api/consumer/orders/route.ts",
+    "src/app/api/orders/place/route.ts",
+    "src/app/api/rider/activate/route.ts",
+    "src/app/api/rider/login/route.ts",
+    "src/app/api/rider/logout/route.ts",
+    "src/app/api/rider/me/route.ts",
+    "src/app/api/rider/orders/[id]/accept/route.ts",
+    "src/app/api/rider/orders/[id]/deliver/route.ts",
+    "src/app/api/rider/orders/[id]/out-for-delivery/route.ts",
+    "src/app/api/rider/orders/[id]/pickup/route.ts",
+    "src/app/api/rider/orders/route.ts",
+    "src/app/api/rider/register/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/consumer/orders/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/app/rider/activate/page.tsx",
+    "src/app/rider/dashboard/page.tsx",
+    "src/app/rider/login/page.tsx",
+    "src/app/rider/page.tsx",
+    "src/app/rider/signup/page.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/lib/admin-session.ts",
+    "src/lib/rider-session.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7",
+  "turn_id": "bc6a05abc8b4",
+  "token_usage": {
+    "input_tokens": 207,
+    "cache_creation_tokens": 449852,
+    "cache_read_tokens": 7707159,
+    "output_tokens": 113448,
+    "api_call_count": 57
+  },
+  "session_metrics": {
+    "turn_count": 11
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-05-12T09:02:01.124613286Z",
+    "agent_lines": 3340,
+    "agent_removed": 10,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 3340,
+    "total_lines_changed": 3350,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 3340,
+      "agent_lines_removed": 10
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 3340,
+      "agent_lines_removed": 10
+    }
+  ]
+}

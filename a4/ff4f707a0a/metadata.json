@@ -1,0 +1,60 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "a4ff4f707a0a",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "scripts/delivery-feature-migration.sql",
+    "src/app/admin/login/page.tsx",
+    "src/app/admin/page.tsx",
+    "src/app/api/admin/deliveries/route.ts",
+    "src/app/api/admin/login/route.ts",
+    "src/app/api/admin/logout/route.ts",
+    "src/app/api/admin/me/route.ts",
+    "src/app/api/admin/orders/[id]/reassign/route.ts",
+    "src/app/api/admin/riders/[id]/approve/route.ts",
+    "src/app/api/admin/riders/[id]/reinstate/route.ts",
+    "src/app/api/admin/riders/[id]/suspend/route.ts",
+    "src/app/api/admin/riders/route.ts",
+    "src/app/api/consumer/orders/[id]/route.ts",
+    "src/app/api/consumer/orders/route.ts",
+    "src/app/api/orders/place/route.ts",
+    "src/app/api/rider/activate/route.ts",
+    "src/app/api/rider/login/route.ts",
+    "src/app/api/rider/logout/route.ts",
+    "src/app/api/rider/me/route.ts",
+    "src/app/api/rider/orders/[id]/accept/route.ts",
+    "src/app/api/rider/orders/[id]/deliver/route.ts",
+    "src/app/api/rider/orders/[id]/out-for-delivery/route.ts",
+    "src/app/api/rider/orders/[id]/pickup/route.ts",
+    "src/app/api/rider/orders/route.ts",
+    "src/app/api/rider/register/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/consumer/orders/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/app/rider/activate/page.tsx",
+    "src/app/rider/dashboard/page.tsx",
+    "src/app/rider/login/page.tsx",
+    "src/app/rider/page.tsx",
+    "src/app/rider/signup/page.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/lib/admin-session.ts",
+    "src/lib/rider-session.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/a4/ff4f707a0a/0/metadata.json",
+      "transcript": "/a4/ff4f707a0a/0/full.jsonl",
+      "content_hash": "/a4/ff4f707a0a/0/content_hash.txt",
+      "prompt": "/a4/ff4f707a0a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 207,
+    "cache_creation_tokens": 449852,
+    "cache_read_tokens": 7707159,
+    "output_tokens": 113448,
+    "api_call_count": 57
+  }
+}
