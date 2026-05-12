@@ -229,6 +229,13 @@ function CartSheet({
   const [phone, setPhone] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'upi'>('upi')
   const [showMorePayment, setShowMorePayment] = useState(false)
+  // Delivery preference (per checkout). Owner collects delivery charge manually
+  // for now — no fee is added to the order total at MVP.
+  const [deliveryType, setDeliveryType] = useState<'self_pickup' | 'home_delivery'>('self_pickup')
+  const [deliveryAddress, setDeliveryAddress] = useState('')
+  const [deliveryLandmark, setDeliveryLandmark] = useState('')
+  const [deliveryPincode, setDeliveryPincode] = useState('')
+  const [deliveryAltPhone, setDeliveryAltPhone] = useState('')
   const [sentFarmers, setSentFarmers] = useState<Record<string, boolean>>({})
   const [pickupByFarmer, setPickupByFarmer] = useState<Record<string, string>>({})
   const [pickupDayByFarmer, setPickupDayByFarmer] = useState<Record<string, string>>({})
@@ -362,7 +369,10 @@ function CartSheet({
   }, {})
   const farmerGroups = Object.values(byFarmer)
 
-  const detailsMissing = !name.trim() || phone.replace(/\D/g, '').length < 10
+  const baseDetailsMissing = !name.trim() || phone.replace(/\D/g, '').length < 10
+  const deliveryDetailsMissing = deliveryType === 'home_delivery'
+    && (deliveryAddress.trim().length < 10 || !/^\d{6}$/.test(deliveryPincode.trim()))
+  const detailsMissing = baseDetailsMissing || deliveryDetailsMissing
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -387,6 +397,11 @@ function CartSheet({
         pickupLocation: pickupByFarmer[f.farmerId] || null,
         pickupDay: pickupDayByFarmer[f.farmerId] || null,
         items: group.map((it) => ({ listingId: it.listingId, qty: it.qty })),
+        deliveryType,
+        deliveryAddress: deliveryType === 'home_delivery' ? deliveryAddress.trim() : null,
+        deliveryLandmark: deliveryType === 'home_delivery' ? deliveryLandmark.trim() : null,
+        deliveryPincode: deliveryType === 'home_delivery' ? deliveryPincode.trim() : null,
+        deliveryAltPhone: deliveryType === 'home_delivery' ? deliveryAltPhone.replace(/\D/g, '').slice(-10) : null,
       }),
     }).catch(() => null)
     if (!r) return { ok: false, error: 'Network error. Please try again.' }
@@ -835,7 +850,9 @@ function CartSheet({
           <div>
             <h2 className="font-extrabold text-gray-900 text-lg">Your cart / మీ బుట్ట</h2>
             <p className="text-xs text-gray-500">
-              Pickup from farm only / పొలం నుండి పికప్ మాత్రమే
+              {deliveryType === 'home_delivery'
+                ? 'Home delivery / ఇంటికి డెలివరీ'
+                : 'Self pickup from farm / పొలం నుండి స్వీయ పికప్'}
             </p>
           </div>
           <button onClick={onClose} className="text-gray-400 text-3xl leading-none p-1">×</button>
@@ -889,6 +906,122 @@ function CartSheet({
                   పికప్ సమయం కోసం రైతుకు ఇది అవసరం.
                 </p>
               </div>
+
+              {/* Delivery choice — pickup-self (free) or home delivery. The
+                  delivery charge is collected by the owner manually for now,
+                  so we don't add a fee here. */}
+              <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
+                <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
+                  How will you receive your order? / ఎలా అందుకుంటారు?
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setDeliveryType('self_pickup')}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-sm font-bold transition-colors ${
+                    deliveryType === 'self_pickup'
+                      ? 'border-green-600 bg-green-50 text-green-900'
+                      : 'border-gray-200 bg-white text-gray-700'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="text-base">🚶</span>
+                    I&apos;ll pick up from the farm / నేను తీసుకుంటాను
+                  </span>
+                  {deliveryType === 'self_pickup' && <span className="text-green-600 text-base">✓</span>}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeliveryType('home_delivery')}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-sm font-bold transition-colors ${
+                    deliveryType === 'home_delivery'
+                      ? 'border-blue-600 bg-blue-50 text-blue-900'
+                      : 'border-gray-200 bg-white text-gray-700'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="text-base">🛵</span>
+                    Home delivery / ఇంటికి డెలివరీ
+                  </span>
+                  {deliveryType === 'home_delivery' && <span className="text-blue-600 text-base">✓</span>}
+                </button>
+                {deliveryType === 'home_delivery' && (
+                  <p className="text-[11px] text-blue-700 bg-blue-50 rounded-xl px-3 py-2 leading-snug">
+                    A delivery boy will pick up from the farmer and bring it to your address.
+                    Delivery charge is collected separately by our team.
+                  </p>
+                )}
+              </div>
+
+              {/* Address form — only when home delivery is selected */}
+              {deliveryType === 'home_delivery' && (
+                <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
+                  <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
+                    Delivery address / డెలివరీ చిరునామా
+                  </p>
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                      Full address (door no, street, area)
+                    </label>
+                    <textarea
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value.slice(0, 400))}
+                      rows={3}
+                      placeholder="H.No 12-3, Main Road, Anand Nagar"
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none resize-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                      Landmark (optional) / గుర్తు
+                    </label>
+                    <input
+                      type="text"
+                      value={deliveryLandmark}
+                      onChange={(e) => setDeliveryLandmark(e.target.value.slice(0, 200))}
+                      placeholder="Near the temple"
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                      PIN code / పిన్ కోడ్
+                    </label>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      value={deliveryPincode}
+                      onChange={(e) => setDeliveryPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      maxLength={6}
+                      placeholder="522001"
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                      Alternate phone (optional)
+                    </label>
+                    <div className="flex gap-2">
+                      <span className="flex items-center px-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 font-medium">
+                        +91
+                      </span>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        value={deliveryAltPhone}
+                        onChange={(e) => setDeliveryAltPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                        maxLength={10}
+                        placeholder="Family member / spouse"
+                        className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                  {deliveryDetailsMissing && (
+                    <p className="text-[11px] text-amber-700 bg-amber-50 rounded-xl px-3 py-2">
+                      Please fill the full address and a valid 6-digit pincode.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Payment method selection — COD only shown if at least one farmer accepts it */}
               {(() => {
@@ -969,8 +1102,8 @@ function CartSheet({
                         </p>
                         <p className="text-xs text-green-700">📍 {f.farmerVillage}</p>
                       </div>
-                      <span className="text-[10px] font-bold bg-green-700 text-white px-2 py-1 rounded-full whitespace-nowrap">
-                        Pickup
+                      <span className={`text-[10px] font-bold text-white px-2 py-1 rounded-full whitespace-nowrap ${deliveryType === 'home_delivery' ? 'bg-blue-600' : 'bg-green-700'}`}>
+                        {deliveryType === 'home_delivery' ? '🛵 Delivery' : 'Pickup'}
                       </span>
                     </div>
 

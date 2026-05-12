@@ -6,6 +6,8 @@ import { useLang } from '@/lib/LanguageContext'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 
+type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
+
 type Order = {
   id: string
   produce_name: string | null
@@ -27,6 +29,8 @@ type Order = {
     phone: string | null
     upi_id: string | null
   } | null
+  delivery_type?: 'self_pickup' | 'home_delivery' | null
+  delivery_status?: DeliveryStatus | null
 }
 
 export default function ConsumerOrdersPage() {
@@ -83,6 +87,16 @@ export default function ConsumerOrdersPage() {
       : s === 'declined'
         ? 'bg-red-100 text-red-700'
         : 'bg-amber-100 text-amber-800'
+
+  const deliveryStatusLabel = (s: DeliveryStatus | null | undefined) => {
+    switch (s) {
+      case 'assigned': return 'Rider assigned'
+      case 'picked_up': return 'Picked up'
+      case 'out_for_delivery': return 'Out for delivery'
+      case 'delivered': return 'Delivered'
+      default: return 'Waiting for rider'
+    }
+  }
 
   const statusLabel = (s: string) =>
     s === 'approved' ? '✓ Confirmed' : s === 'declined' ? '✕ Declined' : '⏳ Pending'
@@ -205,9 +219,13 @@ export default function ConsumerOrdersPage() {
                         </p>
                       )}
 
-                      {order.pickup_location && (
+                      {order.delivery_type === 'home_delivery' ? (
+                        <p className="text-xs text-blue-700 font-semibold">
+                          🛵 Home delivery · {deliveryStatusLabel(order.delivery_status)}
+                        </p>
+                      ) : order.pickup_location ? (
                         <p className="text-xs text-gray-500">📍 {tx.pickedUpAt}: {order.pickup_location}</p>
-                      )}
+                      ) : null}
 
                       <p className="text-[11px] text-gray-400">
                         {new Date(order.created_at).toLocaleDateString('en-IN', {

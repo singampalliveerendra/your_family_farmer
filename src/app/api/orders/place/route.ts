@@ -1,12 +1,21 @@
 import { createClient } from '@supabase/supabase-js'
+import { randomInt } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
 import { getTierPrice } from '@/lib/pricing'
+import { normalizePhone } from '@/lib/phone'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 type IncomingItem = { listingId: string; qty: number }
+
+// 4-digit handover code, generated server-side at order placement. The
+// customer reads it off their order page and reads it aloud to the rider at
+// the door. crypto.randomInt avoids Math.random's predictability.
+function generateHandoverOtp(): string {
+  return String(randomInt(0, 10000)).padStart(4, '0')
+}
 
 type ListingRow = {
   id: string
@@ -38,6 +47,11 @@ export async function POST(req: NextRequest) {
         pickupLocation?: string | null
         pickupDay?: string | null
         items?: IncomingItem[]
+        deliveryType?: string
+        deliveryAddress?: string | null
+        deliveryLandmark?: string | null
+        deliveryPincode?: string | null
+        deliveryAltPhone?: string | null
       }
     | null
 
@@ -53,6 +67,25 @@ export async function POST(req: NextRequest) {
     if (!it || typeof it !== 'object') return bad('Invalid item.')
     if (!it.listingId || !UUID_RE.test(it.listingId)) return bad('Invalid listing id.')
     if (!Number.isFinite(it.qty) || it.qty <= 0 || it.qty > 10000) return bad('Invalid quantity.')
+  }
+
+  const deliveryType = body.deliveryType === 'home_delivery' ? 'home_delivery' : 'self_pickup'
+  let deliveryAddress: string | null = null
+  let deliveryLandmark: string | null = null
+  let deliveryPincode: string | null = null
+  let deliveryAltPhone: string | null = null
+
+  if (deliveryType === 'home_delivery') {
+    deliveryAddress = String(body.deliveryAddress ?? '').trim().slice(0, 400)
+    deliveryLandmark = String(body.deliveryLandmark ?? '').trim().slice(0, 200) || null
+    const rawPincode = String(body.deliveryPincode ?? '').trim()
+    deliveryPincode = /^\d{6}$/.test(rawPincode) ? rawPincode : null
+    const altPhone = normalizePhone(body.deliveryAltPhone)
+    deliveryAltPhone = altPhone || null
+
+    if (!deliveryAddress) return bad('Enter your delivery address.')
+    if (deliveryAddress.length < 10) return bad('Delivery address looks too short. Please add door no, street, and area.')
+    if (!deliveryPincode) return bad('Enter a valid 6-digit pincode.')
   }
 
   const supabase = createClient(
@@ -97,6 +130,9 @@ export async function POST(req: NextRequest) {
   const listingById = new Map(listings.map((l) => [l.id, l]))
   const rows: Array<Record<string, unknown>> = []
   let total = 0
+  // One OTP for the whole batch — rider does a single handover at the door,
+  // so all rows from this checkout share the same code.
+  const sharedHandoverOtp = deliveryType === 'home_delivery' ? generateHandoverOtp() : null
 
   for (const item of items) {
     const listing = listingById.get(item.listingId)
@@ -134,6 +170,13 @@ export async function POST(req: NextRequest) {
       status: 'pending',
       payment_method: paymentMethod,
       payment_status: 'pending',
+      delivery_type: deliveryType,
+      delivery_status: deliveryType === 'home_delivery' ? 'unassigned' : null,
+      delivery_address: deliveryAddress,
+      delivery_landmark: deliveryLandmark,
+      delivery_pincode: deliveryPincode,
+      delivery_alt_phone: deliveryAltPhone,
+      handover_otp: sharedHandoverOtp,
     })
   }
 

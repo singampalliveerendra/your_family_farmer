@@ -22,7 +22,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { data: order, error } = await supabase
     .from('orders')
     .select(
-      'id, consumer_id, produce_name, quantity, unit, total_price, pickup_location, status, payment_method, payment_status, decline_reason, payment_proof_path, created_at, farmer_id',
+      'id, consumer_id, produce_name, quantity, unit, total_price, pickup_location, status, payment_method, payment_status, decline_reason, payment_proof_path, created_at, farmer_id, delivery_type, delivery_status, delivery_address, delivery_landmark, delivery_pincode, delivery_alt_phone, delivery_boy_id, handover_otp, assigned_at, picked_up_at, out_for_delivery_at, delivered_at',
     )
     .eq('id', id)
     .maybeSingle()
@@ -52,5 +52,18 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     }
   }
 
-  return NextResponse.json({ order: { ...order, farmer } })
+  // Rider contact (only after a rider has been assigned). Minimal exposure:
+  // name + phone, nothing else.
+  let rider: { id: string; name: string | null; phone: string } | null = null
+  const dbi = (order as { delivery_boy_id?: string | null }).delivery_boy_id ?? null
+  if (dbi) {
+    const { data: r } = await supabase
+      .from('delivery_boys')
+      .select('id, name, phone')
+      .eq('id', dbi)
+      .maybeSingle()
+    if (r) rider = { id: r.id, name: r.name ?? null, phone: r.phone }
+  }
+
+  return NextResponse.json({ order: { ...order, farmer, rider } })
 }

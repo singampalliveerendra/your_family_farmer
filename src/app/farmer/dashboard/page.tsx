@@ -67,6 +67,8 @@ type ListingRow = {
   created_at: string
 }
 
+type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
+
 type Order = {
   id: string
   farmer_id: string
@@ -84,6 +86,9 @@ type Order = {
   utr_number: string | null
   decline_reason: string | null
   created_at: string
+  delivery_type?: 'self_pickup' | 'home_delivery' | null
+  delivery_status?: DeliveryStatus | null
+  delivery_boy_id?: string | null
 }
 
 const UNIT_OPTIONS = [
@@ -2466,6 +2471,10 @@ function OrderCard({
         {order.pickup_location && (
           <p className="text-xs text-gray-500">📍 {order.pickup_location}</p>
         )}
+
+        {order.delivery_type === 'home_delivery' && (
+          <DeliveryTagForFarmer order={order} />
+        )}
       </div>
 
       {isUpi && isPaymentClaimed && (
@@ -2727,6 +2736,63 @@ function LoadingScreen() {
         <p className="text-gray-500 text-sm">{tx.loadingLabel}</p>
       </div>
     </main>
+  )
+}
+
+/* ─── Home-delivery tag with assigned rider contact ─────────── */
+function DeliveryTagForFarmer({ order }: { order: Order }) {
+  const [rider, setRider] = useState<{ name: string | null; phone: string } | null>(null)
+  const riderId = order.delivery_boy_id ?? null
+
+  useEffect(() => {
+    if (!riderId) { setRider(null); return }
+    let cancelled = false
+    supabase
+      .from('delivery_boys')
+      .select('name, phone')
+      .eq('id', riderId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data) return
+        setRider({ name: data.name ?? null, phone: data.phone as string })
+      })
+    return () => { cancelled = true }
+  }, [riderId])
+
+  const statusText = (() => {
+    switch (order.delivery_status) {
+      case 'assigned': return 'Rider assigned'
+      case 'picked_up': return 'Picked up'
+      case 'out_for_delivery': return 'Out for delivery'
+      case 'delivered': return 'Delivered'
+      default: return 'Waiting for rider'
+    }
+  })()
+
+  return (
+    <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 mt-1 space-y-1.5">
+      <p className="text-[10px] font-bold text-blue-800 uppercase tracking-wide">
+        🛵 Home delivery · {statusText}
+      </p>
+      {rider ? (
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-gray-900 truncate">{rider.name || 'Rider'}</p>
+            <p className="text-[11px] text-gray-500">For pickup coordination</p>
+          </div>
+          <a
+            href={`tel:${rider.phone}`}
+            className="bg-blue-600 text-white font-bold text-xs px-3 py-2 rounded-xl whitespace-nowrap active:bg-blue-700"
+          >
+            📞 Call · {rider.phone}
+          </a>
+        </div>
+      ) : (
+        <p className="text-[11px] text-blue-700">
+          A delivery boy will pick up the order. You&apos;ll see their contact here when assigned.
+        </p>
+      )}
+    </div>
   )
 }
 

@@ -6,6 +6,8 @@ import { useParams } from 'next/navigation'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 
+type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
+
 type Order = {
   id: string
   produce_name: string | null
@@ -27,6 +29,18 @@ type Order = {
     phone: string | null
     upi_id: string | null
   } | null
+  delivery_type?: 'self_pickup' | 'home_delivery' | null
+  delivery_status?: DeliveryStatus | null
+  delivery_address?: string | null
+  delivery_landmark?: string | null
+  delivery_pincode?: string | null
+  delivery_alt_phone?: string | null
+  handover_otp?: string | null
+  assigned_at?: string | null
+  picked_up_at?: string | null
+  out_for_delivery_at?: string | null
+  delivered_at?: string | null
+  rider?: { id: string; name: string | null; phone: string } | null
 }
 
 export default function OrderDetailsPage() {
@@ -192,6 +206,11 @@ export default function OrderDetailsPage() {
               )}
             </div>
 
+            {/* Delivery timeline + handover OTP — only for home delivery orders */}
+            {order.delivery_type === 'home_delivery' && order.status !== 'declined' && (
+              <DeliveryPanel order={order} />
+            )}
+
             {/* Decline reason */}
             {order.status === 'declined' && order.decline_reason && (
               <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
@@ -255,5 +274,114 @@ export default function OrderDetailsPage() {
         )}
       </div>
     </main>
+  )
+}
+
+function DeliveryPanel({ order }: { order: Order }) {
+  const ds: DeliveryStatus = (order.delivery_status as DeliveryStatus) || 'unassigned'
+
+  const steps: Array<{ key: DeliveryStatus; label: string; sub: string; at: string | null | undefined }> = [
+    { key: 'unassigned', label: 'Order placed', sub: 'Waiting for a delivery boy', at: order.created_at },
+    { key: 'assigned', label: 'Rider assigned', sub: 'On the way to farmer', at: order.assigned_at },
+    { key: 'picked_up', label: 'Picked up', sub: 'Collected from farmer', at: order.picked_up_at },
+    { key: 'out_for_delivery', label: 'Out for delivery', sub: 'On the way to you', at: order.out_for_delivery_at },
+    { key: 'delivered', label: 'Delivered', sub: 'Order completed', at: order.delivered_at },
+  ]
+
+  const stageIndex = (k: DeliveryStatus) => ['unassigned', 'assigned', 'picked_up', 'out_for_delivery', 'delivered'].indexOf(k)
+  const current = stageIndex(ds)
+
+  const formatAt = (iso: string | null | undefined) => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    return d.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-4">
+      <div className="flex items-center gap-2">
+        <span className="text-base">🛵</span>
+        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+          Home delivery / ఇంటికి డెలివరీ
+        </p>
+      </div>
+
+      {/* Handover OTP — visible once a rider has been assigned. Customer
+          reads this 4-digit code to the rider at the door so the system
+          can confirm the right person received the goods. */}
+      {ds !== 'unassigned' && ds !== 'delivered' && order.handover_otp && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl px-4 py-3 text-center">
+          <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wide">
+            Read this code to the delivery boy at your door
+          </p>
+          <p className="text-[10px] text-amber-700 mt-0.5">
+            డోర్ వద్ద డెలివరీ బాయ్‌కు ఈ కోడ్ చెప్పండి
+          </p>
+          <p className="text-4xl font-black tracking-widest text-amber-900 mt-2 font-mono">
+            {order.handover_otp}
+          </p>
+        </div>
+      )}
+
+      {ds === 'delivered' && (
+        <div className="bg-green-50 border border-green-200 rounded-2xl px-4 py-3 text-center">
+          <p className="text-sm font-extrabold text-green-800">✓ Delivered</p>
+          <p className="text-xs text-green-700 mt-0.5">{formatAt(order.delivered_at)}</p>
+        </div>
+      )}
+
+      {/* Status timeline */}
+      <ol className="space-y-2">
+        {steps.map((s, idx) => {
+          const reached = idx <= current
+          const isCurrent = idx === current
+          return (
+            <li key={s.key} className="flex items-start gap-3">
+              <div className="flex flex-col items-center pt-0.5">
+                <span className={`w-3 h-3 rounded-full ${reached ? 'bg-green-700' : 'bg-gray-200'} ${isCurrent ? 'ring-2 ring-green-200' : ''}`} />
+                {idx < steps.length - 1 && (
+                  <span className={`w-0.5 flex-1 mt-0.5 ${idx < current ? 'bg-green-700' : 'bg-gray-200'}`} style={{ minHeight: 14 }} />
+                )}
+              </div>
+              <div className="flex-1 pb-1">
+                <p className={`text-xs font-bold ${reached ? 'text-gray-900' : 'text-gray-400'}`}>{s.label}</p>
+                <p className="text-[10px] text-gray-500 leading-snug">{s.sub}</p>
+                {s.at && reached && (
+                  <p className="text-[10px] text-gray-400 mt-0.5">{formatAt(s.at)}</p>
+                )}
+              </div>
+            </li>
+          )
+        })}
+      </ol>
+
+      {/* Delivery address (always visible — confirms what consumer entered) */}
+      {order.delivery_address && (
+        <div className="border-t border-gray-100 pt-3">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Delivering to</p>
+          <p className="text-xs text-gray-800 leading-snug whitespace-pre-line">{order.delivery_address}</p>
+          {order.delivery_landmark && (
+            <p className="text-xs text-gray-600 mt-0.5">📍 {order.delivery_landmark}</p>
+          )}
+          {order.delivery_pincode && (
+            <p className="text-xs text-gray-600">PIN: {order.delivery_pincode}</p>
+          )}
+        </div>
+      )}
+
+      {/* Rider contact — only when assigned (and not yet delivered) */}
+      {order.rider && ds !== 'delivered' && (
+        <div className="border-t border-gray-100 pt-3">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Delivery boy / డెలివరీ బాయ్</p>
+          <p className="text-sm font-bold text-gray-900 mt-1">{order.rider.name || 'Your delivery partner'}</p>
+          <a
+            href={`tel:${order.rider.phone}`}
+            className="mt-2 w-full inline-flex items-center justify-center gap-2 bg-blue-600 text-white font-bold py-3 rounded-xl text-sm active:bg-blue-700"
+          >
+            📞 Call · {order.rider.phone}
+          </a>
+        </div>
+      )}
+    </div>
   )
 }

@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const { data: orders, error } = await supabase
     .from('orders')
     .select(
-      'id, produce_name, quantity, unit, total_price, pickup_location, status, payment_method, payment_status, decline_reason, payment_proof_path, created_at, farmer_id',
+      'id, produce_name, quantity, unit, total_price, pickup_location, status, payment_method, payment_status, decline_reason, payment_proof_path, created_at, farmer_id, delivery_type, delivery_status, delivery_address, delivery_landmark, delivery_pincode, delivery_alt_phone, delivery_boy_id, handover_otp, assigned_at, picked_up_at, out_for_delivery_at, delivered_at',
     )
     .eq('consumer_id', session.consumerId)
     .order('created_at', { ascending: false })
@@ -44,6 +44,31 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  const enriched = (orders ?? []).map((o) => ({ ...o, farmer: farmerMap[o.farmer_id] ?? null }))
+  // Pull rider contact for any order that's been assigned. Only ever expose
+  // the rider's name + phone — never id-proof or password fields.
+  const riderIds = [...new Set(
+    (orders ?? [])
+      .map((o) => (o as { delivery_boy_id?: string | null }).delivery_boy_id)
+      .filter((v): v is string => !!v),
+  )]
+  let riderMap: Record<string, { id: string; name: string | null; phone: string }> = {}
+  if (riderIds.length > 0) {
+    const { data: riders } = await supabase
+      .from('delivery_boys')
+      .select('id, name, phone')
+      .in('id', riderIds)
+    riderMap = Object.fromEntries(
+      (riders ?? []).map((r) => [r.id, { id: r.id, name: r.name ?? null, phone: r.phone }]),
+    )
+  }
+
+  const enriched = (orders ?? []).map((o) => {
+    const riderId = (o as { delivery_boy_id?: string | null }).delivery_boy_id ?? null
+    return {
+      ...o,
+      farmer: farmerMap[o.farmer_id] ?? null,
+      rider: riderId ? riderMap[riderId] ?? null : null,
+    }
+  })
   return NextResponse.json({ orders: enriched })
 }
