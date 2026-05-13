@@ -87,17 +87,11 @@ export default function RiderLoginPage() {
           {submitting ? 'Logging in...' : 'Log in / లాగిన్'}
         </button>
 
-        <div className="text-xs text-gray-600 text-center pt-2 space-y-1">
+        <div className="text-xs text-gray-600 text-center pt-2">
           <p>
             New here?{' '}
             <Link href="/rider/signup" className="text-green-700 font-bold underline">
-              Apply to deliver
-            </Link>
-          </p>
-          <p>
-            Got your activation code?{' '}
-            <Link href="/rider/activate" className="text-green-700 font-bold underline">
-              Activate account
+              Sign up to deliver
             </Link>
           </p>
         </div>

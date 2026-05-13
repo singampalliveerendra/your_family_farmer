@@ -1,25 +1,37 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { scryptSync, randomBytes } from 'crypto'
+import { hashPassword } from '@/lib/password'
+import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
+import { rateLimit } from '@/lib/rate-limit'
 
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString('hex')
-  const hash = scryptSync(password, salt, 64).toString('hex')
-  return `${salt}:${hash}`
-}
-
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}))
-  const farmerId: string    = String(body.farmerId ?? '').trim()
-  const newPassword: string = String(body.newPassword ?? '').trim()
-
-  if (!farmerId) {
-    return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 })
+  // The previous version trusted a body-supplied farmerId — that let anyone
+  // who guessed/scraped a farmer UUID change their password. Now we read the
+  // farmerId from the auth cookie only.
+  const session = getFarmerSessionFromRequest(req)
+  if (!session) {
+    return NextResponse.json({ error: 'Please log in first.' }, { status: 401 })
   }
-  if (newPassword.length < 4) {
-    return NextResponse.json({ error: 'Password must be at least 4 characters.' }, { status: 400 })
+
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  if (
+    !rateLimit(`reset-pw:farmer:${session.farmerId}`, 5, 60 * 60 * 1000) ||
+    !rateLimit(`reset-pw:ip:${ip}`, 15, 60 * 60 * 1000)
+  ) {
+    return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 })
+  }
+
+  const body = await req.json().catch(() => ({}))
+  const newPassword: string = String((body as { newPassword?: unknown }).newPassword ?? '').trim()
+
+  if (newPassword.length < 6) {
+    return NextResponse.json({ error: 'Password must be at least 6 characters.' }, { status: 400 })
+  }
+  if (newPassword.length > 128) {
+    return NextResponse.json({ error: 'Password is too long.' }, { status: 400 })
   }
 
   const supabase = createClient(
@@ -30,7 +42,7 @@ export async function POST(req: NextRequest) {
   const { error } = await supabase
     .from('farmers')
     .update({ password_hash: hashPassword(newPassword) })
-    .eq('id', farmerId)
+    .eq('id', session.farmerId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })

@@ -20,6 +20,7 @@ export default function RiderSignupPage() {
   const [vehicleType, setVehicleType] = useState('bike')
   const [vehicleNumber, setVehicleNumber] = useState('')
   const [serviceAreas, setServiceAreas] = useState('')
+  const [servicePincodes, setServicePincodes] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -59,6 +60,7 @@ export default function RiderSignupPage() {
     fd.append('vehicle_type', vehicleType)
     fd.append('vehicle_number', vehicleNumber)
     fd.append('service_areas', serviceAreas)
+    fd.append('service_pincodes', servicePincodes)
     fd.append('file', file)
     const r = await fetch('/api/rider/register', {
       method: 'POST',
@@ -76,28 +78,24 @@ export default function RiderSignupPage() {
     return (
       <main className="min-h-screen bg-gray-50 flex flex-col">
         <div className="bg-green-900 px-4 pt-8 pb-12">
-          <h1 className="text-white text-2xl font-extrabold">Application received</h1>
-          <p className="text-green-300 text-sm mt-1">దరఖాస్తు అందింది</p>
+          <h1 className="text-white text-2xl font-extrabold">Account created</h1>
+          <p className="text-green-300 text-sm mt-1">ఖాతా సృష్టించబడింది</p>
         </div>
         <div className="bg-white rounded-2xl shadow-md mx-4 -mt-6 p-6 space-y-3 max-w-md w-full mx-auto text-center">
-          <div className="text-5xl">📨</div>
-          <p className="font-extrabold text-gray-900">Thanks! We&apos;ve received your application.</p>
+          <div className="text-5xl">✅</div>
+          <p className="font-extrabold text-gray-900">You&apos;re all set!</p>
           <p className="text-sm text-gray-600 leading-snug">
-            The owner will review your details and call you with an{' '}
-            <span className="font-bold">activation code</span>. Once you have it, come back here and activate your account.
+            Log in with your phone and password to start picking deliveries.
           </p>
           <p className="text-xs text-gray-500 leading-snug">
-            యజమాని మీ వివరాలను తనిఖీ చేసి యాక్టివేషన్ కోడ్‌తో పిలుస్తారు.
+            మీ ఫోన్ మరియు పాస్‌వర్డ్‌తో లాగిన్ అవ్వండి.
           </p>
-          <div className="pt-4 space-y-2">
+          <div className="pt-4">
             <Link
-              href="/rider/activate"
+              href="/rider/login"
               className="block w-full bg-green-700 text-white font-bold py-3.5 rounded-xl text-sm active:bg-green-800"
             >
-              I have my code → Activate
-            </Link>
-            <Link href="/rider/login" className="block text-xs text-gray-500 underline">
-              Already activated? Log in
+              Log in / లాగిన్
             </Link>
           </div>
         </div>
@@ -232,6 +230,26 @@ export default function RiderSignupPage() {
 
         <div>
           <label className="text-xs font-bold text-gray-700 uppercase tracking-wide block mb-1">
+            Pincodes you cover / మీరు కవర్ చేసే పిన్‌కోడ్‌లు
+          </label>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={servicePincodes}
+            onChange={(e) => setServicePincodes(e.target.value)}
+            placeholder="522001, 522002, 522003"
+            maxLength={200}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
+            required
+          />
+          <p className="text-[11px] text-gray-500 mt-1 leading-snug">
+            6-digit pincodes separated by commas. You&apos;ll only see deliveries to these areas.<br />
+            కామాతో వేరు చేసిన 6-అంకెల పిన్‌కోడ్‌లు. ఈ ప్రాంతాల డెలివరీలు మాత్రమే మీకు చూపుతాము.
+          </p>
+        </div>
+
+        <div>
+          <label className="text-xs font-bold text-gray-700 uppercase tracking-wide block mb-1">
             ID proof photo (Aadhaar / DL) / గుర్తింపు కార్డు
           </label>
           {preview ? (
@@ -264,10 +282,6 @@ export default function RiderSignupPage() {
         >
           {submitting ? 'Submitting...' : 'Submit application / దరఖాస్తు చేయండి'}
         </button>
-
-        <p className="text-[11px] text-gray-500 text-center leading-snug">
-          The owner reviews each application and will call you with an activation code.
-        </p>
 
         <div className="text-xs text-gray-600 text-center pt-2">
           Already have an account?{' '}

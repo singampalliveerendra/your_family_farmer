@@ -2,16 +2,15 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { hashPassword } from '@/lib/password'
 import { normalizePhone } from '@/lib/phone'
-import { setSessionCookie } from '@/lib/session'
+import { setFarmerSessionCookie } from '@/lib/farmer-session'
 import { rateLimit } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-  // Lightweight anti-abuse: 10 registrations per IP per hour
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-  if (!rateLimit(`reg:${ip}`, 10, 60 * 60 * 1000)) {
+  if (!rateLimit(`farmer-reg:${ip}`, 10, 60 * 60 * 1000)) {
     return NextResponse.json(
       { error: 'Too many sign-up attempts. Try again in an hour.' },
       { status: 429 },
@@ -23,9 +22,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
   }
 
-  const name = String(body.name ?? '').trim().slice(0, 80)
-  const phone = normalizePhone(body.phone)
-  const password = String(body.password ?? '')
+  const name = String((body as { name?: unknown }).name ?? '').trim().slice(0, 80)
+  const phone = normalizePhone((body as { phone?: unknown }).phone as string)
+  const password = String((body as { password?: unknown }).password ?? '')
 
   if (!name) {
     return NextResponse.json({ error: 'Please enter your name.' }, { status: 400 })
@@ -45,63 +44,60 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  // Reject duplicate phone (UNIQUE constraint also enforces, but check first
-  // to give a clean error message)
-  const { data: existing, error: lookupErr } = await supabase
-    .from('consumers_auth')
+  // Phones may have been stored in older formats (0XXX, +91XXX, 91XXX). Check
+  // every variant so we don't create a duplicate row for an existing farmer.
+  const { data: existing } = await supabase
+    .from('farmers')
     .select('id')
-    .eq('phone', phone)
-    .maybeSingle()
-
-  if (lookupErr) {
-    console.error('[YFF register] lookup failed:', lookupErr.code, lookupErr.message)
-    if (
-      lookupErr.message?.includes('does not exist')
-      || lookupErr.code === '42P01'
-    ) {
-      return NextResponse.json(
-        { error: 'consumers_auth table is missing. Run scripts/consumer-auth-migration.sql in Supabase first.' },
-        { status: 500 },
-      )
-    }
-    return NextResponse.json(
-      { error: `Database error: ${lookupErr.message}` },
-      { status: 500 },
+    .or(
+      [
+        `phone.eq.${phone}`,
+        `phone.eq.0${phone}`,
+        `phone.eq.+91${phone}`,
+        `phone.eq.91${phone}`,
+      ].join(','),
     )
-  }
+    .limit(1)
 
-  if (existing) {
+  if (existing && existing.length > 0) {
     return NextResponse.json(
-      { error: 'An account already exists for this phone. Please log in instead.' },
+      { error: 'An account already exists for this phone. Please log in.' },
       { status: 409 },
     )
   }
 
+  const rand = Math.random().toString(36).slice(2, 6)
+  const slug = `f-${phone}-${rand}`
   const password_hash = hashPassword(password)
+
   const { data: created, error: insertErr } = await supabase
-    .from('consumers_auth')
-    .insert({ name, phone, password_hash })
-    .select('id, name, phone')
+    .from('farmers')
+    .insert({
+      phone,
+      slug,
+      name,
+      village: '',
+      district: '',
+      method: 'natural',
+      region_slug: 'tadepalligudem',
+      active: true,
+      password_hash,
+    })
+    .select('id, slug')
     .single()
 
   if (insertErr || !created) {
-    console.error('[YFF register] insert failed:', insertErr?.code, insertErr?.message)
-    // Surface the underlying error so we can debug instead of guessing
     return NextResponse.json(
       { error: insertErr?.message || 'Could not create account. Please try again.' },
       { status: 500 },
     )
   }
 
-  const res = NextResponse.json({
-    ok: true,
-    consumer: { id: created.id, name: created.name, phone: created.phone },
-  })
+  const res = NextResponse.json({ ok: true, farmerId: created.id, farmerSlug: created.slug })
   try {
-    setSessionCookie(res, created.id)
+    setFarmerSessionCookie(res, created.id)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Session setup failed.'
-    console.error('[YFF register] setSessionCookie failed:', msg)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
   return res

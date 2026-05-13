@@ -38,6 +38,15 @@ export async function POST(req: NextRequest) {
   const vehicleType = String(form.get('vehicle_type') ?? '').trim().toLowerCase()
   const vehicleNumber = String(form.get('vehicle_number') ?? '').trim().toUpperCase().slice(0, 20)
   const serviceAreas = String(form.get('service_areas') ?? '').trim().slice(0, 400)
+  const rawPincodes = String(form.get('service_pincodes') ?? '')
+  const servicePincodes = Array.from(
+    new Set(
+      rawPincodes
+        .split(/[,\s]+/)
+        .map((p) => p.trim())
+        .filter((p) => /^\d{6}$/.test(p)),
+    ),
+  ).slice(0, 30)
   const file = form.get('file')
 
   if (!name) return bad('Please enter your name.')
@@ -47,6 +56,7 @@ export async function POST(req: NextRequest) {
   if (!VEHICLE_TYPES.has(vehicleType)) return bad('Pick a vehicle type.')
   if (!vehicleNumber) return bad('Enter your vehicle number.')
   if (!serviceAreas) return bad('Enter the areas you can deliver to.')
+  if (servicePincodes.length === 0) return bad('Enter at least one 6-digit pincode you cover.')
   if (!(file instanceof File)) return bad('Attach a photo of your ID proof.')
   if (!ALLOWED_TYPES.has(file.type)) return bad('Only JPG, PNG, or WEBP images are allowed.')
   if (file.size === 0) return bad('ID photo is empty.')
@@ -56,8 +66,6 @@ export async function POST(req: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
-
-  console.log('[YFF rider-register] attempt phone=%s name=%s', phone, name)
 
   const { data: existing, error: lookupErr } = await supabase
     .from('delivery_boys')
@@ -100,7 +108,9 @@ export async function POST(req: NextRequest) {
       vehicle_number: vehicleNumber,
       id_proof_path: path,
       service_areas: serviceAreas,
-      status: 'pending_approval',
+      service_pincodes: servicePincodes,
+      status: 'active',
+      activated_at: new Date().toISOString(),
     })
     .select('id')
     .single()
@@ -112,6 +122,5 @@ export async function POST(req: NextRequest) {
     return bad(insertErr?.message || 'Could not save your application. Please try again.', 500)
   }
 
-  console.log('[YFF rider-register] success id=%s', created.id)
-  return NextResponse.json({ ok: true, status: 'pending_approval' })
+  return NextResponse.json({ ok: true, status: 'active' })
 }

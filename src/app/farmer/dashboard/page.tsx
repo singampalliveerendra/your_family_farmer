@@ -28,6 +28,7 @@ type Farmer = {
   buyer_count: number
   farming_since_year: number | null
   pickup_locations: string[] | null
+  farm_address: string | null
   cover_photo_url: string | null
   photo_url: string | null
   pesticide_cert_url: string | null
@@ -312,6 +313,18 @@ export default function FarmerDashboard() {
 
   const handleConfirmDecline = async (orderId: string, reason: string) => {
     setProcessingOrderId(orderId)
+    // Return the reserved stock so a farmer who declines doesn't lose it.
+    const declined = pendingOrders.find((o) => o.id === orderId)
+    if (declined?.produce_listing_id && declined.quantity != null && declined.quantity > 0) {
+      try {
+        await supabase.rpc('increment_stock', {
+          p_listing_id: declined.produce_listing_id,
+          p_qty: declined.quantity,
+        })
+      } catch (e) {
+        console.error('[YFF] restock on decline failed:', e)
+      }
+    }
     await supabase
       .from('orders')
       .update({ status: 'declined', decline_reason: reason })
@@ -832,6 +845,7 @@ function ProfileEditModal({
     Array.isArray(farmer.pickup_locations) ? farmer.pickup_locations : [],
   )
   const [newPickup, setNewPickup] = useState('')
+  const [farmAddress, setFarmAddress] = useState(farmer.farm_address ?? '')
 
   // Cover photo
   const [coverFile, setCoverFile] = useState<File | null>(null)
@@ -995,6 +1009,7 @@ function ProfileEditModal({
       method,
       slug:             newSlug,
       pickup_locations: pickupLocations,
+      farm_address:     farmAddress.trim() || null,
       cover_photo_url:  (coverRes.url ?? existingCoverUrl) || null,
       photo_url:        (avatarRes.url ?? existingAvatarUrl) || null,
       pesticide_cert_url: (certRes.url ?? existingCertUrl) || null,
@@ -1033,11 +1048,11 @@ function ProfileEditModal({
     if (newPassword !== confirmPassword) { setPwError('Passwords do not match / పాస్‌వర్డ్‌లు సరిపోలలేదు'); return }
     setPwLoading(true)
     setPwError('')
-    const farmerId = localStorage.getItem('yff_farmer_id') ?? ''
     const res = await fetch('/api/auth/reset-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ farmerId, newPassword }),
+      credentials: 'same-origin',
+      body: JSON.stringify({ newPassword }),
     })
     const json = await res.json().catch(() => ({}))
     setPwLoading(false)
@@ -1104,6 +1119,25 @@ function ProfileEditModal({
             onChange={setSinceYear}
             type="number"
           />
+
+          <div>
+            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
+              Farm pickup address / పొలం చిరునామా
+            </label>
+            <p className="text-[11px] text-gray-500 mb-2 leading-snug">
+              Where should the delivery rider come to collect the produce? Include door number, street and landmark.
+              <br />
+              డెలివరీ రైడర్ ఎక్కడకు వచ్చి సరుకు తీసుకోవాలి? డోర్ నంబర్, వీధి, ల్యాండ్‌మార్క్ ఇవ్వండి.
+            </p>
+            <textarea
+              value={farmAddress}
+              onChange={(e) => setFarmAddress(e.target.value)}
+              rows={3}
+              maxLength={400}
+              placeholder="H. No. 12-34, Mango Grove Road, near water tank, Anand Nagar"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none resize-none"
+            />
+          </div>
 
           <div>
             <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
@@ -1693,7 +1727,8 @@ function ProduceListingForm({
         res = await fetch('/api/farmer/update-listing', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ listingId: editData.id, farmerId, payload: editPayload }),
+          credentials: 'same-origin',
+          body: JSON.stringify({ listingId: editData.id, payload: editPayload }),
         })
       } catch {
         setLoading(false)

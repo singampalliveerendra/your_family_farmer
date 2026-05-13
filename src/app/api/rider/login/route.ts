@@ -54,26 +54,15 @@ export async function POST(req: NextRequest) {
     return bad('Wrong password.', 401)
   }
 
-  // Lifecycle gate — only fully activated accounts can hold a session.
-  if (rider.status === 'pending_approval') {
-    return bad('Your application is waiting for owner approval.', 403)
-  }
-  if (rider.status === 'approved') {
-    return bad('Your account is approved. Please activate it with the code from the owner first.', 403)
-  }
+  // Lifecycle gate — suspended accounts can't log in; everyone else is active.
   if (rider.status === 'suspended') {
     return bad('Your account is suspended. Contact the owner.', 403)
-  }
-  if (rider.status !== 'active') {
-    return bad('Your account is not active.', 403)
   }
 
   await supabase
     .from('delivery_boys')
     .update({ last_login_at: new Date().toISOString() })
     .eq('id', rider.id)
-
-  console.log('[YFF rider-login] success id=%s', rider.id)
 
   const res = NextResponse.json({
     ok: true,

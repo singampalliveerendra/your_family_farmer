@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { compressImage } from '@/lib/imageCompress'
+import { DELIVERY_FEE_RUPEES } from '@/lib/delivery-fee'
 
 type PickupSlots = {
   days: string[]
@@ -229,8 +230,9 @@ function CartSheet({
   const [phone, setPhone] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'upi'>('upi')
   const [showMorePayment, setShowMorePayment] = useState(false)
-  // Delivery preference (per checkout). Owner collects delivery charge manually
-  // for now — no fee is added to the order total at MVP.
+  // Delivery preference (per checkout). For home_delivery, a flat
+  // DELIVERY_FEE_RUPEES is charged once per cart (per farmer group at checkout)
+  // and collected by the rider in cash on delivery, regardless of payment method.
   const [deliveryType, setDeliveryType] = useState<'self_pickup' | 'home_delivery'>('self_pickup')
   const [deliveryAddress, setDeliveryAddress] = useState('')
   const [deliveryLandmark, setDeliveryLandmark] = useState('')
@@ -1149,12 +1151,34 @@ function CartSheet({
                       ))}
 
                       {total > 0 && (
-                        <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-2">
-                          <span className="text-xs text-gray-500">Estimated total / మొత్తం</span>
-                          <span className="font-extrabold text-gray-900">
-                            ₹{total}
-                          </span>
-                        </div>
+                        deliveryType === 'home_delivery' && DELIVERY_FEE_RUPEES > 0 ? (
+                          <div className="pt-2 border-t border-gray-100 mt-2 space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-500">Subtotal / ఉత్పత్తి</span>
+                              <span className="font-semibold text-gray-800">₹{total}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-500">
+                                Delivery fee / డెలివరీ ఛార్జ్
+                                <span className="block text-[10px] text-gray-400">cash to rider / రైడర్‌కి నగదు</span>
+                              </span>
+                              <span className="font-semibold text-gray-800">₹{DELIVERY_FEE_RUPEES}</span>
+                            </div>
+                            <div className="flex items-center justify-between pt-1 border-t border-gray-50">
+                              <span className="text-xs font-bold text-gray-700">Total / మొత్తం</span>
+                              <span className="font-extrabold text-gray-900">
+                                ₹{total + DELIVERY_FEE_RUPEES}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-2">
+                            <span className="text-xs text-gray-500">Estimated total / మొత్తం</span>
+                            <span className="font-extrabold text-gray-900">
+                              ₹{total}
+                            </span>
+                          </div>
+                        )
                       )}
 
                       {f.farmerPickupLocations && f.farmerPickupLocations.length > 0 && (

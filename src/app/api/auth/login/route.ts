@@ -1,37 +1,39 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { scryptSync, randomBytes, timingSafeEqual } from 'crypto'
+import { verifyPassword } from '@/lib/password'
+import { normalizePhone } from '@/lib/phone'
+import { setFarmerSessionCookie } from '@/lib/farmer-session'
+import { rateLimit } from '@/lib/rate-limit'
 
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString('hex')
-  const hash = scryptSync(password, salt, 64).toString('hex')
-  return `${salt}:${hash}`
-}
-
-function verifyPassword(password: string, stored: string): boolean {
-  try {
-    const [salt, hash] = stored.split(':')
-    const hashBuffer = Buffer.from(hash, 'hex')
-    const derived = scryptSync(password, salt, 64)
-    return timingSafeEqual(hashBuffer, derived)
-  } catch {
-    return false
-  }
-}
-
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}))
-  const rawPhone: string = body.phone ?? ''
-  const password: string = String(body.password ?? '').trim()
-  const digits = rawPhone.replace(/\D/g, '').slice(-10)
+  const body = await req.json().catch(() => null)
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
+  }
 
-  if (digits.length !== 10) {
+  const phone = normalizePhone((body as { phone?: unknown }).phone as string)
+  const password = String((body as { password?: unknown }).password ?? '')
+
+  if (!phone) {
     return NextResponse.json({ error: 'Enter a valid 10-digit phone number.' }, { status: 400 })
   }
   if (password.length < 4) {
     return NextResponse.json({ error: 'Password must be at least 4 characters.' }, { status: 400 })
+  }
+
+  // Brute-force throttle: 5 attempts per phone / 30 per ip in 10 min.
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  if (
+    !rateLimit(`farmer-login:phone:${phone}`, 5, 10 * 60 * 1000) ||
+    !rateLimit(`farmer-login:ip:${ip}`, 30, 10 * 60 * 1000)
+  ) {
+    return NextResponse.json(
+      { error: 'Too many login attempts. Please try again in a few minutes.' },
+      { status: 429 },
+    )
   }
 
   const supabase = createClient(
@@ -39,62 +41,51 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  // Look up farmer by phone (any stored format)
   const { data: farmers } = await supabase
     .from('farmers')
     .select('id, name, slug, phone, password_hash')
     .or(
       [
-        `phone.eq.${digits}`,
-        `phone.eq.0${digits}`,
-        `phone.eq.+91${digits}`,
-        `phone.eq.91${digits}`,
+        `phone.eq.${phone}`,
+        `phone.eq.0${phone}`,
+        `phone.eq.+91${phone}`,
+        `phone.eq.91${phone}`,
       ].join(','),
     )
     .limit(1)
 
   const farmer = farmers?.[0]
 
-  if (farmer) {
-    if (!farmer.password_hash) {
-      // Existing farmer logging in for first time after migration — set their password
-      const hash = hashPassword(password)
-      await supabase.from('farmers').update({ password_hash: hash, active: true }).eq('id', farmer.id)
-      return NextResponse.json({ ok: true, farmerId: farmer.id, farmerSlug: farmer.slug })
-    }
+  // Anti-enumeration: same generic error whether the phone exists or not.
+  const wrongCreds = NextResponse.json(
+    { error: 'Wrong phone or password. / తప్పు ఫోన్ లేదా పాస్‌వర్డ్.' },
+    { status: 401 },
+  )
 
-    if (!verifyPassword(password, farmer.password_hash)) {
-      return NextResponse.json({ error: 'Incorrect password. Please try again.' }, { status: 401 })
-    }
+  if (!farmer) return wrongCreds
 
-    await supabase.from('farmers').update({ active: true }).eq('id', farmer.id)
-    return NextResponse.json({ ok: true, farmerId: farmer.id, farmerSlug: farmer.slug })
+  // Farmers without a password must complete OTP login first — we no longer
+  // accept the first password they type as their permanent password (that
+  // let attackers take over phone numbers they didn't own).
+  if (!farmer.password_hash) {
+    return NextResponse.json(
+      { error: 'Please log in with OTP first to set up your password.' },
+      { status: 403 },
+    )
   }
 
-  // New farmer — create account with this password
-  const rand = Math.random().toString(36).slice(2, 6)
-  const slug = `f-${digits}-${rand}`
-  const hash = hashPassword(password)
-
-  const { data: created, error: insertErr } = await supabase
-    .from('farmers')
-    .insert({
-      phone: digits,
-      slug,
-      name: '',
-      village: '',
-      district: '',
-      method: 'natural',
-      region_slug: 'tadepalligudem',
-      active: true,
-      password_hash: hash,
-    })
-    .select('id, name, slug')
-    .single()
-
-  if (insertErr || !created) {
-    return NextResponse.json({ error: 'Could not create account. Please try again.' }, { status: 500 })
+  if (!verifyPassword(password, farmer.password_hash)) {
+    return wrongCreds
   }
 
-  return NextResponse.json({ ok: true, farmerId: created.id, farmerSlug: created.slug })
+  await supabase.from('farmers').update({ active: true }).eq('id', farmer.id)
+
+  const res = NextResponse.json({ ok: true, farmerId: farmer.id, farmerSlug: farmer.slug })
+  try {
+    setFarmerSessionCookie(res, farmer.id)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Session setup failed.'
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
+  return res
 }

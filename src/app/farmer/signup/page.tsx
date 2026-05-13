@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import LanguageToggle from '@/components/LanguageToggle'
 
-export default function FarmerLoginPage() {
+export default function FarmerSignupPage() {
   const router = useRouter()
-
+  const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
@@ -15,21 +15,22 @@ export default function FarmerLoginPage() {
   const [error, setError] = useState('')
 
   const digits = phone.replace(/\D/g, '').slice(-10)
-  const canSubmit = digits.length === 10 && password.length >= 4
+  const canSubmit = name.trim().length > 0 && digits.length === 10 && password.length >= 6
 
-  const handleLogin = async () => {
-    if (!canSubmit) return
+  const handleSubmit = async () => {
+    if (!canSubmit || loading) return
     setLoading(true)
     setError('')
-    const res = await fetch('/api/auth/login', {
+    const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({ phone: digits, password }),
-    })
-    const json = await res.json().catch(() => ({}))
+      body: JSON.stringify({ name: name.trim(), phone: digits, password }),
+    }).catch(() => null)
     setLoading(false)
-    if (!res.ok) { setError(json.error ?? 'Could not log in. Please try again.'); return }
+    if (!res) { setError('Network error. Please try again.'); return }
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) { setError(json?.error ?? 'Could not create account.'); return }
     localStorage.setItem('yff_farmer_id', json.farmerId)
     localStorage.setItem('yff_farmer_slug', json.farmerSlug)
     router.replace('/farmer/dashboard')
@@ -49,14 +50,28 @@ export default function FarmerLoginPage() {
             </div>
           </Link>
           <h1 className="text-2xl font-extrabold text-gray-900">
-            Farmer Login / రైతు లాగిన్
+            Farmer Signup / రైతు సైన్ అప్
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            Sign in to your account / మీ ఖాతాలోకి సైన్ ఇన్ చేయండి
+            Create your account / మీ ఖాతా సృష్టించండి
           </p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
+          <div>
+            <label className="text-sm font-semibold text-gray-700 block mb-2">
+              Your name / మీ పేరు
+            </label>
+            <input
+              type="text"
+              placeholder="Your full name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={80}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:border-green-500 focus:outline-none"
+            />
+          </div>
+
           <div>
             <label className="text-sm font-semibold text-gray-700 block mb-2">
               Phone Number / ఫోన్ నంబర్
@@ -71,7 +86,6 @@ export default function FarmerLoginPage() {
                 placeholder="9876543210"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleLogin() }}
                 maxLength={10}
                 className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-base focus:border-green-500 focus:outline-none"
               />
@@ -85,10 +99,10 @@ export default function FarmerLoginPage() {
             <div className="relative">
               <input
                 type={showPass ? 'text' : 'password'}
-                placeholder="Your password"
+                placeholder="At least 6 characters"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-12 text-base focus:border-green-500 focus:outline-none"
               />
               <button
@@ -99,6 +113,7 @@ export default function FarmerLoginPage() {
                 {showPass ? 'Hide' : 'Show'}
               </button>
             </div>
+            <p className="text-[11px] text-gray-500 mt-1">Minimum 6 characters / కనీసం 6 అక్షరాలు</p>
           </div>
 
           {error && (
@@ -106,17 +121,17 @@ export default function FarmerLoginPage() {
           )}
 
           <button
-            onClick={handleLogin}
+            onClick={handleSubmit}
             disabled={loading || !canSubmit}
             className="w-full bg-green-700 text-white font-bold py-4 rounded-xl text-base disabled:opacity-50 active:bg-green-800 transition-colors"
           >
-            {loading ? 'Please wait…' : 'Log in / లాగిన్'}
+            {loading ? 'Creating account…' : 'Create account / ఖాతా సృష్టించండి'}
           </button>
 
           <div className="text-xs text-gray-600 text-center pt-1">
-            New here?{' '}
-            <Link href="/farmer/signup" className="text-green-700 font-bold underline">
-              Create an account / ఖాతా సృష్టించండి
+            Already have an account?{' '}
+            <Link href="/farmer/login" className="text-green-700 font-bold underline">
+              Log in
             </Link>
           </div>
         </div>

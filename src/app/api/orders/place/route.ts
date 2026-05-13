@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
 import { getTierPrice } from '@/lib/pricing'
 import { normalizePhone } from '@/lib/phone'
+import { DELIVERY_FEE_RUPEES } from '@/lib/delivery-fee'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -133,14 +134,14 @@ export async function POST(req: NextRequest) {
   // One OTP for the whole batch — rider does a single handover at the door,
   // so all rows from this checkout share the same code.
   const sharedHandoverOtp = deliveryType === 'home_delivery' ? generateHandoverOtp() : null
+  const deliveryFee = deliveryType === 'home_delivery' ? DELIVERY_FEE_RUPEES : 0
 
+  // Validate first (price + ownership) before we touch any stock. Stock
+  // claims happen below with the RPC so two cart submits can't oversell.
   for (const item of items) {
     const listing = listingById.get(item.listingId)
     if (!listing) return bad('Item missing.')
     if (listing.farmer_id !== farmerId) return bad('Items must belong to the same farmer.')
-    if (listing.stock_qty != null && item.qty > listing.stock_qty) {
-      return bad(`Only ${listing.stock_qty} ${listing.unit || 'kg'} of ${listing.name} available right now.`)
-    }
 
     const unitPrice = getTierPrice(item.qty, {
       priceTier1Qty: listing.price_tier_1_qty,
@@ -177,7 +178,47 @@ export async function POST(req: NextRequest) {
       delivery_pincode: deliveryPincode,
       delivery_alt_phone: deliveryAltPhone,
       handover_otp: sharedHandoverOtp,
+      // Fee is paid once per cart, so we stamp it on the first row only.
+      // sum(delivery_fee) and sum(rider_payout) over a batch === one fee.
+      delivery_fee: 0,
+      rider_payout: 0,
     })
+  }
+
+  if (rows.length > 0 && deliveryFee > 0) {
+    rows[0].delivery_fee = deliveryFee
+    rows[0].rider_payout = deliveryFee
+  }
+
+  // Atomic stock claim. decrement_stock returns false if the listing went
+  // below zero (or vanished). On any failure we revert prior claims so we
+  // don't leak inventory.
+  const claimed: Array<{ listingId: string; qty: number }> = []
+  const revertClaims = async () => {
+    for (const c of claimed) {
+      try {
+        await supabase.rpc('increment_stock', { p_listing_id: c.listingId, p_qty: c.qty })
+      } catch (e) {
+        console.error('[YFF] increment_stock revert failed:', e)
+      }
+    }
+  }
+  for (const item of items) {
+    const listing = listingById.get(item.listingId)!
+    const { data: ok, error: rpcErr } = await supabase.rpc('decrement_stock', {
+      p_listing_id: item.listingId,
+      p_qty: item.qty,
+    })
+    if (rpcErr) {
+      console.error('[YFF] decrement_stock rpc failed:', rpcErr.message)
+      await revertClaims()
+      return bad('Could not place order. Please try again.', 500)
+    }
+    if (!ok) {
+      await revertClaims()
+      return bad(`${listing.name} just sold out. Please reduce the quantity and try again.`)
+    }
+    claimed.push({ listingId: item.listingId, qty: item.qty })
   }
 
   const { data: inserted, error: insertErr } = await supabase
@@ -187,6 +228,8 @@ export async function POST(req: NextRequest) {
 
   if (insertErr || !inserted) {
     console.error('[YFF] place-order insert failed:', insertErr?.message)
+    // Roll the stock back so the row isn't lost.
+    await revertClaims()
     return bad('Could not place order. Please try again.', 500)
   }
 
@@ -194,5 +237,7 @@ export async function POST(req: NextRequest) {
     ok: true,
     orderIds: inserted.map((r) => r.id),
     total,
+    deliveryFee,
+    grandTotal: total + deliveryFee,
   })
 }

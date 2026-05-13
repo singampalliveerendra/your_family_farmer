@@ -41,8 +41,6 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  console.log('[YFF login] attempt phone=%s', phone)
-
   const { data: user, error: lookupErr } = await supabase
     .from('consumers_auth')
     .select('id, name, phone, password_hash')
@@ -66,28 +64,19 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  if (!user) {
-    console.log('[YFF login] no account for phone=%s', phone)
-    return NextResponse.json(
-      { error: 'No account found. Please sign up. / ఖాతా లేదు, సైన్ అప్ చేయండి' },
-      { status: 404 },
-    )
-  }
+  // Anti-enumeration: same generic error whether the phone exists or not.
+  const wrongCreds = NextResponse.json(
+    { error: 'Wrong phone or password. / తప్పు ఫోన్ లేదా పాస్‌వర్డ్.' },
+    { status: 401 },
+  )
 
-  if (!user.password_hash || !verifyPassword(password, user.password_hash)) {
-    console.log('[YFF login] wrong password phone=%s', phone)
-    return NextResponse.json(
-      { error: 'Wrong password / తప్పు పాస్‌వర్డ్' },
-      { status: 401 },
-    )
-  }
+  if (!user) return wrongCreds
+  if (!user.password_hash || !verifyPassword(password, user.password_hash)) return wrongCreds
 
   await supabase
     .from('consumers_auth')
     .update({ last_login_at: new Date().toISOString() })
     .eq('id', user.id)
-
-  console.log('[YFF login] success id=%s', user.id)
 
   const res = NextResponse.json({
     ok: true,
