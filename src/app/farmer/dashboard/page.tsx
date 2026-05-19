@@ -179,7 +179,9 @@ export default function FarmerDashboard() {
 
     const [listingsRes, intentsRes, ordersRes] = await Promise.all([
       supabase.from('produce_listings').select('id', { count: 'exact', head: true }).eq('farmer_id', farmerData.id).eq('status', 'available'),
-      supabase.from('demand_intents').select('crop_name, quantity_kg').eq('region_slug', farmerData.region_slug).eq('fulfilled', false),
+      // `.not('fulfilled','is',true)` so rows where fulfilled is NULL (the
+      // insert never sets it) still count as unfulfilled — `.eq(false)` drops them.
+      supabase.from('demand_intents').select('crop_name, quantity_kg').eq('region_slug', farmerData.region_slug).not('fulfilled', 'is', true),
       // Order data now comes from a session-gated server route — the browser
       // can no longer read the `orders` table directly with the anon key.
       fetch('/api/farmer/orders', { credentials: 'same-origin' })
@@ -2683,13 +2685,19 @@ function FarmPhotosSection({ farmerId }: { farmerId: string }) {
     if (upErr) { setError(`Upload failed: ${upErr.message}`); setUploading(false); return }
 
     const { data: urlData } = supabase.storage.from('farm-images').getPublicUrl(path)
-    const { data: inserted } = await supabase
+    const { data: inserted, error: insErr } = await supabase
       .from('media')
       .insert({ farmer_id: farmerId, type: 'photo', url: urlData.publicUrl, sort_order: photos.length })
       .select('id, url, caption')
       .single()
 
-    if (inserted) setPhotos((prev) => [...prev, inserted as MediaRow])
+    if (insErr || !inserted) {
+      setError(`Could not save photo: ${insErr?.message || 'unknown error'}`)
+      setUploading(false)
+      return
+    }
+
+    setPhotos((prev) => [...prev, inserted as MediaRow])
     setUploading(false)
   }
 
