@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "baedd3016de6",
+  "strategy": "manual-commit",
+  "branch": "security/rls-orders-lockdown",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "next.config.ts",
+    "scripts/rls-lockdown-migration.sql",
+    "src/app/api/consumer/orders/payment-claim/route.ts",
+    "src/app/api/consumer/orders/switch-cod/route.ts",
+    "src/app/api/farmer/orders/[id]/approve/route.ts",
+    "src/app/api/farmer/orders/[id]/decline/route.ts",
+    "src/app/api/farmer/orders/[id]/payment/route.ts",
+    "src/app/api/farmer/orders/history/route.ts",
+    "src/app/api/farmer/orders/route.ts",
+    "src/app/farmer/dashboard/orders/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/components/consumer/Cart.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ba/edd3016de6/0/metadata.json",
+      "transcript": "/ba/edd3016de6/0/full.jsonl",
+      "content_hash": "/ba/edd3016de6/0/content_hash.txt",
+      "prompt": "/ba/edd3016de6/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 86,
+    "cache_creation_tokens": 146774,
+    "cache_read_tokens": 3630909,
+    "output_tokens": 65797,
+    "api_call_count": 43
+  }
+}

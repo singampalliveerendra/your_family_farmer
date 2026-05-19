@@ -1,0 +1,17 @@
+client said now concentrate on security of our apllication . the razor pay only work when we have high security of our project right ?
+
+---
+
+go ahead
+
+---
+
+what i have to run in supabase npow
+
+---
+
+do
+
+---
+
+remind this tommorow . for now implemntation of razor pay to our site what we have to actually need
