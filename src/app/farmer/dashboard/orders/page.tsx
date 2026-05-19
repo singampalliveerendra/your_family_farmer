@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
 
@@ -31,18 +30,13 @@ export default function OrderHistoryPage() {
   const [filter, setFilter] = useState<Filter>('week')
 
   const load = useCallback(async () => {
-    const farmerId = localStorage.getItem('yff_farmer_id')
-    if (!farmerId) { router.replace('/farmer/login'); return }
-
     setLoading(true)
-    const { data } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('farmer_id', farmerId)
-      .in('status', ['approved', 'declined'])
-      .order('created_at', { ascending: false })
-
-    setOrders((data ?? []) as Order[])
+    // Orders now come from a server route that verifies the farmer session
+    // cookie — the browser can no longer read the orders table directly.
+    const r = await fetch('/api/farmer/orders/history', { credentials: 'same-origin' }).catch(() => null)
+    if (r && r.status === 401) { router.replace('/farmer/login'); return }
+    const json = r ? await r.json().catch(() => ({})) : {}
+    setOrders((json.orders ?? []) as Order[])
     setLoading(false)
   }, [router])
 

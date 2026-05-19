@@ -272,13 +272,14 @@ function CartSheet({
   // the realtime subscription on their dashboard — no WhatsApp message opened.
   const triggerPostPayment = useCallback(async (screen: UpiPaymentState, utrRef: string) => {
     setSubmittingResult(true)
-    const updateData: Record<string, unknown> = { payment_status: 'pending_confirmation' }
-    if (utrRef.trim()) updateData.utr_number = utrRef.trim()
-    await Promise.all(
-      screen.orderIds.map((id) =>
-        supabase.from('orders').update(updateData).eq('id', id)
-      )
-    )
+    // Order writes go through a session-gated server route — the browser can
+    // no longer update the `orders` table directly with the anon key.
+    await fetch('/api/consumer/orders/payment-claim', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderIds: screen.orderIds, utr: utrRef.trim() }),
+    }).catch(() => null)
     clearFarmer(screen.farmerId)
     localStorage.removeItem(UPI_PENDING_KEY)
     localStorage.removeItem(UPI_LAUNCHED_KEY)
@@ -537,11 +538,12 @@ function CartSheet({
   const handleCashOnPickup = async () => {
     if (!upiScreen) return
     setSwitchingToCash(true)
-    await Promise.all(
-      upiScreen.orderIds.map((id) =>
-        supabase.from('orders').update({ payment_method: 'cod', payment_status: 'pending' }).eq('id', id)
-      )
-    )
+    await fetch('/api/consumer/orders/switch-cod', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderIds: upiScreen.orderIds }),
+    }).catch(() => null)
     clearFarmer(upiScreen.farmerId)
     localStorage.removeItem(UPI_PENDING_KEY)
     localStorage.removeItem(UPI_LAUNCHED_KEY)

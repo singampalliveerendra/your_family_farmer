@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
@@ -177,37 +177,26 @@ export default function FarmerDashboard() {
     if (!farmerData) { setNotFound(true); setLoading(false); return }
     setFarmer(farmerData)
 
-    const monthStart = new Date()
-    monthStart.setDate(1)
-    monthStart.setHours(0, 0, 0, 0)
-
-    const [listingsRes, pendingRes, approvedRes, intentsRes, monthlyRes] = await Promise.all([
+    const [listingsRes, intentsRes, ordersRes] = await Promise.all([
       supabase.from('produce_listings').select('id', { count: 'exact', head: true }).eq('farmer_id', farmerData.id).eq('status', 'available'),
-      supabase.from('orders').select('*').eq('farmer_id', farmerData.id).eq('status', 'pending').order('created_at', { ascending: false }),
-      supabase.from('orders').select('id, total_price').eq('farmer_id', farmerData.id).eq('status', 'approved').gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString()),
       supabase.from('demand_intents').select('crop_name, quantity_kg').eq('region_slug', farmerData.region_slug).eq('fulfilled', false),
-      supabase.from('orders').select('id, total_price, created_at').eq('farmer_id', farmerData.id).eq('status', 'approved').gte('created_at', monthStart.toISOString()),
+      // Order data now comes from a session-gated server route — the browser
+      // can no longer read the `orders` table directly with the anon key.
+      fetch('/api/farmer/orders', { credentials: 'same-origin' })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
     ])
 
     setActiveListings(listingsRes.count ?? 0)
-    setPendingOrders((pendingRes.data ?? []) as Order[])
-    const approved = approvedRes.data ?? []
-    setApprovedCount(approved.length)
-    setTotalRevenue(approved.reduce((sum, o) => sum + (o.total_price ?? 0), 0))
 
-    // Monthly earnings
-    const monthly = monthlyRes.data ?? []
-    setMonthlyRevenue(monthly.reduce((sum, o) => sum + (o.total_price ?? 0), 0))
-    setMonthlyOrderCount(monthly.length)
-
-    // Break into 4 weekly buckets (days 1-7, 8-14, 15-21, 22+)
-    const weeks = [0, 0, 0, 0]
-    for (const o of monthly) {
-      const day = new Date(o.created_at).getDate()
-      const bucket = day <= 7 ? 0 : day <= 14 ? 1 : day <= 21 ? 2 : 3
-      weeks[bucket] += o.total_price ?? 0
+    if (ordersRes) {
+      setPendingOrders((ordersRes.pendingOrders ?? []) as Order[])
+      setApprovedCount(ordersRes.approvedCount ?? 0)
+      setTotalRevenue(ordersRes.totalRevenue ?? 0)
+      setMonthlyRevenue(ordersRes.monthlyRevenue ?? 0)
+      setMonthlyOrderCount(ordersRes.monthlyOrderCount ?? 0)
+      setWeeklyEarnings(ordersRes.weeklyEarnings ?? [0, 0, 0, 0])
     }
-    setWeeklyEarnings(weeks)
 
     const map: Record<string, number> = {}
     for (const row of intentsRes.data ?? []) {
@@ -232,11 +221,14 @@ export default function FarmerDashboard() {
     }
   }, [loading, farmer])
 
-  // Realtime subscription: new orders + payment status changes.
-  // Replaces the old "consumer opens WhatsApp to notify farmer" flow.
-  // Fires a browser notification when:
-  //   - A new pending order is inserted
-  //   - An existing order's payment_status flips to payment_claimed (incl. retries)
+  // Live order updates. Supabase realtime delivery is gated by RLS — once the
+  // `orders` table is locked away from the anon role the browser can't
+  // subscribe to it, so we poll the session-gated server route instead.
+  // pendingOrdersRef gives each poll a stable previous list to diff against
+  // for new-order / payment-claimed notifications.
+  const pendingOrdersRef = useRef<Order[]>([])
+  useEffect(() => { pendingOrdersRef.current = pendingOrders }, [pendingOrders])
+
   useEffect(() => {
     if (!farmer) return
 
@@ -249,52 +241,42 @@ export default function FarmerDashboard() {
       } catch { /* some browsers throw on background tabs — ignore */ }
     }
 
-    const channel = supabase
-      .channel(`orders_${farmer.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'orders', filter: `farmer_id=eq.${farmer.id}` },
-        (payload) => {
-          const row = payload.new as Order
-          if (row.status !== 'pending') return
-          setPendingOrders((prev) => prev.some((o) => o.id === row.id) ? prev : [row, ...prev])
-          fireNotification(
-            `New order from ${row.buyer_name ?? 'buyer'}`,
-            `${row.produce_name ?? ''} ${row.quantity ?? ''} ${row.unit ?? ''}${row.total_price ? ` · ₹${row.total_price}` : ''}`.trim(),
-          )
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'orders', filter: `farmer_id=eq.${farmer.id}` },
-        (payload) => {
-          const row = payload.new as Order
-          const prev = payload.old as Partial<Order>
-          // Order moved out of pending — drop from list
-          if (row.status !== 'pending') {
-            setPendingOrders((cur) => cur.filter((o) => o.id !== row.id))
-            return
-          }
-          // Update or insert in pending list
-          setPendingOrders((cur) => {
-            const exists = cur.some((o) => o.id === row.id)
-            return exists ? cur.map((o) => o.id === row.id ? row : o) : [row, ...cur]
-          })
-          // Fire notification when buyer claims payment (covers initial pay AND retry)
-          const becameClaimed =
-            (row.payment_status === 'payment_claimed' || row.payment_status === 'pending_confirmation')
-            && prev.payment_status !== row.payment_status
-          if (becameClaimed) {
-            fireNotification(
-              `Buyer paid — verify payment`,
-              `${row.buyer_name ?? 'Buyer'} sent ₹${row.total_price ?? '?'} for ${row.produce_name ?? 'order'}`,
-            )
-          }
-        },
-      )
-      .subscribe()
+    const poll = async () => {
+      const r = await fetch('/api/farmer/orders', { credentials: 'same-origin' }).catch(() => null)
+      if (!r || !r.ok) return
+      const json = await r.json().catch(() => null)
+      if (!json) return
 
-    return () => { supabase.removeChannel(channel) }
+      const fresh = (json.pendingOrders ?? []) as Order[]
+      const prevById = new Map(pendingOrdersRef.current.map((o) => [o.id, o]))
+      for (const o of fresh) {
+        const old = prevById.get(o.id)
+        if (!old) {
+          fireNotification(
+            `New order from ${o.buyer_name ?? 'buyer'}`,
+            `${o.produce_name ?? ''} ${o.quantity ?? ''} ${o.unit ?? ''}${o.total_price ? ` · ₹${o.total_price}` : ''}`.trim(),
+          )
+        } else if (
+          (o.payment_status === 'payment_claimed' || o.payment_status === 'pending_confirmation')
+          && old.payment_status !== o.payment_status
+        ) {
+          fireNotification(
+            `Buyer paid — verify payment`,
+            `${o.buyer_name ?? 'Buyer'} sent ₹${o.total_price ?? '?'} for ${o.produce_name ?? 'order'}`,
+          )
+        }
+      }
+
+      setPendingOrders(fresh)
+      setApprovedCount(json.approvedCount ?? 0)
+      setTotalRevenue(json.totalRevenue ?? 0)
+      setMonthlyRevenue(json.monthlyRevenue ?? 0)
+      setMonthlyOrderCount(json.monthlyOrderCount ?? 0)
+      setWeeklyEarnings(json.weeklyEarnings ?? [0, 0, 0, 0])
+    }
+
+    const interval = setInterval(poll, 25000)
+    return () => clearInterval(interval)
   }, [farmer])
 
   const handleLogout = () => {
@@ -303,54 +285,66 @@ export default function FarmerDashboard() {
     router.replace('/farmer/login')
   }
 
+  // All order mutations now go through session-gated server routes — the
+  // browser no longer writes to the `orders` table directly.
   const handleApprove = async (orderId: string) => {
     setProcessingOrderId(orderId)
-    await supabase.from('orders').update({ status: 'approved' }).eq('id', orderId)
-    setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
-    setApprovedCount((c) => c + 1)
+    const r = await fetch(`/api/farmer/orders/${orderId}/approve`, {
+      method: 'POST',
+      credentials: 'same-origin',
+    }).catch(() => null)
+    if (r && r.ok) {
+      setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
+      setApprovedCount((c) => c + 1)
+    }
     setProcessingOrderId(null)
   }
 
   const handleConfirmDecline = async (orderId: string, reason: string) => {
     setProcessingOrderId(orderId)
-    // Return the reserved stock so a farmer who declines doesn't lose it.
-    const declined = pendingOrders.find((o) => o.id === orderId)
-    if (declined?.produce_listing_id && declined.quantity != null && declined.quantity > 0) {
-      try {
-        await supabase.rpc('increment_stock', {
-          p_listing_id: declined.produce_listing_id,
-          p_qty: declined.quantity,
-        })
-      } catch (e) {
-        console.error('[YFF] restock on decline failed:', e)
-      }
+    // Decline + restock are now done atomically server-side.
+    const r = await fetch(`/api/farmer/orders/${orderId}/decline`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    }).catch(() => null)
+    if (r && r.ok) {
+      setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
     }
-    await supabase
-      .from('orders')
-      .update({ status: 'declined', decline_reason: reason })
-      .eq('id', orderId)
-    setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
     setProcessingOrderId(null)
     setDecliningOrder(null)
   }
 
   const handleMarkPaid = async (orderId: string) => {
     setProcessingPaidId(orderId)
-    await supabase.from('orders').update({ payment_status: 'completed' }).eq('id', orderId)
-    setPendingOrders((prev) =>
-      prev.map((o) => o.id === orderId ? { ...o, payment_status: 'completed' } : o)
-    )
+    const r = await fetch(`/api/farmer/orders/${orderId}/payment`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'completed' }),
+    }).catch(() => null)
+    if (r && r.ok) {
+      setPendingOrders((prev) =>
+        prev.map((o) => o.id === orderId ? { ...o, payment_status: 'completed' } : o)
+      )
+    }
     setProcessingPaidId(null)
   }
 
   const handleUpdatePaymentStatus = async (orderId: string, status: 'completed' | 'failed' | 'pending') => {
     setProcessingPaidId(orderId)
-    const update: Record<string, string> = { payment_status: status }
-    if (status === 'completed') update.status = 'approved'
-    await supabase.from('orders').update(update).eq('id', orderId)
-    setPendingOrders((prev) =>
-      prev.map((o) => o.id === orderId ? { ...o, payment_status: status, ...(status === 'completed' ? { status: 'approved' } : {}) } : o)
-    )
+    const r = await fetch(`/api/farmer/orders/${orderId}/payment`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, approve: status === 'completed' }),
+    }).catch(() => null)
+    if (r && r.ok) {
+      setPendingOrders((prev) =>
+        prev.map((o) => o.id === orderId ? { ...o, payment_status: status, ...(status === 'completed' ? { status: 'approved' } : {}) } : o)
+      )
+    }
     setProcessingPaidId(null)
   }
 
