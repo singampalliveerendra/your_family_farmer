@@ -3,8 +3,9 @@
   "checkpoint_id": "baedd3016de6",
   "strategy": "manual-commit",
   "branch": "security/rls-orders-lockdown",
-  "checkpoints_count": 7,
+  "checkpoints_count": 8,
   "files_touched": [
+    "RAZORPAY_SETUP_GUIDE.md",
     "next.config.ts",
     "scripts/rls-lockdown-migration.sql",
     "scripts/seed-regions.sql",
@@ -31,13 +32,19 @@
       "transcript": "/ba/edd3016de6/1/full.jsonl",
       "content_hash": "/ba/edd3016de6/1/content_hash.txt",
       "prompt": "/ba/edd3016de6/1/prompt.txt"
+    },
+    {
+      "metadata": "/ba/edd3016de6/2/metadata.json",
+      "transcript": "/ba/edd3016de6/2/full.jsonl",
+      "content_hash": "/ba/edd3016de6/2/content_hash.txt",
+      "prompt": "/ba/edd3016de6/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 114,
-    "cache_creation_tokens": 173008,
-    "cache_read_tokens": 3889312,
-    "output_tokens": 74669,
-    "api_call_count": 57
+    "input_tokens": 127,
+    "cache_creation_tokens": 201438,
+    "cache_read_tokens": 3943555,
+    "output_tokens": 77931,
+    "api_call_count": 60
   }
 }
