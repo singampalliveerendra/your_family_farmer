@@ -1,0 +1,72 @@
+Local demand
+What buyers in your area want
+
+No demand signals yet.
+
+Share your profile link to attract buyers.. not getting demand intent and also not uploading the farm photos Farm Photos
+Visible on your public profile
+
++
+Add Photo
+📷
+
+No farm photos yet
+
+Add photos of your farm, fields, and produce
+
+---
+
+its showing uploading but not showing going back
+
+---
+
+Farm Photos
+Visible on your public profile
+
++
+Add Photo
+Could not save photo: new row violates row-level security policy for table "media"
+
+---
+
+its working but raise intent not working
+
+---
+
+Local demand
+What buyers in your area want
+
+No demand signals yet.
+
+Share your profile link to attract buyers. not getting
+
+---
+
+📣
+Raise a Demand Intent / డిమాండ్ నమోదు
+Let local farmers know what you need — they'll reach out when available.
+
+స్థానిక రైతులకు మీకు ఏమి కావాలో తెలియజేయండి
+
+tamati
+200
+
+27-05-2026
+gajuwka 
+vijaykumar 
+7601059161
+Cancel / రద్దు
+Submit / నమోదు. 📣
+Raise a Demand Intent / డిమాండ్ నమోదు
+Let local farmers know what you need — they'll reach out when available.
+
+స్థానిక రైతులకు మీకు ఏమి కావాలో తెలియజేయండి
+
+✓ Intent raised! / నమోదైంది!
+
+Farmers in your area will be notified.
+మీ ప్రాంతంలోని రైతులకు తెలియజేస్తాము.
+
+---
+
+the demand intents showing in supabase but now showing in farmers dash board
