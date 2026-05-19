@@ -3,10 +3,11 @@
   "checkpoint_id": "baedd3016de6",
   "strategy": "manual-commit",
   "branch": "security/rls-orders-lockdown",
-  "checkpoints_count": 3,
+  "checkpoints_count": 7,
   "files_touched": [
     "next.config.ts",
     "scripts/rls-lockdown-migration.sql",
+    "scripts/seed-regions.sql",
     "src/app/api/consumer/orders/payment-claim/route.ts",
     "src/app/api/consumer/orders/switch-cod/route.ts",
     "src/app/api/farmer/orders/[id]/approve/route.ts",
@@ -24,13 +25,19 @@
       "transcript": "/ba/edd3016de6/0/full.jsonl",
       "content_hash": "/ba/edd3016de6/0/content_hash.txt",
       "prompt": "/ba/edd3016de6/0/prompt.txt"
+    },
+    {
+      "metadata": "/ba/edd3016de6/1/metadata.json",
+      "transcript": "/ba/edd3016de6/1/full.jsonl",
+      "content_hash": "/ba/edd3016de6/1/content_hash.txt",
+      "prompt": "/ba/edd3016de6/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 86,
-    "cache_creation_tokens": 146774,
-    "cache_read_tokens": 3630909,
-    "output_tokens": 65797,
-    "api_call_count": 43
+    "input_tokens": 114,
+    "cache_creation_tokens": 173008,
+    "cache_read_tokens": 3889312,
+    "output_tokens": 74669,
+    "api_call_count": 57
   }
 }

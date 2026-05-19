@@ -1,0 +1,99 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "baedd3016de6",
+  "session_id": "b45bd19b-e227-410c-8581-f83855ed8112",
+  "strategy": "manual-commit",
+  "created_at": "2026-05-19T20:22:04.522726737Z",
+  "branch": "security/rls-orders-lockdown",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "next.config.ts",
+    "scripts/seed-regions.sql",
+    "src/app/farmer/dashboard/orders/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/components/consumer/Cart.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7",
+  "turn_id": "0b188aa61135",
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 26234,
+    "cache_read_tokens": 258403,
+    "output_tokens": 8872,
+    "api_call_count": 14
+  },
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-05-19T20:22:04.376123984Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 127,
+    "total_committed": 17,
+    "total_lines_changed": 127,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 777,
+      "user_lines_removed": 127,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "RAZORPAY_SETUP_GUIDE.md": 171,
+        "next.config.ts": 26,
+        "scripts/rls-lockdown-migration.sql": 80,
+        "src/app/api/consumer/orders/payment-claim/route.ts": 60,
+        "src/app/api/consumer/orders/switch-cod/route.ts": 70,
+        "src/app/api/farmer/orders/[id]/approve/route.ts": 42,
+        "src/app/api/farmer/orders/[id]/decline/route.ts": 66,
+        "src/app/api/farmer/orders/[id]/payment/route.ts": 57,
+        "src/app/api/farmer/orders/history/route.ts": 26,
+        "src/app/api/farmer/orders/route.ts": 63,
+        "src/app/farmer/dashboard/orders/page.tsx": 6,
+        "src/app/farmer/dashboard/page.tsx": 96,
+        "src/components/consumer/Cart.tsx": 14
+      },
+      "user_removed_per_file": {
+        "next.config.ts": 1,
+        "src/app/farmer/dashboard/orders/page.tsx": 12,
+        "src/app/farmer/dashboard/page.tsx": 102,
+        "src/components/consumer/Cart.tsx": 12
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 777,
+      "agent_lines_removed": 127
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 777,
+      "agent_lines_removed": 127
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 794,
+      "agent_lines_removed": 127
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 794,
+      "agent_lines_removed": 127
+    }
+  ]
+}

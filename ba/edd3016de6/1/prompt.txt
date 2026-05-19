@@ -1,0 +1,30 @@
+YFF
+Farmer Signup / రైతు సైన్ అప్
+Create your account / మీ ఖాతా సృష్టించండి
+
+Your name / మీ పేరు
+veeru
+Phone Number / ఫోన్ నంబర్
++91
+7601059161
+Password / పాస్‌వర్డ్
+786786
+Hide
+Minimum 6 characters / కనీసం 6 అక్షరాలు
+
+insert or update on table "farmers" violates foreign key constraint "farmers_region_slug_fkey"
+
+Create account / ఖాతా సృష్టించండి
+Already have an account? Log in. why iam getting this erroro . actually i deleted whole user data from supabase to start fresh and then got this erroor
+
+---
+
+why tadepalligudem
+
+---
+
+do what is better
+
+---
+
+what i have to do now manually
