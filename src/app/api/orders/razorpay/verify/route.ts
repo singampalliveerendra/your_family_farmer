@@ -1,0 +1,67 @@
+import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
+import { getConsumerSessionFromRequest } from '@/lib/session'
+import { verifyPaymentSignature } from '@/lib/razorpay'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+// Step 4: Checkout returns three values to the browser, which posts them
+// here. We re-verify the signature server-side and only then mark the orders
+// paid. A forged callback fails the HMAC check and changes nothing.
+export async function POST(req: NextRequest) {
+  const session = getConsumerSessionFromRequest(req)
+  if (!session) return NextResponse.json({ error: 'Please log in.' }, { status: 401 })
+
+  const body = await req.json().catch(() => null) as
+    | {
+        razorpayOrderId?: string
+        razorpayPaymentId?: string
+        razorpaySignature?: string
+      }
+    | null
+
+  const razorpayOrderId = String(body?.razorpayOrderId ?? '')
+  const razorpayPaymentId = String(body?.razorpayPaymentId ?? '')
+  const razorpaySignature = String(body?.razorpaySignature ?? '')
+  if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+    return NextResponse.json({ error: 'Missing payment fields.' }, { status: 400 })
+  }
+
+  const valid = verifyPaymentSignature({ razorpayOrderId, razorpayPaymentId, signature: razorpaySignature })
+  if (!valid) {
+    console.warn('[YFF] razorpay signature verification FAILED for', razorpayOrderId)
+    return NextResponse.json({ error: 'Payment could not be verified.' }, { status: 400 })
+  }
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+
+  // Find our rows by the Razorpay order id we stamped at create time, and
+  // confirm they belong to this consumer before flipping them to paid.
+  const { data: orders } = await supabase
+    .from('orders')
+    .select('id, consumer_id')
+    .eq('razorpay_order_id', razorpayOrderId)
+
+  if (!orders || orders.length === 0) {
+    return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
+  }
+  if (orders.some((o) => o.consumer_id !== session.consumerId)) {
+    return NextResponse.json({ error: 'Not your order.' }, { status: 403 })
+  }
+
+  const { error } = await supabase
+    .from('orders')
+    .update({ payment_status: 'paid', razorpay_payment_id: razorpayPaymentId })
+    .eq('razorpay_order_id', razorpayOrderId)
+
+  if (error) {
+    console.error('[YFF] razorpay verify update failed:', error.message)
+    return NextResponse.json({ error: 'Could not record payment. Please try again.' }, { status: 500 })
+  }
+
+  return NextResponse.json({ ok: true, orderIds: orders.map((o) => o.id) })
+}

@@ -61,7 +61,9 @@ export async function POST(req: NextRequest) {
   const { farmerId, paymentMethod, pickupLocation, items } = body
 
   if (!farmerId || !UUID_RE.test(farmerId)) return bad('Invalid farmer.')
-  if (paymentMethod !== 'upi' && paymentMethod !== 'cod') return bad('Invalid payment method.')
+  if (paymentMethod !== 'upi' && paymentMethod !== 'cod' && paymentMethod !== 'razorpay') {
+    return bad('Invalid payment method.')
+  }
   if (!Array.isArray(items) || items.length === 0) return bad('Cart is empty.')
   if (items.length > 50) return bad('Too many items.')
   for (const it of items) {
