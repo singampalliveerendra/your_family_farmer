@@ -7,6 +7,47 @@ import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { compressImage } from '@/lib/imageCompress'
 import { DELIVERY_FEE_RUPEES } from '@/lib/delivery-fee'
 
+// Razorpay Checkout is loaded lazily — we only pull the script the first time
+// a buyer chooses to pay online, so the rest of the catalogue stays light on
+// slow connections.
+const RAZORPAY_SCRIPT = 'https://checkout.razorpay.com/v1/checkout.js'
+
+type RazorpayResponse = {
+  razorpay_payment_id: string
+  razorpay_order_id: string
+  razorpay_signature: string
+}
+type RazorpayOptions = {
+  key: string
+  amount: number
+  currency: string
+  name: string
+  description?: string
+  order_id: string
+  handler: (res: RazorpayResponse) => void
+  prefill?: { name?: string; contact?: string }
+  theme?: { color?: string }
+  modal?: { ondismiss?: () => void }
+}
+type RazorpayInstance = { open: () => void }
+declare global {
+  interface Window {
+    Razorpay?: new (options: RazorpayOptions) => RazorpayInstance
+  }
+}
+
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') return resolve(false)
+    if (window.Razorpay) return resolve(true)
+    const script = document.createElement('script')
+    script.src = RAZORPAY_SCRIPT
+    script.onload = () => resolve(true)
+    script.onerror = () => resolve(false)
+    document.body.appendChild(script)
+  })
+}
+
 type PickupSlots = {
   days: string[]
   time_from: string
@@ -261,6 +302,10 @@ function CartSheet({
   const [cashMode, setCashMode] = useState(false)
   const [switchingToCash, setSwitchingToCash] = useState(false)
   const [upiScreen, setUpiScreen] = useState<UpiPaymentState | null>(null)
+  // Razorpay online payment: which farmer group is mid-payment, and whether
+  // the latest order was paid online (drives the success copy below).
+  const [payingOnline, setPayingOnline] = useState<string | null>(null)
+  const [onlinePaid, setOnlinePaid] = useState(false)
 
   // Refs for use inside event listeners (avoids stale closures)
   const upiScreenRef = useRef<UpiPaymentState | null>(null)
@@ -386,7 +431,7 @@ function CartSheet({
   // session cookie — never trusted from the cart's client-side state.
   const placeOrderViaApi = async (
     group: CartItem[],
-    paymentMethod: 'upi' | 'cod',
+    paymentMethod: 'upi' | 'cod' | 'razorpay',
   ): Promise<{ ok: true; orderIds: string[]; total: number } | { ok: false; error: string }> => {
     const f = group[0]
     const r = await fetch('/api/orders/place', {
@@ -480,6 +525,117 @@ function CartSheet({
       pickupLocation: pickupByFarmer[f.farmerId] || undefined,
       pickupDay: pickupDayByFarmer[f.farmerId] || undefined,
     })
+  }
+
+  // Online flow (Razorpay): place orders → create a Razorpay order → open
+  // Checkout → verify the signature server-side → show success. Money is
+  // collected into the platform's Razorpay account, not the farmer's UPI.
+  const handleRazorpayOrderFarmer = async (group: CartItem[]) => {
+    if (detailsMissing) return
+    const f = group[0]
+    saveInfo({ name: name.trim(), phone: phone.trim() })
+    setPayingOnline(f.farmerId)
+
+    const buyerPhone = phone.replace(/\D/g, '').slice(-10)
+
+    // 1. Place the orders (status pending) on the server.
+    const result = await placeOrderViaApi(group, 'razorpay')
+    if (!result.ok) {
+      setPayingOnline(null)
+      showToast(result.error)
+      return
+    }
+
+    // 2. Load Checkout and create the matching Razorpay order in parallel.
+    const [scriptOk, createRes] = await Promise.all([
+      loadRazorpayScript(),
+      fetch('/api/orders/razorpay/create', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderIds: result.orderIds }),
+      })
+        .then((r) => r.json().catch(() => null))
+        .catch(() => null),
+    ])
+
+    if (!scriptOk || !window.Razorpay) {
+      setPayingOnline(null)
+      showToast('Could not load the payment screen. Check your connection.')
+      return
+    }
+    if (!createRes?.ok) {
+      setPayingOnline(null)
+      showToast(createRes?.error ?? 'Could not start payment. Please try again.')
+      return
+    }
+
+    // Order summary kept for the success screen once payment verifies.
+    const summary: UpiPaymentState = {
+      farmerName: f.farmerName,
+      farmerVillage: f.farmerVillage,
+      farmerPhone: f.farmerPhone,
+      upiId: '',
+      amount: result.total,
+      orderIds: result.orderIds,
+      farmerId: f.farmerId,
+      buyerName: name.trim(),
+      buyerPhone,
+      items: group.map((it) => ({
+        name: it.name,
+        variety: it.variety,
+        emoji: it.emoji,
+        qty: it.qty,
+        unit: it.unit,
+        pricePerKg: it.pricePerKg,
+      })),
+    }
+
+    // 3. Open Razorpay Checkout.
+    const rzp = new window.Razorpay({
+      key: createRes.keyId,
+      amount: createRes.amount,
+      currency: createRes.currency,
+      name: f.farmerName,
+      description: 'YourFamilyFarmer order',
+      order_id: createRes.razorpayOrderId,
+      prefill: { name: name.trim(), contact: buyerPhone },
+      theme: { color: '#15803d' },
+      modal: {
+        ondismiss: () => {
+          // Buyer closed Checkout without paying. The orders stay pending so
+          // they can pay later from their orders page — nothing to undo here.
+          setPayingOnline(null)
+          showToast('Payment cancelled. Your order is saved as unpaid.')
+        },
+      },
+      handler: async (res) => {
+        // 4. Verify the signature server-side before trusting the payment.
+        const vr = await fetch('/api/orders/razorpay/verify', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            razorpayOrderId: res.razorpay_order_id,
+            razorpayPaymentId: res.razorpay_payment_id,
+            razorpaySignature: res.razorpay_signature,
+          }),
+        })
+          .then((r) => r.json().catch(() => null))
+          .catch(() => null)
+
+        setPayingOnline(null)
+        if (!vr?.ok) {
+          showToast(vr?.error ?? 'Payment could not be verified. Please contact support.')
+          return
+        }
+        clearFarmer(f.farmerId)
+        setOnlinePaid(true)
+        setUpiScreen(summary)
+        setPaidDone(true)
+      },
+    })
+    rzp.open()
   }
 
   const handlePickProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -593,10 +749,14 @@ function CartSheet({
           </div>
           <div>
             <h2 className="font-extrabold text-gray-900 text-xl">
-              {cashMode ? 'Order placed!' : 'Payment recorded!'}
+              {cashMode ? 'Order placed!' : onlinePaid ? 'Payment successful!' : 'Payment recorded!'}
             </h2>
             <p className={`font-semibold mt-0.5 ${cashMode ? 'text-amber-700' : 'text-green-700'}`}>
-              {cashMode ? 'Cash on Pickup / నగదు పికప్' : 'చెల్లింపు నమోదైంది!'}
+              {cashMode
+                ? 'Cash on Pickup / నగదు పికప్'
+                : onlinePaid
+                  ? 'Paid online / ఆన్‌లైన్ చెల్లింపు'
+                  : 'చెల్లింపు నమోదైంది!'}
             </p>
           </div>
           <div className="bg-gray-50 rounded-2xl px-5 py-4 w-full text-left space-y-1">
@@ -609,6 +769,15 @@ function CartSheet({
             <p className="text-sm text-gray-600 leading-snug">
               Pay ₹{upiScreen.amount} in cash when you collect your order from the farmer.
             </p>
+          ) : onlinePaid ? (
+            <>
+              <p className="text-sm text-gray-600 leading-snug">
+                Payment confirmed / చెల్లింపు నిర్ధారించబడింది
+              </p>
+              <p className="text-xs text-gray-400 leading-snug">
+                The farmer has been notified and will prepare your order.
+              </p>
+            </>
           ) : (
             <>
               <p className="text-sm text-gray-600 leading-snug">
@@ -1046,8 +1215,8 @@ function CartSheet({
                       }`}
                     >
                       <span className="flex items-center gap-2">
-                        <span className="text-base">📲</span>
-                        UPI Payment / యూపీఐ చెల్లింపు
+                        <span className="text-base">💳</span>
+                        Pay Online (UPI / Card) / ఆన్‌లైన్ చెల్లింపు
                       </span>
                       {paymentMethod === 'upi' && (
                         <span className="text-blue-600 text-base">✓</span>
@@ -1231,54 +1400,26 @@ function CartSheet({
                       )}
 
                       {(() => {
-                        const farmerHasUpi = !!(liveUpiIds[f.farmerId] || f.farmerUpiId || liveQrUrls[f.farmerId])
                         const farmerCodOk = liveCodEnabled[f.farmerId] === true
 
                         if (paymentMethod === 'upi') {
-                          if (farmerHasUpi) {
-                            return (
-                              <button
-                                onClick={() => requireAuth(() => handleUpiOrderFarmer(group))}
-                                disabled={detailsMissing || placingUpiOrder === f.farmerId}
-                                className={`mt-1 w-full font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 ${
-                                  detailsMissing
-                                    ? 'bg-gray-200 text-gray-500'
-                                    : 'bg-blue-600 text-white active:bg-blue-700 disabled:opacity-50'
-                                }`}
-                              >
-                                {placingUpiOrder === f.farmerId
-                                  ? 'Placing order...'
-                                  : `📲 Order & Pay ₹${Math.round(group.reduce((s, it) => s + (it.pricePerKg ?? 0) * it.qty, 0))}`}
-                              </button>
-                            )
-                          }
-                          if (farmerCodOk) {
-                            return (
-                              <div className="mt-1 space-y-2">
-                                <p className="text-[11px] text-amber-700 bg-amber-50 rounded-xl px-3 py-2 text-center">
-                                  ⚠️ This farmer hasn&apos;t set up UPI yet. Using Cash on Pickup.
-                                </p>
-                                <button
-                                  onClick={() => requireAuth(() => handleCodOrderFarmer(group))}
-                                  disabled={detailsMissing}
-                                  className={`w-full font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 ${
-                                    sent
-                                      ? 'bg-green-100 text-green-800'
-                                      : detailsMissing
-                                        ? 'bg-gray-200 text-gray-500'
-                                        : 'bg-green-700 text-white active:bg-green-800'
-                                  }`}
-                                >
-                                  {sent ? <>✓ Order placed</> : <>💵 Place order — Cash on Pickup</>}
-                                </button>
-                              </div>
-                            )
-                          }
+                          // Online payment is collected by the platform's
+                          // Razorpay account, so it works for every farmer
+                          // regardless of whether they set up their own UPI.
                           return (
-                            <p className="mt-1 text-[12px] text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-center">
-                              ⚠️ This farmer is not accepting orders right now.<br />
-                              ఈ రైతు ప్రస్తుతం ఆర్డర్‌లు తీసుకోవట్లేదు.
-                            </p>
+                            <button
+                              onClick={() => requireAuth(() => handleRazorpayOrderFarmer(group))}
+                              disabled={detailsMissing || payingOnline === f.farmerId}
+                              className={`mt-1 w-full font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 ${
+                                detailsMissing
+                                  ? 'bg-gray-200 text-gray-500'
+                                  : 'bg-blue-600 text-white active:bg-blue-700 disabled:opacity-50'
+                              }`}
+                            >
+                              {payingOnline === f.farmerId
+                                ? 'Opening payment...'
+                                : `💳 Order & Pay ₹${Math.round(group.reduce((s, it) => s + (it.pricePerKg ?? 0) * it.qty, 0))}`}
+                            </button>
                           )
                         }
 
