@@ -1,0 +1,13 @@
+the client said that to implement razor pay so tell me process .and the client sent me api keys[not real payment keys only testing keys ]
+
+---
+
+tomoorow real money now only test . so can i add keys in .env.local
+
+---
+
+added
+
+---
+
+while paying its getting unable to scan qr

@@ -1,0 +1,63 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "10384b4d0ac8",
+  "session_id": "0708793f-9e01-4d4b-9e71-acd505fda837",
+  "strategy": "manual-commit",
+  "created_at": "2026-05-21T18:38:09.3461926Z",
+  "branch": "feature/razorpay-checkout",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "package-lock.json",
+    "package.json",
+    "scripts/razorpay-payment-migration.sql",
+    "src/app/api/orders/place/route.ts",
+    "src/app/api/orders/razorpay/create/route.ts",
+    "src/app/api/orders/razorpay/verify/route.ts",
+    "src/components/consumer/Cart.tsx",
+    "src/lib/razorpay.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7",
+  "turn_id": "a2cbe9828217",
+  "token_usage": {
+    "input_tokens": 2526,
+    "cache_creation_tokens": 158124,
+    "cache_read_tokens": 2495699,
+    "output_tokens": 39982,
+    "api_call_count": 43
+  },
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-05-21T18:38:09.222743707Z",
+    "agent_lines": 560,
+    "agent_removed": 80,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 560,
+    "total_lines_changed": 640,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 629,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "PROJECT_DOCUMENTATION.md": 629
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1177,
+      "agent_lines_removed": 66
+    }
+  ]
+}
