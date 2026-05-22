@@ -1,0 +1,52 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "6b3d208f1d5f",
+  "session_id": "4243efa9-1455-4d46-adda-0531f05c67e6",
+  "strategy": "manual-commit",
+  "created_at": "2026-05-22T20:21:15.671484499Z",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7",
+  "turn_id": "486baafc8e03",
+  "token_usage": {
+    "input_tokens": 8727,
+    "cache_creation_tokens": 296413,
+    "cache_read_tokens": 34131365,
+    "output_tokens": 172655,
+    "api_call_count": 231
+  },
+  "session_metrics": {
+    "turn_count": 34
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 16,
+      "user_lines_removed": 0,
+      "agent_lines_added": 332,
+      "agent_lines_removed": 1,
+      "user_added_per_file": {
+        "scripts/produce-period-refund-migration.sql": 16
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 16,
+      "user_lines_removed": 0,
+      "agent_lines_added": 332,
+      "agent_lines_removed": 1,
+      "user_added_per_file": {
+        "scripts/produce-period-refund-migration.sql": 16
+      }
+    }
+  ]
+}
