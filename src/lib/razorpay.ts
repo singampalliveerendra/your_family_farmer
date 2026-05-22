@@ -66,3 +66,26 @@ export function verifyPaymentSignature(args: {
   if (a.length !== b.length) return false
   return timingSafeEqual(a, b)
 }
+
+// Verify a Razorpay WEBHOOK signature. Webhooks are signed with the webhook
+// secret (configured in the dashboard, separate from the API key secret):
+// HMAC-SHA256 over the raw request body, hex-encoded. We must verify against
+// the EXACT bytes received, so the route reads req.text() before parsing.
+export function verifyWebhookSignature(rawBody: string, signature: string | null | undefined): boolean {
+  const secret = process.env.RAZORPAY_WEBHOOK_SECRET
+  if (!secret) throw new Error('RAZORPAY_WEBHOOK_SECRET is not set.')
+  if (!signature) return false
+  const expected = createHmac('sha256', secret).update(rawBody).digest('hex')
+  const a = Buffer.from(expected)
+  const b = Buffer.from(signature)
+  if (a.length !== b.length) return false
+  return timingSafeEqual(a, b)
+}
+
+// Fetch all payment attempts Razorpay recorded against one order. Used by
+// reconciliation to decide whether a "pending" order was actually paid.
+export async function fetchOrderPayments(orderId: string): Promise<Array<{ id: string; status: string }>> {
+  const res = await getRazorpayClient().orders.fetchPayments(orderId)
+  const items = (res as { items?: Array<{ id: string; status: string }> }).items ?? []
+  return items.map((p) => ({ id: String(p.id), status: String(p.status) }))
+}
