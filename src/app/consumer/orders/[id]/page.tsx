@@ -10,6 +10,7 @@ type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_deliver
 
 type Order = {
   id: string
+  order_code: string | null
   produce_name: string | null
   quantity: number | null
   unit: string | null
@@ -18,6 +19,7 @@ type Order = {
   status: 'pending' | 'approved' | 'declined'
   payment_method: string | null
   payment_status: string | null
+  refund_status: string | null
   decline_reason: string | null
   payment_proof_path: string | null
   created_at: string
@@ -173,6 +175,9 @@ export default function OrderDetailsPage() {
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Order</p>
+                  {order.order_code && (
+                    <p className="text-[11px] font-mono font-semibold text-gray-400">{order.order_code}</p>
+                  )}
                   <p className="text-base font-extrabold text-gray-900 leading-tight">
                     {order.produce_name || '—'}
                   </p>
@@ -216,6 +221,21 @@ export default function OrderDetailsPage() {
               <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
                 <p className="text-xs font-bold text-red-700 uppercase tracking-wide">Decline reason / కారణం</p>
                 <p className="text-sm text-red-800 mt-1 leading-snug">{order.decline_reason}</p>
+              </div>
+            )}
+
+            {/* Refund message — shown when a paid order was declined */}
+            {order.status === 'declined' && order.refund_status === 'initiated' && (
+              <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 space-y-1.5">
+                <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                  💸 Refund initiated / రీఫండ్ మొదలైంది
+                </span>
+                <p className="text-sm text-purple-800 leading-snug">
+                  Your payment of Rs.{order.total_price ?? 0} will be refunded to your account in 3-5 business days
+                </p>
+                <p className="text-sm text-purple-800 leading-snug">
+                  మీ చెల్లింపు Rs.{order.total_price ?? 0} 3-5 పని దినాలలో తిరిగి వస్తుంది
+                </p>
               </div>
             )}
 

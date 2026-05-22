@@ -226,7 +226,7 @@ export async function POST(req: NextRequest) {
   const { data: inserted, error: insertErr } = await supabase
     .from('orders')
     .insert(rows)
-    .select('id')
+    .select('id, order_code')
 
   if (insertErr || !inserted) {
     console.error('[YFF] place-order insert failed:', insertErr?.message)
@@ -238,6 +238,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     orderIds: inserted.map((r) => r.id),
+    orderCodes: inserted.map((r) => (r as { order_code?: string | null }).order_code).filter(Boolean),
     total,
     deliveryFee,
     grandTotal: total + deliveryFee,

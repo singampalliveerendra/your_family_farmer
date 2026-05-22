@@ -9,6 +9,7 @@ import { useLang } from '@/lib/LanguageContext'
 type Order = {
   id: string
   farmer_id: string
+  order_code: string | null
   produce_listing_id: string | null
   produce_name: string | null
   quantity: number | null
@@ -159,9 +160,16 @@ function HistoryCard({ order }: { order: Order }) {
               </a>
             )}
           </div>
-          <span className="text-[11px] text-gray-400 whitespace-nowrap flex-shrink-0 mt-0.5">
-            {timeStr}
-          </span>
+          <div className="flex flex-col items-end flex-shrink-0 mt-0.5">
+            <span className="text-[11px] text-gray-400 whitespace-nowrap">
+              {timeStr}
+            </span>
+            {order.order_code && (
+              <span className="text-[10px] font-mono font-semibold text-gray-400 whitespace-nowrap">
+                {order.order_code}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 text-sm">

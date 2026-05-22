@@ -10,6 +10,7 @@ type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_deliver
 
 type Order = {
   id: string
+  order_code: string | null
   produce_name: string | null
   quantity: number | null
   unit: string | null
@@ -18,6 +19,7 @@ type Order = {
   status: 'pending' | 'approved' | 'declined'
   payment_method: string | null
   payment_status: string | null
+  refund_status: string | null
   decline_reason: string | null
   payment_proof_path: string | null
   created_at: string
@@ -196,6 +198,11 @@ export default function ConsumerOrdersPage() {
                           <p className="font-extrabold text-gray-900 text-sm leading-tight">
                             {order.produce_name || '—'}
                           </p>
+                          {order.order_code && (
+                            <p className="text-[11px] font-mono font-semibold text-gray-400 mt-0.5">
+                              {order.order_code}
+                            </p>
+                          )}
                           <p className="text-xs text-gray-500 mt-0.5">
                             {order.quantity} {order.unit || 'kg'}
                             {order.total_price ? ` · ₹${order.total_price}` : ''}
@@ -208,6 +215,11 @@ export default function ConsumerOrdersPage() {
                           {badge && (
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${badge.cls}`}>
                               {badge.label}
+                            </span>
+                          )}
+                          {order.refund_status === 'initiated' && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap bg-purple-100 text-purple-800">
+                              💸 Refund initiated / రీఫండ్ మొదలైంది
                             </span>
                           )}
                         </div>
@@ -244,6 +256,18 @@ export default function ConsumerOrdersPage() {
                             Reason / కారణం
                           </p>
                           <p className="text-xs text-red-800 mt-0.5 leading-snug">{order.decline_reason}</p>
+                        </div>
+                      )}
+
+                      {/* Refund message — shown when a paid order was declined */}
+                      {order.status === 'declined' && order.refund_status === 'initiated' && (
+                        <div className="bg-purple-50 border border-purple-200 rounded-xl px-3 py-2 mt-1">
+                          <p className="text-xs text-purple-800 leading-snug">
+                            Your payment of Rs.{order.total_price ?? 0} will be refunded to your account in 3-5 business days
+                          </p>
+                          <p className="text-xs text-purple-800 leading-snug mt-0.5">
+                            మీ చెల్లింపు Rs.{order.total_price ?? 0} 3-5 పని దినాలలో తిరిగి వస్తుంది
+                          </p>
                         </div>
                       )}
 
