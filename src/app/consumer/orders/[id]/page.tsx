@@ -69,7 +69,7 @@ export default function OrderDetailsPage() {
 
   const handleCancel = async () => {
     if (!order) return
-    if (!window.confirm('Cancel this order? If you have already paid, you will be refunded automatically.')) return
+    if (!window.confirm('Cancel this order? If you have already paid, you will be refunded automatically.\n\nఈ ఆర్డర్‌ను రద్దు చేయాలా? మీరు ఇప్పటికే చెల్లించి ఉంటే, డబ్బు ఆటోమేటిక్‌గా తిరిగి వస్తుంది.')) return
     setCancelling(true)
     try {
       const res = await fetch(`/api/consumer/orders/${order.id}/cancel`, {
@@ -77,13 +77,13 @@ export default function OrderDetailsPage() {
         credentials: 'same-origin',
       })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok) { alert(json.error || 'Could not cancel the order.'); return }
+      if (!res.ok) { alert(json.error || 'Could not cancel the order. / ఆర్డర్ రద్దు చేయలేకపోయాం.'); return }
       // Refresh the order so status + any refund show up.
       const r = await fetch(`/api/consumer/orders/${order.id}`, { credentials: 'same-origin' })
       const fresh = await r.json().catch(() => ({}))
       if (r.ok && fresh.order) setOrder(fresh.order as Order)
     } catch {
-      alert('Network error. Please try again.')
+      alert('Network error. Please try again. / నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.')
     } finally {
       setCancelling(false)
     }
@@ -263,7 +263,7 @@ export default function OrderDetailsPage() {
                   disabled={cancelling}
                   className="mt-2 w-full border border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
                 >
-                  {cancelling ? 'Cancelling...' : '✕ Cancel order (within 30 min)'}
+                  {cancelling ? 'Cancelling... / రద్దు చేస్తోంది...' : '✕ Cancel order / ఆర్డర్ రద్దు (30 min లోపు)'}
                 </button>
               )}
             </div>
@@ -376,12 +376,12 @@ function ReceiptOverlay({ order, onClose }: { order: Order; onClose: () => void 
         </div>
 
         <div className="py-3 space-y-1.5 text-xs">
-          <div className="flex justify-between"><span className="text-gray-500">Order ID</span><span className="font-mono font-bold text-gray-900">{order.order_code || order.id.slice(0, 8)}</span></div>
-          <div className="flex justify-between"><span className="text-gray-500">Date</span><span className="font-semibold text-gray-900">{placed}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Order ID / ఆర్డర్ ID</span><span className="font-mono font-bold text-gray-900">{order.order_code || order.id.slice(0, 8)}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Date / తేదీ</span><span className="font-semibold text-gray-900">{placed}</span></div>
           {order.farmer && (
-            <div className="flex justify-between"><span className="text-gray-500">Farmer</span><span className="font-semibold text-gray-900 text-right">{order.farmer.name} · {order.farmer.village}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Farmer / రైతు</span><span className="font-semibold text-gray-900 text-right">{order.farmer.name} · {order.farmer.village}</span></div>
           )}
-          <div className="flex justify-between"><span className="text-gray-500">Payment</span><span className="font-semibold text-gray-900 uppercase">{order.payment_method || '—'}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Payment / చెల్లింపు</span><span className="font-semibold text-gray-900 uppercase">{order.payment_method || '—'}</span></div>
         </div>
 
         <div className="border-t border-dashed border-gray-300 py-3">
@@ -392,20 +392,20 @@ function ReceiptOverlay({ order, onClose }: { order: Order; onClose: () => void 
         </div>
 
         <div className="border-t-2 border-gray-900 pt-2 flex justify-between items-center">
-          <span className="text-sm font-bold text-gray-900">Total Paid</span>
+          <span className="text-sm font-bold text-gray-900">Total Paid / మొత్తం చెల్లించారు</span>
           <span className="text-lg font-extrabold text-green-700">₹{order.total_price ?? 0}</span>
         </div>
 
         <div className="mt-3 text-center">
-          <span className="inline-block text-[10px] font-bold px-3 py-1 rounded-full bg-green-100 text-green-800">✓ PAID</span>
+          <span className="inline-block text-[10px] font-bold px-3 py-1 rounded-full bg-green-100 text-green-800">✓ PAID / చెల్లించారు</span>
         </div>
 
         <p className="text-[9px] text-gray-400 text-center mt-3 break-all">Ref: {paymentRef}</p>
         <p className="text-[9px] text-gray-400 text-center mt-1">Thank you for supporting natural farmers 🌱</p>
 
         <div className="yff-no-print mt-5 grid grid-cols-2 gap-2">
-          <button onClick={onClose} className="border border-gray-300 text-gray-700 font-bold py-2.5 rounded-xl text-sm active:bg-gray-50">Close</button>
-          <button onClick={() => window.print()} className="bg-green-700 text-white font-bold py-2.5 rounded-xl text-sm active:bg-green-800">Print / Save PDF</button>
+          <button onClick={onClose} className="border border-gray-300 text-gray-700 font-bold py-2.5 rounded-xl text-sm active:bg-gray-50">Close / మూసివేయి</button>
+          <button onClick={() => window.print()} className="bg-green-700 text-white font-bold py-2.5 rounded-xl text-sm active:bg-green-800">Print / ప్రింట్</button>
         </div>
       </div>
     </div>
@@ -532,9 +532,9 @@ function OrderStatusPanel({ order }: { order: Order }) {
     : ''
 
   const steps = [
-    { label: 'Order placed', sub: 'We received your order', at: placedAt },
-    { label: 'Confirmed by farmer', sub: 'Farmer accepted your order', at: '' },
-    { label: 'Ready for pickup', sub: order.pickup_location ? `Collect at ${order.pickup_location}` : 'Collect from the farmer', at: '' },
+    { label: 'Order placed / ఆర్డర్ పెట్టారు', sub: 'We received your order / మీ ఆర్డర్ అందింది', at: placedAt },
+    { label: 'Confirmed by farmer / రైతు ధృవీకరించారు', sub: 'Farmer accepted your order / రైతు అంగీకరించారు', at: '' },
+    { label: 'Ready for pickup / తీసుకెళ్లడానికి సిద్ధం', sub: order.pickup_location ? `Collect at ${order.pickup_location}` : 'Collect from the farmer / రైతు నుండి తీసుకోండి', at: '' },
   ]
 
   return (
@@ -578,9 +578,9 @@ function RefundPanel({ order }: { order: Order }) {
   const current = rs === 'processed' ? 2 : rs === 'pending' ? 1 : 0
 
   const steps = [
-    { label: 'Refund initiated', sub: 'We started your refund' },
-    { label: 'Processing', sub: 'Sent to your bank/UPI' },
-    { label: 'Credited', sub: 'Reflects in 3–5 business days' },
+    { label: 'Refund initiated / రీఫండ్ మొదలైంది', sub: 'We started your refund / మీ రీఫండ్ ప్రారంభించాం' },
+    { label: 'Processing / ప్రాసెస్ అవుతోంది', sub: 'Sent to your bank/UPI / మీ బ్యాంక్/UPIకి పంపాం' },
+    { label: 'Credited / జమ అయింది', sub: 'Reflects in 3–5 business days / 3–5 పని రోజుల్లో కనిపిస్తుంది' },
   ]
 
   const refundedAt = order.refunded_at
@@ -595,6 +595,9 @@ function RefundPanel({ order }: { order: Order }) {
         </span>
         <p className="text-sm text-red-800 leading-snug">
           Your refund of ₹{amount} could not be processed. Please contact support and we&apos;ll fix it.
+        </p>
+        <p className="text-sm text-red-800 leading-snug">
+          మీ ₹{amount} రీఫండ్ ప్రాసెస్ కాలేదు. దయచేసి సపోర్ట్‌ను సంప్రదించండి, మేము సరి చేస్తాం.
         </p>
       </div>
     )

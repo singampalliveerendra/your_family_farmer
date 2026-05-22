@@ -10,31 +10,41 @@ export const metadata = {
 const SUPPORT_PHONE = '' // e.g. '919876543210' (country code, no +, no spaces)
 const SUPPORT_EMAIL = '' // e.g. 'help@yourfamilyfarmer.in'
 
-const cards: Array<{ icon: string; title: string; body: string }> = [
+const cards: Array<{ icon: string; title: string; titleTe: string; body: string; bodyTe: string }> = [
   {
     icon: '🔒',
     title: 'Your payment is secure',
+    titleTe: 'మీ చెల్లింపు సురక్షితం',
     body: 'Payments are processed by Razorpay, a trusted, RBI-regulated payment gateway. We never see or store your card or UPI PIN.',
+    bodyTe: 'చెల్లింపులు RBI నియంత్రించే నమ్మకమైన Razorpay ద్వారా జరుగుతాయి. మీ కార్డ్ లేదా UPI పిన్‌ను మేము ఎప్పుడూ చూడం, నిల్వ చేయం.',
   },
   {
     icon: '✅',
     title: 'Pay only for confirmed orders',
+    titleTe: 'ధృవీకరించిన ఆర్డర్‌లకే చెల్లింపు',
     body: 'If a farmer cannot fulfil your order and declines it, you are not charged — and if you already paid, you get a full refund automatically.',
+    bodyTe: 'రైతు మీ ఆర్డర్‌ను తిరస్కరిస్తే మీకు ఛార్జ్ ఉండదు — ఇప్పటికే చెల్లించి ఉంటే పూర్తి రీఫండ్ ఆటోమేటిక్‌గా వస్తుంది.',
   },
   {
     icon: '💸',
     title: 'Automatic refunds',
+    titleTe: 'ఆటోమేటిక్ రీఫండ్‌లు',
     body: 'When a paid order is declined or cancelled, the refund is started immediately to your original payment method. It reflects in your account within 3–5 business days. You can track its status on your order page.',
+    bodyTe: 'చెల్లించిన ఆర్డర్ తిరస్కరించబడినా లేదా రద్దు చేయబడినా, రీఫండ్ వెంటనే మీ అసలు చెల్లింపు పద్ధతికి మొదలవుతుంది. 3–5 పని రోజుల్లో మీ ఖాతాలో కనిపిస్తుంది. మీ ఆర్డర్ పేజీలో స్థితిని చూడవచ్చు.',
   },
   {
     icon: '🧾',
     title: 'Receipt for every payment',
+    titleTe: 'ప్రతి చెల్లింపుకు రసీదు',
     body: 'Every paid order has a receipt with a unique Order ID (e.g. YFF-20260523-0001). Open your order and tap "View receipt" to print or save it.',
+    bodyTe: 'ప్రతి చెల్లించిన ఆర్డర్‌కు ప్రత్యేక ఆర్డర్ ID (ఉదా. YFF-20260523-0001)తో రసీదు ఉంటుంది. మీ ఆర్డర్ తెరిచి "View receipt" నొక్కి ప్రింట్ లేదా సేవ్ చేయండి.',
   },
   {
     icon: '🛵',
     title: 'Know where your order is',
+    titleTe: 'మీ ఆర్డర్ ఎక్కడుందో తెలుసుకోండి',
     body: 'For home delivery you can follow your order live — placed, confirmed, picked up, out for delivery, and delivered — right from the order page.',
+    bodyTe: 'ఇంటి డెలివరీకి మీ ఆర్డర్‌ను లైవ్‌గా చూడవచ్చు — ఆర్డర్ పెట్టారు, ధృవీకరించారు, తీసుకున్నారు, డెలివరీకి బయలుదేరారు, డెలివరీ అయింది — ఆర్డర్ పేజీ నుండే.',
   },
 ]
 
@@ -61,7 +71,9 @@ export default function BuyerProtectionPage() {
             <span className="text-2xl flex-shrink-0">{c.icon}</span>
             <div>
               <p className="font-extrabold text-gray-900 text-sm leading-tight">{c.title}</p>
+              <p className="font-bold text-green-700 text-xs leading-tight">{c.titleTe}</p>
               <p className="text-xs text-gray-600 mt-1 leading-snug">{c.body}</p>
+              <p className="text-xs text-gray-500 mt-1 leading-snug">{c.bodyTe}</p>
             </div>
           </div>
         ))}
@@ -69,30 +81,33 @@ export default function BuyerProtectionPage() {
         {/* Refund policy summary */}
         <div className="bg-white rounded-2xl border border-gray-100 p-4">
           <p className="font-extrabold text-gray-900 text-sm">Refund policy in short</p>
+          <p className="font-bold text-green-700 text-xs">రీఫండ్ విధానం — సంక్షిప్తంగా</p>
           <ul className="mt-2 space-y-1.5 text-xs text-gray-600 list-disc pl-4">
-            <li>Order declined by farmer → full refund, started automatically.</li>
-            <li>Order cancelled before the farmer confirms → full refund.</li>
-            <li>Refunds go back to the method you paid with (UPI/card).</li>
-            <li>Refunds reflect within 3–5 business days after they are issued.</li>
-            <li>Delivery fee (if any) is collected as cash by the rider and is not part of the online refund.</li>
+            <li>Order declined by farmer → full refund, started automatically. / రైతు తిరస్కరిస్తే → పూర్తి రీఫండ్ ఆటోమేటిక్‌గా.</li>
+            <li>Order cancelled before the farmer confirms → full refund. / రైతు ధృవీకరించక ముందు రద్దు చేస్తే → పూర్తి రీఫండ్.</li>
+            <li>Refunds go back to the method you paid with (UPI/card). / మీరు చెల్లించిన పద్ధతికే (UPI/కార్డ్) రీఫండ్.</li>
+            <li>Refunds reflect within 3–5 business days. / 3–5 పని రోజుల్లో కనిపిస్తుంది.</li>
+            <li>Delivery fee (if any) is cash to the rider, not part of the online refund. / డెలివరీ ఫీజు (ఉంటే) రైడర్‌కు నగదు, ఆన్‌లైన్ రీఫండ్‌లో భాగం కాదు.</li>
           </ul>
         </div>
 
         {/* Support */}
         <div className="bg-white rounded-2xl border border-gray-100 p-4">
           <p className="font-extrabold text-gray-900 text-sm">Need help with an order?</p>
+          <p className="font-bold text-green-700 text-xs">ఆర్డర్‌తో సహాయం కావాలా?</p>
           <p className="text-xs text-gray-600 mt-1">
             Keep your Order ID ready (e.g. YFF-…) and reach us:
+            <br />మీ ఆర్డర్ ID (ఉదా. YFF-…) సిద్ధంగా ఉంచుకుని మమ్మల్ని సంప్రదించండి:
           </p>
           <div className="mt-3 space-y-2">
             {SUPPORT_PHONE ? (
               <>
                 <a href={`tel:+${SUPPORT_PHONE}`} className="block w-full text-center bg-green-700 text-white font-bold py-3 rounded-xl text-sm active:bg-green-800">
-                  📞 Call support
+                  📞 Call support / కాల్ చేయండి
                 </a>
                 {waLink && (
                   <a href={waLink} target="_blank" rel="noopener noreferrer" className="block w-full text-center bg-green-600 text-white font-bold py-3 rounded-xl text-sm active:bg-green-700">
-                    💬 WhatsApp support
+                    💬 WhatsApp support / వాట్సాప్
                   </a>
                 )}
               </>
@@ -100,6 +115,7 @@ export default function BuyerProtectionPage() {
               <p className="text-xs text-gray-500">
                 Contact your farmer directly from the order page, or reach the
                 YourFamilyFarmer team.
+                <br />ఆర్డర్ పేజీ నుండి నేరుగా రైతును సంప్రదించండి, లేదా YourFamilyFarmer బృందాన్ని సంప్రదించండి.
               </p>
             )}
             {SUPPORT_EMAIL && (

@@ -341,13 +341,13 @@ export default function FarmerDashboard() {
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
-        alert(json.error || 'Could not decline the order. Please try again.')
+        alert(json.error || 'Could not decline the order. Please try again. / ఆర్డర్ తిరస్కరించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.')
         return
       }
       setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
       setDecliningOrder(null)
     } catch {
-      alert('Network error. Please try again.')
+      alert('Network error. Please try again. / నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.')
     } finally {
       setProcessingOrderId(null)
     }

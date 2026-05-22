@@ -224,12 +224,12 @@ export default function ConsumerOrdersPage() {
                           )}
                           {order.refund_status && order.refund_status !== 'failed' && (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap bg-purple-100 text-purple-800">
-                              💸 {order.refund_status === 'processed' ? 'Refunded' : 'Refund in progress'}
+                              💸 {order.refund_status === 'processed' ? 'Refunded / రీఫండ్ అయింది' : 'Refund in progress / రీఫండ్ జరుగుతోంది'}
                             </span>
                           )}
                           {order.refund_status === 'failed' && (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap bg-red-100 text-red-800">
-                              ⚠️ Refund failed
+                              ⚠️ Refund failed / రీఫండ్ విఫలమైంది
                             </span>
                           )}
                         </div>
@@ -330,7 +330,7 @@ export default function ConsumerOrdersPage() {
           href="/buyer-protection"
           className="mt-6 block text-center text-xs font-semibold text-green-700 underline"
         >
-          🔒 Buyer protection & refund policy
+          🔒 Buyer protection & refund policy / కొనుగోలుదారు రక్షణ & రీఫండ్ విధానం
         </Link>
       </div>
     </main>
