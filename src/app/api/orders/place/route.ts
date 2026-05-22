@@ -53,12 +53,17 @@ export async function POST(req: NextRequest) {
         deliveryLandmark?: string | null
         deliveryPincode?: string | null
         deliveryAltPhone?: string | null
+        idempotencyKey?: string | null
       }
     | null
 
   if (!body) return bad('Invalid request body.')
   // pickupDay is currently UI-only (not a DB column); accept and ignore.
   const { farmerId, paymentMethod, pickupLocation, items } = body
+  // Optional idempotency key (a client-generated UUID per checkout attempt).
+  const idempotencyKey = typeof body.idempotencyKey === 'string' && UUID_RE.test(body.idempotencyKey)
+    ? body.idempotencyKey
+    : null
 
   if (!farmerId || !UUID_RE.test(farmerId)) return bad('Invalid farmer.')
   if (paymentMethod !== 'upi' && paymentMethod !== 'cod' && paymentMethod !== 'razorpay') {
@@ -104,6 +109,30 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (!consumer) return bad('Account not found. Please log in again.', 401)
+
+  // Idempotency: if this checkout attempt was already saved (double-tap or a
+  // retry after a lost response), return the existing rows instead of placing
+  // a second order and decrementing stock again.
+  if (idempotencyKey) {
+    const { data: existing } = await supabase
+      .from('orders')
+      .select('id, order_code, total_price, delivery_fee')
+      .eq('idempotency_key', idempotencyKey)
+      .eq('consumer_id', consumer.id)
+    if (existing && existing.length > 0) {
+      const existingTotal = existing.reduce((s, o) => s + (Number(o.total_price) || 0), 0)
+      const existingFee = existing.reduce((s, o) => s + (Number(o.delivery_fee) || 0), 0)
+      return NextResponse.json({
+        ok: true,
+        orderIds: existing.map((r) => r.id),
+        orderCodes: existing.map((r) => (r as { order_code?: string | null }).order_code).filter(Boolean),
+        total: existingTotal,
+        deliveryFee: existingFee,
+        grandTotal: existingTotal + existingFee,
+        deduplicated: true,
+      })
+    }
+  }
 
   // Farmer COD acceptance check
   const { data: farmer } = await supabase
@@ -169,6 +198,7 @@ export async function POST(req: NextRequest) {
       buyer_name: consumer.name || 'Buyer',
       buyer_phone: consumer.phone,
       consumer_id: consumer.id,
+      idempotency_key: idempotencyKey,
       pickup_location: typeof pickupLocation === 'string' ? pickupLocation.slice(0, 200) : null,
       status: 'pending',
       payment_method: paymentMethod,

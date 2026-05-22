@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, consumer_id, total_price, payment_status')
+    .select('id, consumer_id, total_price, payment_status, razorpay_order_id')
     .in('id', orderIds)
 
   if (!orders || orders.length !== orderIds.length) {
@@ -52,6 +52,21 @@ export async function POST(req: NextRequest) {
   const totalRupees = orders.reduce((s, o) => s + (Number(o.total_price) || 0), 0)
   if (totalRupees <= 0) return NextResponse.json({ error: 'Invalid order total.' }, { status: 400 })
   const amountPaise = Math.round(totalRupees * 100)
+
+  // Idempotency: if this batch already has a Razorpay order (the buyer retried
+  // after a dropped connection), reuse it rather than creating a second order
+  // the buyer could be charged for separately.
+  const existingRzpId = orders[0].razorpay_order_id as string | null | undefined
+  if (existingRzpId && orders.every((o) => o.razorpay_order_id === existingRzpId)) {
+    return NextResponse.json({
+      ok: true,
+      keyId: getRazorpayKeyId(),
+      razorpayOrderId: existingRzpId,
+      amount: amountPaise,
+      currency: 'INR',
+      reused: true,
+    })
+  }
 
   let rzpOrder
   try {

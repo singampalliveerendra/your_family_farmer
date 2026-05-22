@@ -285,6 +285,19 @@ function CartSheet({
   const [toast, setToast] = useState('')
   const [placingUpiOrder, setPlacingUpiOrder] = useState<string | null>(null)
   const [submittingResult, setSubmittingResult] = useState(false)
+  // One idempotency key per farmer checkout attempt. Kept until the order
+  // actually saves, so a retry after a dropped response reuses the same key
+  // and the server returns the existing order instead of placing a new one.
+  const idempotencyKeys = useRef<Record<string, string>>({})
+  const getIdempotencyKey = (farmerId: string): string => {
+    if (!idempotencyKeys.current[farmerId]) {
+      idempotencyKeys.current[farmerId] =
+        (typeof crypto !== 'undefined' && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    }
+    return idempotencyKeys.current[farmerId]
+  }
   const [paidDone, setPaidDone] = useState(false)
   // Live UPI IDs and QR codes fetched from DB — always up to date, overrides stale cart data
   const [liveUpiIds, setLiveUpiIds] = useState<Record<string, string>>({})
@@ -449,11 +462,14 @@ function CartSheet({
         deliveryLandmark: deliveryType === 'home_delivery' ? deliveryLandmark.trim() : null,
         deliveryPincode: deliveryType === 'home_delivery' ? deliveryPincode.trim() : null,
         deliveryAltPhone: deliveryType === 'home_delivery' ? deliveryAltPhone.replace(/\D/g, '').slice(-10) : null,
+        idempotencyKey: getIdempotencyKey(f.farmerId),
       }),
     }).catch(() => null)
     if (!r) return { ok: false, error: 'Network error. Please try again.' }
     const json = await r.json().catch(() => ({}))
     if (!r.ok || !json?.ok) return { ok: false, error: json?.error ?? 'Could not place order.' }
+    // Order saved — drop the key so a genuinely new order later gets a fresh one.
+    delete idempotencyKeys.current[f.farmerId]
     return { ok: true, orderIds: json.orderIds, total: json.total }
   }
 
