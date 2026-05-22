@@ -300,6 +300,19 @@ export default function FarmerDashboard() {
     return () => { supabase.removeChannel(channel) }
   }, [farmer])
 
+  // Safety net for the realtime subscription: on slow/spotty 4G the websocket
+  // can silently drop while the farmer is on another app. Refetch whenever the
+  // dashboard tab regains focus so they never miss a new order.
+  useEffect(() => {
+    const refetch = () => { if (document.visibilityState === 'visible') loadDashboard() }
+    document.addEventListener('visibilitychange', refetch)
+    window.addEventListener('focus', refetch)
+    return () => {
+      document.removeEventListener('visibilitychange', refetch)
+      window.removeEventListener('focus', refetch)
+    }
+  }, [loadDashboard])
+
   const handleLogout = () => {
     localStorage.removeItem('yff_farmer_id')
     localStorage.removeItem('yff_farmer_slug')

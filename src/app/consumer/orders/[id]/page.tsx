@@ -230,6 +230,11 @@ export default function OrderDetailsPage() {
               <DeliveryPanel order={order} />
             )}
 
+            {/* Simple status timeline for self-pickup orders */}
+            {order.delivery_type !== 'home_delivery' && order.status !== 'declined' && (
+              <OrderStatusPanel order={order} />
+            )}
+
             {/* Decline reason */}
             {order.status === 'declined' && order.decline_reason && (
               <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
@@ -469,6 +474,50 @@ function DeliveryPanel({ order }: { order: Order }) {
           </a>
         </div>
       )}
+    </div>
+  )
+}
+
+// Order status timeline for self-pickup orders. Home delivery has its own
+// richer DeliveryPanel; this covers the simpler pickup lifecycle.
+function OrderStatusPanel({ order }: { order: Order }) {
+  const approved = order.status === 'approved'
+  const current = approved ? 2 : 0 // placed → (confirmed, ready) unlock together on approval
+
+  const placedAt = order.created_at
+    ? new Date(order.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : ''
+
+  const steps = [
+    { label: 'Order placed', sub: 'We received your order', at: placedAt },
+    { label: 'Confirmed by farmer', sub: 'Farmer accepted your order', at: '' },
+    { label: 'Ready for pickup', sub: order.pickup_location ? `Collect at ${order.pickup_location}` : 'Collect from the farmer', at: '' },
+  ]
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
+      <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Order status / ఆర్డర్ స్థితి</p>
+      <ol className="space-y-2">
+        {steps.map((s, idx) => {
+          const reached = idx <= current
+          const isCurrent = idx === current
+          return (
+            <li key={s.label} className="flex items-start gap-3">
+              <div className="flex flex-col items-center pt-0.5">
+                <span className={`w-3 h-3 rounded-full ${reached ? 'bg-green-700' : 'bg-gray-200'} ${isCurrent ? 'ring-2 ring-green-200' : ''}`} />
+                {idx < steps.length - 1 && (
+                  <span className={`w-0.5 mt-0.5 ${idx < current ? 'bg-green-700' : 'bg-gray-200'}`} style={{ minHeight: 14 }} />
+                )}
+              </div>
+              <div className="flex-1 pb-1">
+                <p className={`text-xs font-bold ${reached ? 'text-gray-900' : 'text-gray-400'}`}>{s.label}</p>
+                <p className="text-[10px] text-gray-500 leading-snug">{s.sub}</p>
+                {s.at && reached && <p className="text-[10px] text-gray-400 mt-0.5">{s.at}</p>}
+              </div>
+            </li>
+          )
+        })}
+      </ol>
     </div>
   )
 }

@@ -320,6 +320,13 @@ export default function ConsumerOrdersPage() {
             })}
           </div>
         )}
+
+        <Link
+          href="/buyer-protection"
+          className="mt-6 block text-center text-xs font-semibold text-green-700 underline"
+        >
+          🔒 Buyer protection & refund policy
+        </Link>
       </div>
     </main>
   )
