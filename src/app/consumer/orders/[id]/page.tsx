@@ -20,6 +20,9 @@ type Order = {
   payment_method: string | null
   payment_status: string | null
   refund_status: string | null
+  refund_id: string | null
+  refund_amount: number | null
+  refunded_at: string | null
   decline_reason: string | null
   payment_proof_path: string | null
   created_at: string
@@ -224,20 +227,8 @@ export default function OrderDetailsPage() {
               </div>
             )}
 
-            {/* Refund message — shown when a paid order was declined */}
-            {order.status === 'declined' && order.refund_status === 'initiated' && (
-              <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 space-y-1.5">
-                <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
-                  💸 Refund initiated / రీఫండ్ మొదలైంది
-                </span>
-                <p className="text-sm text-purple-800 leading-snug">
-                  Your payment of Rs.{order.total_price ?? 0} will be refunded to your account in 3-5 business days
-                </p>
-                <p className="text-sm text-purple-800 leading-snug">
-                  మీ చెల్లింపు Rs.{order.total_price ?? 0} 3-5 పని దినాలలో తిరిగి వస్తుంది
-                </p>
-              </div>
-            )}
+            {/* Refund status — shown whenever a refund exists for this order */}
+            {order.refund_status && <RefundPanel order={order} />}
 
             {/* Payment screenshot */}
             {order.payment_method === 'upi' && (
@@ -401,6 +392,78 @@ function DeliveryPanel({ order }: { order: Order }) {
             📞 Call · {order.rider.phone}
           </a>
         </div>
+      )}
+    </div>
+  )
+}
+
+// Refund timeline. Maps the stored refund_status (our manual 'initiated', or
+// a Razorpay status: 'pending' / 'processed' / 'failed') onto a simple
+// buyer-facing progression: Initiated → Processing → Credited.
+function RefundPanel({ order }: { order: Order }) {
+  const rs = (order.refund_status || '').toLowerCase()
+  const failed = rs === 'failed'
+  const amount = order.refund_amount ?? order.total_price ?? 0
+
+  // current = how far along the 3-step bar we are.
+  // initiated → 0, pending → 1, processed → 2 (credited).
+  const current = rs === 'processed' ? 2 : rs === 'pending' ? 1 : 0
+
+  const steps = [
+    { label: 'Refund initiated', sub: 'We started your refund' },
+    { label: 'Processing', sub: 'Sent to your bank/UPI' },
+    { label: 'Credited', sub: 'Reflects in 3–5 business days' },
+  ]
+
+  const refundedAt = order.refunded_at
+    ? new Date(order.refunded_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : null
+
+  if (failed) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-2xl p-4 space-y-1.5">
+        <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800">
+          ⚠️ Refund failed / రీఫండ్ విఫలమైంది
+        </span>
+        <p className="text-sm text-red-800 leading-snug">
+          Your refund of ₹{amount} could not be processed. Please contact support and we&apos;ll fix it.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+          💸 Refund of ₹{amount}
+        </span>
+        {refundedAt && <span className="text-[10px] text-purple-500">{refundedAt}</span>}
+      </div>
+
+      <ol className="space-y-2">
+        {steps.map((s, idx) => {
+          const reached = idx <= current
+          const isCurrent = idx === current
+          return (
+            <li key={s.label} className="flex items-start gap-3">
+              <div className="flex flex-col items-center pt-0.5">
+                <span className={`w-3 h-3 rounded-full ${reached ? 'bg-purple-600' : 'bg-purple-200'} ${isCurrent ? 'ring-2 ring-purple-200' : ''}`} />
+                {idx < steps.length - 1 && (
+                  <span className={`w-0.5 mt-0.5 ${idx < current ? 'bg-purple-600' : 'bg-purple-200'}`} style={{ minHeight: 14 }} />
+                )}
+              </div>
+              <div className="flex-1 pb-1">
+                <p className={`text-xs font-bold ${reached ? 'text-purple-900' : 'text-purple-300'}`}>{s.label}</p>
+                <p className="text-[10px] text-purple-500 leading-snug">{s.sub}</p>
+              </div>
+            </li>
+          )
+        })}
+      </ol>
+
+      {order.refund_id && (
+        <p className="text-[10px] text-purple-400 font-mono border-t border-purple-100 pt-2">Ref: {order.refund_id}</p>
       )}
     </div>
   )

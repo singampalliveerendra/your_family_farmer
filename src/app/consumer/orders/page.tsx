@@ -217,9 +217,14 @@ export default function ConsumerOrdersPage() {
                               {badge.label}
                             </span>
                           )}
-                          {order.refund_status === 'initiated' && (
+                          {order.refund_status && order.refund_status !== 'failed' && (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap bg-purple-100 text-purple-800">
-                              💸 Refund initiated / రీఫండ్ మొదలైంది
+                              💸 {order.refund_status === 'processed' ? 'Refunded' : 'Refund in progress'}
+                            </span>
+                          )}
+                          {order.refund_status === 'failed' && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap bg-red-100 text-red-800">
+                              ⚠️ Refund failed
                             </span>
                           )}
                         </div>
