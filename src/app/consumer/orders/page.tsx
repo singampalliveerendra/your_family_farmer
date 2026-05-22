@@ -110,13 +110,11 @@ export default function ConsumerOrdersPage() {
 
   const paymentBadge = (order: Order) => {
     if (!order.payment_method || order.payment_method === 'cod') return null
-    if (order.payment_method === 'upi') {
-      if (order.payment_status === 'completed') return { label: '✓ UPI Paid', cls: 'bg-green-100 text-green-800' }
-      if (order.payment_status === 'pending_confirmation' || order.payment_status === 'payment_claimed')
-        return { label: '⏳ Payment sent — awaiting farmer', cls: 'bg-blue-100 text-blue-800' }
-      if (order.payment_status === 'failed') return { label: '✕ Payment not received', cls: 'bg-red-100 text-red-800' }
-      return { label: '📲 UPI — Pay now', cls: 'bg-orange-100 text-orange-800' }
+    // Online payments now go through Razorpay.
+    if (order.payment_method === 'razorpay' && order.payment_status === 'paid') {
+      return { label: '✓ Paid online / ఆన్‌లైన్ చెల్లించారు', cls: 'bg-green-100 text-green-800' }
     }
+    // Manual UPI is retired — legacy UPI orders show no pay prompt.
     return null
   }
 
@@ -182,18 +180,10 @@ export default function ConsumerOrdersPage() {
             </p>
             {orders.map((order) => {
               const badge = paymentBadge(order)
-              const needsPayment = order.payment_method === 'upi'
-                && order.payment_status === 'pending'
-                && order.status !== 'declined'
-                && order.farmer?.upi_id
-              const canRetry = order.payment_method === 'upi'
-                && order.payment_status === 'failed'
-                && order.status !== 'declined'
-                && !!order.farmer?.upi_id
-                && !!order.total_price
-              const upiLink = needsPayment
-                ? `upi://pay?pa=${encodeURIComponent(order.farmer!.upi_id!)}&pn=${encodeURIComponent(order.farmer!.name)}&am=${order.total_price ?? 0}&cu=INR&tn=YourFamilyFarmer%20Order`
-                : null
+              // Manual UPI flow retired — no pay-via-UPI prompt or retry on legacy orders.
+              const needsPayment = false
+              const canRetry = false
+              const upiLink: string | null = null
               return (
                 <Link key={order.id} href={`/consumer/orders/${order.id}`} className="block">
                   <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden active:bg-gray-50">
