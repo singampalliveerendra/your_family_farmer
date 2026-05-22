@@ -1,0 +1,99 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "5607b9e92d55",
+  "session_id": "4243efa9-1455-4d46-adda-0531f05c67e6",
+  "strategy": "manual-commit",
+  "created_at": "2026-05-22T17:48:48.490482673Z",
+  "branch": "main",
+  "checkpoints_count": 6,
+  "files_touched": [
+    "src/app/api/consumer/orders/[id]/route.ts",
+    "src/app/api/consumer/orders/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/consumer/orders/page.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7",
+  "turn_id": "5c91809da436",
+  "token_usage": {
+    "input_tokens": 3610,
+    "cache_creation_tokens": 137144,
+    "cache_read_tokens": 3969381,
+    "output_tokens": 54172,
+    "api_call_count": 67
+  },
+  "session_metrics": {
+    "turn_count": 16
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-05-22T17:48:48.443248556Z",
+    "agent_lines": 34,
+    "agent_removed": 2,
+    "human_added": 78,
+    "human_modified": 2,
+    "human_removed": 0,
+    "total_committed": 114,
+    "total_lines_changed": 120,
+    "agent_percentage": 30,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 16,
+      "user_lines_removed": 0,
+      "agent_lines_added": 266,
+      "agent_lines_removed": 135,
+      "user_added_per_file": {
+        "scripts/produce-period-refund-migration.sql": 16
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 16,
+      "user_lines_removed": 0,
+      "agent_lines_added": 266,
+      "agent_lines_removed": 135,
+      "user_added_per_file": {
+        "scripts/produce-period-refund-migration.sql": 16
+      }
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 16,
+      "user_lines_removed": 0,
+      "agent_lines_added": 266,
+      "agent_lines_removed": 135,
+      "user_added_per_file": {
+        "scripts/produce-period-refund-migration.sql": 16
+      }
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 16,
+      "user_lines_removed": 0,
+      "agent_lines_added": 266,
+      "agent_lines_removed": 135,
+      "user_added_per_file": {
+        "scripts/produce-period-refund-migration.sql": 16
+      }
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 16,
+      "user_lines_removed": 0,
+      "agent_lines_added": 266,
+      "agent_lines_removed": 135,
+      "user_added_per_file": {
+        "scripts/produce-period-refund-migration.sql": 16
+      }
+    }
+  ]
+}
