@@ -338,3 +338,7 @@ should i redeploy
 ---
 
 done
+
+---
+
+okay i will test one by one tommorow can you add the rmaining features
