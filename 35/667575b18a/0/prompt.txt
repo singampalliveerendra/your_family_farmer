@@ -188,3 +188,7 @@ Error: Command "npm run build" exited with 1
 ---
 
 should i have to add original keys in local
+
+---
+
+fix
