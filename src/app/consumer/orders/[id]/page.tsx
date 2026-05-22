@@ -19,6 +19,7 @@ type Order = {
   status: 'pending' | 'approved' | 'declined'
   payment_method: string | null
   payment_status: string | null
+  razorpay_payment_id: string | null
   refund_status: string | null
   refund_id: string | null
   refund_amount: number | null
@@ -57,6 +58,7 @@ export default function OrderDetailsPage() {
   const [error, setError] = useState('')
   const [proofUrl, setProofUrl] = useState<string | null>(null)
   const [proofLoading, setProofLoading] = useState(false)
+  const [showReceipt, setShowReceipt] = useState(false)
 
   useEffect(() => {
     if (state.status !== 'authenticated' || !id) {
@@ -212,6 +214,15 @@ export default function OrderDetailsPage() {
                   <p className="text-xs font-semibold text-gray-700">📍 {order.pickup_location}</p>
                 </div>
               )}
+
+              {(order.payment_status === 'paid' || order.payment_status === 'completed') && (
+                <button
+                  onClick={() => setShowReceipt(true)}
+                  className="mt-3 w-full border border-green-600 text-green-700 font-bold py-2.5 rounded-xl text-sm active:bg-green-50"
+                >
+                  🧾 View receipt / రసీదు చూడండి
+                </button>
+              )}
             </div>
 
             {/* Delivery timeline + handover OTP — only for home delivery orders */}
@@ -284,7 +295,72 @@ export default function OrderDetailsPage() {
           </>
         )}
       </div>
+
+      {showReceipt && order && (
+        <ReceiptOverlay order={order} onClose={() => setShowReceipt(false)} />
+      )}
     </main>
+  )
+}
+
+// Printable payment receipt. Shown as an overlay; the print stylesheet hides
+// everything except .yff-receipt so "Print / Save as PDF" produces a clean
+// one-page receipt on both phones and laptops.
+function ReceiptOverlay({ order, onClose }: { order: Order; onClose: () => void }) {
+  const placed = new Date(order.created_at).toLocaleString('en-IN', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
+  const paymentRef = order.razorpay_payment_id || order.order_code || order.id
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 overflow-y-auto">
+      <style>{`@media print {
+        body * { visibility: hidden !important; }
+        .yff-receipt, .yff-receipt * { visibility: visible !important; }
+        .yff-receipt { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; }
+        .yff-no-print { display: none !important; }
+      }`}</style>
+
+      <div className="yff-receipt bg-white rounded-2xl w-full max-w-sm p-6 my-auto">
+        <div className="text-center border-b border-dashed border-gray-300 pb-3">
+          <p className="text-lg font-extrabold text-green-700">YourFamilyFarmer</p>
+          <p className="text-[11px] text-gray-500">Payment Receipt / చెల్లింపు రసీదు</p>
+        </div>
+
+        <div className="py-3 space-y-1.5 text-xs">
+          <div className="flex justify-between"><span className="text-gray-500">Order ID</span><span className="font-mono font-bold text-gray-900">{order.order_code || order.id.slice(0, 8)}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Date</span><span className="font-semibold text-gray-900">{placed}</span></div>
+          {order.farmer && (
+            <div className="flex justify-between"><span className="text-gray-500">Farmer</span><span className="font-semibold text-gray-900 text-right">{order.farmer.name} · {order.farmer.village}</span></div>
+          )}
+          <div className="flex justify-between"><span className="text-gray-500">Payment</span><span className="font-semibold text-gray-900 uppercase">{order.payment_method || '—'}</span></div>
+        </div>
+
+        <div className="border-t border-dashed border-gray-300 py-3">
+          <div className="flex justify-between text-xs">
+            <span className="text-gray-700">{order.produce_name} × {order.quantity} {order.unit || 'kg'}</span>
+            <span className="font-semibold text-gray-900">₹{order.total_price ?? 0}</span>
+          </div>
+        </div>
+
+        <div className="border-t-2 border-gray-900 pt-2 flex justify-between items-center">
+          <span className="text-sm font-bold text-gray-900">Total Paid</span>
+          <span className="text-lg font-extrabold text-green-700">₹{order.total_price ?? 0}</span>
+        </div>
+
+        <div className="mt-3 text-center">
+          <span className="inline-block text-[10px] font-bold px-3 py-1 rounded-full bg-green-100 text-green-800">✓ PAID</span>
+        </div>
+
+        <p className="text-[9px] text-gray-400 text-center mt-3 break-all">Ref: {paymentRef}</p>
+        <p className="text-[9px] text-gray-400 text-center mt-1">Thank you for supporting natural farmers 🌱</p>
+
+        <div className="yff-no-print mt-5 grid grid-cols-2 gap-2">
+          <button onClick={onClose} className="border border-gray-300 text-gray-700 font-bold py-2.5 rounded-xl text-sm active:bg-gray-50">Close</button>
+          <button onClick={() => window.print()} className="bg-green-700 text-white font-bold py-2.5 rounded-xl text-sm active:bg-green-800">Print / Save PDF</button>
+        </div>
+      </div>
+    </div>
   )
 }
 
