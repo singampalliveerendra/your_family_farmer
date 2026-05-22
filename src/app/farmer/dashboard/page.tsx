@@ -65,6 +65,7 @@ type ListingRow = {
   soil_organic_carbon: number | null
   unit: string | null
   harvest_date: string | null
+  availability_period: string | null
   created_at: string
 }
 
@@ -109,7 +110,9 @@ type PreviewData = {
   stock: string
 }
 
-const EMOJI_OPTIONS = ['🍅', '🍌', '🥭', '🫑', '🥬', '🍆', '🥕', '🌽', '🧅', '🧄', '🥦', '🌿', '🍓', '🫒', '🌾', '🥥']
+// 📦 is a generic "Other / ఇతర" icon so a farmer can list any produce
+// even when no specific icon exists. Keep it last in the picker.
+const EMOJI_OPTIONS = ['🍅', '🍌', '🥭', '🫑', '🥬', '🍆', '🥕', '🌽', '🧅', '🧄', '🥦', '🌿', '🍓', '🫒', '🌾', '🥥', '📦']
 
 async function compressImage(file: File, maxPx = 800, quality = 0.7): Promise<File> {
   return new Promise((resolve) => {
@@ -313,25 +316,28 @@ export default function FarmerDashboard() {
 
   const handleConfirmDecline = async (orderId: string, reason: string) => {
     setProcessingOrderId(orderId)
-    // Return the reserved stock so a farmer who declines doesn't lose it.
-    const declined = pendingOrders.find((o) => o.id === orderId)
-    if (declined?.produce_listing_id && declined.quantity != null && declined.quantity > 0) {
-      try {
-        await supabase.rpc('increment_stock', {
-          p_listing_id: declined.produce_listing_id,
-          p_qty: declined.quantity,
-        })
-      } catch (e) {
-        console.error('[YFF] restock on decline failed:', e)
+    // Declining runs server-side: it returns the reserved stock and, for a
+    // paid order, issues a REAL Razorpay refund (the secret can't live in the
+    // browser). If the refund fails the order stays pending so we can retry.
+    try {
+      const res = await fetch(`/api/farmer/orders/${orderId}/decline`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        alert(json.error || 'Could not decline the order. Please try again.')
+        return
       }
+      setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
+      setDecliningOrder(null)
+    } catch {
+      alert('Network error. Please try again.')
+    } finally {
+      setProcessingOrderId(null)
     }
-    await supabase
-      .from('orders')
-      .update({ status: 'declined', decline_reason: reason })
-      .eq('id', orderId)
-    setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
-    setProcessingOrderId(null)
-    setDecliningOrder(null)
   }
 
   const handleMarkPaid = async (orderId: string) => {
@@ -603,6 +609,7 @@ export default function FarmerDashboard() {
       {showListings && farmer && (
         <ManageListingsModal
           farmerId={farmer.id}
+          farmerSlug={farmer.slug}
           defaultMethod={farmer.method ?? 'natural'}
           onClose={() => setShowListings(false)}
           onChanged={loadDashboard}
@@ -879,6 +886,7 @@ function ProfileEditModal({
 
   // Change password
   const [showPwSection, setShowPwSection] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword]     = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [pwLoading, setPwLoading]         = useState(false)
@@ -1044,7 +1052,8 @@ function ProfileEditModal({
   }
 
   const handleChangePassword = async () => {
-    if (newPassword.length < 4) { setPwError('Minimum 4 characters / కనీసం 4 అక్షరాలు'); return }
+    if (!currentPassword) { setPwError('Current password is required / ప్రస్తుత పాస్‌వర్డ్ అవసరం'); return }
+    if (newPassword.length < 6) { setPwError('Minimum 6 characters / కనీసం 6 అక్షరాలు'); return }
     if (newPassword !== confirmPassword) { setPwError('Passwords do not match / పాస్‌వర్డ్‌లు సరిపోలలేదు'); return }
     setPwLoading(true)
     setPwError('')
@@ -1052,12 +1061,13 @@ function ProfileEditModal({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({ newPassword }),
+      body: JSON.stringify({ currentPassword, newPassword }),
     })
     const json = await res.json().catch(() => ({}))
     setPwLoading(false)
     if (!res.ok) { setPwError(json.error ?? 'Could not update password.'); return }
     setPwSuccess(true)
+    setCurrentPassword('')
     setNewPassword('')
     setConfirmPassword('')
     setTimeout(() => { setPwSuccess(false); setShowPwSection(false) }, 2000)
@@ -1077,6 +1087,12 @@ function ProfileEditModal({
         </div>
 
         <div className="p-4 space-y-4">
+          {/* ── Section 1: Farm Profile ── */}
+          <div className="pt-1 border-t-2 border-green-100 first:border-t-0">
+            <h4 className="text-sm font-extrabold text-green-800">Farm Profile / పొలం వివరాలు</h4>
+            <p className="text-[11px] text-gray-500">Name, photo, certifications</p>
+          </div>
+
           <Field
             label={tx.yourNameLabel}
             placeholder="Ramu Reddy"
@@ -1119,6 +1135,132 @@ function ProfileEditModal({
             onChange={setSinceYear}
             type="number"
           />
+
+          {/* Farm GPS location */}
+          <div>
+            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
+              Farm location / పొలం లొకేషన్
+            </label>
+            <p className="text-[11px] text-gray-500 mb-2 leading-snug">
+              Set your farm location so nearby buyers discover your produce first.<br />
+              దగ్గరలో ఉన్న కొనుగోలుదారులు మీ పంటను ముందుగా కనుగొంటారు.
+            </p>
+            {farmerLat && farmerLng ? (
+              <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                <span className="text-sm font-semibold text-green-800">
+                  ✓ 📍 {farmerLocationName || 'Location set'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { setFarmerLat(null); setFarmerLng(null); setFarmerLocationName('') }}
+                  className="text-xs text-green-700 underline font-semibold"
+                >
+                  Change / మార్చు
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={handleFarmerGPS}
+                  disabled={locating}
+                  className="w-full flex items-center justify-center gap-2 bg-green-700 text-white font-bold py-3.5 rounded-xl text-sm active:bg-green-800 disabled:opacity-50"
+                >
+                  {locating ? (
+                    <>
+                      <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                      Getting location... / లొకేషన్ తెస్తోంది
+                    </>
+                  ) : (
+                    <>📍 Use GPS (most accurate) / GPS వాడండి</>
+                  )}
+                </button>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 border-t border-gray-200" />
+                  <span className="text-[10px] text-gray-400 font-semibold">OR / లేదా</span>
+                  <div className="flex-1 border-t border-gray-200" />
+                </div>
+                <LocationSearch
+                  placeholder="Search farm location / పొలం లొకేషన్ వెతకండి"
+                  onSelect={(lat, lng, name) => {
+                    setFarmerLat(lat)
+                    setFarmerLng(lng)
+                    setFarmerLocationName(name)
+                  }}
+                />
+              </div>
+            )}
+            {locError && (
+              <p className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2 mt-2">{locError}</p>
+            )}
+          </div>
+
+          {/* Farm cover photo */}
+          <div>
+            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
+              {tx.coverPhotoLabel}
+            </label>
+            <p className="text-[11px] text-gray-500 mb-2">{tx.coverPhotoHelp}</p>
+            <ProfilePhotoUpload
+              preview={coverPreview}
+              existingUrl={existingCoverUrl}
+              onPick={(e) => handlePickFile(e, setCoverFile, setCoverPreview, coverPreview)}
+              onClear={() => { if (coverPreview) URL.revokeObjectURL(coverPreview); setCoverFile(null); setCoverPreview(''); setExistingCoverUrl('') }}
+              takeLabel={tx.takePhoto}
+              galleryLabel={tx.fromGallery}
+              aspectClass="aspect-[3/1]"
+            />
+          </div>
+
+          {/* Farmer avatar */}
+          <div>
+            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
+              {tx.avatarLabel}
+            </label>
+            <p className="text-[11px] text-gray-500 mb-2">{tx.avatarHelp}</p>
+            <ProfilePhotoUpload
+              preview={avatarPreview}
+              existingUrl={existingAvatarUrl}
+              onPick={(e) => handlePickFile(e, setAvatarFile, setAvatarPreview, avatarPreview)}
+              onClear={() => { if (avatarPreview) URL.revokeObjectURL(avatarPreview); setAvatarFile(null); setAvatarPreview(''); setExistingAvatarUrl('') }}
+              takeLabel={tx.takePhoto}
+              galleryLabel={tx.fromGallery}
+              aspectClass="aspect-square max-w-[120px]"
+            />
+          </div>
+
+          {/* Pesticide cert */}
+          <div>
+            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
+              {tx.pesticideCertLabel}
+            </label>
+            <p className="text-[11px] text-gray-500 mb-2">{tx.pesticideCertHelp}</p>
+            {existingCertUrl && !certPreview ? (
+              <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
+                <span className="text-green-700 font-semibold text-sm">{tx.certUploaded}</span>
+                <a href={existingCertUrl} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-green-700 underline font-semibold ml-auto">{tx.viewCertificate}</a>
+                <button type="button" onClick={() => setExistingCertUrl('')}
+                  className="text-xs text-red-500 underline">{tx.removeCert}</button>
+              </div>
+            ) : (
+              <ProfilePhotoUpload
+                preview={certPreview}
+                existingUrl=""
+                onPick={(e) => handlePickFile(e, setCertFile, setCertPreview, certPreview)}
+                onClear={() => { if (certPreview) URL.revokeObjectURL(certPreview); setCertFile(null); setCertPreview('') }}
+                takeLabel={tx.takePhoto}
+                galleryLabel={tx.uploadCert}
+                aspectClass="aspect-[4/3]"
+              />
+            )}
+          </div>
+
+          {/* ── Section 2: Pickup & Schedule ── */}
+          <div className="pt-3 border-t-2 border-green-100">
+            <h4 className="text-sm font-extrabold text-green-800">Pickup &amp; Schedule / పికప్ &amp; షెడ్యూల్</h4>
+            <p className="text-[11px] text-gray-500">Where and when buyers collect</p>
+          </div>
 
           <div>
             <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
@@ -1241,132 +1383,14 @@ function ProfileEditModal({
             )}
           </div>
 
-          {/* Farm GPS location */}
-          <div>
-            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
-              Farm location / పొలం లొకేషన్
-            </label>
-            <p className="text-[11px] text-gray-500 mb-2 leading-snug">
-              Set your farm location so nearby buyers discover your produce first.<br />
-              దగ్గరలో ఉన్న కొనుగోలుదారులు మీ పంటను ముందుగా కనుగొంటారు.
-            </p>
-            {farmerLat && farmerLng ? (
-              <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-                <span className="text-sm font-semibold text-green-800">
-                  ✓ 📍 {farmerLocationName || 'Location set'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => { setFarmerLat(null); setFarmerLng(null); setFarmerLocationName('') }}
-                  className="text-xs text-green-700 underline font-semibold"
-                >
-                  Change / మార్చు
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={handleFarmerGPS}
-                  disabled={locating}
-                  className="w-full flex items-center justify-center gap-2 bg-green-700 text-white font-bold py-3.5 rounded-xl text-sm active:bg-green-800 disabled:opacity-50"
-                >
-                  {locating ? (
-                    <>
-                      <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                      Getting location... / లొకేషన్ తెస్తోంది
-                    </>
-                  ) : (
-                    <>📍 Use GPS (most accurate) / GPS వాడండి</>
-                  )}
-                </button>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 border-t border-gray-200" />
-                  <span className="text-[10px] text-gray-400 font-semibold">OR / లేదా</span>
-                  <div className="flex-1 border-t border-gray-200" />
-                </div>
-                <LocationSearch
-                  placeholder="Search farm location / పొలం లొకేషన్ వెతకండి"
-                  onSelect={(lat, lng, name) => {
-                    setFarmerLat(lat)
-                    setFarmerLng(lng)
-                    setFarmerLocationName(name)
-                  }}
-                />
-              </div>
-            )}
-            {locError && (
-              <p className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2 mt-2">{locError}</p>
-            )}
-          </div>
-
-          {/* Farm cover photo */}
-          <div>
-            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
-              {tx.coverPhotoLabel}
-            </label>
-            <p className="text-[11px] text-gray-500 mb-2">{tx.coverPhotoHelp}</p>
-            <ProfilePhotoUpload
-              preview={coverPreview}
-              existingUrl={existingCoverUrl}
-              onPick={(e) => handlePickFile(e, setCoverFile, setCoverPreview, coverPreview)}
-              onClear={() => { if (coverPreview) URL.revokeObjectURL(coverPreview); setCoverFile(null); setCoverPreview(''); setExistingCoverUrl('') }}
-              takeLabel={tx.takePhoto}
-              galleryLabel={tx.fromGallery}
-              aspectClass="aspect-[3/1]"
-            />
-          </div>
-
-          {/* Farmer avatar */}
-          <div>
-            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
-              {tx.avatarLabel}
-            </label>
-            <p className="text-[11px] text-gray-500 mb-2">{tx.avatarHelp}</p>
-            <ProfilePhotoUpload
-              preview={avatarPreview}
-              existingUrl={existingAvatarUrl}
-              onPick={(e) => handlePickFile(e, setAvatarFile, setAvatarPreview, avatarPreview)}
-              onClear={() => { if (avatarPreview) URL.revokeObjectURL(avatarPreview); setAvatarFile(null); setAvatarPreview(''); setExistingAvatarUrl('') }}
-              takeLabel={tx.takePhoto}
-              galleryLabel={tx.fromGallery}
-              aspectClass="aspect-square max-w-[120px]"
-            />
-          </div>
-
-          {/* Pesticide cert */}
-          <div>
-            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
-              {tx.pesticideCertLabel}
-            </label>
-            <p className="text-[11px] text-gray-500 mb-2">{tx.pesticideCertHelp}</p>
-            {existingCertUrl && !certPreview ? (
-              <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
-                <span className="text-green-700 font-semibold text-sm">{tx.certUploaded}</span>
-                <a href={existingCertUrl} target="_blank" rel="noopener noreferrer"
-                  className="text-xs text-green-700 underline font-semibold ml-auto">{tx.viewCertificate}</a>
-                <button type="button" onClick={() => setExistingCertUrl('')}
-                  className="text-xs text-red-500 underline">{tx.removeCert}</button>
-              </div>
-            ) : (
-              <ProfilePhotoUpload
-                preview={certPreview}
-                existingUrl=""
-                onPick={(e) => handlePickFile(e, setCertFile, setCertPreview, certPreview)}
-                onClear={() => { if (certPreview) URL.revokeObjectURL(certPreview); setCertFile(null); setCertPreview('') }}
-                takeLabel={tx.takePhoto}
-                galleryLabel={tx.uploadCert}
-                aspectClass="aspect-[4/3]"
-              />
-            )}
+          {/* ── Section 3: Payment Details ── */}
+          <div className="pt-3 border-t-2 border-green-100">
+            <h4 className="text-sm font-extrabold text-green-800">Payment Details / చెల్లింపు వివరాలు</h4>
+            <p className="text-[11px] text-gray-500">UPI ID, QR code, cash on delivery</p>
           </div>
 
           {/* Payment Details */}
           <div className="space-y-4 border border-gray-200 rounded-2xl p-4">
-            <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
-              Payment Details / చెల్లింపు వివరాలు
-            </p>
-
             {/* UPI ID */}
             <div>
               <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1">
@@ -1468,6 +1492,13 @@ function ProfileEditModal({
                   <>
                     <input
                       type="password"
+                      placeholder="Current password / ప్రస్తుత పాస్‌వర్డ్"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
+                    />
+                    <input
+                      type="password"
                       placeholder="New password / కొత్త పాస్‌వర్డ్"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
@@ -1485,7 +1516,7 @@ function ProfileEditModal({
                     )}
                     <button
                       onClick={handleChangePassword}
-                      disabled={pwLoading || newPassword.length < 4}
+                      disabled={pwLoading || !currentPassword || newPassword.length < 6}
                       className="w-full bg-gray-800 text-white font-bold py-3 rounded-xl text-sm disabled:opacity-50 active:bg-gray-900"
                     >
                       {pwLoading ? 'Updating… / మారుస్తోంది…' : 'Update Password / పాస్‌వర్డ్ అప్‌డేట్ చేయండి'}
@@ -1612,7 +1643,7 @@ function ProduceListingForm({
   const [variety, setVariety] = useState(editData?.variety ?? '')
   const [emoji, setEmoji] = useState(editData?.emoji ?? '🌿')
   const [qty, setQty] = useState(editData?.stock_qty != null ? String(editData.stock_qty) : '')
-  const [period, setPeriod] = useState('')
+  const [period, setPeriod] = useState(editData?.availability_period ?? '')
   const [farmingMethod, setFarmingMethod] = useState(editData?.method ?? defaultMethod ?? 'natural')
   const [price1, setPrice1] = useState(editData?.price_tier_1_price != null ? String(editData.price_tier_1_price) : '')
   const [price1Qty, setPrice1Qty] = useState(editData?.price_tier_1_qty != null ? String(editData.price_tier_1_qty) : '5')
@@ -1623,7 +1654,9 @@ function ProduceListingForm({
   const [brix, setBrix] = useState(editData?.brix != null ? String(editData.brix) : '')
   const [soc, setSoc] = useState(editData?.soil_organic_carbon != null ? String(editData.soil_organic_carbon) : '')
   const [unit, setUnit] = useState(editData?.unit ?? 'kg')
-  const [harvestDate, setHarvestDate] = useState(editData?.harvest_date ?? '')
+  // harvest_date is a Postgres `date`, but guard against a full timestamp
+  // ever coming back so the <input type="date"> always gets YYYY-MM-DD.
+  const [harvestDate, setHarvestDate] = useState(editData?.harvest_date ? editData.harvest_date.slice(0, 10) : '')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string>('')
   const [existingImageUrl, setExistingImageUrl] = useState(editData?.image_url ?? '')
@@ -1720,6 +1753,7 @@ function ProduceListingForm({
         price_tier_3_qty: price3 ? Number(Number(price2Qty) + 1) : null,
         image_url: imageUrl,
         harvest_date: harvestDate || null,
+        availability_period: period.trim() || null,
       }
 
       let res: Response
@@ -1761,6 +1795,7 @@ function ProduceListingForm({
     if (price3) { payload.price_tier_3_price = Number(price3); payload.price_tier_3_qty = Number(price2Qty) + 1 }
     payload.image_url = imageUrl
     payload.harvest_date = harvestDate || null
+    payload.availability_period = period.trim() || null
 
     const insertPayload = { ...payload, farmer_id: farmerId, status: 'available' }
     const { error: err } = await supabase.from('produce_listings').insert(insertPayload)
@@ -1825,6 +1860,9 @@ function ProduceListingForm({
               </button>
             ))}
           </div>
+          <p className="text-[11px] text-gray-500 mt-1.5">
+            📦 = Other / ఇతర — pick this for any produce without its own icon
+          </p>
         </div>
 
         {/* Unit selector */}
@@ -1886,11 +1924,14 @@ function ProduceListingForm({
             />
           </div>
           <div>
-            <p className="text-[11px] text-gray-500 mb-1">{tx.harvestDateLabel}</p>
+            <p className="text-[11px] text-gray-500 mb-1">
+              Harvest date (actual or expected) / కోత తేదీ (అసలు లేదా అంచనా)
+            </p>
+            {/* No max — farmers can list produce before harvest with an
+                expected date, so today AND future dates are allowed. */}
             <input
               type="date"
               value={harvestDate}
-              max={new Date().toISOString().slice(0, 10)}
               onChange={(e) => setHarvestDate(e.target.value)}
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
             />
@@ -2194,11 +2235,13 @@ function PreviewModal({ data, onClose }: { data: PreviewData; onClose: () => voi
 /* ─── Manage listings modal ────────────────────────────────── */
 function ManageListingsModal({
   farmerId,
+  farmerSlug = '',
   defaultMethod,
   onClose,
   onChanged,
 }: {
   farmerId: string
+  farmerSlug?: string
   defaultMethod: string
   onClose: () => void
   onChanged: () => void
@@ -2209,12 +2252,13 @@ function ManageListingsModal({
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [editingRow, setEditingRow] = useState<ListingRow | null>(null)
+  const [showAddForm, setShowAddForm] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
     const { data, error: err } = await supabase
       .from('produce_listings')
-      .select('id, name, variety, emoji, status, method, stock_qty, price_tier_1_price, price_tier_1_qty, price_tier_2_price, price_tier_2_qty, price_tier_3_price, description, image_url, brix, soil_organic_carbon, unit, harvest_date, created_at')
+      .select('id, name, variety, emoji, status, method, stock_qty, price_tier_1_price, price_tier_1_qty, price_tier_2_price, price_tier_2_qty, price_tier_3_price, description, image_url, brix, soil_organic_carbon, unit, harvest_date, availability_period, created_at')
       .eq('farmer_id', farmerId)
       .order('created_at', { ascending: false })
     setLoading(false)
@@ -2262,6 +2306,16 @@ function ManageListingsModal({
         </div>
 
         <div className="p-4 space-y-3">
+          {/* Add produce from inside the popup too (second entry point
+              besides the dashboard button). */}
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="w-full bg-green-700 text-white font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 active:bg-green-800"
+          >
+            <span className="text-lg leading-none">+</span>
+            Add New Produce / కొత్త పంట చేర్చండి
+          </button>
+
           {loading && (
             <div className="text-center py-10">
               <div className="w-10 h-10 border-4 border-green-700 border-t-transparent rounded-full animate-spin mx-auto" />
@@ -2307,6 +2361,7 @@ function ManageListingsModal({
           <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[92vh] overflow-y-auto">
             <ProduceListingForm
               farmerId={farmerId}
+              farmerSlug={farmerSlug}
               defaultMethod={defaultMethod}
               editData={editingRow}
               onClose={() => setEditingRow(null)}
@@ -2315,6 +2370,25 @@ function ManageListingsModal({
                   setRows((prev) => prev.map((r) => r.id === editingRow.id ? { ...r, ...saved } : r))
                 }
                 setEditingRow(null)
+                load()
+                onChanged()
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Add listing overlay — opened by the in-popup "Add New Produce" button */}
+      {showAddForm && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[92vh] overflow-y-auto">
+            <ProduceListingForm
+              farmerId={farmerId}
+              farmerSlug={farmerSlug}
+              defaultMethod={defaultMethod}
+              onClose={() => setShowAddForm(false)}
+              onPublished={() => {
+                setShowAddForm(false)
                 load()
                 onChanged()
               }}

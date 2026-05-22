@@ -21,6 +21,34 @@ export function getRazorpayClient(): Razorpay {
   return new Razorpay({ key_id: getRazorpayKeyId(), key_secret: getRazorpaySecret() })
 }
 
+export type RefundResult = {
+  id: string
+  status: string | null
+  amountPaise: number
+}
+
+// Issue a (partial) refund against a captured payment. Each cart line is a
+// separate orders row sharing one payment id, so we refund only this line's
+// amount — Razorpay supports partial refunds, and the sum across declined
+// lines can never exceed the captured total. Throws on API failure so the
+// caller can keep the order in a state that lets the farmer retry.
+export async function refundPayment(args: {
+  paymentId: string
+  amountPaise: number
+  notes?: Record<string, string>
+}): Promise<RefundResult> {
+  const refund = await getRazorpayClient().payments.refund(args.paymentId, {
+    amount: args.amountPaise,
+    speed: 'normal',
+    notes: args.notes,
+  })
+  return {
+    id: String(refund.id),
+    status: (refund.status as string | undefined) ?? null,
+    amountPaise: Number(refund.amount) || args.amountPaise,
+  }
+}
+
 // Recompute the Checkout signature and compare in constant time. Razorpay
 // signs `${order_id}|${payment_id}` with HMAC-SHA256 keyed by the secret.
 // A matching signature is the only proof the browser callback is genuine —
