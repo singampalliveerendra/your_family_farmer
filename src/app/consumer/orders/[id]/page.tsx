@@ -16,7 +16,7 @@ type Order = {
   unit: string | null
   total_price: number | null
   pickup_location: string | null
-  status: 'pending' | 'approved' | 'declined'
+  status: 'pending' | 'approved' | 'declined' | 'cancelled'
   payment_method: string | null
   payment_status: string | null
   razorpay_payment_id: string | null
@@ -59,6 +59,35 @@ export default function OrderDetailsPage() {
   const [proofUrl, setProofUrl] = useState<string | null>(null)
   const [proofLoading, setProofLoading] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+
+  // Buyer may cancel only while still pending and within 30 min of placing.
+  const canCancel = !!order
+    && order.status === 'pending'
+    && !!order.created_at
+    && Date.now() - new Date(order.created_at).getTime() < 30 * 60 * 1000
+
+  const handleCancel = async () => {
+    if (!order) return
+    if (!window.confirm('Cancel this order? If you have already paid, you will be refunded automatically.')) return
+    setCancelling(true)
+    try {
+      const res = await fetch(`/api/consumer/orders/${order.id}/cancel`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) { alert(json.error || 'Could not cancel the order.'); return }
+      // Refresh the order so status + any refund show up.
+      const r = await fetch(`/api/consumer/orders/${order.id}`, { credentials: 'same-origin' })
+      const fresh = await r.json().catch(() => ({}))
+      if (r.ok && fresh.order) setOrder(fresh.order as Order)
+    } catch {
+      alert('Network error. Please try again.')
+    } finally {
+      setCancelling(false)
+    }
+  }
 
   useEffect(() => {
     if (state.status !== 'authenticated' || !id) {
@@ -107,10 +136,14 @@ export default function OrderDetailsPage() {
   const statusColor = (s: string) =>
     s === 'approved' ? 'bg-green-100 text-green-800'
       : s === 'declined' ? 'bg-red-100 text-red-700'
+      : s === 'cancelled' ? 'bg-gray-200 text-gray-700'
       : 'bg-amber-100 text-amber-800'
 
   const statusLabel = (s: string) =>
-    s === 'approved' ? '✓ Confirmed' : s === 'declined' ? '✕ Declined' : '⏳ Pending'
+    s === 'approved' ? '✓ Confirmed'
+      : s === 'declined' ? '✕ Declined'
+      : s === 'cancelled' ? '✕ Cancelled'
+      : '⏳ Pending'
 
   const paymentLabel = (o: Order) => {
     if (o.payment_method === 'cod') return 'Cash on Delivery / నగదు చెల్లింపు'
@@ -221,6 +254,16 @@ export default function OrderDetailsPage() {
                   className="mt-3 w-full border border-green-600 text-green-700 font-bold py-2.5 rounded-xl text-sm active:bg-green-50"
                 >
                   🧾 View receipt / రసీదు చూడండి
+                </button>
+              )}
+
+              {canCancel && (
+                <button
+                  onClick={handleCancel}
+                  disabled={cancelling}
+                  className="mt-2 w-full border border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
+                >
+                  {cancelling ? 'Cancelling...' : '✕ Cancel order (within 30 min)'}
                 </button>
               )}
             </div>

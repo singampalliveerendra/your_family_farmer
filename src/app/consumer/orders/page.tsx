@@ -16,7 +16,7 @@ type Order = {
   unit: string | null
   total_price: number | null
   pickup_location: string | null
-  status: 'pending' | 'approved' | 'declined'
+  status: 'pending' | 'approved' | 'declined' | 'cancelled'
   payment_method: string | null
   payment_status: string | null
   refund_status: string | null
@@ -88,7 +88,9 @@ export default function ConsumerOrdersPage() {
       ? 'bg-green-100 text-green-800'
       : s === 'declined'
         ? 'bg-red-100 text-red-700'
-        : 'bg-amber-100 text-amber-800'
+        : s === 'cancelled'
+          ? 'bg-gray-200 text-gray-700'
+          : 'bg-amber-100 text-amber-800'
 
   const deliveryStatusLabel = (s: DeliveryStatus | null | undefined) => {
     switch (s) {
@@ -101,7 +103,10 @@ export default function ConsumerOrdersPage() {
   }
 
   const statusLabel = (s: string) =>
-    s === 'approved' ? '✓ Confirmed' : s === 'declined' ? '✕ Declined' : '⏳ Pending'
+    s === 'approved' ? '✓ Confirmed'
+      : s === 'declined' ? '✕ Declined'
+      : s === 'cancelled' ? '✕ Cancelled'
+      : '⏳ Pending'
 
   const paymentBadge = (order: Order) => {
     if (!order.payment_method || order.payment_method === 'cod') return null

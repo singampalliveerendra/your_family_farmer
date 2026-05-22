@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
     .select('status, payment_status')
     .eq('consumer_id', session.consumerId)
     .neq('status', 'declined')
+    .neq('status', 'cancelled')
 
   const rows = data ?? []
   const pending = rows.filter((o) =>
