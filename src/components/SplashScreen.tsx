@@ -29,8 +29,8 @@ export default function SplashScreen() {
     try { sessionStorage.setItem('splash_shown', 'true') } catch { /* ignore */ }
 
     setPhase('show')
-    timers.current.push(setTimeout(() => setPhase('out'), 1800))  // 1.8s: start fade out
-    timers.current.push(setTimeout(() => setPhase('done'), 2000)) // 2.0s: home visible
+    timers.current.push(setTimeout(() => setPhase('out'), 2900))  // 2.9s: start fade out
+    timers.current.push(setTimeout(() => setPhase('done'), 3400)) // 3.4s: home visible
 
     return clearTimers
   }, [])

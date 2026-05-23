@@ -37,15 +37,15 @@ body {
   to   { transform: rotate(360deg); }
 }
 
-.splash-overlay        { animation: splashFadeIn 0.3s ease both; }
-.splash-overlay.is-out { animation: splashFadeOut 0.2s ease forwards; }
+.splash-overlay        { animation: splashFadeIn 0.4s ease both; }
+.splash-overlay.is-out { animation: splashFadeOut 0.5s ease forwards; }
 
 /* Each element stays hidden (fill-mode: both) until its delay elapses. */
-.splash-logo    { animation: splashLogoIn   0.5s ease both; animation-delay: 0.2s; }
-.splash-name    { animation: splashFadeInUp 0.5s ease both; animation-delay: 0.6s; }
-.splash-te      { animation: splashFadeIn   0.5s ease both; animation-delay: 0.9s; }
-.splash-tagline { animation: splashFadeIn   0.5s ease both; animation-delay: 1.2s; }
-.splash-wheat   { animation: splashRotate   3s   linear infinite; }
+.splash-logo    { animation: splashLogoIn   0.7s ease both; animation-delay: 0.3s; }
+.splash-name    { animation: splashFadeInUp 0.7s ease both; animation-delay: 0.9s; }
+.splash-te      { animation: splashFadeIn   0.7s ease both; animation-delay: 1.4s; }
+.splash-tagline { animation: splashFadeIn   0.7s ease both; animation-delay: 1.9s; }
+.splash-wheat   { animation: splashRotate   4.5s linear infinite; }
 
 @media (prefers-reduced-motion: reduce) {
   .splash-overlay, .splash-overlay.is-out,
