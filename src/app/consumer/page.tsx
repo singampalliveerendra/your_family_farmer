@@ -11,6 +11,7 @@ import { FreshnessBadge } from '@/components/FreshnessBadge'
 import { haversineKm, nearestTown, formatDistance, farmerCoords } from '@/lib/location'
 import LocationSearch from '@/components/LocationSearch'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
+import { useLang } from '@/lib/LanguageContext'
 
 type PickupSlots = {
   days: string[]
@@ -429,6 +430,7 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
   const farmerHref  = farmer ? `/farmer/${farmer.slug}` : '#'
   const unit        = item.unit || 'kg'
 
+  const { tx } = useLang()
   const { cart, addItem, setQty } = useCart()
   const { requireAuth } = useConsumerAuth()
   const inCart = cart[item.id]
@@ -551,11 +553,19 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
           )}
         </Link>
 
-        {/* Farmer + location on one line */}
+        {/* Farmer + location, with a small tappable "View profile" link */}
         {farmer && (
-          <p className="text-[11px] text-[#666] truncate mt-1">
-            👨‍🌾 {farmer.name} · {farmer.village}
-          </p>
+          <div className="flex items-center justify-between gap-1.5 mt-1">
+            <p className="text-[11px] text-[#666] truncate min-w-0">
+              👨‍🌾 {farmer.name} · {farmer.village}
+            </p>
+            <Link
+              href={farmerHref}
+              className="flex-shrink-0 text-[11px] font-semibold text-[#1a5c2a] whitespace-nowrap active:opacity-70"
+            >
+              {tx.viewProfile} ›
+            </Link>
+          </div>
         )}
 
         {/* Distance (only when location set) */}
