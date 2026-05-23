@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "c1c083b092de",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "CLIENT-WEBHOOK-SETUP.md",
+    "DEPLOY-GUIDE.md",
+    "FEATURES-ADDED.md",
+    "TOMORROW-TASKS.md",
+    "src/app/api/auth/reset-password/route.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c1/c083b092de/0/metadata.json",
+      "transcript": "/c1/c083b092de/0/full.jsonl",
+      "content_hash": "/c1/c083b092de/0/content_hash.txt",
+      "prompt": "/c1/c083b092de/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 8733,
+    "cache_creation_tokens": 301137,
+    "cache_read_tokens": 34926692,
+    "output_tokens": 174311,
+    "api_call_count": 234
+  }
+}
