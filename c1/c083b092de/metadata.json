@@ -3,7 +3,7 @@
   "checkpoint_id": "c1c083b092de",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 12,
+  "checkpoints_count": 14,
   "files_touched": [
     "CLIENT-WEBHOOK-SETUP.md",
     "DEPLOY-GUIDE.md",
@@ -24,13 +24,19 @@
       "transcript": "/c1/c083b092de/1/full.jsonl",
       "content_hash": "/c1/c083b092de/1/content_hash.txt",
       "prompt": "/c1/c083b092de/1/prompt.txt"
+    },
+    {
+      "metadata": "/c1/c083b092de/2/metadata.json",
+      "transcript": "/c1/c083b092de/2/full.jsonl",
+      "content_hash": "/c1/c083b092de/2/content_hash.txt",
+      "prompt": "/c1/c083b092de/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 13424,
-    "cache_creation_tokens": 548593,
-    "cache_read_tokens": 42167005,
-    "output_tokens": 252357,
-    "api_call_count": 314
+    "input_tokens": 16389,
+    "cache_creation_tokens": 567020,
+    "cache_read_tokens": 42212723,
+    "output_tokens": 254033,
+    "api_call_count": 318
   }
 }
