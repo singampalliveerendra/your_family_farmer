@@ -1,0 +1,157 @@
+completely. Then Marketing details like Pickup, Payment Details. We should be groping details like Farm Profile(same way payment details appear now). 
+
+<image> 
+
+ 
+ 
+ Comment start There should be other icon as well. Farmer may add some produce for which icon is not uploaded by the app. Comment end  
+
+<image> 
+
+ 
+As a farmer I should be able to add a harvest date in the future as well while adding a new produce. 
+
+<image>
+
+ 
+
+ 
+Having the harvest date while adding the. the same produce it does not appear in the edit screen it looks like it is saved only the first time. The same case for Availability Period as well. 
+
+<image> 
+
+ 
+ Comment start As a Farmer when i declined an item in the order, return of the money should be initiated automatically based on the item price. Consumer should see the message that money will be refined automatically to his account in 3-5 business days.  Comment end  
+
+<image> 
+
+ 
+I m unable to add produce wherever I click on active listings thumbnail it always shows no produce screen. Click on manage is not working. Unless. my client sent me this
+
+---
+
+i didnt understand what you actually tring to do
+
+---
+
+did you find that bug
+
+---
+
+okay go ahead
+
+---
+
+next
+
+---
+
+Redesign consumer product cards - clean, organized, mobile-first like Flipkart/Amazon:
+
+1. PRODUCT CARD REDESIGN:
+   - Fixed card width: full width of column (2 column grid)
+   - Fixed image height: 160px, object-fit: cover, rounded top corners
+   - If no real image: show emoji icon centered on light colored background (color based on produce type)
+   - All text strictly inside card boundaries - no overflow or cutoff
+   - White card background with subtle shadow
+   - 12px border radius on entire card
+
+2. CARD LAYOUT (top to bottom):
+   - Image/icon area (160px height) - full width
+   - Padding: 12px on all sides for content below
+   - Produce name: bold, 15px, black, single line with ellipsis if too long
+   - Variety: 12px, gray, single line
+   - Farmer name + location on ONE line: "👨‍🌾 Kapil · Tadepalligudem" - 11px gray
+   - Price: bold 18px green "₹60/kg" on left, farming method badge on right (small, rounded)
+   - Harvest badge if available: small green dot + "Picked today" - 11px
+   - Stock left: "17 kg left" - 11px gray
+   - Add to cart button: full width, green, rounded, 40px height - at bottom of card
+
+3. REMOVE these overlapping issues:
+   - Remove "View Farmer Profile" button from product card completely - too cluttered
+   - Move it inside product detail popup instead
+   - Remove Natural/సహజం badge overlapping price - move it to top right corner of image as small pill
+
+4. 2 COLUMN GRID:
+   - Both columns exactly equal width
+   - 8px gap between cards
+   - 12px padding on left and right of page
+   - Cards same height in each row (use CSS grid auto rows)
+
+5. TYPOGRAPHY:
+   - Produce name: font-weight 700, font-size 15px, line-height 1.2
+   - Price: font-weight 800, font-size 18px, color #1a5c2a
+   - All secondary text: font-size 11-12px, color #666666
+   - No text should be cut off or overflow card
+
+6. COLORS:
+   - Card background: white
+   - Card shadow: 0 2px 8px rgba(0,0,0,0.08)
+   - Add to cart button: #1a5c2a background, white text
+   - Harvest badge background: #e8f5e9, color #1a5c2a
+   - Stock badge: #f5f5f5, color #666666
+
+7. IMAGE BACKGROUND COLORS by produce type:
+   - Fruits (mango, banana, papaya): #fff8e1 (light yellow)
+   - Vegetables (tomato, brinjal): #fce4ec (light pink)
+   - Leafy greens: #e8f5e9 (light green)
+   - Default: #f5f5f5 (light gray)
+
+8. FARMING METHOD BADGE:
+   - Small pill in top-right corner of image
+   - Natural: green background
+   - Organic: blue background
+   - Font size: 10px, padding: 2px 6px
+
+9. HEADER cleanup:
+   - "Hi vinay" dropdown should not overlap language toggle
+   - Put them on same line with proper spacing
+   - Consumer/Farmer/Delivery tabs should be full width, equal spacing
+
+10. OVERALL PAGE:
+    - Page background: #f8f8f8 (light gray)
+    - Section heading "Available now" properly padded
+    - Search bar full width with proper padding
+    - No horizontal scroll anywhere
+    - Test on 390px width minimum
+
+---
+
+veerendra@DESKTOP-A42QL39:~/farmer/yourfamilyfarmer$ npm run dev
+
+> yourfamilyfarmer@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://10.255.255.254:3000
+- Environments: .env.local
+✓ Ready in 712ms
+⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of /home/veerendra/package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles:
+   * /home/veerendra/farmer/yourfamilyfarmer/package-lock.json
+
+---
+
+go ahead and fix
+
+---
+
+This site can’t be reached
+localhost refused to connect.
+Try:
+
+Checking the connection
+Checking the proxy and the firewall
+ERR_CONNECTION_REFUSED
+
+---
+
+its now working can you please git push
+
+---
+
+its not working can you please git push
