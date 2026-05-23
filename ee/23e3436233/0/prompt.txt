@@ -1,0 +1,161 @@
+how we can see farmer profile
+
+---
+
+how consumer  can see farmer profile
+
+---
+
+add small just [view profile] and aslso tap  option in every produce
+
+---
+
+and also when farmer decline order then farmer have to see the refund initated to consumer like thatin detail
+
+---
+
+how about adding this Add splash screen animation when app first loads:
+
+1. Create component: src/components/SplashScreen.tsx
+   - Full screen overlay: dark green background #1a5c2a
+   - Center everything vertically and horizontally
+   - Show for exactly 2 seconds then fade out
+
+2. Animation sequence:
+   - 0.0s: Screen appears (green background)
+   - 0.2s: YFF circle logo fades in + slight scale up (0.8 → 1.0)
+   - 0.6s: "YourFamilyFarmer" text slides up from below + fade in
+   - 0.9s: "యువర్ ఫ్యామిలీ ఫార్మర్" Telugu text fades in
+   - 1.2s: Tagline fades in: "No middlemen. Just farmers." italic white 16px
+   - 1.8s: Entire splash fades out smoothly
+   - 2.0s: Home page visible
+
+3. Logo design in splash:
+   - Circle with white border 2px
+   - "YFF" text inside in white bold font 32px
+   - Below circle: "YourFamilyFarmer" in white 22px bold
+   - Below that: "యువర్ ఫ్యామిలీ ఫార్మర్" in white 14px
+   - Below that: "No middlemen. Just farmers." italic white 16px
+   - Small 🌾 wheat emoji slowly rotating animation
+
+4. Use CSS animations only:
+   @keyframes fadeInUp - text sliding up from 20px below
+   @keyframes fadeIn - simple opacity 0 to 1
+   @keyframes fadeOut - opacity 1 to 0
+   @keyframes rotate - slow rotation for wheat emoji
+   Use only: opacity, transform, transition — no heavy libraries
+
+5. Show splash only once per session:
+   - Check sessionStorage for 'splash_shown'
+   - If not shown: show splash, then set 'splash_shown' = true
+   - If already shown: skip splash immediately
+   - So splash shows only on first open, not every page refresh
+
+6. If user taps screen during splash: skip immediately
+
+7. Add SplashScreen component to src/app/layout.tsx or src/app/page.tsx
+
+8. Mobile optimized — looks perfect on 390px Android screen
+   - All elements centered
+   - No overflow
+   - Works on all screen sizes
+
+---
+
+Add splash screen animation when app first loads:
+
+1. Create component: src/components/SplashScreen.tsx
+   - Full screen overlay: dark green background #1a5c2a
+   - Center everything vertically and horizontally
+   - Show for exactly 2 seconds then fade out
+
+2. Animation sequence:
+   - 0.0s: Screen appears (green background)
+   - 0.2s: YFF circle logo fades in + slight scale up (0.8 → 1.0)
+   - 0.6s: "YourFamilyFarmer" text slides up from below + fade in
+   - 0.9s: "యువర్ ఫ్యామిలీ ఫార్మర్" Telugu text fades in
+   - 1.2s: Tagline fades in: "No middlemen. Just farmers." italic white 16px
+   - 1.8s: Entire splash fades out smoothly
+   - 2.0s: Home page visible
+
+3. Logo design in splash:
+   - Circle with white border 2px
+   - "YFF" text inside in white bold font 32px
+   - Below circle: "YourFamilyFarmer" in white 22px bold
+   - Below that: "యువర్ ఫ్యామిలీ ఫార్మర్" in white 14px
+   - Below that: "No middlemen. Just farmers." italic white 16px
+   - Small 🌾 wheat emoji slowly rotating animation
+
+4. Use CSS animations only:
+   @keyframes fadeInUp - text sliding up from 20px below
+   @keyframes fadeIn - simple opacity 0 to 1
+   @keyframes fadeOut - opacity 1 to 0
+   @keyframes rotate - slow rotation for wheat emoji
+   Use only: opacity, transform, transition — no heavy libraries
+
+5. Show splash only once per session:
+   - Check sessionStorage for 'splash_shown'
+   - If not shown: show splash, then set 'splash_shown' = true
+   - If already shown: skip splash immediately
+   - So splash shows only on first open, not every page refresh
+
+6. If user taps screen during splash: skip immediately
+
+7. Add SplashScreen component to src/app/layout.tsx or src/app/page.tsx
+
+8. Mobile optimized — looks perfect on 390px Android screen
+   - All elements centered
+   - No overflow
+   - Works on all screen sizes
+
+---
+
+Add splash screen animation when app first loads:
+
+1. Create component: src/components/SplashScreen.tsx
+   - Full screen overlay: dark green background #1a5c2a
+   - Center everything vertically and horizontally
+   - Show for exactly 2 seconds then fade out
+
+2. Animation sequence:
+   - 0.0s: Screen appears (green background)
+   - 0.2s: YFF circle logo fades in + slight scale up (0.8 → 1.0)
+   - 0.6s: "YourFamilyFarmer" text slides up from below + fade in
+   - 0.9s: "యువర్ ఫ్యామిలీ ఫార్మర్" Telugu text fades in
+   - 1.2s: Tagline fades in: "No middlemen. Just farmers." italic white 16px
+   - 1.8s: Entire splash fades out smoothly
+   - 2.0s: Home page visible
+
+3. Logo design in splash:
+   - Circle with white border 2px
+   - "YFF" text inside in white bold font 32px
+   - Below circle: "YourFamilyFarmer" in white 22px bold
+   - Below that: "యువర్ ఫ్యామిలీ ఫార్మర్" in white 14px
+   - Below that: "No middlemen. Just farmers." italic white 16px
+   - Small 🌾 wheat emoji slowly rotating animation
+
+4. Use CSS animations only:
+   @keyframes fadeInUp - text sliding up from 20px below
+   @keyframes fadeIn - simple opacity 0 to 1
+   @keyframes fadeOut - opacity 1 to 0
+   @keyframes rotate - slow rotation for wheat emoji
+   Use only: opacity, transform, transition — no heavy libraries
+
+5. Show splash only once per session:
+   - Check sessionStorage for 'splash_shown'
+   - If not shown: show splash, then set 'splash_shown' = true
+   - If already shown: skip splash immediately
+   - So splash shows only on first open, not every page refresh
+
+6. If user taps screen during splash: skip immediately
+
+7. Add SplashScreen component to src/app/layout.tsx or src/app/page.tsx
+
+8. Mobile optimized — looks perfect on 390px Android screen
+   - All elements centered
+   - No overflow
+   - Works on all screen sizes.can you do that
+
+---
+
+commit and push
