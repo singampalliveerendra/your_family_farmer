@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { hashPassword } from '@/lib/password'
+import { hashPassword, verifyPassword } from '@/lib/password'
 import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
 import { rateLimit } from '@/lib/rate-limit'
 
@@ -25,8 +25,12 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}))
+  const currentPassword: string = String((body as { currentPassword?: unknown }).currentPassword ?? '')
   const newPassword: string = String((body as { newPassword?: unknown }).newPassword ?? '').trim()
 
+  if (!currentPassword) {
+    return NextResponse.json({ error: 'Current password is required.' }, { status: 400 })
+  }
   if (newPassword.length < 6) {
     return NextResponse.json({ error: 'Password must be at least 6 characters.' }, { status: 400 })
   }
@@ -38,6 +42,19 @@ export async function POST(req: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
+
+  // Verify the current password against the stored hash before allowing
+  // an update. Without this, anyone with a live session could change the
+  // password without knowing the existing one.
+  const { data: farmer } = await supabase
+    .from('farmers')
+    .select('password_hash')
+    .eq('id', session.farmerId)
+    .maybeSingle()
+
+  if (!farmer?.password_hash || !verifyPassword(currentPassword, farmer.password_hash)) {
+    return NextResponse.json({ error: 'Current password is incorrect' }, { status: 400 })
+  }
 
   const { error } = await supabase
     .from('farmers')
