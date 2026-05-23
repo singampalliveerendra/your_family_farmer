@@ -10,7 +10,6 @@ import { supabase } from '@/lib/supabase'
 import { FreshnessBadge } from '@/components/FreshnessBadge'
 import { haversineKm, nearestTown, formatDistance, farmerCoords } from '@/lib/location'
 import LocationSearch from '@/components/LocationSearch'
-import { useLang } from '@/lib/LanguageContext'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 
 type PickupSlots = {
@@ -62,28 +61,31 @@ const CATEGORIES = [
   { key: 'leafy',      en: 'Leafy Greens',    te: 'ఆకు కూరలు' },
 ]
 
-const EMOJI_BG: Record<string, string> = {
-  '🍅': 'bg-red-100',    '🥬': 'bg-green-100',  '🥭': 'bg-orange-100',
-  '🍆': 'bg-purple-100', '🥕': 'bg-orange-100', '🌽': 'bg-yellow-100',
-  '🍌': 'bg-yellow-100', '🫑': 'bg-green-100',  '🧅': 'bg-orange-50',
-  '🧄': 'bg-amber-50',   '🍓': 'bg-red-50',     '🥦': 'bg-green-100',
-  '🌾': 'bg-amber-100',  '🫒': 'bg-green-100',  '🌿': 'bg-green-50',
-  '🥥': 'bg-orange-50',  '🍇': 'bg-purple-50',  '🍋': 'bg-yellow-50',
-}
-
-const METHOD_STYLE: Record<string, string> = {
-  natural:      'bg-green-100 text-green-800',
-  organic:      'bg-teal-100  text-teal-800',
-  low_chemical: 'bg-amber-100 text-amber-800',
-  chemical:     'bg-red-100   text-red-700',
-}
-
-const METHOD_LABEL: Record<string, string> = {
-  natural:      'Natural / సహజం',
-  organic:      'Organic / సేంద్రీయ',
-  low_chemical: 'Low chemical',
+// Short, single-word method label for the small pill on the image corner.
+const METHOD_SHORT: Record<string, string> = {
+  natural:      'Natural',
+  organic:      'Organic',
+  low_chemical: 'Low-chem',
   chemical:     'Chemical',
 }
+
+// Solid pill colour for the method badge over the image (spec: natural=green,
+// organic=blue). White text sits on a solid colour so it reads over any photo.
+const METHOD_PILL: Record<string, string> = {
+  natural:      'bg-green-600 text-white',
+  organic:      'bg-blue-600 text-white',
+  low_chemical: 'bg-amber-500 text-white',
+  chemical:     'bg-red-500 text-white',
+}
+
+// Image-area background tint by produce type, used only for the emoji
+// fallback (no photo). Fruits=yellow, vegetables=pink, leafy greens=green.
+const PRODUCE_BG: Record<string, string> = {
+  '🍌': '#fff8e1', '🥭': '#fff8e1', '🍓': '#fff8e1', '🥥': '#fff8e1', '🍇': '#fff8e1', '🍋': '#fff8e1', // fruits
+  '🍅': '#fce4ec', '🍆': '#fce4ec', '🫑': '#fce4ec', '🥕': '#fce4ec', '🌽': '#fce4ec', '🧅': '#fce4ec', '🧄': '#fce4ec', // vegetables
+  '🥬': '#e8f5e9', '🥦': '#e8f5e9', '🌿': '#e8f5e9', '🫒': '#e8f5e9', // leafy greens
+}
+const DEFAULT_PRODUCE_BG = '#f5f5f5'
 
 export default function ConsumerPage() {
   const [available, setAvailable]     = useState<ProduceListing[]>([])
@@ -216,7 +218,7 @@ export default function ConsumerPage() {
   }, [filtered, consumerLat, consumerLng, distanceFilter])
 
   return (
-    <main className="min-h-screen bg-gray-50 pb-12">
+    <main className="min-h-screen bg-[#f8f8f8] pb-12">
       <RoleGateModal />
       <GlobalNav activeTab="consumer" />
 
@@ -342,7 +344,7 @@ export default function ConsumerPage() {
       )}
 
       {/* ── Available now ────────────────────── */}
-      <div className="max-w-3xl mx-auto px-4 mt-6">
+      <div className="max-w-3xl mx-auto px-3 mt-6">
         <div className="flex items-end justify-between mb-4">
           <div>
             <h2 className="text-xl font-extrabold text-gray-900">Available now / ఇప్పుడు అందుబాటులో</h2>
@@ -366,7 +368,7 @@ export default function ConsumerPage() {
             <EmptyState />
           )
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 auto-rows-fr">
             {displayItems.map((item) => (
               <ProduceCard
                 key={item.id}
@@ -381,14 +383,14 @@ export default function ConsumerPage() {
 
       {/* ── Coming soon ──────────────────────── */}
       {!loading && comingSoon.length > 0 && (
-        <div className="max-w-3xl mx-auto px-4 mt-10">
+        <div className="max-w-3xl mx-auto px-3 mt-10">
           <div className="mb-4">
             <h2 className="text-xl font-extrabold text-gray-900">Coming soon / త్వరలో వస్తుంది</h2>
             <p className="text-amber-600 font-semibold text-sm">
               Reserve early / ముందుగానే రిజర్వ్
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 auto-rows-fr">
             {comingSoon.map((item) => (
               <ComingSoonCard key={item.id} item={item} />
             ))}
@@ -418,16 +420,15 @@ export default function ConsumerPage() {
 
 /* ─── Produce card ──────────────────────────────────────── */
 function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListing; distanceKm?: number | null; distanceApprox?: boolean }) {
-  const emoji      = item.emoji ?? '🌿'
-  const emojiBg    = EMOJI_BG[emoji] ?? 'bg-green-50'
-  const method     = item.method?.toLowerCase() ?? 'natural'
-  const badge      = METHOD_STYLE[method]  ?? 'bg-green-100 text-green-800'
-  const badgeLabel = METHOD_LABEL[method] ?? 'Natural'
-  const farmer     = item.farmer
-  const farmerHref = farmer ? `/farmer/${farmer.slug}` : '#'
-  const unit       = item.unit || 'kg'
+  const emoji       = item.emoji ?? '🌿'
+  const produceBg   = PRODUCE_BG[emoji] ?? DEFAULT_PRODUCE_BG
+  const method      = item.method?.toLowerCase() ?? 'natural'
+  const methodPill  = METHOD_PILL[method]  ?? 'bg-green-600 text-white'
+  const methodShort = METHOD_SHORT[method] ?? 'Natural'
+  const farmer      = item.farmer
+  const farmerHref  = farmer ? `/farmer/${farmer.slug}` : '#'
+  const unit        = item.unit || 'kg'
 
-  const { tx } = useLang()
   const { cart, addItem, setQty } = useCart()
   const { requireAuth } = useConsumerAuth()
   const inCart = cart[item.id]
@@ -512,136 +513,140 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
   }
 
   return (
-    <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col">
-      {/* Image (or emoji fallback) */}
-      <Link href={farmerHref}>
+    <div className="bg-white rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.08)] flex flex-col h-full">
+      {/* Image (or emoji fallback) — fixed 160px, method pill top-right */}
+      <Link href={farmerHref} className="relative block h-40 w-full flex-shrink-0">
         {item.image_url ? (
-          <div className="bg-gray-100 aspect-[4/3] overflow-hidden">
-            <img
-              src={item.image_url}
-              alt={item.name}
-              loading="lazy"
-              className="w-full h-full object-cover"
-            />
-          </div>
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={item.image_url}
+            alt={item.name}
+            loading="lazy"
+            className="w-full h-full object-cover"
+          />
         ) : (
-          <div className={`${emojiBg} flex items-center justify-center py-7`}>
+          <div
+            className="w-full h-full flex items-center justify-center"
+            style={{ backgroundColor: produceBg }}
+          >
             <span className="text-5xl">{emoji}</span>
           </div>
         )}
+        <span
+          className={`absolute top-2 right-2 ${methodPill} text-[10px] font-bold rounded-full px-1.5 py-0.5 shadow-sm`}
+        >
+          {methodShort}
+        </span>
       </Link>
 
-      <div className="p-3 flex flex-col flex-1 gap-1">
-        {/* Name + variety */}
-        <Link href={farmerHref}>
-          <h3 className="font-extrabold text-gray-900 text-base leading-tight">{item.name}</h3>
+      {/* Content */}
+      <div className="p-3 flex flex-col flex-1 min-w-0">
+        {/* Name + variety — single line each, ellipsis on overflow */}
+        <Link href={farmerHref} className="block min-w-0">
+          <h3 className="font-bold text-[15px] leading-[1.2] text-gray-900 truncate">
+            {item.name}
+          </h3>
           {item.variety && (
-            <p className="text-xs text-gray-400 mt-0.5">{item.variety}</p>
+            <p className="text-[12px] text-[#666] truncate mt-0.5">{item.variety}</p>
           )}
         </Link>
 
-        {/* Farmer info */}
+        {/* Farmer + location on one line */}
         {farmer && (
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-gray-500 leading-snug">
-              🧑‍🌾 {farmer.name}<br />
-              📍 {farmer.village}
-            </span>
-            <Link
-              href={farmerHref}
-              className="flex-shrink-0 text-[11px] font-semibold text-green-700 border border-green-300 rounded-full px-2.5 py-1 bg-green-50 active:bg-green-100 whitespace-nowrap"
-            >
-              {tx.viewFarmerProfile}
-            </Link>
-          </div>
+          <p className="text-[11px] text-[#666] truncate mt-1">
+            👨‍🌾 {farmer.name} · {farmer.village}
+          </p>
         )}
 
-        {/* Distance badge */}
+        {/* Distance (only when location set) */}
         {distanceKm != null && (
-          <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full self-start">
+          <p className="text-[11px] font-semibold text-blue-700 truncate mt-0.5">
             📍 {distanceApprox ? '~' : ''}{formatDistance(distanceKm)} away
-          </span>
+          </p>
         )}
 
-        {/* Price + method badge */}
-        <div className="flex items-center justify-between mt-1">
-          <span className="text-green-700 font-black text-lg">
+        {/* Price */}
+        <div className="mt-1.5">
+          <span className="font-extrabold text-[18px] text-[#1a5c2a]">
             {item.price_tier_1_price ? `₹${item.price_tier_1_price}` : '—'}
-            <span className="text-xs font-normal text-gray-400">/{unit}</span>
-          </span>
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badge}`}>
-            {badgeLabel}
+            <span className="text-[12px] font-medium text-[#666]">/{unit}</span>
           </span>
         </div>
 
-        {/* Freshness badge */}
-        {item.harvest_date && <FreshnessBadge harvestDate={item.harvest_date} />}
-
-        {/* Stock display */}
-        {liveStock != null && (
-          <p className={`text-xs font-medium ${liveStock === 0 ? 'text-red-500' : 'text-gray-400'}`}>
-            {liveStock === 0
-              ? 'Out of stock / అయిపోయింది'
-              : `${liveStock} ${unit} left / మిగిలాయి`}
-          </p>
+        {/* Harvest + stock badges */}
+        {(item.harvest_date || liveStock != null) && (
+          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+            {item.harvest_date && <FreshnessBadge harvestDate={item.harvest_date} dot />}
+            {liveStock != null && (
+              <span
+                className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${
+                  liveStock === 0 ? 'bg-red-50 text-red-600' : 'bg-[#f5f5f5] text-[#666]'
+                }`}
+              >
+                {liveStock === 0 ? 'Out of stock' : `${liveStock} ${unit} left`}
+              </span>
+            )}
+          </div>
         )}
 
         {/* Stock warning */}
         {stockMsg && (
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 leading-snug text-center">
+          <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 leading-snug text-center mt-1.5">
             {stockMsg}
           </p>
         )}
 
-        {/* CTA */}
-        {!canAdd ? (
-          <Link
-            href={farmerHref}
-            className="mt-2 block text-center w-full bg-green-700 text-white font-bold py-3 rounded-xl text-sm"
-          >
-            View / చూడండి
-          </Link>
-        ) : isOutOfStock ? (
-          <button
-            disabled
-            className="mt-2 w-full bg-gray-200 text-gray-500 font-bold py-3 rounded-xl text-sm cursor-not-allowed"
-          >
-            Out of stock / అయిపోయింది
-          </button>
-        ) : !inCart ? (
-          <button
-            onClick={handleAdd}
-            disabled={adding}
-            className="mt-2 w-full bg-green-700 active:bg-green-800 text-white font-bold py-3 rounded-xl text-sm disabled:opacity-60"
-          >
-            {adding ? 'Checking... / తనిఖీ' : '+ Add to cart / చేర్చు'}
-          </button>
-        ) : (
-          <div className="mt-2 flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-2 py-1.5">
-            <button
-              onClick={() => { setQty(item.id, inCart.qty - 1); setStockMsg('') }}
-              className="w-8 h-8 rounded-lg bg-white border border-green-300 text-green-800 text-lg font-bold"
-              aria-label="Decrease"
+        {/* CTA — pinned to bottom of card, fixed 40px height */}
+        <div className="mt-auto pt-2.5">
+          {!canAdd ? (
+            <Link
+              href={farmerHref}
+              className="flex items-center justify-center w-full h-10 bg-[#1a5c2a] text-white font-bold rounded-xl text-sm"
             >
-              −
-            </button>
-            <span className="font-extrabold text-green-900 text-sm">
-              {inCart.qty} {unit}
-            </span>
+              View / చూడండి
+            </Link>
+          ) : isOutOfStock ? (
             <button
-              onClick={handleInc}
-              disabled={atMax}
-              className={`w-8 h-8 rounded-lg text-lg font-bold transition-colors ${
-                atMax
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-green-700 text-white'
-              }`}
-              aria-label="Increase"
+              disabled
+              className="w-full h-10 bg-gray-200 text-gray-500 font-bold rounded-xl text-sm cursor-not-allowed"
             >
-              +
+              Out of stock / అయిపోయింది
             </button>
-          </div>
-        )}
+          ) : !inCart ? (
+            <button
+              onClick={handleAdd}
+              disabled={adding}
+              className="w-full h-10 bg-[#1a5c2a] active:opacity-90 text-white font-bold rounded-xl text-sm disabled:opacity-60 whitespace-nowrap"
+            >
+              {adding ? 'Checking... / తనిఖీ' : '+ Add / చేర్చు'}
+            </button>
+          ) : (
+            <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl h-10 px-2">
+              <button
+                onClick={() => { setQty(item.id, inCart.qty - 1); setStockMsg('') }}
+                className="w-7 h-7 rounded-lg bg-white border border-green-300 text-green-800 text-lg font-bold leading-none"
+                aria-label="Decrease"
+              >
+                −
+              </button>
+              <span className="font-extrabold text-green-900 text-sm">
+                {inCart.qty} {unit}
+              </span>
+              <button
+                onClick={handleInc}
+                disabled={atMax}
+                className={`w-7 h-7 rounded-lg text-lg font-bold leading-none transition-colors ${
+                  atMax
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'bg-green-700 text-white'
+                }`}
+                aria-label="Increase"
+              >
+                +
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -649,35 +654,47 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
 
 /* ─── Coming soon card ──────────────────────────────────── */
 function ComingSoonCard({ item }: { item: ProduceListing }) {
-  const emoji   = item.emoji ?? '🌱'
-  const emojiBg = EMOJI_BG[emoji] ?? 'bg-amber-50'
-  const farmer  = item.farmer
+  const emoji     = item.emoji ?? '🌱'
+  const produceBg = PRODUCE_BG[emoji] ?? DEFAULT_PRODUCE_BG
+  const farmer    = item.farmer
+  const farmerHref = farmer ? `/farmer/${farmer.slug}` : '#'
 
   return (
-    <div className="bg-white rounded-2xl overflow-hidden border-2 border-dashed border-amber-200 flex flex-col">
-      <div className={`${emojiBg} flex items-center justify-center py-7`}>
-        <span className="text-5xl">{emoji}</span>
-      </div>
-      <div className="p-3 flex flex-col flex-1 gap-1">
-        <h3 className="font-extrabold text-gray-700 text-base leading-tight">{item.name}</h3>
+    <div className="bg-white rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-dashed border-amber-200 flex flex-col h-full">
+      <Link href={farmerHref} className="relative block h-40 w-full flex-shrink-0">
+        <div
+          className="w-full h-full flex items-center justify-center"
+          style={{ backgroundColor: produceBg }}
+        >
+          <span className="text-5xl">{emoji}</span>
+        </div>
+        <span className="absolute top-2 right-2 bg-amber-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 shadow-sm">
+          Soon
+        </span>
+      </Link>
+
+      <div className="p-3 flex flex-col flex-1 min-w-0">
+        <h3 className="font-bold text-[15px] leading-[1.2] text-gray-700 truncate">{item.name}</h3>
+        {item.variety && (
+          <p className="text-[12px] text-[#666] truncate mt-0.5">{item.variety}</p>
+        )}
         {farmer && (
-          <p className="text-xs text-gray-400">🧑‍🌾 {farmer.name}</p>
+          <p className="text-[11px] text-[#666] truncate mt-1">👨‍🌾 {farmer.name} · {farmer.village}</p>
         )}
         {item.available_to && (
-          <p className="text-xs text-amber-600 font-medium">
+          <p className="text-[11px] text-amber-600 font-semibold truncate mt-1">
             Ready / సిద్ధం: {new Date(item.available_to).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
           </p>
         )}
-        <span className="mt-1 inline-block bg-amber-100 text-amber-700 text-xs font-bold px-2 py-1 rounded-full self-start">
-          Coming soon / త్వరలో
-        </span>
         {farmer && (
-          <Link
-            href={`/farmer/${farmer.slug}`}
-            className="mt-2 block text-center w-full border-2 border-green-600 text-green-700 font-bold py-3 rounded-xl text-sm"
-          >
-            View farmer / రైతు చూడండి
-          </Link>
+          <div className="mt-auto pt-2.5">
+            <Link
+              href={farmerHref}
+              className="flex items-center justify-center w-full h-10 border-2 border-[#1a5c2a] text-[#1a5c2a] font-bold rounded-xl text-sm"
+            >
+              View / చూడండి
+            </Link>
+          </div>
         )}
       </div>
     </div>
@@ -687,15 +704,15 @@ function ComingSoonCard({ item }: { item: ProduceListing }) {
 /* ─── Loading skeleton ──────────────────────────────────── */
 function LoadingSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-2 gap-2 auto-rows-fr">
       {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="bg-white rounded-2xl overflow-hidden animate-pulse">
-          <div className="h-28 bg-gray-100" />
+        <div key={i} className="bg-white rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.08)] animate-pulse">
+          <div className="h-40 bg-gray-100" />
           <div className="p-3 space-y-2">
             <div className="h-4 bg-gray-100 rounded w-3/4" />
             <div className="h-3 bg-gray-100 rounded w-1/2" />
             <div className="h-3 bg-gray-100 rounded w-2/3" />
-            <div className="h-11 bg-gray-100 rounded-xl mt-3" />
+            <div className="h-10 bg-gray-100 rounded-xl mt-3" />
           </div>
         </div>
       ))}

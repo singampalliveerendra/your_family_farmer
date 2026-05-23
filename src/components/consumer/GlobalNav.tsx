@@ -33,7 +33,7 @@ export default function GlobalNav({ activeTab = 'consumer' }: { activeTab?: Acti
           </div>
         </Link>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2.5 flex-shrink-0">
           {state.status === 'loading' ? null : consumer ? (
             <ConsumerMenu name={consumer.name} onLogout={logout} />
           ) : (
@@ -105,7 +105,7 @@ function ConsumerMenu({ name, onLogout }: { name: string | null; onLogout: () =>
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="text-[11px] font-bold text-green-100 bg-green-800 active:bg-green-700 rounded-full px-3 py-1.5 leading-tight max-w-[140px] truncate"
+        className="text-[11px] font-bold text-green-100 bg-green-800 active:bg-green-700 rounded-full px-3 py-1.5 leading-tight max-w-[104px] truncate"
       >
         Hi {firstName} ▾
       </button>
