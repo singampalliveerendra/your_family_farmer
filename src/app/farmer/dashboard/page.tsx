@@ -159,6 +159,9 @@ export default function FarmerDashboard() {
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null)
   const [processingPaidId, setProcessingPaidId] = useState<string | null>(null)
   const [decliningOrder, setDecliningOrder] = useState<Order | null>(null)
+  const [declineResult, setDeclineResult] = useState<
+    { buyerName: string | null; amount: number | null; refundInitiated: boolean } | null
+  >(null)
   const [demandBars, setDemandBars] = useState<DemandBar[]>([])
   const [monthlyRevenue, setMonthlyRevenue] = useState(0)
   const [monthlyOrderCount, setMonthlyOrderCount] = useState(0)
@@ -328,6 +331,7 @@ export default function FarmerDashboard() {
   }
 
   const handleConfirmDecline = async (orderId: string, reason: string) => {
+    const declined = decliningOrder
     setProcessingOrderId(orderId)
     // Declining runs server-side: it returns the reserved stock and, for a
     // paid order, issues a REAL Razorpay refund (the secret can't live in the
@@ -344,7 +348,15 @@ export default function FarmerDashboard() {
         alert(json.error || 'Could not decline the order. Please try again. / ఆర్డర్ తిరస్కరించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.')
         return
       }
+      // Whether a refund went out (real Razorpay refund, or 'initiated' for
+      // other paid methods) so we can confirm it to the farmer in plain terms.
+      const refundInitiated = !!json.refunded || !!json.refundStatus
       setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
+      setDeclineResult({
+        buyerName: declined?.buyer_name ?? null,
+        amount: declined?.total_price ?? null,
+        refundInitiated,
+      })
       setDecliningOrder(null)
     } catch {
       alert('Network error. Please try again. / నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.')
@@ -654,7 +666,72 @@ export default function FarmerDashboard() {
           onConfirm={(reason) => handleConfirmDecline(decliningOrder.id, reason)}
         />
       )}
+
+      {/* Refund confirmation shown to the farmer right after declining */}
+      {declineResult && (
+        <DeclineSuccessSheet
+          result={declineResult}
+          onClose={() => setDeclineResult(null)}
+        />
+      )}
     </main>
+  )
+}
+
+/* ─── Decline success / refund confirmation sheet ──────────── */
+function DeclineSuccessSheet({
+  result,
+  onClose,
+}: {
+  result: { buyerName: string | null; amount: number | null; refundInitiated: boolean }
+  onClose: () => void
+}) {
+  const buyer = result.buyerName || 'the customer'
+  return (
+    <div className="fixed inset-0 z-[130] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 text-center space-y-3">
+        <div className="text-4xl">✅</div>
+        <h2 className="font-extrabold text-gray-900 text-lg leading-tight">
+          Order declined / ఆర్డర్ తిరస్కరించబడింది
+        </h2>
+
+        {result.refundInitiated ? (
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-4 text-left space-y-1.5">
+            <p className="font-bold text-green-800 text-sm flex items-center gap-1.5">
+              <span>💸</span> Refund initiated / రీఫండ్ ప్రారంభమైంది
+            </p>
+            <p className="text-sm text-gray-700 leading-snug">
+              {result.amount != null && result.amount > 0 ? (
+                <>A refund of <span className="font-extrabold text-green-800">₹{result.amount}</span> has been started to {buyer}.</>
+              ) : (
+                <>A refund has been started to {buyer}.</>
+              )}
+            </p>
+            <p className="text-xs text-gray-500 leading-snug">
+              It will reach their account in <span className="font-semibold">3–5 business days</span>.
+              The customer has been told this automatically.
+              <br />
+              కొనుగోలుదారు ఖాతాకు 3–5 పని దినాలలో జమ అవుతుంది.
+            </p>
+          </div>
+        ) : (
+          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 text-left">
+            <p className="text-sm text-gray-700 leading-snug">
+              {buyer} hadn&apos;t paid yet, so no refund is needed.
+              <br />
+              <span className="text-gray-500 text-xs">చెల్లింపు జరగలేదు, రీఫండ్ అవసరం లేదు.</span>
+            </p>
+          </div>
+        )}
+
+        <button
+          onClick={onClose}
+          className="w-full bg-green-700 text-white font-bold py-3 rounded-xl text-sm active:bg-green-800"
+        >
+          Done / సరే
+        </button>
+      </div>
+    </div>
   )
 }
 

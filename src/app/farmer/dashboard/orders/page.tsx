@@ -19,6 +19,11 @@ type Order = {
   buyer_phone: string | null
   pickup_location: string | null
   status: 'pending' | 'approved' | 'declined'
+  payment_status: string | null
+  decline_reason: string | null
+  refund_status: string | null
+  refund_amount: number | null
+  refunded_at: string | null
   created_at: string
 }
 
@@ -186,6 +191,26 @@ function HistoryCard({ order }: { order: Order }) {
 
         {order.pickup_location && (
           <p className="text-xs text-gray-500">📍 {order.pickup_location}</p>
+        )}
+
+        {/* Declined orders: show the reason and the refund status to the farmer */}
+        {!isApproved && order.decline_reason && (
+          <p className="text-xs text-gray-600 leading-snug">
+            <span className="font-semibold">Reason / కారణం:</span> {order.decline_reason}
+          </p>
+        )}
+        {!isApproved && (order.refund_status || (order.refund_amount ?? 0) > 0) && (
+          <div className="mt-1 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5">
+            <p className="text-xs font-bold text-green-800 flex items-center gap-1">
+              💸 Refund initiated to customer / రీఫండ్ ప్రారంభమైంది
+            </p>
+            <p className="text-[11px] text-gray-600 leading-snug mt-0.5">
+              ₹{order.refund_amount ?? order.total_price ?? 0} · reflects in 3–5 business days
+              {order.refunded_at && (
+                <> · {new Date(order.refunded_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</>
+              )}
+            </p>
+          </div>
         )}
       </div>
     </div>
