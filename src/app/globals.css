@@ -14,3 +14,43 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ── Splash screen (CSS-only animations) ───────────────────── */
+@keyframes splashFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes splashFadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes splashFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes splashLogoIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes splashRotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.splash-overlay        { animation: splashFadeIn 0.3s ease both; }
+.splash-overlay.is-out { animation: splashFadeOut 0.2s ease forwards; }
+
+/* Each element stays hidden (fill-mode: both) until its delay elapses. */
+.splash-logo    { animation: splashLogoIn   0.5s ease both; animation-delay: 0.2s; }
+.splash-name    { animation: splashFadeInUp 0.5s ease both; animation-delay: 0.6s; }
+.splash-te      { animation: splashFadeIn   0.5s ease both; animation-delay: 0.9s; }
+.splash-tagline { animation: splashFadeIn   0.5s ease both; animation-delay: 1.2s; }
+.splash-wheat   { animation: splashRotate   3s   linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-overlay, .splash-overlay.is-out,
+  .splash-logo, .splash-name, .splash-te, .splash-tagline, .splash-wheat {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+}
