@@ -1,0 +1,873 @@
+GoGrameen
+Moderator Dashboard — Feature Spec  v2.0
+9 features  ·  47 tasks  ·  9 sample UI screens  ·  gogrameen.in/moderator
+
+Features
+9 features
+Tasks
+47 tasks
+UI screens
+9 screens
+Version
+2.0 · May 2025
+
+
+
+1. What is the Moderator?
+The Moderator is a trusted local person — assigned by the GoGrameen founders — who manages the farmer-consumer ecosystem in a specific geographic zone. For the first 3 months, the founders themselves will act as the moderator for the Tadepalligudem zone.
+
+Onboards new farmers in their zone (especially farmers who cannot use smartphones)
+Reviews and approves farmer listings before they go live on the consumer page
+Monitors supply vs demand and recruits farmers to fill gaps
+Handles escalations — delivery delays, quality complaints, payment issues
+Manages delivery agents — registers, monitors, activates/deactivates
+Sets suggested price ranges per crop so new farmers price sensibly
+
+ℹ  Route: /moderator (or /moderator/dashboard). Login required. Role = "moderator" in the Supabase profiles table. A moderator only sees data for their assigned zone.
+
+1.1  All 9 features at a glance
+#
+Feature
+What it does
+1
+Dashboard home
+Summary stats, alert strip, and quick-action shortcuts
+2
+Farmer onboarding
+Register farmers, generate profile links, share via WhatsApp
+3
+Listing management
+Approve, edit, or reject farmer produce listings
+4
+Supply vs demand
+Live crop balance table with demand vs supply bars
+5
+Consumer management
+View buyers, buying patterns, and demand intents
+6
+Delivery agent management
+Onboard and manage local delivery agents
+7
+Escalation management
+View, progress, and resolve complaints
+8
+Price management
+Set suggested price ranges per crop for the zone
+9
+Reports
+Weekly/monthly zone performance with PDF export
+
+
+
+2. Feature specifications
+  Feature 1     Dashboard home
+The first screen when the moderator logs in. Instant snapshot of zone health — stat cards, an alert strip, and quick-action buttons.
+
+Screen contents
+Header: moderator name, zone name, today's date
+Alert strip: red if open escalations or pending approvals exist; amber if any crop is scarce; green if all is well
+Six stat cards: Active farmers, Consumers, Orders this week, GMV this week, Open escalations (red if > 0), Pending approvals (amber if > 0)
+Quick action buttons: "Onboard a farmer", "Review listings", "View escalations", "View reports"
+
+
+Feature 1 — Dashboard home: stat cards, alert strip, and quick-action buttons
+Developer tasks
+Task ID
+Task name
+What to build
+How (for a fresher)
+MOD-1.1
+Moderator login & route protection
+Build /moderator/login with phone OTP. Check role = "moderator" in profiles table before showing the dashboard.
+Use Supabase Auth phone OTP (same as farmer login). After login, query SELECT role FROM profiles WHERE id = auth.uid(). If role != "moderator", redirect to /consumer.
+MOD-1.2
+Dashboard header
+Show moderator name, zone name, and today's date.
+Query the moderators table for the logged-in user. Display name and region_slug. Use new Date().toLocaleDateString("en-IN") for the date.
+MOD-1.3
+Alert strip logic
+Red if escalations open > 0 OR pending listings > 0. Amber if any crop is scarce. Green otherwise.
+Run two queries on load: (1) COUNT escalations WHERE status = "open", (2) COUNT listings WHERE status = "pending_review". If either > 0 → red. Else check supply_demand view for scarce rows → amber.
+MOD-1.4
+Six stat cards
+Six live numbers from the database.
+Write one Supabase query per card. All filter by region_slug = moderator's zone. For GMV: SELECT SUM(total_price) FROM orders WHERE created_at > NOW() - INTERVAL "7 days".
+MOD-1.5
+Quick action buttons
+Three buttons that navigate to specific sections.
+Use Next.js router.push(). No API needed. Button 1 → /moderator/farmers/new. Button 2 → /moderator/listings. Button 3 → /moderator/escalations.
+
+
+
+  Feature 2     Farmer onboarding
+The most immediately useful feature. Moderator registers new farmers on their behalf, and the system generates a shareable profile link.
+
+Screen contents
+List of all farmers in zone with name, village, method badge, listing count, status, and Edit button
+"+ Add new farmer" button opens a registration form
+Form fields: name, phone, village, district, farming method, farm size, farming since year, story quote, crops, water source, farm visit day, pickup availability, bank account + IFSC
+On save: auto-generate slug from name, create profile at /farmer/{slug}, show "Share via WhatsApp" button
+
+
+Feature 2 — Farmer onboarding: farmer list and registration form
+Developer tasks
+Task ID
+Task name
+What to build
+How (for a fresher)
+MOD-2.1
+Farmer list page
+/moderator/farmers — table of all farmers in the zone.
+Query farmers WHERE region_slug = moderator's zone. Show name, village, method (as badge), listing count (subquery), active status.
+MOD-2.2
+Add farmer form
+/moderator/farmers/new — all fields listed above.
+POST /api/moderator/farmers. Insert into farmers table. Return new farmer's id and slug.
+MOD-2.3
+Auto-generate slug
+Create URL-safe slug from the farmer's name on save.
+name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""). Check if slug exists; append "-2" if taken.
+MOD-2.4
+WhatsApp share after save
+Show success screen with profile URL and share button.
+Build wa.me link: wa.me/91{phone}?text=Your farm page is live: gogrameen.in/farmer/{slug}. Open in new tab on tap.
+MOD-2.5
+Edit & activate/deactivate
+Edit farmer details and toggle active status.
+Re-use the form with pre-filled data. PATCH /api/moderator/farmers/[id] for updates. Toggle active field on the list view.
+MOD-2.6
+Secure bank details
+Store account number and IFSC. Show only last 4 digits.
+Store plain in Supabase (RLS: only moderator + admin can read). Display: account.slice(-4).padStart(account.length, "*").
+
+
+
+  Feature 3     Listing management
+Every farmer listing goes through the moderator for approval before appearing on the consumer page. This keeps listing quality high and prevents pricing errors.
+
+Screen contents
+Three tabs: Pending approval (amber count badge), Active listings, Rejected
+Each pending card: produce name, farmer, method, price, stock, BRIX, date submitted
+Per card actions: Approve (green), Reject (coral — requires reason text), Edit before approving
+On approve: status → available, consumer page shows listing, farmer gets WhatsApp
+On reject: status → rejected, farmer gets WhatsApp with the rejection reason
+
+
+Feature 3 — Listing management: pending listing cards with approve/reject actions
+Developer tasks
+Task ID
+Task name
+What to build
+How (for a fresher)
+MOD-3.1
+Pending listings tab
+All listings WHERE status = "pending_review" in the zone.
+JOIN produce_listings with farmers WHERE farmers.region_slug = zone AND status = "pending_review". Sort by created_at ASC (oldest first).
+MOD-3.2
+Approve a listing
+PATCH status to "available". Notify farmer via WhatsApp.
+PATCH /api/moderator/listings/[id] → { status: "available" }. After DB update, trigger Twilio WhatsApp to farmer: "Your {produce} listing is live!".
+MOD-3.3
+Reject with reason
+Modal with required textarea. Save reason. Notify farmer.
+Show a modal div (not window.alert). On confirm: PATCH listing with { status: "rejected", rejection_reason: text }. WhatsApp farmer with the reason.
+MOD-3.4
+Edit before approving
+Pre-filled form to fix errors before approving.
+Re-use the produce listing form component. Pre-fill from listing data. Save keeps status = "pending_review". Moderator then approves.
+MOD-3.5
+Active listings management
+View and suspend any active listing.
+Show active listings tab. Add Suspend button → sets status = "sold_out". Show all details including farmer name.
+MOD-3.6
+Add rejection_reason column
+DB change needed.
+In Supabase SQL editor: ALTER TABLE produce_listings ADD COLUMN rejection_reason TEXT;
+
+
+
+  Feature 4     Supply vs demand monitor
+The strategic heart of the moderator dashboard. Shows which crops are short, balanced, or in surplus — and lets the moderator act immediately.
+
+Screen contents
+Table: Crop | Demand (kg) | Supply (kg) | Gap (+/-) | Status | Action
+Status colours: OK (green) / Low (amber) / Scarce (red) / Surplus (teal)
+Bar chart below: orange = demand bar, green = supply bar, side by side per crop
+"Notify farmers" button next to each Scarce row — sends WhatsApp to all farmers in the zone who grow that crop
+
+
+Feature 4 — Supply vs demand: crop balance table and comparison bars
+Developer tasks
+Task ID
+Task name
+What to build
+How (for a fresher)
+MOD-4.1
+Supply & demand data
+Aggregate demand from intents and supply from active listings.
+Two Supabase queries: (1) SELECT crop_name, SUM(quantity_kg) FROM demand_intents WHERE region_slug = zone GROUP BY crop_name. (2) SELECT name, SUM(stock_qty) FROM produce_listings WHERE status = "available" GROUP BY name. Merge in JS.
+MOD-4.2
+Status colour logic
+Calculate status from supply and demand numbers.
+In JS: if supply >= demand → "OK". Else if supply >= demand*0.5 → "Low". Else if supply < demand*0.5 → "Scarce". Else if supply > demand*1.5 → "Surplus". Apply Tailwind badge class.
+MOD-4.3
+Bar chart
+Demand vs supply bars per crop using Chart.js.
+new Chart(canvas, { type: "bar", data: { labels: cropNames, datasets: [{ label: "Demand", data: demandArray, backgroundColor: "#EF9F27" }, { label: "Supply", data: supplyArray, backgroundColor: "#4A8A2D" }] } })
+MOD-4.4
+Notify farmers button
+WhatsApp message to all farmers in zone who grow the scarce crop.
+POST /api/moderator/notify-scarce with { crop_name }. Query farmers in zone whose crops_raw ILIKE "%{crop_name}%". Build Twilio WhatsApp call for each.
+
+
+
+  Feature 5     Consumer management
+The moderator sees all buyers in their zone plus all open demand intents — unmet requests waiting to be fulfilled.
+
+
+Feature 5 — Consumer management: top buyers list and open demand intents
+Developer tasks
+Task ID
+Task name
+What to build
+How (for a fresher)
+MOD-5.1
+Consumer list
+All consumers who have ordered in the zone.
+SELECT consumers.name, consumers.location, COUNT(orders.id) as order_count, SUM(orders.total_price) as total_spend FROM orders JOIN consumers WHERE farmer_id IN (farmers in zone) GROUP BY consumer_id. Sort by total_spend DESC.
+MOD-5.2
+Demand intents list
+Open intents in the zone sorted by urgency.
+SELECT * FROM demand_intents WHERE region_slug = zone AND fulfilled = false ORDER BY needed_by_date ASC.
+MOD-5.3
+Mark intent fulfilled
+Button on each intent. Sets fulfilled = true. Notifies consumer.
+PATCH /api/moderator/demand-intents/[id] with { fulfilled: true }. WhatsApp to requester_phone: "Good news! {crop} is now available. Order here: gogrameen.in/consumer".
+
+
+
+  Feature 6     Delivery agent management
+Moderator recruits and manages local delivery agents — bike owners or anyone who wants to earn extra income by delivering farm produce.
+
+
+Feature 6 — Delivery agent management: agent list with performance stats
+Developer tasks
+Task ID
+Task name
+What to build
+How (for a fresher)
+MOD-6.1
+Agents list
+/moderator/agents — table of all agents in the zone.
+Query delivery_agents WHERE zone = moderator's zone. Join with deliveries to get completed count per agent.
+MOD-6.2
+Add agent form
+Register new agent — name, phone, vehicle, availability.
+POST /api/moderator/agents. Insert into delivery_agents. Fields: name, phone, aadhaar_hash (hash the Aadhaar, never store plain), vehicle_type, availability, zone.
+MOD-6.3
+Activate/deactivate
+Toggle active status.
+PATCH /api/moderator/agents/[id] with { active: false }. Inactive agents do not appear in the delivery dashboard pickups.
+MOD-6.4
+Create delivery_agents table
+New DB table.
+CREATE TABLE delivery_agents (id uuid PK, name varchar(100), phone varchar(15), aadhaar_hash text, vehicle_type text, availability text[], zone varchar(60), active boolean default true, created_at timestamptz)
+
+
+
+  Feature 7     Escalation management
+Complaints from farmers or consumers — and auto-detected issues like delivery delays — are tracked here. The moderator investigates and resolves each one.
+
+
+Feature 7 — Escalations: open complaints with in-progress and resolved states
+Developer tasks
+Task ID
+Task name
+What to build
+How (for a fresher)
+MOD-7.1
+Escalations list
+All escalations in zone sorted by date.
+Query escalations WHERE region_slug = zone ORDER BY created_at DESC. Show type badge, description, order link, raised-by, status.
+MOD-7.2
+Status update
+Mark in-progress or resolved. Resolved requires notes.
+PATCH /api/moderator/escalations/[id]. For resolved: { status: "resolved", resolution_notes: text, resolved_at: new Date() }.
+MOD-7.3
+Notify on resolution
+When resolved, WhatsApp both farmer and consumer.
+After PATCH, read order's farmer_id and consumer phone. Send WhatsApp to both with the resolution notes.
+MOD-7.4
+Auto-create delivery delay
+If delivery in_transit > 6 hours, create escalation.
+Supabase Edge Function running every 30 min: SELECT id FROM deliveries WHERE status = "in_transit" AND picked_up_at < NOW() - INTERVAL "6 hours". For each, INSERT into escalations if not exists.
+MOD-7.5
+DB changes
+Add columns to escalations table.
+ALTER TABLE escalations ADD COLUMN resolution_notes TEXT; ALTER TABLE escalations ADD COLUMN resolved_at TIMESTAMPTZ;
+
+
+
+  Feature 8     Price management
+Suggested price ranges per crop for the zone. Shown as hint text on the farmer listing form — guidance only, not enforced.
+
+
+Feature 8 — Price management: editable price range table per crop
+Developer tasks
+Task ID
+Task name
+What to build
+How (for a fresher)
+MOD-8.1
+Create price_guidelines table
+New DB table.
+CREATE TABLE price_guidelines (id uuid PK, crop_name varchar(100), region_slug varchar(60), min_price numeric(8,2), max_price numeric(8,2), unit varchar(20) DEFAULT 'kg', updated_at timestamptz, updated_by uuid)
+MOD-8.2
+Price table UI
+/moderator/prices — editable table, one row per crop.
+Fetch price_guidelines WHERE region_slug = zone. Each row has two <input type="number"> fields for min and max. Clicking into a field enables editing.
+MOD-8.3
+Auto-save on blur
+Save when moderator clicks out of a price field.
+input onBlur → PATCH /api/moderator/prices/[id] with new value. Show a brief "Saved ✓" confirmation text next to the field for 2 seconds.
+MOD-8.4
+Hint on farmer form
+Show suggested range when farmer enters produce name.
+On farmer listing form, when produce name changes: GET /api/prices?crop={name}&region={zone}. If found, show helper text under price field: "Suggested: ₹{min}–₹{max}/kg".
+
+
+
+  Feature 9     Reports
+Weekly and monthly zone performance. The moderator reviews this to understand trends; founders use it to evaluate zone growth.
+
+
+Feature 9 — Reports: period selector, KPI cards, top farmer, most popular crop
+Developer tasks
+Task ID
+Task name
+What to build
+How (for a fresher)
+MOD-9.1
+Period toggle
+Three buttons: This week / This month / Last month.
+useState({ period: "week" }). Each button updates state. Compute startDate and endDate from the period value. Pass to all API calls.
+MOD-9.2
+KPI queries
+Orders, GMV, avg order value, escalation resolution rate.
+GET /api/moderator/reports?region=zone&from=DATE&to=DATE. SQL: SELECT COUNT(*) as orders, SUM(total_price) as gmv, AVG(total_price) as avg_order FROM orders WHERE created_at BETWEEN from AND to.
+MOD-9.3
+Top farmer & most popular crop
+Who sold most and which crop moved most.
+SELECT farmer_id, SUM(total_price) as gmv FROM orders GROUP BY farmer_id ORDER BY gmv DESC LIMIT 1. For crop: SELECT produce_name, COUNT(*) FROM order_items GROUP BY produce_name ORDER BY COUNT(*) DESC LIMIT 1.
+MOD-9.4
+PDF export
+Download the current report as a PDF.
+Add @media print CSS: hide sidebar and nav, show only the report content. Call window.print() when the Download button is tapped. Browser renders a printable PDF.
+
+
+
+3. Database additions
+Run all of these in Supabase SQL editor before starting development.
+
+3.1  New tables
+delivery_agents
+CREATE TABLE delivery_agents (
+  id            uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  name          varchar(100) NOT NULL,
+  phone         varchar(15) NOT NULL,
+  aadhaar_hash  text,
+  vehicle_type  text,
+  delivery_area text,
+  availability  text[],
+  zone          varchar(60),
+  active        boolean DEFAULT true,
+  created_at    timestamptz DEFAULT now()
+);
+
+price_guidelines
+CREATE TABLE price_guidelines (
+  id           uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  crop_name    varchar(100) NOT NULL,
+  region_slug  varchar(60) NOT NULL,
+  min_price    numeric(8,2),
+  max_price    numeric(8,2),
+  unit         varchar(20) DEFAULT 'kg',
+  updated_by   uuid REFERENCES moderators(id),
+  updated_at   timestamptz DEFAULT now()
+);
+
+3.2  Column additions on existing tables
+Table
+Column
+SQL
+produce_listings
+rejection_reason
+ALTER TABLE produce_listings ADD COLUMN rejection_reason TEXT;
+escalations
+resolution_notes
+ALTER TABLE escalations ADD COLUMN resolution_notes TEXT;
+escalations
+resolved_at
+ALTER TABLE escalations ADD COLUMN resolved_at TIMESTAMPTZ;
+profiles
+role
+ALTER TABLE profiles ADD COLUMN role TEXT DEFAULT 'consumer';
+profiles
+region_slug
+ALTER TABLE profiles ADD COLUMN region_slug VARCHAR(60);
+
+
+3.3  RLS policies
+-- Moderators read only their own zone's farmers
+CREATE POLICY "moderator_zone_farmers" ON farmers FOR SELECT
+  USING (region_slug = (SELECT region_slug FROM profiles WHERE id = auth.uid()));
+
+-- Moderators can update listings in their zone
+CREATE POLICY "moderator_zone_listings" ON produce_listings FOR UPDATE
+  USING (farmer_id IN (SELECT id FROM farmers WHERE region_slug =
+    (SELECT region_slug FROM profiles WHERE id = auth.uid())));
+
+Start here: Build Feature 1 (login + dashboard) and Feature 2 (farmer onboarding) first. The founders need to onboard Yadagiri's neighbouring farmers immediately. Get those two features working before anything else.
+. the client sent me this pdf and images in [moderator.pdf ] to add moderator section in another page where the farmer and consumer or deliever boy cannot see . so check whole text that i sent and check images and tell me whats actually inside it
+
+---
+
+the text that sent to is from pdf . i did copy and paste
+
+---
+
+so tell me what is the exaCT ROLE OF MODERATOR seeing this GoGrameen
+Moderator Dashboard — Feature Spec  v2.0
+9 features  ·  47 tasks  ·  9 sample UI screens  ·  gogrameen.in/moderator
+
+Features
+9 features
+Tasks
+47 tasks
+UI screens
+9 screens
+Version
+2.0 · May 2025
+
+
+
+1. What is the Moderator?
+The Moderator is a trusted local person — assigned by the GoGrameen founders — who manages the farmer-consumer ecosystem in a specific geographic zone. For the first 3 months, the founders themselves will act as the moderator for the Tadepalligudem zone.
+
+Onboards new farmers in their zone (especially farmers who cannot use smartphones)
+Reviews and approves farmer listings before they go live on the consumer page
+Monitors supply vs demand and recruits farmers to fill gaps
+Handles escalations — delivery delays, quality complaints, payment issues
+Manages delivery agents — registers, monitors, activates/deactivates
+Sets suggested price ranges per crop so new farmers price sensibly
+
+ℹ  Route: /moderator (or /moderator/dashboard). Login required. Role = "moderator" in the Supabase profiles table. A moderator only sees data for their assigned zone.
+
+1.1  All 9 features at a glance
+#
+Feature
+What it does
+1
+Dashboard home
+Summary stats, alert strip, and quick-action shortcuts
+2
+Farmer onboarding
+Register farmers, generate profile links, share via WhatsApp
+3
+Listing management
+Approve, edit, or reject farmer produce listings
+4
+Supply vs demand
+Live crop balance table with demand vs supply bars
+5
+Consumer management
+View buyers, buying patterns, and demand intents
+6
+Delivery agent management
+Onboard and manage local delivery agents
+7
+Escalation management
+View, progress, and resolve complaints
+8
+Price management
+Set suggested price ranges per crop for the zone
+9
+Reports
+Weekly/monthly zone performance with PDF export
+
+
+
+2. Feature specifications
+  Feature 1     Dashboard home
+The first screen when the moderator logs in. Instant snapshot of zone health — stat cards, an alert strip, and quick-action buttons.
+
+Screen contents
+Header: moderator name, zone name, today's date
+Alert strip: red if open escalations or pending approvals exist; amber if any crop is scarce; green if all is well
+Six stat cards: Active farmers, Consumers, Orders this week, GMV this week, Open escalations (red if > 0), Pending approvals (amber if > 0)
+Quick action buttons: "Onboard a farmer", "Review listings", "View escalations", "View reports"
+
+
+Feature 1 — Dashboard home: stat cards, alert strip, and quick-action buttons
+Developer tasks
+Task ID
+Task name
+What to build
+How (for a fresher)
+MOD-1.1
+Moderator login & route protection
+Build /moderator/login with phone OTP. Check role = "moderator" in profiles table before showing the dashboard.
+Use Supabase Auth phone OTP (same as farmer login). After login, query SELECT role FROM profiles WHERE id = auth.uid(). If role != "moderator", redirect to /consumer.
+MOD-1.2
+Dashboard header
+Show moderator name, zone name, and today's date.
+Query the moderators table for the logged-in user. Display name and region_slug. Use new Date().toLocaleDateString("en-IN") for the date.
+MOD-1.3
+Alert strip logic
+Red if escalations open > 0 OR pending listings > 0. Amber if any crop is scarce. Green otherwise.
+Run two queries on load: (1) COUNT escalations WHERE status = "open", (2) COUNT listings WHERE status = "pending_review". If either > 0 → red. Else check supply_demand view for scarce rows → amber.
+MOD-1.4
+Six stat cards
+Six live numbers from the database.
+Write one Supabase query per card. All filter by region_slug = moderator's zone. For GMV: SELECT SUM(total_price) FROM orders WHERE created_at > NOW() - INTERVAL "7 days".
+MOD-1.5
+Quick action buttons
+Three buttons that navigate to specific sections.
+Use Next.js router.push(). No API needed. Button 1 → /moderator/farmers/new. Button 2 → /moderator/listings. Button 3 → /moderator/escalations.
+
+
+
+  Feature 2     Farmer onboarding
+The most immediately useful feature. Moderator registers new farmers on their behalf, and the system generates a shareable profile link.
+
+Screen contents
+List of all farmers in zone with name, village, method badge, listing count, status, and Edit button
+"+ Add new farmer" button opens a registration form
+Form fields: name, phone, village, district, farming method, farm size, farming since year, story quote, crops, water source, farm visit day, pickup availability, bank account + IFSC
+On save: auto-generate slug from name, create profile at /farmer/{slug}, show "Share via WhatsApp" button
+
+
+Feature 2 — Farmer onboarding: farmer list and registration form
+Developer tasks
+Task ID
+Task name
+What to build
+How (for a fresher)
+MOD-2.1
+Farmer list page
+/moderator/farmers — table of all farmers in the zone.
+Query farmers WHERE region_slug = moderator's zone. Show name, village, method (as badge), listing count (subquery), active status.
+MOD-2.2
+Add farmer form
+/moderator/farmers/new — all fields listed above.
+POST /api/moderator/farmers. Insert into farmers table. Return new farmer's id and slug.
+MOD-2.3
+Auto-generate slug
+Create URL-safe slug from the farmer's name on save.
+name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""). Check if slug exists; append "-2" if taken.
+MOD-2.4
+WhatsApp share after save
+Show success screen with profile URL and share button.
+Build wa.me link: wa.me/91{phone}?text=Your farm page is live: gogrameen.in/farmer/{slug}. Open in new tab on tap.
+MOD-2.5
+Edit & activate/deactivate
+Edit farmer details and toggle active status.
+Re-use the form with pre-filled data. PATCH /api/moderator/farmers/[id] for updates. Toggle active field on the list view.
+MOD-2.6
+Secure bank details
+Store account number and IFSC. Show only last 4 digits.
+Store plain in Supabase (RLS: only moderator + admin can read). Display: account.slice(-4).padStart(account.length, "*").
+
+
+
+  Feature 3     Listing management
+Every farmer listing goes through the moderator for approval before appearing on the consumer page. This keeps listing quality high and prevents pricing errors.
+
+Screen contents
+Three tabs: Pending approval (amber count badge), Active listings, Rejected
+Each pending card: produce name, farmer, method, price, stock, BRIX, date submitted
+Per card actions: Approve (green), Reject (coral — requires reason text), Edit before approving
+On approve: status → available, consumer page shows listing, farmer gets WhatsApp
+On reject: status → rejected, farmer gets WhatsApp with the rejection reason
+
+
+Feature 3 — Listing management: pending listing cards with approve/reject actions
+Developer tasks
+Task ID
+Task name
+What to build
+How (for a fresher)
+MOD-3.1
+Pending listings tab
+All listings WHERE status = "pending_review" in the zone.
+JOIN produce_listings with farmers WHERE farmers.region_slug = zone AND status = "pending_review". Sort by created_at ASC (oldest first).
+MOD-3.2
+Approve a listing
+PATCH status to "available". Notify farmer via WhatsApp.
+PATCH /api/moderator/listings/[id] → { status: "available" }. After DB update, trigger Twilio WhatsApp to farmer: "Your {produce} listing is live!".
+MOD-3.3
+Reject with reason
+Modal with required textarea. Save reason. Notify farmer.
+Show a modal div (not window.alert). On confirm: PATCH listing with { status: "rejected", rejection_reason: text }. WhatsApp farmer with the reason.
+MOD-3.4
+Edit before approving
+Pre-filled form to fix errors before approving.
+Re-use the produce listing form component. Pre-fill from listing data. Save keeps status = "pending_review". Moderator then approves.
+MOD-3.5
+Active listings management
+View and suspend any active listing.
+Show active listings tab. Add Suspend button → sets status = "sold_out". Show all details including farmer name.
+MOD-3.6
+Add rejection_reason column
+DB change needed.
+In Supabase SQL editor: ALTER TABLE produce_listings ADD COLUMN rejection_reason TEXT;
+
+
+
+  Feature 4     Supply vs demand monitor
+The strategic heart of the moderator dashboard. Shows which crops are short, balanced, or in surplus — and lets the moderator act immediately.
+
+Screen contents
+Table: Crop | Demand (kg) | Supply (kg) | Gap (+/-) | Status | Action
+Status colours: OK (green) / Low (amber) / Scarce (red) / Surplus (teal)
+Bar chart below: orange = demand bar, green = supply bar, side by side per crop
+"Notify farmers" button next to each Scarce row — sends WhatsApp to all farmers in the zone who grow that crop
+
+
+Feature 4 — Supply vs demand: crop balance table and comparison bars
+Developer tasks
+Task ID
+Task name
+What to build
+How (for a fresher)
+MOD-4.1
+Supply & demand data
+Aggregate demand from intents and supply from active listings.
+Two Supabase queries: (1) SELECT crop_name, SUM(quantity_kg) FROM demand_intents WHERE region_slug = zone GROUP BY crop_name. (2) SELECT name, SUM(stock_qty) FROM produce_listings WHERE status = "available" GROUP BY name. Merge in JS.
+MOD-4.2
+Status colour logic
+Calculate status from supply and demand numbers.
+In JS: if supply >= demand → "OK". Else if supply >= demand*0.5 → "Low". Else if supply < demand*0.5 → "Scarce". Else if supply > demand*1.5 → "Surplus". Apply Tailwind badge class.
+MOD-4.3
+Bar chart
+Demand vs supply bars per crop using Chart.js.
+new Chart(canvas, { type: "bar", data: { labels: cropNames, datasets: [{ label: "Demand", data: demandArray, backgroundColor: "#EF9F27" }, { label: "Supply", data: supplyArray, backgroundColor: "#4A8A2D" }] } })
+MOD-4.4
+Notify farmers button
+WhatsApp message to all farmers in zone who grow the scarce crop.
+POST /api/moderator/notify-scarce with { crop_name }. Query farmers in zone whose crops_raw ILIKE "%{crop_name}%". Build Twilio WhatsApp call for each.
+
+
+
+  Feature 5     Consumer management
+The moderator sees all buyers in their zone plus all open demand intents — unmet requests waiting to be fulfilled.
+
+
+Feature 5 — Consumer management: top buyers list and open demand intents
+Developer tasks
+Task ID
+Task name
+What to build
+How (for a fresher)
+MOD-5.1
+Consumer list
+All consumers who have ordered in the zone.
+SELECT consumers.name, consumers.location, COUNT(orders.id) as order_count, SUM(orders.total_price) as total_spend FROM orders JOIN consumers WHERE farmer_id IN (farmers in zone) GROUP BY consumer_id. Sort by total_spend DESC.
+MOD-5.2
+Demand intents list
+Open intents in the zone sorted by urgency.
+SELECT * FROM demand_intents WHERE region_slug = zone AND fulfilled = false ORDER BY needed_by_date ASC.
+MOD-5.3
+Mark intent fulfilled
+Button on each intent. Sets fulfilled = true. Notifies consumer.
+PATCH /api/moderator/demand-intents/[id] with { fulfilled: true }. WhatsApp to requester_phone: "Good news! {crop} is now available. Order here: gogrameen.in/consumer".
+
+
+
+  Feature 6     Delivery agent management
+Moderator recruits and manages local delivery agents — bike owners or anyone who wants to earn extra income by delivering farm produce.
+
+
+Feature 6 — Delivery agent management: agent list with performance stats
+Developer tasks
+Task ID
+Task name
+What to build
+How (for a fresher)
+MOD-6.1
+Agents list
+/moderator/agents — table of all agents in the zone.
+Query delivery_agents WHERE zone = moderator's zone. Join with deliveries to get completed count per agent.
+MOD-6.2
+Add agent form
+Register new agent — name, phone, vehicle, availability.
+POST /api/moderator/agents. Insert into delivery_agents. Fields: name, phone, aadhaar_hash (hash the Aadhaar, never store plain), vehicle_type, availability, zone.
+MOD-6.3
+Activate/deactivate
+Toggle active status.
+PATCH /api/moderator/agents/[id] with { active: false }. Inactive agents do not appear in the delivery dashboard pickups.
+MOD-6.4
+Create delivery_agents table
+New DB table.
+CREATE TABLE delivery_agents (id uuid PK, name varchar(100), phone varchar(15), aadhaar_hash text, vehicle_type text, availability text[], zone varchar(60), active boolean default true, created_at timestamptz)
+
+
+
+  Feature 7     Escalation management
+Complaints from farmers or consumers — and auto-detected issues like delivery delays — are tracked here. The moderator investigates and resolves each one.
+
+
+Feature 7 — Escalations: open complaints with in-progress and resolved states
+Developer tasks
+Task ID
+Task name
+What to build
+How (for a fresher)
+MOD-7.1
+Escalations list
+All escalations in zone sorted by date.
+Query escalations WHERE region_slug = zone ORDER BY created_at DESC. Show type badge, description, order link, raised-by, status.
+MOD-7.2
+Status update
+Mark in-progress or resolved. Resolved requires notes.
+PATCH /api/moderator/escalations/[id]. For resolved: { status: "resolved", resolution_notes: text, resolved_at: new Date() }.
+MOD-7.3
+Notify on resolution
+When resolved, WhatsApp both farmer and consumer.
+After PATCH, read order's farmer_id and consumer phone. Send WhatsApp to both with the resolution notes.
+MOD-7.4
+Auto-create delivery delay
+If delivery in_transit > 6 hours, create escalation.
+Supabase Edge Function running every 30 min: SELECT id FROM deliveries WHERE status = "in_transit" AND picked_up_at < NOW() - INTERVAL "6 hours". For each, INSERT into escalations if not exists.
+MOD-7.5
+DB changes
+Add columns to escalations table.
+ALTER TABLE escalations ADD COLUMN resolution_notes TEXT; ALTER TABLE escalations ADD COLUMN resolved_at TIMESTAMPTZ;
+
+
+
+  Feature 8     Price management
+Suggested price ranges per crop for the zone. Shown as hint text on the farmer listing form — guidance only, not enforced.
+
+
+Feature 8 — Price management: editable price range table per crop
+Developer tasks
+Task ID
+Task name
+What to build
+How (for a fresher)
+MOD-8.1
+Create price_guidelines table
+New DB table.
+CREATE TABLE price_guidelines (id uuid PK, crop_name varchar(100), region_slug varchar(60), min_price numeric(8,2), max_price numeric(8,2), unit varchar(20) DEFAULT 'kg', updated_at timestamptz, updated_by uuid)
+MOD-8.2
+Price table UI
+/moderator/prices — editable table, one row per crop.
+Fetch price_guidelines WHERE region_slug = zone. Each row has two <input type="number"> fields for min and max. Clicking into a field enables editing.
+MOD-8.3
+Auto-save on blur
+Save when moderator clicks out of a price field.
+input onBlur → PATCH /api/moderator/prices/[id] with new value. Show a brief "Saved ✓" confirmation text next to the field for 2 seconds.
+MOD-8.4
+Hint on farmer form
+Show suggested range when farmer enters produce name.
+On farmer listing form, when produce name changes: GET /api/prices?crop={name}&region={zone}. If found, show helper text under price field: "Suggested: ₹{min}–₹{max}/kg".
+
+
+
+  Feature 9     Reports
+Weekly and monthly zone performance. The moderator reviews this to understand trends; founders use it to evaluate zone growth.
+
+
+Feature 9 — Reports: period selector, KPI cards, top farmer, most popular crop
+Developer tasks
+Task ID
+Task name
+What to build
+How (for a fresher)
+MOD-9.1
+Period toggle
+Three buttons: This week / This month / Last month.
+useState({ period: "week" }). Each button updates state. Compute startDate and endDate from the period value. Pass to all API calls.
+MOD-9.2
+KPI queries
+Orders, GMV, avg order value, escalation resolution rate.
+GET /api/moderator/reports?region=zone&from=DATE&to=DATE. SQL: SELECT COUNT(*) as orders, SUM(total_price) as gmv, AVG(total_price) as avg_order FROM orders WHERE created_at BETWEEN from AND to.
+MOD-9.3
+Top farmer & most popular crop
+Who sold most and which crop moved most.
+SELECT farmer_id, SUM(total_price) as gmv FROM orders GROUP BY farmer_id ORDER BY gmv DESC LIMIT 1. For crop: SELECT produce_name, COUNT(*) FROM order_items GROUP BY produce_name ORDER BY COUNT(*) DESC LIMIT 1.
+MOD-9.4
+PDF export
+Download the current report as a PDF.
+Add @media print CSS: hide sidebar and nav, show only the report content. Call window.print() when the Download button is tapped. Browser renders a printable PDF.
+
+
+
+3. Database additions
+Run all of these in Supabase SQL editor before starting development.
+
+3.1  New tables
+delivery_agents
+CREATE TABLE delivery_agents (
+  id            uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  name          varchar(100) NOT NULL,
+  phone         varchar(15) NOT NULL,
+  aadhaar_hash  text,
+  vehicle_type  text,
+  delivery_area text,
+  availability  text[],
+  zone          varchar(60),
+  active        boolean DEFAULT true,
+  created_at    timestamptz DEFAULT now()
+);
+
+price_guidelines
+CREATE TABLE price_guidelines (
+  id           uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  crop_name    varchar(100) NOT NULL,
+  region_slug  varchar(60) NOT NULL,
+  min_price    numeric(8,2),
+  max_price    numeric(8,2),
+  unit         varchar(20) DEFAULT 'kg',
+  updated_by   uuid REFERENCES moderators(id),
+  updated_at   timestamptz DEFAULT now()
+);
+
+3.2  Column additions on existing tables
+Table
+Column
+SQL
+produce_listings
+rejection_reason
+ALTER TABLE produce_listings ADD COLUMN rejection_reason TEXT;
+escalations
+resolution_notes
+ALTER TABLE escalations ADD COLUMN resolution_notes TEXT;
+escalations
+resolved_at
+ALTER TABLE escalations ADD COLUMN resolved_at TIMESTAMPTZ;
+profiles
+role
+ALTER TABLE profiles ADD COLUMN role TEXT DEFAULT 'consumer';
+profiles
+region_slug
+ALTER TABLE profiles ADD COLUMN region_slug VARCHAR(60);
+
+
+3.3  RLS policies
+-- Moderators read only their own zone's farmers
+CREATE POLICY "moderator_zone_farmers" ON farmers FOR SELECT
+  USING (region_slug = (SELECT region_slug FROM profiles WHERE id = auth.uid()));
+
+-- Moderators can update listings in their zone
+CREATE POLICY "moderator_zone_listings" ON produce_listings FOR UPDATE
+  USING (farmer_id IN (SELECT id FROM farmers WHERE region_slug =
+    (SELECT region_slug FROM profiles WHERE id = auth.uid())));
+
+Start here: Build Feature 1 (login + dashboard) and Feature 2 (farmer onboarding) first. The founders need to onboard Yadagiri's neighbouring farmers immediately. Get those two features working before anything else.
+text and images in moderator.pdf
+
+---
+
+okay can we add like in different section or url where farmer or cosumer or delivery cannot seen
