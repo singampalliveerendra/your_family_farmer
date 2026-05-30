@@ -1,0 +1,65 @@
+yes please go ahead
+
+---
+
+go for next fearure
+
+---
+
+what i have to add in supabase query
+
+---
+
+will you can add in supabse by mcp
+
+---
+
+how many features are remaining to add
+
+---
+
+will it all working very fine ?
+
+---
+
+do
+
+---
+
+whats the moderator login passwrod
+
+---
+
+whats the password bro i frorgot
+
+---
+
+why the phonenumber is that . i need my number
+
+---
+
+what the  phone number should i type
+
+---
+
+Phone number / ఫోన్ నంబర్
+9876543210
+Password / పాస్‌వర్డ్
+•••••••••••••
+Wrong phone or password.
+
+Log in / లాగిన్. its not working
+
+---
+
+<task-notification>
+<task-id>bfx6g3l8e</task-id>
+<tool-use-id>toolu_01WYaQXBFtgLdAUEnWBWUTJ3</tool-use-id>
+<output-file>/tmp/claude-1000/-home-veerendra-farmer-yourfamilyfarmer/f33ae1f4-49d1-4b00-aff7-acd000e5eddb/tasks/bfx6g3l8e.output</output-file>
+<status>failed</status>
+<summary>Background command "Run dev server (background)" failed with exit code 143</summary>
+</task-notification>
+
+---
+
+add supply and demand and consuers tooo
