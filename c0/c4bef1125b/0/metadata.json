@@ -1,0 +1,99 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "c0c4bef1125b",
+  "session_id": "73be6d60-e239-440f-832c-20bbc87e0dfb",
+  "strategy": "manual-commit",
+  "created_at": "2026-05-30T19:18:49.012406202Z",
+  "branch": "feat/moderator-dashboard",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "scripts/moderator-auth-migration.sql",
+    "scripts/moderator-features-migration.sql",
+    "src/app/api/moderator/escalations/[id]/route.ts",
+    "src/app/api/moderator/escalations/route.ts",
+    "src/app/api/moderator/listings/[id]/route.ts",
+    "src/app/api/moderator/listings/route.ts",
+    "src/app/api/moderator/login/route.ts",
+    "src/app/api/moderator/reports/route.ts",
+    "src/app/api/moderator/stats/route.ts",
+    "src/app/moderator/ModeratorShell.tsx",
+    "src/app/moderator/escalations/page.tsx",
+    "src/app/moderator/listings/page.tsx",
+    "src/app/moderator/login/page.tsx",
+    "src/app/moderator/page.tsx",
+    "src/app/moderator/reports/page.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7",
+  "turn_id": "3406a52f3a32",
+  "token_usage": {
+    "input_tokens": 4496,
+    "cache_creation_tokens": 152162,
+    "cache_read_tokens": 5614394,
+    "output_tokens": 58088,
+    "api_call_count": 83
+  },
+  "session_metrics": {
+    "turn_count": 13
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-05-30T19:18:48.750137571Z",
+    "agent_lines": 1167,
+    "agent_removed": 0,
+    "human_added": 1678,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 2845,
+    "total_lines_changed": 2845,
+    "agent_percentage": 41.019332161687174,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 1659,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs - Copy.html": 22,
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs.html": 22,
+        "mod.md": 430,
+        "scripts/order-audit-migration.sql": 154,
+        "src/app/api/moderator/farmers/[id]/route.ts": 72,
+        "src/app/api/moderator/farmers/route.ts": 113,
+        "src/app/api/moderator/login/route.ts": 41,
+        "src/app/api/moderator/logout/route.ts": 11,
+        "src/app/api/moderator/me/route.ts": 10,
+        "src/app/api/moderator/stats/route.ts": 84,
+        "src/app/moderator/ModeratorShell.tsx": 134,
+        "src/app/moderator/farmers/new/page.tsx": 162,
+        "src/app/moderator/farmers/page.tsx": 134,
+        "src/app/moderator/login/page.tsx": 69,
+        "src/app/moderator/page.tsx": 113,
+        "src/lib/moderator-session.ts": 88
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 2754,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 2792,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 2826,
+      "agent_lines_removed": 0
+    }
+  ]
+}

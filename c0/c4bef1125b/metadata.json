@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "c0c4bef1125b",
+  "strategy": "manual-commit",
+  "branch": "feat/moderator-dashboard",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "scripts/moderator-auth-migration.sql",
+    "scripts/moderator-features-migration.sql",
+    "src/app/api/moderator/escalations/[id]/route.ts",
+    "src/app/api/moderator/escalations/route.ts",
+    "src/app/api/moderator/listings/[id]/route.ts",
+    "src/app/api/moderator/listings/route.ts",
+    "src/app/api/moderator/login/route.ts",
+    "src/app/api/moderator/reports/route.ts",
+    "src/app/api/moderator/stats/route.ts",
+    "src/app/moderator/ModeratorShell.tsx",
+    "src/app/moderator/escalations/page.tsx",
+    "src/app/moderator/listings/page.tsx",
+    "src/app/moderator/login/page.tsx",
+    "src/app/moderator/page.tsx",
+    "src/app/moderator/reports/page.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c0/c4bef1125b/0/metadata.json",
+      "transcript": "/c0/c4bef1125b/0/full.jsonl",
+      "content_hash": "/c0/c4bef1125b/0/content_hash.txt",
+      "prompt": "/c0/c4bef1125b/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 4496,
+    "cache_creation_tokens": 152162,
+    "cache_read_tokens": 5614394,
+    "output_tokens": 58088,
+    "api_call_count": 83
+  }
+}
