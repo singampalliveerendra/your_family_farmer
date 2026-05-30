@@ -620,6 +620,7 @@ export default function FarmerDashboard() {
           <ProduceListingForm
             farmerId={farmer!.id}
             farmerSlug={farmer!.slug}
+            farmerRegion={farmer!.region_slug}
             defaultMethod={farmer!.method}
             onClose={() => setShowForm(false)}
             onPublished={() => { setShowForm(false); loadDashboard() }}
@@ -635,6 +636,7 @@ export default function FarmerDashboard() {
         <ManageListingsModal
           farmerId={farmer.id}
           farmerSlug={farmer.slug}
+          farmerRegion={farmer.region_slug}
           defaultMethod={farmer.method ?? 'natural'}
           onClose={() => setShowListings(false)}
           onChanged={loadDashboard}
@@ -1715,6 +1717,7 @@ function Field({
 function ProduceListingForm({
   farmerId,
   farmerSlug = '',
+  farmerRegion = '',
   defaultMethod,
   editData,
   onClose,
@@ -1722,6 +1725,7 @@ function ProduceListingForm({
 }: {
   farmerId: string
   farmerSlug?: string
+  farmerRegion?: string
   defaultMethod: string
   editData?: ListingRow | null
   onClose: () => void
@@ -1756,6 +1760,24 @@ function ProduceListingForm({
   const [published, setPublished] = useState(false)
   const [publishedSlug, setPublishedSlug] = useState('')
   const [saved, setSaved] = useState(false)
+  // Suggested price range the zone moderator set for this crop (MOD-8.4).
+  const [priceHint, setPriceHint] = useState<{ min_price: number | null; max_price: number | null; unit: string } | null>(null)
+
+  // When the produce name settles, ask the moderator's price guideline for the
+  // zone. Debounced so typing "Tomato" doesn't fire seven requests. Guidance
+  // only — it never blocks what the farmer can enter.
+  useEffect(() => {
+    const crop = name.trim()
+    if (!crop || !farmerRegion) { setPriceHint(null); return }
+    let cancelled = false
+    const t = setTimeout(() => {
+      fetch(`/api/prices?crop=${encodeURIComponent(crop)}&region=${encodeURIComponent(farmerRegion)}`)
+        .then((r) => r.json())
+        .then((j) => { if (!cancelled) setPriceHint(j?.price ?? null) })
+        .catch(() => { if (!cancelled) setPriceHint(null) })
+    }, 400)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [name, farmerRegion])
 
   const handlePickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -2131,6 +2153,17 @@ function ProduceListingForm({
               </div>
             </div>
           </div>
+          {priceHint && (priceHint.min_price != null || priceHint.max_price != null) && (
+            <p className="text-[11px] text-green-700 bg-green-50 rounded-lg px-3 py-1.5">
+              💡 Suggested for {name.trim()}:{' '}
+              {priceHint.min_price != null && priceHint.max_price != null
+                ? `₹${priceHint.min_price}–₹${priceHint.max_price}`
+                : priceHint.min_price != null
+                  ? `₹${priceHint.min_price}+`
+                  : `up to ₹${priceHint.max_price}`}
+              /{priceHint.unit}
+            </p>
+          )}
         </div>
 
         {/* Description */}
@@ -2326,12 +2359,14 @@ function PreviewModal({ data, onClose }: { data: PreviewData; onClose: () => voi
 function ManageListingsModal({
   farmerId,
   farmerSlug = '',
+  farmerRegion = '',
   defaultMethod,
   onClose,
   onChanged,
 }: {
   farmerId: string
   farmerSlug?: string
+  farmerRegion?: string
   defaultMethod: string
   onClose: () => void
   onChanged: () => void
@@ -2452,6 +2487,7 @@ function ManageListingsModal({
             <ProduceListingForm
               farmerId={farmerId}
               farmerSlug={farmerSlug}
+              farmerRegion={farmerRegion}
               defaultMethod={defaultMethod}
               editData={editingRow}
               onClose={() => setEditingRow(null)}
@@ -2475,6 +2511,7 @@ function ManageListingsModal({
             <ProduceListingForm
               farmerId={farmerId}
               farmerSlug={farmerSlug}
+              farmerRegion={farmerRegion}
               defaultMethod={defaultMethod}
               onClose={() => setShowAddForm(false)}
               onPublished={() => {

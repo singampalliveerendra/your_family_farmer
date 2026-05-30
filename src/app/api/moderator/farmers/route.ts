@@ -1,0 +1,113 @@
+import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
+import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+const METHODS = ['natural', 'low_chemical', 'chemical'] as const
+
+function slugify(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+function svc() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
+
+// GET — all farmers in the moderator's zone, with a live listing count.
+export async function GET(req: NextRequest) {
+  if (!isModeratorRequest(req)) {
+    return NextResponse.json({ error: 'Moderator login required.' }, { status: 401 })
+  }
+  const zone = getModeratorZone()
+  const supabase = svc()
+
+  const { data: farmers, error } = await supabase
+    .from('farmers')
+    .select('id, slug, name, village, district, method, phone, active, created_at')
+    .eq('region_slug', zone)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('[YFF moderator/farmers] query failed:', error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // Listing count per farmer (one grouped query, merged in JS).
+  const ids = (farmers ?? []).map((f) => f.id)
+  const counts: Record<string, number> = {}
+  if (ids.length > 0) {
+    const { data: listings } = await supabase
+      .from('produce_listings')
+      .select('farmer_id')
+      .in('farmer_id', ids)
+    for (const l of listings ?? []) {
+      if (l.farmer_id) counts[l.farmer_id] = (counts[l.farmer_id] ?? 0) + 1
+    }
+  }
+
+  const withCounts = (farmers ?? []).map((f) => ({ ...f, listing_count: counts[f.id] ?? 0 }))
+  return NextResponse.json({ farmers: withCounts })
+}
+
+// POST — register a new farmer in the zone. Auto-generates a unique slug.
+export async function POST(req: NextRequest) {
+  if (!isModeratorRequest(req)) {
+    return NextResponse.json({ error: 'Moderator login required.' }, { status: 401 })
+  }
+  const zone = getModeratorZone()
+  const supabase = svc()
+
+  const body = await req.json().catch(() => null)
+  if (!body) return NextResponse.json({ error: 'Invalid body.' }, { status: 400 })
+
+  const name = String((body as { name?: unknown }).name ?? '').trim()
+  const phone = String((body as { phone?: unknown }).phone ?? '').trim()
+  const village = String((body as { village?: unknown }).village ?? '').trim()
+  const district = String((body as { district?: unknown }).district ?? '').trim()
+  const methodRaw = String((body as { method?: unknown }).method ?? 'natural').trim()
+  const story_quote = String((body as { story_quote?: unknown }).story_quote ?? '').trim()
+  const farm_size_acres = Number((body as { farm_size_acres?: unknown }).farm_size_acres ?? 0) || null
+  const farming_since_year = Number((body as { farming_since_year?: unknown }).farming_since_year ?? 0) || null
+
+  if (!name) return NextResponse.json({ error: 'Name is required.' }, { status: 400 })
+  const method = (METHODS as readonly string[]).includes(methodRaw) ? methodRaw : 'natural'
+
+  // Unique slug — append -2, -3, ... if taken.
+  const base = slugify(name) || 'farmer'
+  let slug = base
+  for (let i = 2; i < 50; i++) {
+    const { data: existing } = await supabase.from('farmers').select('id').eq('slug', slug).maybeSingle()
+    if (!existing) break
+    slug = `${base}-${i}`
+  }
+
+  const { data: inserted, error } = await supabase
+    .from('farmers')
+    .insert({
+      slug,
+      name,
+      phone: phone || null,
+      village: village || null,
+      district: district || null,
+      method,
+      story_quote: story_quote || null,
+      farm_size_acres,
+      farming_since_year,
+      region_slug: zone,
+      active: true,
+    })
+    .select('id, slug, name, phone')
+    .single()
+
+  if (error) {
+    console.error('[YFF moderator/farmers] insert failed:', error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ farmer: inserted })
+}
