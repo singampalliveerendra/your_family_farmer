@@ -1623,13 +1623,23 @@ function ProfileEditModal({
             <p className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2">{error}</p>
           )}
 
-          <button
-            onClick={handleSave}
-            disabled={loading || !name.trim() || !village.trim()}
-            className="w-full bg-green-700 text-white font-bold py-4 rounded-xl text-base disabled:opacity-50 active:bg-green-800"
-          >
-            {loading ? tx.saving : tx.saveProfile}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="flex-1 border-2 border-gray-300 text-gray-700 font-bold py-4 rounded-xl text-base disabled:opacity-50 active:bg-gray-50"
+            >
+              {tx.cancel}
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={loading || !name.trim() || !village.trim()}
+              className="flex-1 bg-green-700 text-white font-bold py-4 rounded-xl text-base disabled:opacity-50 active:bg-green-800"
+            >
+              {loading ? tx.saving : tx.saveProfile}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -2545,12 +2555,18 @@ function ListingRowCard({
       ? tx.availableLabel
       : row.status === 'coming_soon'
       ? tx.comingSoon
+      : row.status === 'suspended'
+      ? 'Suspended / నిలిపివేయబడింది'
+      : row.status === 'sold_out'
+      ? 'Sold out / అయిపోయింది'
       : row.status
   const statusColor =
     row.status === 'available'
       ? 'bg-green-100 text-green-800'
       : row.status === 'coming_soon'
       ? 'bg-amber-100 text-amber-800'
+      : row.status === 'suspended'
+      ? 'bg-orange-100 text-orange-800'
       : 'bg-gray-100 text-gray-700'
 
   return (

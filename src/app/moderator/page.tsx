@@ -65,14 +65,15 @@ export default function ModeratorDashboard() {
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold mb-5">{error}</div>
       )}
 
-      {/* Stat cards */}
+      {/* Stat cards — escalations & approvals lead (what needs action), then
+          the at-a-glance numbers. Each card opens its respective screen. */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-        <StatCard label="Active farmers" value={stats?.activeFarmers} />
-        <StatCard label="Consumers" value={stats?.consumers} />
-        <StatCard label="Orders this week" value={stats?.ordersThisWeek} />
-        <StatCard label="GMV this week" value={stats ? `₹${stats.gmvThisWeek.toLocaleString('en-IN')}` : undefined} />
-        <StatCard label="Open escalations" value={stats?.openEscalations} tone={(stats?.openEscalations ?? 0) > 0 ? 'red' : undefined} />
-        <StatCard label="Pending approvals" value={stats?.pendingApprovals} tone={(stats?.pendingApprovals ?? 0) > 0 ? 'amber' : undefined} />
+        <StatCard label="Open escalations" value={stats?.openEscalations} tone={(stats?.openEscalations ?? 0) > 0 ? 'red' : undefined} onClick={() => router.push('/moderator/escalations')} />
+        <StatCard label="Pending approvals" value={stats?.pendingApprovals} tone={(stats?.pendingApprovals ?? 0) > 0 ? 'amber' : undefined} onClick={() => router.push('/moderator/listings')} />
+        <StatCard label="Active farmers" value={stats?.activeFarmers} onClick={() => router.push('/moderator/farmers')} />
+        <StatCard label="Consumers" value={stats?.consumers} onClick={() => router.push('/moderator/consumers')} />
+        <StatCard label="Orders this week" value={stats?.ordersThisWeek} onClick={() => router.push('/moderator/reports')} />
+        <StatCard label="GMV this week" value={stats ? `₹${stats.gmvThisWeek.toLocaleString('en-IN')}` : undefined} onClick={() => router.push('/moderator/reports')} />
       </div>
 
       {/* Quick actions */}
@@ -110,16 +111,27 @@ export default function ModeratorDashboard() {
 }
 
 function StatCard({
-  label, value, tone, hint,
-}: { label: string; value?: number | string; tone?: 'red' | 'amber'; hint?: string }) {
+  label, value, tone, hint, onClick,
+}: { label: string; value?: number | string; tone?: 'red' | 'amber'; hint?: string; onClick?: () => void }) {
   const valueColor = tone === 'red' ? 'text-red-600' : tone === 'amber' ? 'text-amber-600' : 'text-gray-900'
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+  const body = (
+    <>
       <p className={`text-2xl md:text-3xl font-extrabold ${valueColor}`}>
         {value === undefined ? '—' : value}
       </p>
       <p className="text-xs text-gray-500 mt-1 font-medium">{label}</p>
       {hint && <p className="text-[10px] text-gray-300 mt-0.5">{hint}</p>}
-    </div>
+    </>
   )
+  if (onClick) {
+    return (
+      <button
+        onClick={onClick}
+        className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm text-left active:bg-gray-50 hover:border-gray-200 transition-colors"
+      >
+        {body}
+      </button>
+    )
+  }
+  return <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">{body}</div>
 }

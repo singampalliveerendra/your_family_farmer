@@ -24,7 +24,7 @@ type Tab = 'pending' | 'active' | 'rejected'
 const TABS: { key: Tab; label: string }[] = [
   { key: 'pending', label: 'Pending' },
   { key: 'active', label: 'Active listings' },
-  { key: 'rejected', label: 'Rejected' },
+  { key: 'rejected', label: 'Rejected / Suspended' },
 ]
 
 const METHOD_LABEL: Record<string, string> = {
@@ -121,7 +121,7 @@ export default function ModeratorListingsPage() {
         <div className="text-center py-14 bg-white rounded-2xl border border-gray-100">
           <div className="text-5xl mb-3">🧺</div>
           <p className="font-semibold text-gray-500 text-sm">
-            {tab === 'pending' ? 'No listings waiting for review' : tab === 'active' ? 'No active listings' : 'No rejected listings'}
+            {tab === 'pending' ? 'No listings waiting for review' : tab === 'active' ? 'No active listings' : 'No rejected or suspended listings'}
           </p>
         </div>
       ) : (
@@ -141,9 +141,10 @@ export default function ModeratorListingsPage() {
                   l.status === 'pending_review' ? 'bg-amber-100 text-amber-700'
                   : l.status === 'available' ? 'bg-green-100 text-green-700'
                   : l.status === 'rejected' ? 'bg-red-100 text-red-600'
+                  : l.status === 'suspended' ? 'bg-orange-100 text-orange-700'
                   : 'bg-gray-100 text-gray-500'
                 }`}>
-                  {l.status === 'pending_review' ? 'Pending review' : l.status === 'available' ? 'Active' : l.status === 'rejected' ? 'Rejected' : l.status}
+                  {l.status === 'pending_review' ? 'Pending review' : l.status === 'available' ? 'Active' : l.status === 'rejected' ? 'Rejected' : l.status === 'suspended' ? 'Suspended' : l.status}
                 </span>
               </div>
 
@@ -187,13 +188,13 @@ export default function ModeratorListingsPage() {
                     Suspend listing
                   </button>
                 )}
-                {l.status === 'rejected' && (
+                {(l.status === 'rejected' || l.status === 'suspended') && (
                   <button
                     onClick={() => act(l, 'approve')}
                     disabled={busyId === l.id}
                     className="bg-green-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg active:bg-green-800 disabled:opacity-50"
                   >
-                    Approve anyway
+                    {l.status === 'suspended' ? 'Re-activate listing' : 'Approve anyway'}
                   </button>
                 )}
               </div>

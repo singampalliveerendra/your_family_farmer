@@ -15,11 +15,12 @@ function svc() {
 // Actions the moderator can take on a listing, and the status each sets.
 //   approve  → available   (goes live on the consumer page)
 //   reject   → rejected    (requires a reason)
-//   suspend  → sold_out    (pull a live listing)
+//   suspend  → suspended   (pull a live listing; distinct from an organically
+//                           sold-out one so it can surface in the Rejected tab)
 const ACTION_STATUS: Record<string, string> = {
   approve: 'available',
   reject: 'rejected',
-  suspend: 'sold_out',
+  suspend: 'suspended',
 }
 
 // PATCH — approve / reject / suspend a listing. Zone-scoped: the listing's

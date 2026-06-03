@@ -12,11 +12,12 @@ function svc() {
   )
 }
 
-// Which DB status each UI tab maps to.
-const TAB_STATUS: Record<string, string> = {
-  pending: 'pending_review',
-  active: 'available',
-  rejected: 'rejected',
+// Which DB status(es) each UI tab maps to. The "rejected" tab doubles as the
+// home for moderator-suspended listings so a pulled listing is still visible.
+const TAB_STATUS: Record<string, string[]> = {
+  pending: ['pending_review'],
+  active: ['available'],
+  rejected: ['rejected', 'suspended'],
 }
 
 // GET — listings in the moderator's zone for one tab, newest-pending first.
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
   const supabase = svc()
 
   const tab = req.nextUrl.searchParams.get('tab') ?? 'pending'
-  const status = TAB_STATUS[tab] ?? TAB_STATUS.pending
+  const statuses = TAB_STATUS[tab] ?? TAB_STATUS.pending
 
   // Farmers in this zone — listings are scoped through them.
   const { data: zoneFarmers, error: fErr } = await supabase
@@ -45,12 +46,12 @@ export async function GET(req: NextRequest) {
   if (farmerIds.length === 0) return NextResponse.json({ listings: [] })
 
   // Pending oldest-first (act on the longest-waiting first); others newest-first.
-  const ascending = status === 'pending_review'
+  const ascending = tab === 'pending'
   const { data: listings, error } = await supabase
     .from('produce_listings')
     .select('id, farmer_id, name, variety, method, unit, stock_qty, brix, price_tier_1_price, status, rejection_reason, created_at')
     .in('farmer_id', farmerIds)
-    .eq('status', status)
+    .in('status', statuses)
     .order('created_at', { ascending })
   if (error) {
     console.error('[YFF moderator/listings] listings query failed:', error.message)
