@@ -3,7 +3,7 @@
   "checkpoint_id": "c4f42fd5c510",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 4,
+  "checkpoints_count": 5,
   "files_touched": [
     "src/app/api/moderator/farmers/route.ts",
     "src/app/consumer/orders/[id]/page.tsx",
@@ -30,13 +30,19 @@
       "transcript": "/c4/f42fd5c510/2/full.jsonl",
       "content_hash": "/c4/f42fd5c510/2/content_hash.txt",
       "prompt": "/c4/f42fd5c510/2/prompt.txt"
+    },
+    {
+      "metadata": "/c4/f42fd5c510/3/metadata.json",
+      "transcript": "/c4/f42fd5c510/3/full.jsonl",
+      "content_hash": "/c4/f42fd5c510/3/content_hash.txt",
+      "prompt": "/c4/f42fd5c510/3/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 13199,
-    "cache_creation_tokens": 345621,
-    "cache_read_tokens": 11753470,
-    "output_tokens": 116393,
-    "api_call_count": 137
+    "input_tokens": 23615,
+    "cache_creation_tokens": 600936,
+    "cache_read_tokens": 18192087,
+    "output_tokens": 192251,
+    "api_call_count": 222
   }
 }
