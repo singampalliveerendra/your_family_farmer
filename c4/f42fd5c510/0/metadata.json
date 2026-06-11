@@ -1,0 +1,75 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "c4f42fd5c510",
+  "session_id": "2237dde5-b8d4-4c74-819a-43d91581c865",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-11T07:28:51.578057137Z",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "src/app/api/moderator/farmers/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/consumer/orders/page.tsx",
+    "src/app/consumer/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/app/moderator/farmers/new/page.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "b291d6619f26",
+  "token_usage": {
+    "input_tokens": 4251,
+    "cache_creation_tokens": 133533,
+    "cache_read_tokens": 2279296,
+    "output_tokens": 33585,
+    "api_call_count": 47
+  },
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-11T07:28:51.562552153Z",
+    "agent_lines": 172,
+    "agent_removed": 5,
+    "human_added": 722,
+    "human_modified": 25,
+    "human_removed": 0,
+    "total_committed": 919,
+    "total_lines_changed": 924,
+    "agent_percentage": 19.155844155844157,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 1692,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1070,
+      "agent_lines_removed": 28,
+      "user_added_per_file": {
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs - Copy.html": 22,
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs.html": 22,
+        "mod.md": 430,
+        "scripts/audit-log-migration.sql": 151,
+        "scripts/complaints-self-service-migration.sql": 23,
+        "scripts/pickup-confirm-migration.sql": 15,
+        "src/app/api/consumer/complaints/route.ts": 115,
+        "src/app/api/farmer/complaints/route.ts": 104,
+        "src/app/api/farmer/orders/[id]/confirm-pickup/route.ts": 89,
+        "src/app/api/moderator/audit/route.ts": 40,
+        "src/app/consumer/complaints/page.tsx": 169,
+        "src/app/farmer/complaints/page.tsx": 202,
+        "src/app/moderator/audit/page.tsx": 177,
+        "src/components/consumer/ComplaintModal.tsx": 110,
+        "src/lib/complaints.ts": 23
+      }
+    }
+  ]
+}
