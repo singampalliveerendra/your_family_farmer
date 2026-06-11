@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import ModeratorShell, { useModeratorAuth } from '../ModeratorShell'
 
 type Listing = {
@@ -40,6 +41,7 @@ function timeAgo(iso: string): string {
 }
 
 export default function ModeratorListingsPage() {
+  const router = useRouter()
   const { zone, checked } = useModeratorAuth()
   const [tab, setTab] = useState<Tab>('pending')
   const [listings, setListings] = useState<Listing[]>([])
@@ -93,6 +95,15 @@ export default function ModeratorListingsPage() {
 
   return (
     <ModeratorShell title="Listing management" subtitle="Review, approve or reject farmer produce listings" zone={zone}>
+      <div className="flex justify-end mb-3">
+        <button
+          onClick={() => router.push('/moderator/listings/new')}
+          className="bg-green-800 text-white text-sm font-bold px-4 py-2 rounded-xl active:bg-green-900"
+        >
+          + Add produce
+        </button>
+      </div>
+
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 mb-4">
         {TABS.map((t) => (
