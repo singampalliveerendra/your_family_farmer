@@ -1,0 +1,85 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "c4f42fd5c510",
+  "session_id": "7a14b253-1abc-4cbf-89b1-b0884daac757",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-11T07:28:52.2239173Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/consumer/orders/page.tsx",
+    "src/app/consumer/page.tsx",
+    "src/app/farmer/dashboard/page.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "4ac59cf860ec",
+  "token_usage": {
+    "input_tokens": 2773,
+    "cache_creation_tokens": 10776,
+    "cache_read_tokens": 54269,
+    "output_tokens": 1923,
+    "api_call_count": 4
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-11T07:28:52.220936532Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 81,
+    "human_modified": 27,
+    "human_removed": 0,
+    "total_committed": 81,
+    "total_lines_changed": 112,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 1783,
+      "user_lines_removed": 11,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs - Copy.html": 22,
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs.html": 22,
+        "mod.md": 430,
+        "scripts/audit-log-migration.sql": 151,
+        "scripts/complaints-self-service-migration.sql": 23,
+        "scripts/pickup-confirm-migration.sql": 15,
+        "src/app/api/consumer/complaints/route.ts": 115,
+        "src/app/api/consumer/orders/[id]/route.ts": 1,
+        "src/app/api/farmer/complaints/route.ts": 104,
+        "src/app/api/farmer/orders/[id]/confirm-pickup/route.ts": 89,
+        "src/app/api/moderator/audit/route.ts": 40,
+        "src/app/api/moderator/escalations/route.ts": 2,
+        "src/app/api/orders/place/route.ts": 7,
+        "src/app/consumer/complaints/page.tsx": 169,
+        "src/app/consumer/orders/[id]/page.tsx": 43,
+        "src/app/consumer/orders/page.tsx": 8,
+        "src/app/consumer/page.tsx": 6,
+        "src/app/farmer/complaints/page.tsx": 202,
+        "src/app/farmer/dashboard/orders/page.tsx": 5,
+        "src/app/farmer/dashboard/page.tsx": 3,
+        "src/app/moderator/audit/page.tsx": 177,
+        "src/app/moderator/escalations/page.tsx": 2,
+        "src/app/moderator/page.tsx": 12,
+        "src/components/consumer/ComplaintModal.tsx": 110,
+        "src/lib/complaints.ts": 23,
+        "src/lib/translations.ts": 2
+      },
+      "user_removed_per_file": {
+        "src/app/api/consumer/orders/[id]/route.ts": 1,
+        "src/app/api/moderator/escalations/route.ts": 2,
+        "src/app/api/orders/place/route.ts": 5,
+        "src/app/consumer/orders/[id]/page.tsx": 1,
+        "src/app/consumer/orders/page.tsx": 1,
+        "src/app/farmer/dashboard/orders/page.tsx": 1
+      }
+    }
+  ]
+}
