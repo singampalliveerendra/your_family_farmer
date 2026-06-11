@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   const { data: rows, error } = await supabase
     .from('escalations')
-    .select('id, order_id, type, description, raised_by, status, resolution_notes, resolved_at, created_at')
+    .select('id, order_id, type, description, raised_by, raised_by_role, raised_by_phone, status, resolution_notes, resolved_at, created_at')
     .eq('region_slug', zone)
     .order('created_at', { ascending: false })
   if (error) {
@@ -60,23 +60,30 @@ export async function POST(req: NextRequest) {
   const typeRaw = String(b.type ?? 'other')
   const type = (TYPES as readonly string[]).includes(typeRaw) ? typeRaw : 'other'
   const description = String(b.description ?? '').trim()
-  const raised_by = String(b.raised_by ?? '').trim() || null
+  let raised_by = String(b.raised_by ?? '').trim() || null
+  let raised_by_phone: string | null = null
   const orderCode = String(b.order_code ?? '').trim()
   if (!description) return NextResponse.json({ error: 'Describe the complaint.' }, { status: 400 })
 
-  // Resolve an optional order_code to an order in this zone.
+  // Resolve an optional order_code to an order in this zone. When one is given,
+  // the buyer's name and phone come straight off the order so "raised by" is
+  // auto-filled and the moderator always has a number to call back on.
   let order_id: string | null = null
   if (orderCode) {
     const { data: order } = await supabase
       .from('orders')
-      .select('id, farmer_id')
+      .select('id, farmer_id, buyer_name, buyer_phone')
       .eq('order_code', orderCode)
       .maybeSingle()
     if (order?.farmer_id) {
       const { data: farmer } = await supabase
         .from('farmers').select('region_slug').eq('id', order.farmer_id).maybeSingle()
-      if (farmer?.region_slug === zone) order_id = order.id
-      else return NextResponse.json({ error: 'That order is not in your zone.' }, { status: 400 })
+      if (farmer?.region_slug !== zone) {
+        return NextResponse.json({ error: 'That order is not in your zone.' }, { status: 400 })
+      }
+      order_id = order.id
+      raised_by_phone = order.buyer_phone ?? null
+      if (!raised_by) raised_by = order.buyer_name?.trim() || null
     } else {
       return NextResponse.json({ error: `No order found with code ${orderCode}.` }, { status: 400 })
     }
@@ -84,7 +91,7 @@ export async function POST(req: NextRequest) {
 
   const { data: inserted, error } = await supabase
     .from('escalations')
-    .insert({ region_slug: zone, type, description, raised_by, order_id, status: 'open' })
+    .insert({ region_slug: zone, type, description, raised_by, raised_by_role: 'moderator', raised_by_phone, order_id, status: 'open' })
     .select('id')
     .single()
   if (error) {

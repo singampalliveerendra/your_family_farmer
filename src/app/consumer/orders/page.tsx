@@ -214,7 +214,7 @@ export default function ConsumerOrdersPage() {
                           )}
                           {order.refund_status && order.refund_status !== 'failed' && (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap bg-purple-100 text-purple-800">
-                              💸 {order.refund_status === 'processed' ? 'Refunded / రీఫండ్ అయింది' : 'Refund in progress / రీఫండ్ జరుగుతోంది'}
+                              💸 {order.refund_status === 'processed' ? 'Refunded / రీఫండ్ అయింది' : 'Refund initiated / రీఫండ్ ప్రారంభమైంది'}
                             </span>
                           )}
                           {order.refund_status === 'failed' && (

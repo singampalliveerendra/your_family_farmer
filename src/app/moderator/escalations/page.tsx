@@ -10,6 +10,8 @@ type Escalation = {
   type: string
   description: string
   raised_by: string | null
+  raised_by_role: 'consumer' | 'farmer' | 'moderator' | null
+  raised_by_phone: string | null
   status: 'open' | 'in_progress' | 'resolved'
   resolution_notes: string | null
   resolved_at: string | null
@@ -21,6 +23,12 @@ const TYPE_LABEL: Record<string, string> = {
   quality_complaint: 'Quality complaint',
   payment_issue: 'Payment issue',
   other: 'Other',
+}
+
+const ROLE_LABEL: Record<string, string> = {
+  consumer: 'Consumer',
+  farmer: 'Farmer',
+  moderator: 'Logged by team',
 }
 
 const STATUS_STYLE: Record<string, string> = {
@@ -132,7 +140,32 @@ export default function ModeratorEscalationsPage() {
               <p className="font-bold text-gray-900 text-sm mt-2">
                 {e.order_code ? `Order #${e.order_code} — ` : ''}{e.description}
               </p>
-              {e.raised_by && <p className="text-xs text-gray-500 mt-0.5">Raised by {e.raised_by}</p>}
+              {e.raised_by && (
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Raised by {e.raised_by}
+                  {e.raised_by_role && <span className="text-gray-400"> ({ROLE_LABEL[e.raised_by_role] ?? e.raised_by_role})</span>}
+                </p>
+              )}
+
+              {/* Callback contact — copied from the raiser's profile */}
+              {e.raised_by_phone && (
+                <div className="flex items-center gap-2 mt-2">
+                  <a
+                    href={`tel:+91${e.raised_by_phone}`}
+                    className="inline-flex items-center gap-1 text-xs font-bold text-green-700 border border-green-200 rounded-lg px-2.5 py-1 active:bg-green-50"
+                  >
+                    📞 +91 {e.raised_by_phone}
+                  </a>
+                  <a
+                    href={`https://wa.me/91${e.raised_by_phone.replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-green-700 border border-green-200 rounded-lg px-2.5 py-1 active:bg-green-50"
+                  >
+                    💬 WhatsApp
+                  </a>
+                </div>
+              )}
 
               {e.status === 'resolved' && e.resolution_notes && (
                 <p className="mt-2 text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
@@ -213,9 +246,28 @@ function NewComplaintModal({ onClose, onCreated }: { onClose: () => void; onCrea
   const [type, setType] = useState('quality_complaint')
   const [description, setDescription] = useState('')
   const [raisedBy, setRaisedBy] = useState('')
+  const [raisedByEdited, setRaisedByEdited] = useState(false)
   const [orderCode, setOrderCode] = useState('')
+  const [lookupPhone, setLookupPhone] = useState<string | null>(null)
+  const [looking, setLooking] = useState(false)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
+
+  // When an order code is entered, pull the buyer's name + phone off the order so
+  // "Raised by" is auto-filled and we have a number to call back on. We don't
+  // overwrite a name the moderator typed themselves.
+  const lookupOrder = async (code: string) => {
+    const c = code.trim()
+    setLookupPhone(null)
+    if (!c) return
+    setLooking(true)
+    const r = await fetch(`/api/moderator/orders/lookup?code=${encodeURIComponent(c)}`, { credentials: 'same-origin' }).catch(() => null)
+    setLooking(false)
+    if (!r || !r.ok) return
+    const j = await r.json().catch(() => ({}))
+    setLookupPhone(j?.buyer_phone ?? null)
+    if (!raisedByEdited && j?.buyer_name) setRaisedBy(j.buyer_name)
+  }
 
   const submit = async () => {
     if (!description.trim()) { setErr('Describe the complaint.'); return }
@@ -244,16 +296,30 @@ function NewComplaintModal({ onClose, onCreated }: { onClose: () => void; onCrea
         placeholder="e.g. Paid ₹360 for tomatoes at 10 AM, nothing arrived by 6 PM"
         className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm mb-3 focus:outline-none focus:border-green-500"
       />
-      <div className="grid grid-cols-2 gap-2 mb-3">
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 mb-1">Raised by</label>
-          <input value={raisedBy} onChange={(e) => setRaisedBy(e.target.value)} placeholder="Ravi Sharma" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-        </div>
+      <div className="grid grid-cols-2 gap-2 mb-1">
         <div>
           <label className="block text-xs font-semibold text-gray-500 mb-1">Order code <span className="text-gray-300">(optional)</span></label>
-          <input value={orderCode} onChange={(e) => setOrderCode(e.target.value)} placeholder="YFF-1042" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+          <input
+            value={orderCode}
+            onChange={(e) => setOrderCode(e.target.value)}
+            onBlur={(e) => void lookupOrder(e.target.value)}
+            placeholder="YFF-1042"
+            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 mb-1">Raised by</label>
+          <input
+            value={raisedBy}
+            onChange={(e) => { setRaisedBy(e.target.value); setRaisedByEdited(true) }}
+            placeholder="Ravi Sharma"
+            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
+          />
         </div>
       </div>
+      <p className="text-[11px] text-gray-400 mb-3 h-4">
+        {looking ? 'Looking up order…' : lookupPhone ? `📞 +91 ${lookupPhone} — auto-filled from the order` : 'Enter an order code to auto-fill the buyer’s name and phone.'}
+      </p>
       <div className="flex gap-2 justify-end">
         <button onClick={onClose} className="text-sm text-gray-500 px-3 py-2">Cancel</button>
         <button onClick={submit} disabled={saving} className="bg-green-800 text-white text-sm font-bold px-4 py-2 rounded-xl disabled:opacity-50">
