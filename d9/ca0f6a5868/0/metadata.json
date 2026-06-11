@@ -1,0 +1,72 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "d9ca0f6a5868",
+  "session_id": "2237dde5-b8d4-4c74-819a-43d91581c865",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-11T07:19:53.882499348Z",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "src/app/api/moderator/listings/route.ts",
+    "src/app/moderator/listings/page.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "14d629159499",
+  "token_usage": {
+    "input_tokens": 3568,
+    "cache_creation_tokens": 78236,
+    "cache_read_tokens": 815674,
+    "output_tokens": 10553,
+    "api_call_count": 28
+  },
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-11T07:19:53.870369287Z",
+    "agent_lines": 86,
+    "agent_removed": 0,
+    "human_added": 214,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 300,
+    "total_lines_changed": 300,
+    "agent_percentage": 28.666666666666668,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 1906,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1156,
+      "agent_lines_removed": 28,
+      "user_added_per_file": {
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs - Copy.html": 22,
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs.html": 22,
+        "mod.md": 430,
+        "scripts/audit-log-migration.sql": 151,
+        "scripts/complaints-self-service-migration.sql": 23,
+        "scripts/pickup-confirm-migration.sql": 15,
+        "src/app/api/consumer/complaints/route.ts": 115,
+        "src/app/api/farmer/complaints/route.ts": 104,
+        "src/app/api/farmer/orders/[id]/confirm-pickup/route.ts": 89,
+        "src/app/api/moderator/audit/route.ts": 40,
+        "src/app/consumer/complaints/page.tsx": 169,
+        "src/app/farmer/complaints/page.tsx": 202,
+        "src/app/moderator/audit/page.tsx": 177,
+        "src/app/moderator/listings/new/page.tsx": 214,
+        "src/components/consumer/ComplaintModal.tsx": 110,
+        "src/lib/complaints.ts": 23
+      }
+    }
+  ]
+}
