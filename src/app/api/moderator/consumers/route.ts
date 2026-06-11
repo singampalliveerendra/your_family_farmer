@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   }
   const farmerIds = (farmers ?? []).map((f) => f.id)
 
-  type Buyer = { key: string; name: string; phone: string | null; order_count: number; total_spend: number; last_order_at: string | null }
+  type Buyer = { key: string; name: string; phone: string | null; consumer_id: string | null; order_count: number; total_spend: number; last_order_at: string | null }
   const buyersByKey = new Map<string, Buyer>()
 
   if (farmerIds.length > 0) {
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
       const key = (o.buyer_phone || o.consumer_id || o.buyer_name || 'unknown') as string
       let b = buyersByKey.get(key)
       if (!b) {
-        b = { key, name: o.buyer_name || 'Buyer', phone: o.buyer_phone ?? null, order_count: 0, total_spend: 0, last_order_at: null }
+        b = { key, name: o.buyer_name || 'Buyer', phone: o.buyer_phone ?? null, consumer_id: o.consumer_id ?? null, order_count: 0, total_spend: 0, last_order_at: null }
         buyersByKey.set(key, b)
       }
       if (!NON_SALE.has(String(o.status))) {
@@ -62,12 +62,44 @@ export async function GET(req: NextRequest) {
       }
       if (o.created_at && (!b.last_order_at || o.created_at > b.last_order_at)) b.last_order_at = o.created_at
       if (!b.phone && o.buyer_phone) b.phone = o.buyer_phone
+      if (!b.consumer_id && o.consumer_id) b.consumer_id = o.consumer_id
     }
   }
 
-  const buyers = Array.from(buyersByKey.values())
-    .filter((b) => b.order_count > 0)
-    .map((b) => ({ name: b.name, phone: b.phone, order_count: b.order_count, total_spend: Math.round(b.total_spend), last_order_at: b.last_order_at }))
+  // Resolve which buyers have a login account (and whether it is suspended), so
+  // the moderator can deactivate it. Match on account id first, then phone.
+  const acctById = new Map<string, { id: string; suspended: boolean }>()
+  const acctByPhone = new Map<string, { id: string; suspended: boolean }>()
+  const buyerList = Array.from(buyersByKey.values()).filter((b) => b.order_count > 0)
+  const ids = buyerList.map((b) => b.consumer_id).filter(Boolean) as string[]
+  const phones = buyerList.map((b) => b.phone).filter(Boolean) as string[]
+  if (ids.length > 0 || phones.length > 0) {
+    const { data: accounts } = await supabase
+      .from('consumers_auth')
+      .select('id, phone, suspended')
+      .or([
+        ids.length ? `id.in.(${ids.join(',')})` : '',
+        phones.length ? `phone.in.(${phones.map((p) => `"${p}"`).join(',')})` : '',
+      ].filter(Boolean).join(','))
+    for (const a of accounts ?? []) {
+      acctById.set(a.id, { id: a.id, suspended: a.suspended === true })
+      if (a.phone) acctByPhone.set(a.phone, { id: a.id, suspended: a.suspended === true })
+    }
+  }
+
+  const buyers = buyerList
+    .map((b) => {
+      const acct = (b.consumer_id && acctById.get(b.consumer_id)) || (b.phone && acctByPhone.get(b.phone)) || null
+      return {
+        name: b.name,
+        phone: b.phone,
+        order_count: b.order_count,
+        total_spend: Math.round(b.total_spend),
+        last_order_at: b.last_order_at,
+        account_id: acct?.id ?? null,
+        suspended: acct?.suspended ?? false,
+      }
+    })
     .sort((a, b) => b.total_spend - a.total_spend)
 
   // Open demand intents in the zone, soonest-needed first (nulls last).

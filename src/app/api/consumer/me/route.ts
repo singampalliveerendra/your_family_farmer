@@ -18,16 +18,17 @@ export async function GET(req: NextRequest) {
 
   const { data: user } = await supabase
     .from('consumers_auth')
-    .select('id, name, phone')
+    .select('id, name, phone, suspended')
     .eq('id', session.consumerId)
     .maybeSingle()
 
-  if (!user) {
-    // Cookie references a deleted account — clear it so the client logs out
+  if (!user || user.suspended === true) {
+    // Cookie references a deleted or suspended account — clear it so the
+    // client logs out on its next check.
     const res = NextResponse.json({ consumer: null }, { status: 200 })
     clearSessionCookie(res)
     return res
   }
 
-  return NextResponse.json({ consumer: user })
+  return NextResponse.json({ consumer: { id: user.id, name: user.name, phone: user.phone } })
 }

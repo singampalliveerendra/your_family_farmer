@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import ModeratorShell, { useModeratorAuth } from '../ModeratorShell'
 
-type Buyer = { name: string; phone: string | null; order_count: number; total_spend: number; last_order_at: string | null }
+type Buyer = { name: string; phone: string | null; order_count: number; total_spend: number; last_order_at: string | null; account_id: string | null; suspended: boolean }
 type Intent = {
   id: string
   crop_name: string | null
@@ -40,6 +40,26 @@ export default function ModeratorConsumersPage() {
   }, [])
 
   useEffect(() => { if (checked) void load() }, [checked, load])
+
+  const toggleSuspend = async (b: Buyer) => {
+    if (busyId || !b.account_id) return
+    const next = !b.suspended
+    if (next && !window.confirm(`Suspend ${b.name}? They won't be able to log in or place orders until reactivated.`)) return
+    setBusyId(b.account_id)
+    setError('')
+    const r = await fetch(`/api/moderator/consumers/${b.account_id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ suspended: next }),
+    }).catch(() => null)
+    setBusyId(null)
+    if (!r || !r.ok) {
+      const j = r ? await r.json().catch(() => ({})) : {}
+      setError(j?.error ?? 'Update failed.'); return
+    }
+    setBuyers((list) => list.map((x) => (x.account_id === b.account_id ? { ...x, suspended: next } : x)))
+  }
 
   const markFulfilled = async (it: Intent) => {
     if (busyId) return
@@ -137,13 +157,35 @@ export default function ModeratorConsumersPage() {
                   <span className="w-20 text-right">Spend</span>
                 </div>
                 {buyers.map((b, i) => (
-                  <div key={`${b.phone ?? b.name}-${i}`} className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-3 items-center">
-                    <div className="min-w-0">
-                      <p className="font-bold text-gray-900 text-sm truncate">{b.name}</p>
-                      {b.phone && <a href={`tel:+91${b.phone}`} className="text-[11px] text-green-700">+91 {b.phone}</a>}
+                  <div key={`${b.phone ?? b.name}-${i}`} className="px-4 py-3">
+                    <div className="grid grid-cols-[1fr_auto_auto] gap-3 items-center">
+                      <div className="min-w-0">
+                        <p className="font-bold text-gray-900 text-sm truncate flex items-center gap-1.5">
+                          {b.name}
+                          {b.suspended && (
+                            <span className="text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 rounded px-1.5 py-0.5 uppercase tracking-wide">Suspended</span>
+                          )}
+                        </p>
+                        {b.phone && <a href={`tel:+91${b.phone}`} className="text-[11px] text-green-700">+91 {b.phone}</a>}
+                      </div>
+                      <span className="w-14 text-right text-sm text-gray-600">{b.order_count}</span>
+                      <span className="w-20 text-right text-sm font-semibold text-gray-900">₹{b.total_spend}</span>
                     </div>
-                    <span className="w-14 text-right text-sm text-gray-600">{b.order_count}</span>
-                    <span className="w-20 text-right text-sm font-semibold text-gray-900">₹{b.total_spend}</span>
+                    {b.account_id && (
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          onClick={() => toggleSuspend(b)}
+                          disabled={busyId === b.account_id}
+                          className={`text-[11px] font-bold px-2.5 py-1 rounded-lg disabled:opacity-50 ${
+                            b.suspended
+                              ? 'text-green-700 border border-green-300 active:bg-green-50'
+                              : 'text-red-600 border border-red-300 active:bg-red-50'
+                          }`}
+                        >
+                          {busyId === b.account_id ? '…' : b.suspended ? 'Reactivate' : 'Suspend'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
