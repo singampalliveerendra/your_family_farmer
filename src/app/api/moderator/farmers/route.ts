@@ -74,7 +74,32 @@ export async function POST(req: NextRequest) {
   const farm_size_acres = Number((body as { farm_size_acres?: unknown }).farm_size_acres ?? 0) || null
   const farming_since_year = Number((body as { farming_since_year?: unknown }).farming_since_year ?? 0) || null
 
+  // Marketing / payout details — the same things a farmer fills on their own
+  // profile, so a moderator onboarding on their behalf can capture them up front.
+  const farm_address = String((body as { farm_address?: unknown }).farm_address ?? '').trim()
+  const upi_id = String((body as { upi_id?: unknown }).upi_id ?? '').trim()
+  const cod_enabled = (body as { cod_enabled?: unknown }).cod_enabled === true
+
+  const rawPickups = (body as { pickup_locations?: unknown }).pickup_locations
+  const pickup_locations = Array.isArray(rawPickups)
+    ? Array.from(new Set(rawPickups.map((p) => String(p).trim()).filter(Boolean)))
+    : []
+
+  // pickup_slots: { days: string[], time_from, time_to } — stored only when at
+  // least one day is chosen, matching the farmer-side profile editor.
+  const slots = (body as { pickup_slots?: unknown }).pickup_slots as
+    | { days?: unknown; time_from?: unknown; time_to?: unknown }
+    | null
+    | undefined
+  const slotDays = Array.isArray(slots?.days) ? slots!.days.map((d) => String(d)).filter(Boolean) : []
+  const pickup_slots = slotDays.length > 0
+    ? { days: slotDays, time_from: String(slots?.time_from ?? '08:00'), time_to: String(slots?.time_to ?? '12:00') }
+    : null
+
   if (!name) return NextResponse.json({ error: 'Name is required.' }, { status: 400 })
+  if (upi_id && !/^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$/.test(upi_id)) {
+    return NextResponse.json({ error: 'Invalid UPI ID. Example: name@ybl' }, { status: 400 })
+  }
   const method = (METHODS as readonly string[]).includes(methodRaw) ? methodRaw : 'natural'
 
   // Unique slug — append -2, -3, ... if taken.
@@ -98,6 +123,11 @@ export async function POST(req: NextRequest) {
       story_quote: story_quote || null,
       farm_size_acres,
       farming_since_year,
+      farm_address: farm_address || null,
+      pickup_locations,
+      pickup_slots,
+      upi_id: upi_id || null,
+      cod_enabled,
       region_slug: zone,
       active: true,
     })

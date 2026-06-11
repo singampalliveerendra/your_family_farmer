@@ -10,13 +10,40 @@ export default function NewFarmerPage() {
   const router = useRouter()
   const { zone, checked } = useModeratorAuth()
 
-  const [form, setForm] = useState({
+  const EMPTY_FORM = {
     name: '', phone: '', village: '', district: '',
     method: 'natural', farm_size_acres: '', farming_since_year: '', story_quote: '',
-  })
+    farm_address: '', upi_id: '',
+  }
+  const [form, setForm] = useState(EMPTY_FORM)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [created, setCreated] = useState<Created | null>(null)
+
+  // Pickup & payout details (same shape as the farmer's own profile editor).
+  const ALL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+  const [pickupLocations, setPickupLocations] = useState<string[]>([])
+  const [newPickup, setNewPickup] = useState('')
+  const [slotDays, setSlotDays] = useState<string[]>([])
+  const [slotFrom, setSlotFrom] = useState('08:00')
+  const [slotTo, setSlotTo] = useState('12:00')
+  const [codEnabled, setCodEnabled] = useState(false)
+
+  const resetAll = () => {
+    setForm(EMPTY_FORM)
+    setPickupLocations([]); setNewPickup('')
+    setSlotDays([]); setSlotFrom('08:00'); setSlotTo('12:00')
+    setCodEnabled(false)
+  }
+
+  const addPickup = () => {
+    const v = newPickup.trim()
+    if (!v || pickupLocations.includes(v)) { setNewPickup(''); return }
+    setPickupLocations((prev) => [...prev, v]); setNewPickup('')
+  }
+  const removePickup = (loc: string) => setPickupLocations((prev) => prev.filter((l) => l !== loc))
+  const toggleDay = (d: string) =>
+    setSlotDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]))
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -30,7 +57,12 @@ export default function NewFarmerPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        ...form,
+        pickup_locations: pickupLocations,
+        pickup_slots: slotDays.length > 0 ? { days: slotDays, time_from: slotFrom, time_to: slotTo } : null,
+        cod_enabled: codEnabled,
+      }),
     }).catch(() => null)
     setSubmitting(false)
     if (!r) { setError('Network error.'); return }
@@ -74,7 +106,7 @@ export default function NewFarmerPage() {
               </a>
             )}
             <button
-              onClick={() => { setCreated(null); setForm({ name: '', phone: '', village: '', district: '', method: 'natural', farm_size_acres: '', farming_since_year: '', story_quote: '' }) }}
+              onClick={() => { setCreated(null); resetAll() }}
               className="bg-white border border-gray-200 text-gray-700 text-sm font-bold px-4 py-3 rounded-xl active:bg-gray-50"
             >
               + Add another farmer
@@ -124,6 +156,77 @@ export default function NewFarmerPage() {
         <Field label="Story / quote">
           <textarea value={form.story_quote} onChange={set('story_quote')} rows={3} className={inputCls} />
         </Field>
+
+        {/* ── Pickup & payout — mirrors the farmer's own profile ── */}
+        <div className="border-t border-gray-100 pt-4">
+          <p className="text-sm font-extrabold text-green-800 mb-3">Pickup &amp; payment</p>
+
+          <Field label="Farm address (for pickup)">
+            <textarea value={form.farm_address} onChange={set('farm_address')} rows={2} className={inputCls} placeholder="House / street, landmark, village" />
+          </Field>
+
+          <div className="mt-4">
+            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wide block mb-1">Pickup locations</span>
+            <div className="flex gap-2">
+              <input
+                value={newPickup}
+                onChange={(e) => setNewPickup(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPickup() } }}
+                placeholder="e.g. Market road junction"
+                className={inputCls}
+              />
+              <button type="button" onClick={addPickup} className="bg-green-700 text-white text-sm font-bold px-4 rounded-xl active:bg-green-800 whitespace-nowrap">Add</button>
+            </div>
+            {pickupLocations.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {pickupLocations.map((loc) => (
+                  <span key={loc} className="inline-flex items-center gap-1 bg-green-50 border border-green-200 text-green-800 text-xs font-semibold px-2.5 py-1 rounded-full">
+                    {loc}
+                    <button type="button" onClick={() => removePickup(loc)} className="text-green-500 text-sm leading-none">×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4">
+            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wide block mb-1">Pickup days</span>
+            <div className="flex flex-wrap gap-2">
+              {ALL_DAYS.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => toggleDay(d)}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-full border ${
+                    slotDays.includes(d) ? 'bg-green-700 text-white border-green-700' : 'bg-white text-gray-600 border-gray-200'
+                  }`}
+                >
+                  {d.slice(0, 3)}
+                </button>
+              ))}
+            </div>
+            {slotDays.length > 0 && (
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <Field label="From">
+                  <input type="time" value={slotFrom} onChange={(e) => setSlotFrom(e.target.value)} className={inputCls} />
+                </Field>
+                <Field label="To">
+                  <input type="time" value={slotTo} onChange={(e) => setSlotTo(e.target.value)} className={inputCls} />
+                </Field>
+              </div>
+            )}
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4 mt-4">
+            <Field label="UPI ID (for payouts)">
+              <input value={form.upi_id} onChange={set('upi_id')} placeholder="name@ybl" className={inputCls} />
+            </Field>
+            <label className="flex items-center gap-2 mt-6">
+              <input type="checkbox" checked={codEnabled} onChange={(e) => setCodEnabled(e.target.checked)} className="w-4 h-4 accent-green-700" />
+              <span className="text-sm font-semibold text-gray-700">Accepts Cash on Delivery</span>
+            </label>
+          </div>
+        </div>
 
         {error && (
           <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 font-semibold">{error}</p>

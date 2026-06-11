@@ -317,8 +317,15 @@ export default function ConsumerOrdersPage() {
         )}
 
         <Link
-          href="/buyer-protection"
+          href="/consumer/complaints"
           className="mt-6 block text-center text-xs font-semibold text-green-700 underline"
+        >
+          🛟 My complaints / నా ఫిర్యాదులు
+        </Link>
+
+        <Link
+          href="/buyer-protection"
+          className="mt-3 block text-center text-xs font-semibold text-green-700 underline"
         >
           🔒 Buyer protection & refund policy / కొనుగోలుదారు రక్షణ & రీఫండ్ విధానం
         </Link>

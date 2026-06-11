@@ -272,6 +272,12 @@ export default function ConsumerPage() {
             >
               📦 My Orders / నా ఆర్డర్లు →
             </Link>
+            <Link
+              href="/consumer/complaints"
+              className="inline-flex items-center gap-2 bg-green-800 border border-green-700 text-green-200 text-xs font-semibold px-4 py-2.5 rounded-full"
+            >
+              🛟 Complaints / ఫిర్యాదులు →
+            </Link>
           </div>
         </div>
       </div>

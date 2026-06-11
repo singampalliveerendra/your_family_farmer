@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
+import ComplaintModal from '@/components/consumer/ComplaintModal'
 
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
 
@@ -60,6 +61,7 @@ export default function OrderDetailsPage() {
   const [proofLoading, setProofLoading] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [showComplaint, setShowComplaint] = useState(false)
 
   // Buyer may cancel only while still pending and within 30 min of placing.
   const canCancel = !!order
@@ -340,12 +342,28 @@ export default function OrderDetailsPage() {
                 )}
               </div>
             )}
+
+            {/* Report a problem — pins the complaint to this order automatically */}
+            <button
+              onClick={() => setShowComplaint(true)}
+              className="w-full border border-gray-300 text-gray-700 font-bold py-3 rounded-xl text-sm active:bg-gray-50"
+            >
+              🛟 Report a problem / సమస్యను నివేదించండి
+            </button>
           </>
         )}
       </div>
 
       {showReceipt && order && (
         <ReceiptOverlay order={order} onClose={() => setShowReceipt(false)} />
+      )}
+
+      {showComplaint && order && (
+        <ComplaintModal
+          presetOrderCode={order.order_code}
+          onClose={() => setShowComplaint(false)}
+          onCreated={() => setShowComplaint(false)}
+        />
       )}
     </main>
   )
