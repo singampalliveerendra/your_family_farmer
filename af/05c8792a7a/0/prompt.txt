@@ -19,3 +19,7 @@ Moderator should be able to add a produce by selecting a farmer.
 ---
 
 Farmer registration for Moderator should have similar form as farmer to fill in all the details. Add Cancel button to Save Profile of Farmer. and All users should be able to see the complaints they raise. and Add Log a Complaint in all users other than Moderator.
+
+---
+
+Raised by in Complaint form should be auto filled. and Complaints should have the user number who raised it. and Change "Refund In Progress" to "Refund Initiated"
