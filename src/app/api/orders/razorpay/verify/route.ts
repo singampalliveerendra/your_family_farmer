@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
+import { verifyGuestOrderToken } from '@/lib/guest-order-token'
 import { verifyPaymentSignature } from '@/lib/razorpay'
 
 export const runtime = 'nodejs'
@@ -10,14 +11,16 @@ export const dynamic = 'force-dynamic'
 // here. We re-verify the signature server-side and only then mark the orders
 // paid. A forged callback fails the HMAC check and changes nothing.
 export async function POST(req: NextRequest) {
+  // Guests have no session — they authorize with the guestToken from
+  // /api/orders/place (validated below against the rows we resolve).
   const session = getConsumerSessionFromRequest(req)
-  if (!session) return NextResponse.json({ error: 'Please log in.' }, { status: 401 })
 
   const body = await req.json().catch(() => null) as
     | {
         razorpayOrderId?: string
         razorpayPaymentId?: string
         razorpaySignature?: string
+        guestToken?: string
       }
     | null
 
@@ -49,8 +52,18 @@ export async function POST(req: NextRequest) {
   if (!orders || orders.length === 0) {
     return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
   }
-  if (orders.some((o) => o.consumer_id !== session.consumerId)) {
-    return NextResponse.json({ error: 'Not your order.' }, { status: 403 })
+  if (session) {
+    if (orders.some((o) => o.consumer_id !== session.consumerId)) {
+      return NextResponse.json({ error: 'Not your order.' }, { status: 403 })
+    }
+  } else {
+    // Guest: rows must be guest orders, and the token must cover exactly them.
+    if (orders.some((o) => o.consumer_id !== null)) {
+      return NextResponse.json({ error: 'Not your order.' }, { status: 403 })
+    }
+    if (!verifyGuestOrderToken(body?.guestToken, orders.map((o) => o.id))) {
+      return NextResponse.json({ error: 'Please log in.' }, { status: 401 })
+    }
   }
 
   const { error } = await supabase

@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
   const { data: rows, error } = await supabase
     .from('escalations')
-    .select('id, order_id, type, description, status, resolution_notes, resolved_at, created_at')
+    .select('id, order_id, type, description, status, resolution_notes, resolved_at, created_at, raised_by_phone')
     .eq('raised_by_role', 'consumer')
     .eq('raised_by_id', session.consumerId)
     .order('created_at', { ascending: false })

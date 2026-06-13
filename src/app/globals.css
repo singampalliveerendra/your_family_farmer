@@ -40,6 +40,11 @@ body {
 .splash-overlay        { animation: splashFadeIn 0.4s ease both; }
 .splash-overlay.is-out { animation: splashFadeOut 0.5s ease forwards; }
 
+/* Splash already played this session: the pre-paint script tags <html> so the
+   server-rendered overlay is hidden before it ever paints — no green flash on
+   navigations, page shows immediately. */
+html.splash-skip .splash-overlay { display: none !important; }
+
 /* Each element stays hidden (fill-mode: both) until its delay elapses. */
 .splash-logo    { animation: splashLogoIn   0.7s ease both; animation-delay: 0.3s; }
 .splash-name    { animation: splashFadeInUp 0.7s ease both; animation-delay: 0.9s; }

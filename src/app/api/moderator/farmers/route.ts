@@ -5,7 +5,7 @@ import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const METHODS = ['natural', 'low_chemical', 'chemical'] as const
+const METHODS = ['natural', 'organic', 'low_chemical', 'chemical'] as const
 
 function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -80,6 +80,17 @@ export async function POST(req: NextRequest) {
   const upi_id = String((body as { upi_id?: unknown }).upi_id ?? '').trim()
   const cod_enabled = (body as { cod_enabled?: unknown }).cod_enabled === true
 
+  // Photos & farm GPS — the same media a farmer can attach to their own profile.
+  const cover_photo_url = String((body as { cover_photo_url?: unknown }).cover_photo_url ?? '').trim()
+  const photo_url = String((body as { photo_url?: unknown }).photo_url ?? '').trim()
+  const pesticide_cert_url = String((body as { pesticide_cert_url?: unknown }).pesticide_cert_url ?? '').trim()
+  const upi_qr_code_url = String((body as { upi_qr_code_url?: unknown }).upi_qr_code_url ?? '').trim()
+  const location_name = String((body as { location_name?: unknown }).location_name ?? '').trim()
+  const latRaw = (body as { lat?: unknown }).lat
+  const lngRaw = (body as { lng?: unknown }).lng
+  const lat = typeof latRaw === 'number' && Number.isFinite(latRaw) ? latRaw : null
+  const lng = typeof lngRaw === 'number' && Number.isFinite(lngRaw) ? lngRaw : null
+
   const rawPickups = (body as { pickup_locations?: unknown }).pickup_locations
   const pickup_locations = Array.isArray(rawPickups)
     ? Array.from(new Set(rawPickups.map((p) => String(p).trim()).filter(Boolean)))
@@ -127,7 +138,14 @@ export async function POST(req: NextRequest) {
       pickup_locations,
       pickup_slots,
       upi_id: upi_id || null,
+      upi_qr_code_url: upi_qr_code_url || null,
       cod_enabled,
+      cover_photo_url: cover_photo_url || null,
+      photo_url: photo_url || null,
+      pesticide_cert_url: pesticide_cert_url || null,
+      lat,
+      lng,
+      location_name: lat != null && lng != null ? (location_name || name) : null,
       region_slug: zone,
       active: true,
     })

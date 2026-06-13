@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
+import ForgotPasswordModal from '@/components/ForgotPasswordModal'
 
 type Mode = 'login' | 'register'
 
@@ -14,6 +15,7 @@ export default function AuthModal() {
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showForgot, setShowForgot] = useState(false)
 
   // Lock body scroll while modal is open
   useEffect(() => {
@@ -174,6 +176,16 @@ export default function AuthModal() {
               : (mode === 'login' ? 'Log in / లాగిన్' : 'Create account / ఖాతా సృష్టించండి')}
           </button>
 
+          {mode === 'login' && (
+            <button
+              type="button"
+              onClick={() => setShowForgot(true)}
+              className="w-full text-center text-sm text-green-700 font-semibold underline"
+            >
+              Forgot Password? / పాస్‌వర్డ్ మర్చిపోయారా?
+            </button>
+          )}
+
           <p className="text-[11px] text-gray-500 text-center pt-1 leading-relaxed">
             {mode === 'login'
               ? 'New here? Tap Sign up. / కొత్తవారా? సైన్ అప్ నొక్కండి.'
@@ -181,6 +193,15 @@ export default function AuthModal() {
           </p>
         </form>
       </div>
+
+      {showForgot && (
+        <ForgotPasswordModal
+          userType="consumer"
+          initialPhone={phone}
+          onClose={() => setShowForgot(false)}
+          onResetComplete={() => setShowForgot(false)}
+        />
+      )}
     </div>
   )
 }

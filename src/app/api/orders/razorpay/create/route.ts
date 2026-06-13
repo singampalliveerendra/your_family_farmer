@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
+import { verifyGuestOrderToken } from '@/lib/guest-order-token'
 import { getRazorpayClient, getRazorpayKeyId } from '@/lib/razorpay'
 
 export const runtime = 'nodejs'
@@ -13,11 +14,13 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // Razorpay order for the AUTHORITATIVE total read from the DB, never an
 // amount sent by the client, and stamp its id onto our rows.
 export async function POST(req: NextRequest) {
+  // Guests have no session — they authorize with the short-lived guestToken
+  // returned by /api/orders/place, bound to exactly these order ids.
   const session = getConsumerSessionFromRequest(req)
-  if (!session) return NextResponse.json({ error: 'Please log in.' }, { status: 401 })
 
   const body = await req.json().catch(() => null)
   const rawIds = (body as { orderIds?: unknown } | null)?.orderIds
+  const guestToken = (body as { guestToken?: unknown } | null)?.guestToken
   const orderIds = Array.isArray(rawIds) ? rawIds.map((x) => String(x)) : []
   if (orderIds.length === 0) return NextResponse.json({ error: 'Missing order ids.' }, { status: 400 })
   if (orderIds.length > 50) return NextResponse.json({ error: 'Too many orders.' }, { status: 400 })
@@ -38,8 +41,18 @@ export async function POST(req: NextRequest) {
   if (!orders || orders.length !== orderIds.length) {
     return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
   }
-  if (orders.some((o) => o.consumer_id !== session.consumerId)) {
-    return NextResponse.json({ error: 'Not your order.' }, { status: 403 })
+  if (session) {
+    if (orders.some((o) => o.consumer_id !== session.consumerId)) {
+      return NextResponse.json({ error: 'Not your order.' }, { status: 403 })
+    }
+  } else {
+    // Guest: every row must be a guest order, and the token must cover them.
+    if (orders.some((o) => o.consumer_id !== null)) {
+      return NextResponse.json({ error: 'Not your order.' }, { status: 403 })
+    }
+    if (typeof guestToken !== 'string' || !verifyGuestOrderToken(guestToken, orderIds)) {
+      return NextResponse.json({ error: 'Please log in.' }, { status: 401 })
+    }
   }
   // Don't let an already-paid batch be charged a second time.
   if (orders.some((o) => o.payment_status === 'paid')) {

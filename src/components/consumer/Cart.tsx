@@ -83,6 +83,9 @@ export type CartState = Record<string, CartItem>
 
 export type ConsumerInfo = { name: string; phone: string }
 
+// Loose email check for guest checkout — just enough to catch typos.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 const CART_KEY = 'yff_cart_v1'
 const CONSUMER_KEY = 'yff_consumer_v1'
 const CART_EVENT = 'yff:cart-change'
@@ -266,9 +269,13 @@ function CartSheet({
 }) {
   const { setQty, removeItem, clear, clearFarmer } = useCart()
   const { info, save: saveInfo } = useConsumerInfo()
-  const { consumer, requireAuth } = useConsumerAuth()
+  const { consumer, openAuth } = useConsumerAuth()
+  // Guest checkout: when not logged in, the buyer also supplies an email and
+  // (always) an address. `isGuest` flips the form into guest mode.
+  const isGuest = !consumer
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'upi'>('upi')
   const [showMorePayment, setShowMorePayment] = useState(false)
   // Delivery preference (per checkout). For home_delivery, a flat

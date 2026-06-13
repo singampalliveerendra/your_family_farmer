@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
+import { getRiderSessionFromRequest } from '@/lib/rider-session'
 import { getModeratorZone } from '@/lib/moderator-session'
 import { normalizeComplaintType } from '@/lib/complaints'
 
@@ -14,20 +14,21 @@ function svc() {
   )
 }
 
-// GET — the signed-in farmer's own complaints, newest first.
+// GET — the signed-in rider's own complaints, newest first, each with the linked
+// order's human code when there is one.
 export async function GET(req: NextRequest) {
-  const session = getFarmerSessionFromRequest(req)
+  const session = getRiderSessionFromRequest(req)
   if (!session) return NextResponse.json({ error: 'Login required.' }, { status: 401 })
   const supabase = svc()
 
   const { data: rows, error } = await supabase
     .from('escalations')
     .select('id, order_id, type, description, status, resolution_notes, resolved_at, created_at, raised_by_phone')
-    .eq('raised_by_role', 'farmer')
-    .eq('raised_by_id', session.farmerId)
+    .eq('raised_by_role', 'rider')
+    .eq('raised_by_id', session.riderId)
     .order('created_at', { ascending: false })
   if (error) {
-    console.error('[YFF farmer/complaints] query failed:', error.message)
+    console.error('[YFF rider/complaints] query failed:', error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
@@ -44,11 +45,13 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ complaints })
 }
 
-// POST — a farmer files a complaint. Identity + zone come from their farmer
-// record. An optional order_code is accepted and must be one of their orders.
+// POST — a rider files a complaint. Identity comes from their account (never the
+// client). An optional order_code is accepted and must be a delivery assigned to
+// this rider; it pins the complaint to that order's zone so the right moderator
+// sees it.
 //   { type, description, order_code? }
 export async function POST(req: NextRequest) {
-  const session = getFarmerSessionFromRequest(req)
+  const session = getRiderSessionFromRequest(req)
   if (!session) return NextResponse.json({ error: 'Login required.' }, { status: 401 })
   const supabase = svc()
 
@@ -62,23 +65,31 @@ export async function POST(req: NextRequest) {
   if (!description) return NextResponse.json({ error: 'Please describe the problem.' }, { status: 400 })
   if (description.length > 2000) return NextResponse.json({ error: 'Description is too long.' }, { status: 400 })
 
+  // Identity comes from the rider account, not the request.
   const { data: me } = await supabase
-    .from('farmers').select('name, phone, region_slug').eq('id', session.farmerId).maybeSingle()
-  if (!me) return NextResponse.json({ error: 'Farmer account not found.' }, { status: 404 })
-  const region_slug = me.region_slug || getModeratorZone()
+    .from('delivery_boys').select('name, phone').eq('id', session.riderId).maybeSingle()
+  if (!me) return NextResponse.json({ error: 'Rider account not found.' }, { status: 404 })
 
+  // Riders aren't tied to a single zone, so default to the launch zone; if the
+  // complaint is about a specific delivery, route it to that order's zone.
+  let region_slug = getModeratorZone()
   let order_id: string | null = null
   if (orderCode) {
     const { data: order } = await supabase
       .from('orders')
-      .select('id, farmer_id')
+      .select('id, farmer_id, delivery_boy_id')
       .eq('order_code', orderCode)
       .maybeSingle()
     if (!order) return NextResponse.json({ error: `No order found with code ${orderCode}.` }, { status: 400 })
-    if (order.farmer_id !== session.farmerId) {
-      return NextResponse.json({ error: 'That order is not one of yours.' }, { status: 403 })
+    if (order.delivery_boy_id !== session.riderId) {
+      return NextResponse.json({ error: 'That order is not assigned to you.' }, { status: 403 })
     }
     order_id = order.id
+    if (order.farmer_id) {
+      const { data: farmer } = await supabase
+        .from('farmers').select('region_slug').eq('id', order.farmer_id).maybeSingle()
+      if (farmer?.region_slug) region_slug = farmer.region_slug
+    }
   }
 
   const { data: inserted, error } = await supabase
@@ -89,15 +100,15 @@ export async function POST(req: NextRequest) {
       description,
       order_id,
       status: 'open',
-      raised_by: (me.name || 'Farmer').trim(),
-      raised_by_role: 'farmer',
-      raised_by_id: session.farmerId,
+      raised_by: (me.name || 'Rider').trim(),
+      raised_by_role: 'rider',
+      raised_by_id: session.riderId,
       raised_by_phone: me.phone ?? null,
     })
     .select('id')
     .single()
   if (error) {
-    console.error('[YFF farmer/complaints] insert failed:', error.message)
+    console.error('[YFF rider/complaints] insert failed:', error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
   return NextResponse.json({ id: inserted.id })

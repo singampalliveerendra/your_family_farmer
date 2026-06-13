@@ -24,6 +24,8 @@ type Order = {
   refund_status: string | null
   refund_amount: number | null
   refunded_at: string | null
+  delivery_type: 'self_pickup' | 'home_delivery' | null
+  collected_at: string | null
   created_at: string
 }
 
@@ -41,9 +43,11 @@ export default function OrderHistoryPage() {
     if (!farmerId) { router.replace('/farmer/login'); return }
 
     setLoading(true)
+    // Explicit columns: handover_otp is deliberately NOT fetched — the pickup
+    // code must come from the customer, so the farmer's browser never sees it.
     const { data } = await supabase
       .from('orders')
-      .select('*')
+      .select('id, farmer_id, order_code, produce_listing_id, produce_name, quantity, unit, total_price, buyer_name, buyer_phone, pickup_location, status, payment_status, decline_reason, refund_status, refund_amount, refunded_at, delivery_type, collected_at, created_at')
       .eq('farmer_id', farmerId)
       .in('status', ['approved', 'declined'])
       .order('created_at', { ascending: false })

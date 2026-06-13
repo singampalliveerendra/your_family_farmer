@@ -24,6 +24,16 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <body className="min-h-full bg-gray-50 antialiased">
+        {/* Runs before first paint: if the splash already played this session,
+            mark <html> so CSS hides the overlay instantly (no green flash on
+            navigations). On the very first open it just records the flag and
+            lets the overlay paint — which covers the page and kills the
+            consumer-page flash. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(sessionStorage.getItem('splash_shown')==='true'){document.documentElement.classList.add('splash-skip')}else{sessionStorage.setItem('splash_shown','true')}}catch(e){}`,
+          }}
+        />
         <SplashScreen />
         <LanguageProvider>
           <ConsumerAuthProvider>{children}</ConsumerAuthProvider>

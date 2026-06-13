@@ -16,6 +16,7 @@ type Complaint = {
   resolution_notes: string | null
   resolved_at: string | null
   created_at: string
+  raised_by_phone: string | null
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -143,6 +144,9 @@ export default function ConsumerComplaintsPage() {
                       <p className="text-[11px] font-mono font-semibold text-gray-400 mt-1.5">Order {c.order_code}</p>
                     )}
                     <p className="text-sm text-gray-900 mt-1 leading-snug">{c.description}</p>
+                    {c.raised_by_phone && (
+                      <p className="text-[11px] text-gray-400 mt-1.5">📞 Callback number: +91 {c.raised_by_phone}</p>
+                    )}
 
                     {c.status === 'resolved' && c.resolution_notes && (
                       <div className="mt-2 bg-green-50 border border-green-100 rounded-lg px-3 py-2">

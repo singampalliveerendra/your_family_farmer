@@ -61,9 +61,17 @@ export async function POST(req: NextRequest) {
   const type = (TYPES as readonly string[]).includes(typeRaw) ? typeRaw : 'other'
   const description = String(b.description ?? '').trim()
   let raised_by = String(b.raised_by ?? '').trim() || null
-  let raised_by_phone: string | null = null
   const orderCode = String(b.order_code ?? '').trim()
   if (!description) return NextResponse.json({ error: 'Describe the complaint.' }, { status: 400 })
+
+  // Callback number of whoever raised it. A complaint must always carry a number
+  // so the moderator can follow up — taken from the typed field, then validated.
+  // An order_code below can also supply it (and wins if the field was left blank).
+  const phoneDigits = String(b.raised_by_phone ?? '').replace(/\D/g, '').slice(-10)
+  let raised_by_phone: string | null = phoneDigits.length === 10 ? phoneDigits : null
+  if (String(b.raised_by_phone ?? '').trim() && !raised_by_phone) {
+    return NextResponse.json({ error: 'Enter a valid 10-digit callback number.' }, { status: 400 })
+  }
 
   // Resolve an optional order_code to an order in this zone. When one is given,
   // the buyer's name and phone come straight off the order so "raised by" is
@@ -82,11 +90,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'That order is not in your zone.' }, { status: 400 })
       }
       order_id = order.id
-      raised_by_phone = order.buyer_phone ?? null
+      if (!raised_by_phone) raised_by_phone = order.buyer_phone ?? null
       if (!raised_by) raised_by = order.buyer_name?.trim() || null
     } else {
       return NextResponse.json({ error: `No order found with code ${orderCode}.` }, { status: 400 })
     }
+  }
+
+  // Enforce the rule: every logged complaint needs a number to call back on.
+  if (!raised_by_phone) {
+    return NextResponse.json({ error: 'Add a callback number (or an order code that has one).' }, { status: 400 })
   }
 
   const { data: inserted, error } = await supabase

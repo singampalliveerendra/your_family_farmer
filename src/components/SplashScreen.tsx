@@ -2,12 +2,17 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-// Phases: 'init' before we've decided (avoids SSR/hydration flash),
-// 'show' while visible, 'out' during the 0.2s fade, 'done' = unmounted.
-type Phase = 'init' | 'show' | 'out' | 'done'
+// Phases: 'show' while visible, 'out' during the fade, 'done' = unmounted.
+// We start at 'show' so the overlay is part of the server-rendered HTML and
+// paints on the very first frame — covering the page so the consumer screen
+// never flashes underneath. The blocking script in layout.tsx decides whether
+// this load should actually play (first open) or be skipped (already shown this
+// session) via the `splash-skip` class on <html>; on skip, CSS hides the
+// overlay before paint and the effect below unmounts it.
+type Phase = 'show' | 'out' | 'done'
 
 export default function SplashScreen() {
-  const [phase, setPhase] = useState<Phase>('init')
+  const [phase, setPhase] = useState<Phase>('show')
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
 
   const clearTimers = () => {
@@ -16,19 +21,15 @@ export default function SplashScreen() {
   }
 
   useEffect(() => {
-    // Show only once per session (per browser tab). A page refresh keeps the
-    // flag, so the splash appears on first open only — not on every reload.
-    let alreadyShown = false
-    try { alreadyShown = sessionStorage.getItem('splash_shown') === 'true' } catch { /* private mode */ }
+    // The pre-paint script in layout.tsx already wrote the sessionStorage flag
+    // and tagged <html> when the splash had played before this session.
+    const alreadyShown = document.documentElement.classList.contains('splash-skip')
 
     if (alreadyShown) {
       setPhase('done')
       return
     }
 
-    try { sessionStorage.setItem('splash_shown', 'true') } catch { /* ignore */ }
-
-    setPhase('show')
     timers.current.push(setTimeout(() => setPhase('out'), 2900))  // 2.9s: start fade out
     timers.current.push(setTimeout(() => setPhase('done'), 3400)) // 3.4s: home visible
 
@@ -41,7 +42,7 @@ export default function SplashScreen() {
     setPhase('done')
   }
 
-  if (phase === 'init' || phase === 'done') return null
+  if (phase === 'done') return null
 
   return (
     <div

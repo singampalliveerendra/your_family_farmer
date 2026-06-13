@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import LanguageToggle from '@/components/LanguageToggle'
+import ForgotPasswordModal from '@/components/ForgotPasswordModal'
 
 export default function FarmerLoginPage() {
   const router = useRouter()
@@ -13,6 +14,7 @@ export default function FarmerLoginPage() {
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showForgot, setShowForgot] = useState(false)
 
   const digits = phone.replace(/\D/g, '').slice(-10)
   const canSubmit = digits.length === 10 && password.length >= 4
@@ -113,6 +115,14 @@ export default function FarmerLoginPage() {
             {loading ? 'Please wait…' : 'Log in / లాగిన్'}
           </button>
 
+          <button
+            type="button"
+            onClick={() => setShowForgot(true)}
+            className="w-full text-center text-sm text-green-700 font-semibold underline"
+          >
+            Forgot Password? / పాస్‌వర్డ్ మర్చిపోయారా?
+          </button>
+
           <div className="text-xs text-gray-600 text-center pt-1">
             New here?{' '}
             <Link href="/farmer/signup" className="text-green-700 font-bold underline">
@@ -127,6 +137,15 @@ export default function FarmerLoginPage() {
           </Link>
         </p>
       </div>
+
+      {showForgot && (
+        <ForgotPasswordModal
+          userType="farmer"
+          initialPhone={phone}
+          onClose={() => setShowForgot(false)}
+          onResetComplete={() => setShowForgot(false)}
+        />
+      )}
     </main>
   )
 }

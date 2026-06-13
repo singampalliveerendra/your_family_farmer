@@ -10,7 +10,7 @@ type Escalation = {
   type: string
   description: string
   raised_by: string | null
-  raised_by_role: 'consumer' | 'farmer' | 'moderator' | null
+  raised_by_role: 'consumer' | 'farmer' | 'rider' | 'moderator' | null
   raised_by_phone: string | null
   status: 'open' | 'in_progress' | 'resolved'
   resolution_notes: string | null
@@ -28,6 +28,7 @@ const TYPE_LABEL: Record<string, string> = {
 const ROLE_LABEL: Record<string, string> = {
   consumer: 'Consumer',
   farmer: 'Farmer',
+  rider: 'Rider',
   moderator: 'Logged by team',
 }
 
@@ -247,36 +248,50 @@ function NewComplaintModal({ onClose, onCreated }: { onClose: () => void; onCrea
   const [description, setDescription] = useState('')
   const [raisedBy, setRaisedBy] = useState('')
   const [raisedByEdited, setRaisedByEdited] = useState(false)
+  const [phone, setPhone] = useState('')
+  const [phoneEdited, setPhoneEdited] = useState(false)
   const [orderCode, setOrderCode] = useState('')
-  const [lookupPhone, setLookupPhone] = useState<string | null>(null)
   const [looking, setLooking] = useState(false)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
   // When an order code is entered, pull the buyer's name + phone off the order so
-  // "Raised by" is auto-filled and we have a number to call back on. We don't
-  // overwrite a name the moderator typed themselves.
+  // "Raised by" and the callback number auto-fill. We never overwrite a name or
+  // number the moderator typed themselves.
   const lookupOrder = async (code: string) => {
     const c = code.trim()
-    setLookupPhone(null)
     if (!c) return
     setLooking(true)
     const r = await fetch(`/api/moderator/orders/lookup?code=${encodeURIComponent(c)}`, { credentials: 'same-origin' }).catch(() => null)
     setLooking(false)
     if (!r || !r.ok) return
     const j = await r.json().catch(() => ({}))
-    setLookupPhone(j?.buyer_phone ?? null)
+    if (!phoneEdited && j?.buyer_phone) setPhone(String(j.buyer_phone).replace(/\D/g, '').slice(-10))
     if (!raisedByEdited && j?.buyer_name) setRaisedBy(j.buyer_name)
+  }
+
+  // When a callback number is entered, resolve it to the name on file (farmer or
+  // consumer) so "Raised by" auto-fills. Skipped once the moderator types a name.
+  const lookupName = async (raw: string) => {
+    const digits = raw.replace(/\D/g, '').slice(-10)
+    if (digits.length !== 10 || raisedByEdited) return
+    setLooking(true)
+    const r = await fetch(`/api/moderator/orders/lookup?phone=${digits}`, { credentials: 'same-origin' }).catch(() => null)
+    setLooking(false)
+    if (!r || !r.ok) return
+    const j = await r.json().catch(() => ({}))
+    if (!raisedByEdited && j?.name) setRaisedBy(j.name)
   }
 
   const submit = async () => {
     if (!description.trim()) { setErr('Describe the complaint.'); return }
+    if (phone.replace(/\D/g, '').length !== 10) { setErr('Enter the 10-digit callback number of who raised it.'); return }
     setSaving(true); setErr('')
     const r = await fetch('/api/moderator/escalations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({ type, description: description.trim(), raised_by: raisedBy.trim(), order_code: orderCode.trim() }),
+      body: JSON.stringify({ type, description: description.trim(), raised_by: raisedBy.trim(), raised_by_phone: phone.trim(), order_code: orderCode.trim() }),
     }).catch(() => null)
     setSaving(false)
     if (!r || !r.ok) { const j = r ? await r.json().catch(() => ({})) : {}; setErr(j?.error ?? 'Could not save.'); return }
@@ -296,7 +311,7 @@ function NewComplaintModal({ onClose, onCreated }: { onClose: () => void; onCrea
         placeholder="e.g. Paid ₹360 for tomatoes at 10 AM, nothing arrived by 6 PM"
         className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm mb-3 focus:outline-none focus:border-green-500"
       />
-      <div className="grid grid-cols-2 gap-2 mb-1">
+      <div className="grid grid-cols-2 gap-2 mb-3">
         <div>
           <label className="block text-xs font-semibold text-gray-500 mb-1">Order code <span className="text-gray-300">(optional)</span></label>
           <input
@@ -317,8 +332,21 @@ function NewComplaintModal({ onClose, onCreated }: { onClose: () => void; onCrea
           />
         </div>
       </div>
+
+      <label className="block text-xs font-semibold text-gray-500 mb-1">Callback number <span className="text-red-400">*</span></label>
+      <div className="flex items-stretch gap-2 mb-1">
+        <span className="flex items-center px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-600 font-medium">+91</span>
+        <input
+          value={phone}
+          inputMode="numeric"
+          onChange={(e) => { setPhone(e.target.value.replace(/\D/g, '').slice(0, 10)); setPhoneEdited(true) }}
+          onBlur={(e) => void lookupName(e.target.value)}
+          placeholder="9876543210"
+          className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm"
+        />
+      </div>
       <p className="text-[11px] text-gray-400 mb-3 h-4">
-        {looking ? 'Looking up order…' : lookupPhone ? `📞 +91 ${lookupPhone} — auto-filled from the order` : 'Enter an order code to auto-fill the buyer’s name and phone.'}
+        {looking ? 'Looking up…' : '“Raised by” auto-fills from the number or an order code.'}
       </p>
       <div className="flex gap-2 justify-end">
         <button onClick={onClose} className="text-sm text-gray-500 px-3 py-2">Cancel</button>

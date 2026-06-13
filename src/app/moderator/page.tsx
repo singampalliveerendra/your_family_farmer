@@ -99,10 +99,22 @@ export default function ModeratorDashboard() {
             View escalations
           </button>
           <button
+            onClick={() => router.push('/moderator/listings/new')}
+            className="bg-white border border-gray-200 text-gray-700 text-sm font-bold px-4 py-2.5 rounded-xl active:bg-gray-50"
+          >
+            + Add produce
+          </button>
+          <button
             onClick={() => router.push('/moderator/reports')}
             className="bg-white border border-gray-200 text-gray-700 text-sm font-bold px-4 py-2.5 rounded-xl active:bg-gray-50"
           >
             View reports
+          </button>
+          <button
+            onClick={() => router.push('/moderator/audit')}
+            className="bg-white border border-gray-200 text-gray-700 text-sm font-bold px-4 py-2.5 rounded-xl active:bg-gray-50"
+          >
+            Audit log
           </button>
         </div>
       </div>

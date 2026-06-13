@@ -18,14 +18,14 @@ type Complaint = {
 }
 
 const TYPE_OPTIONS = [
-  { value: 'payment_issue', label: 'Payment / settlement / చెల్లింపు సమస్య' },
+  { value: 'payment_issue', label: 'Payment / payout / చెల్లింపు సమస్య' },
   { value: 'delivery_delay', label: 'Pickup / delivery / పికప్ ఆలస్యం' },
-  { value: 'quality_complaint', label: 'Buyer dispute / కొనుగోలుదారు వివాదం' },
+  { value: 'quality_complaint', label: 'Customer / farmer dispute / వివాదం' },
   { value: 'other', label: 'Something else / ఇతర' },
 ]
 const TYPE_LABEL: Record<string, string> = {
   delivery_delay: 'Pickup / delivery',
-  quality_complaint: 'Buyer dispute',
+  quality_complaint: 'Dispute',
   payment_issue: 'Payment issue',
   other: 'Other',
 }
@@ -43,7 +43,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 type TabKey = 'active' | 'resolved'
 
-export default function FarmerComplaintsPage() {
+export default function RiderComplaintsPage() {
   const router = useRouter()
   const [complaints, setComplaints] = useState<Complaint[]>([])
   const [loading, setLoading] = useState(true)
@@ -53,21 +53,16 @@ export default function FarmerComplaintsPage() {
 
   const refresh = useCallback(async () => {
     setLoading(true); setError('')
-    const r = await fetch('/api/farmer/complaints', { credentials: 'same-origin' }).catch(() => null)
+    const r = await fetch('/api/rider/complaints', { credentials: 'same-origin' }).catch(() => null)
     if (!r) { setError('Could not load. Check your connection.'); setLoading(false); return }
-    if (r.status === 401) { router.replace('/farmer/login'); return }
+    if (r.status === 401) { router.replace('/rider/login'); return }
     const json = await r.json().catch(() => ({}))
     if (!r.ok) { setError(json?.error ?? 'Could not load complaints.'); setLoading(false); return }
     setComplaints((json.complaints ?? []) as Complaint[])
     setLoading(false)
   }, [router])
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && !localStorage.getItem('yff_farmer_id')) {
-      router.replace('/farmer/login'); return
-    }
-    void refresh()
-  }, [refresh, router])
+  useEffect(() => { void refresh() }, [refresh])
 
   const active = complaints.filter((c) => c.status !== 'resolved')
   const resolved = complaints.filter((c) => c.status === 'resolved')
@@ -76,7 +71,7 @@ export default function FarmerComplaintsPage() {
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
       <div className="bg-green-900 px-4 pt-6 pb-10">
-        <Link href="/farmer/dashboard" className="text-green-300 text-sm flex items-center gap-1 mb-4">← Dashboard / డాష్‌బోర్డ్</Link>
+        <Link href="/rider/dashboard" className="text-green-300 text-sm flex items-center gap-1 mb-4">← Dashboard / డాష్‌బోర్డ్</Link>
         <h1 className="text-white text-xl font-extrabold leading-tight">My complaints / నా ఫిర్యాదులు</h1>
         <p className="text-green-400 text-sm mt-1">Raise an issue with the GoGrameen team / సమస్యను నమోదు చేయండి</p>
       </div>
@@ -159,7 +154,7 @@ function NewComplaint({ onClose, onCreated }: { onClose: () => void; onCreated: 
   const submit = async () => {
     if (!description.trim()) { setErr('Please describe the problem / సమస్యను వివరించండి'); return }
     setSaving(true); setErr('')
-    const r = await fetch('/api/farmer/complaints', {
+    const r = await fetch('/api/rider/complaints', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
@@ -187,7 +182,7 @@ function NewComplaint({ onClose, onCreated }: { onClose: () => void; onCreated: 
         <label className="block text-xs font-bold text-gray-500 mb-1">What happened? / ఏం జరిగింది?</label>
         <textarea
           value={description} onChange={(e) => setDescription(e.target.value)} rows={4} autoFocus
-          placeholder="e.g. Payment for order not settled / ఉదా: ఆర్డర్‌కు చెల్లింపు అందలేదు"
+          placeholder="e.g. Payout for delivery not received / ఉదా: డెలివరీకి చెల్లింపు అందలేదు"
           className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm mb-3 focus:outline-none focus:border-green-500"
         />
 

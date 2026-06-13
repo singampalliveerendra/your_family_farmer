@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import ForgotPasswordModal from '@/components/ForgotPasswordModal'
 
 export default function RiderLoginPage() {
   const router = useRouter()
@@ -10,6 +11,7 @@ export default function RiderLoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [showForgot, setShowForgot] = useState(false)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -87,6 +89,14 @@ export default function RiderLoginPage() {
           {submitting ? 'Logging in...' : 'Log in / లాగిన్'}
         </button>
 
+        <button
+          type="button"
+          onClick={() => setShowForgot(true)}
+          className="w-full text-center text-sm text-green-700 font-semibold underline"
+        >
+          Forgot Password? / పాస్‌వర్డ్ మర్చిపోయారా?
+        </button>
+
         <div className="text-xs text-gray-600 text-center pt-2">
           <p>
             New here?{' '}
@@ -96,6 +106,15 @@ export default function RiderLoginPage() {
           </p>
         </div>
       </form>
+
+      {showForgot && (
+        <ForgotPasswordModal
+          userType="rider"
+          initialPhone={phone}
+          onClose={() => setShowForgot(false)}
+          onResetComplete={() => setShowForgot(false)}
+        />
+      )}
     </main>
   )
 }

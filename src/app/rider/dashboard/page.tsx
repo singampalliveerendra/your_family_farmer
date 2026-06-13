@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 type Rider = { id: string; name: string | null; phone: string; status: string; vehicle_type: string | null; vehicle_number: string | null }
 
@@ -200,12 +201,17 @@ export default function RiderDashboardPage() {
               {rider.vehicle_type ? `${rider.vehicle_type} · ` : ''}{rider.vehicle_number ?? ''}
             </p>
           </div>
-          <button
-            onClick={handleLogout}
-            className="text-green-200 text-xs underline whitespace-nowrap"
-          >
-            Log out / లాగౌట్
-          </button>
+          <div className="flex flex-col items-end gap-2 flex-shrink-0">
+            <Link href="/rider/complaints" className="text-white text-xs underline whitespace-nowrap">
+              Complaints / ఫిర్యాదులు
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="text-green-200 text-xs underline whitespace-nowrap"
+            >
+              Log out / లాగౌట్
+            </button>
+          </div>
         </div>
       </div>
 

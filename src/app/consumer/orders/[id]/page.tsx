@@ -47,6 +47,7 @@ type Order = {
   picked_up_at?: string | null
   out_for_delivery_at?: string | null
   delivered_at?: string | null
+  collected_at?: string | null
   rider?: { id: string; name: string | null; phone: string } | null
 }
 
@@ -543,21 +544,44 @@ function DeliveryPanel({ order }: { order: Order }) {
 // richer DeliveryPanel; this covers the simpler pickup lifecycle.
 function OrderStatusPanel({ order }: { order: Order }) {
   const approved = order.status === 'approved'
-  const current = approved ? 2 : 0 // placed → (confirmed, ready) unlock together on approval
+  const collected = !!order.collected_at
+  // placed → (confirmed, ready) unlock together on approval → picked up.
+  const current = collected ? 3 : approved ? 2 : 0
 
   const placedAt = order.created_at
     ? new Date(order.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : ''
+  const collectedAt = order.collected_at
+    ? new Date(order.collected_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
     : ''
 
   const steps = [
     { label: 'Order placed / ఆర్డర్ పెట్టారు', sub: 'We received your order / మీ ఆర్డర్ అందింది', at: placedAt },
     { label: 'Confirmed by farmer / రైతు ధృవీకరించారు', sub: 'Farmer accepted your order / రైతు అంగీకరించారు', at: '' },
     { label: 'Ready for pickup / తీసుకెళ్లడానికి సిద్ధం', sub: order.pickup_location ? `Collect at ${order.pickup_location}` : 'Collect from the farmer / రైతు నుండి తీసుకోండి', at: '' },
+    { label: 'Picked up / తీసుకున్నారు', sub: 'Collection confirmed / తీసుకున్నట్టు ధృవీకరించారు', at: collectedAt },
   ]
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
       <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Order status / ఆర్డర్ స్థితి</p>
+
+      {/* Handover code — shown once the order is ready and before it's
+          collected. The customer reads it to the farmer at pickup. */}
+      {approved && !collected && order.handover_otp && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl px-4 py-3 text-center">
+          <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wide">
+            Show this code to the farmer when you collect
+          </p>
+          <p className="text-[10px] text-amber-700 mt-0.5">
+            తీసుకునేటప్పుడు ఈ కోడ్ రైతుకు చెప్పండి
+          </p>
+          <p className="text-4xl font-black tracking-widest text-amber-900 mt-2 font-mono">
+            {order.handover_otp}
+          </p>
+        </div>
+      )}
+
       <ol className="space-y-2">
         {steps.map((s, idx) => {
           const reached = idx <= current
