@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "ea23be726d2b",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "scripts/client-fixes-migration.sql",
+    "src/app/api/consumer/orders/[id]/route.ts",
+    "src/app/api/farmer/update-listing/route.ts",
+    "src/app/api/orders/place/route.ts",
+    "src/app/api/orders/razorpay/verify/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/consumer/orders/page.tsx",
+    "src/app/farmer/dashboard/orders/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/app/moderator/farmers/new/page.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/components/farmer/tabs/ProduceTab.tsx",
+    "src/components/region/tabs/BrowseProduceTab.tsx",
+    "src/lib/razorpay.ts",
+    "src/lib/translations.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ea/23be726d2b/0/metadata.json",
+      "transcript": "/ea/23be726d2b/0/full.jsonl",
+      "content_hash": "/ea/23be726d2b/0/content_hash.txt",
+      "prompt": "/ea/23be726d2b/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 11373,
+    "cache_creation_tokens": 258179,
+    "cache_read_tokens": 22596060,
+    "output_tokens": 90956,
+    "api_call_count": 198
+  }
+}
