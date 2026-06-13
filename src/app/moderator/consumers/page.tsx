@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import ModeratorShell, { useModeratorAuth } from '../ModeratorShell'
 
-type Buyer = { name: string; phone: string | null; order_count: number; total_spend: number; last_order_at: string | null; account_id: string | null; suspended: boolean }
+type Buyer = { name: string; phone: string | null; order_count: number; total_spend: number; last_order_at: string | null; account_id: string | null; suspended: boolean; suspended_reason?: string | null }
 type Intent = {
   id: string
   crop_name: string | null
@@ -44,21 +44,29 @@ export default function ModeratorConsumersPage() {
   const toggleSuspend = async (b: Buyer) => {
     if (busyId || !b.account_id) return
     const next = !b.suspended
-    if (next && !window.confirm(`Suspend ${b.name}? They won't be able to log in or place orders until reactivated.`)) return
+    // Suspending requires a mandatory reason; the buyer sees it when they try
+    // to log in, and it shows here in red for other moderators.
+    let reason = ''
+    if (next) {
+      const entered = window.prompt(`Reason for suspending ${b.name}?\nసస్పెండ్ చేయడానికి కారణం? (e.g. Multiple fake orders)`)
+      if (entered === null) return // cancelled
+      reason = entered.trim()
+      if (!reason) { setError('A reason is required to suspend an account.'); return }
+    }
     setBusyId(b.account_id)
     setError('')
     const r = await fetch(`/api/moderator/consumers/${b.account_id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({ suspended: next }),
+      body: JSON.stringify({ suspended: next, reason }),
     }).catch(() => null)
     setBusyId(null)
     if (!r || !r.ok) {
       const j = r ? await r.json().catch(() => ({})) : {}
       setError(j?.error ?? 'Update failed.'); return
     }
-    setBuyers((list) => list.map((x) => (x.account_id === b.account_id ? { ...x, suspended: next } : x)))
+    setBuyers((list) => list.map((x) => (x.account_id === b.account_id ? { ...x, suspended: next, suspended_reason: next ? reason : null } : x)))
   }
 
   const markFulfilled = async (it: Intent) => {
@@ -167,6 +175,11 @@ export default function ModeratorConsumersPage() {
                           )}
                         </p>
                         {b.phone && <a href={`tel:+91${b.phone}`} className="text-[11px] text-green-700">+91 {b.phone}</a>}
+                        {b.suspended && b.suspended_reason && (
+                          <p className="mt-1 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-2 py-1 leading-snug">
+                            🚫 Account suspended: {b.suspended_reason}
+                          </p>
+                        )}
                       </div>
                       <span className="w-14 text-right text-sm text-gray-600">{b.order_count}</span>
                       <span className="w-20 text-right text-sm font-semibold text-gray-900">₹{b.total_spend}</span>

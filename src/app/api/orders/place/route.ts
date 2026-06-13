@@ -53,7 +53,6 @@ export async function POST(req: NextRequest) {
         farmerId?: string
         paymentMethod?: string
         pickupLocation?: string | null
-        pickupDay?: string | null
         items?: IncomingItem[]
         deliveryType?: string
         deliveryAddress?: string | null
@@ -66,7 +65,6 @@ export async function POST(req: NextRequest) {
     | null
 
   if (!body) return bad('Invalid request body.')
-  // pickupDay is currently UI-only (not a DB column); accept and ignore.
   const { farmerId, paymentMethod, pickupLocation, items } = body
   // Optional idempotency key (a client-generated UUID per checkout attempt).
   const idempotencyKey = typeof body.idempotencyKey === 'string' && UUID_RE.test(body.idempotencyKey)

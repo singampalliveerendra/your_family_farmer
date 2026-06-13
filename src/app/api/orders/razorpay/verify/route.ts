@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
 import { verifyGuestOrderToken } from '@/lib/guest-order-token'
-import { verifyPaymentSignature } from '@/lib/razorpay'
+import { verifyPaymentSignature, fetchPaymentMethodLabel } from '@/lib/razorpay'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -66,9 +66,18 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Resolve the friendly payment method (PhonePe / Google Pay / UPI / Card…)
+  // from the Razorpay payment so we can show it instead of "Razorpay". A
+  // failure here just leaves the label null — it never blocks marking paid.
+  const methodLabel = await fetchPaymentMethodLabel(razorpayPaymentId)
+
   const { error } = await supabase
     .from('orders')
-    .update({ payment_status: 'paid', razorpay_payment_id: razorpayPaymentId })
+    .update({
+      payment_status: 'paid',
+      razorpay_payment_id: razorpayPaymentId,
+      ...(methodLabel ? { payment_method_detail: methodLabel } : {}),
+    })
     .eq('razorpay_order_id', razorpayOrderId)
 
   if (error) {

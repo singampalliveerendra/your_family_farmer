@@ -26,6 +26,7 @@ type Order = {
   refunded_at: string | null
   delivery_type: 'self_pickup' | 'home_delivery' | null
   collected_at: string | null
+  fulfillment_date: string | null
   created_at: string
 }
 
@@ -47,7 +48,7 @@ export default function OrderHistoryPage() {
     // code must come from the customer, so the farmer's browser never sees it.
     const { data } = await supabase
       .from('orders')
-      .select('id, farmer_id, order_code, produce_listing_id, produce_name, quantity, unit, total_price, buyer_name, buyer_phone, pickup_location, status, payment_status, decline_reason, refund_status, refund_amount, refunded_at, delivery_type, collected_at, created_at')
+      .select('id, farmer_id, order_code, produce_listing_id, produce_name, quantity, unit, total_price, buyer_name, buyer_phone, pickup_location, status, payment_status, decline_reason, refund_status, refund_amount, refunded_at, delivery_type, collected_at, fulfillment_date, created_at')
       .eq('farmer_id', farmerId)
       .in('status', ['approved', 'declined'])
       .order('created_at', { ascending: false })
@@ -57,6 +58,13 @@ export default function OrderHistoryPage() {
   }, [router])
 
   useEffect(() => { load() }, [load])
+
+  // Farmer sets/updates the pickup-or-delivery date on an approved order.
+  const setFulfillmentDate = async (orderId: string, date: string) => {
+    const value = date || null
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, fulfillment_date: value } : o)))
+    await supabase.from('orders').update({ fulfillment_date: value }).eq('id', orderId)
+  }
 
   const filterStart = () => {
     if (filter === 'today') {
@@ -129,7 +137,11 @@ export default function OrderHistoryPage() {
         ) : (
           <div className="space-y-3">
             {filtered.map((order) => (
-              <HistoryCard key={order.id} order={order} />
+              <HistoryCard
+                key={order.id}
+                order={order}
+                onSetDate={(d) => setFulfillmentDate(order.id, d)}
+              />
             ))}
           </div>
         )}
@@ -138,8 +150,10 @@ export default function OrderHistoryPage() {
   )
 }
 
-function HistoryCard({ order }: { order: Order }) {
+function HistoryCard({ order, onSetDate }: { order: Order; onSetDate: (date: string) => void }) {
+  const { tx } = useLang()
   const isApproved = order.status === 'approved'
+  const isDelivery = order.delivery_type === 'home_delivery'
 
   const timeStr = new Date(order.created_at).toLocaleDateString('en-IN', {
     day: 'numeric',
@@ -160,7 +174,7 @@ function HistoryCard({ order }: { order: Order }) {
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                 isApproved ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'
               }`}>
-                {isApproved ? '✓ Approved' : '✕ Declined'}
+                {isApproved ? tx.statusApproved : tx.statusDeclined}
               </span>
             </div>
             {order.buyer_phone && (
@@ -195,6 +209,21 @@ function HistoryCard({ order }: { order: Order }) {
 
         {order.pickup_location && (
           <p className="text-xs text-gray-500">📍 {order.pickup_location}</p>
+        )}
+
+        {/* Approved orders: farmer sets/edits the pickup-or-delivery date. */}
+        {isApproved && (
+          <div className="pt-1">
+            <label className="text-[11px] font-bold text-gray-600 block mb-1">
+              📅 {isDelivery ? tx.deliveryDateLabel : tx.pickupDateLabel}
+            </label>
+            <input
+              type="date"
+              value={order.fulfillment_date ?? ''}
+              onChange={(e) => onSetDate(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:border-green-500 focus:outline-none"
+            />
+          </div>
         )}
 
         {/* Declined orders: show the reason and the refund status to the farmer */}

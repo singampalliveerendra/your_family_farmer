@@ -42,10 +42,11 @@ export async function POST(request: NextRequest) {
     if (!FORBIDDEN_KEYS.has(k)) cleanPayload[k] = v
   }
 
-  // Verify the listing belongs to the logged-in farmer.
+  // Verify the listing belongs to the logged-in farmer. We also pull the
+  // current status + stock so we can keep the sold-out flag in sync below.
   const { data: existing } = await supabaseAdmin
     .from('produce_listings')
-    .select('id')
+    .select('id, status, stock_qty')
     .eq('id', listingId)
     .eq('farmer_id', session.farmerId)
     .maybeSingle()
@@ -54,15 +55,41 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Listing not found or access denied' }, { status: 403 })
   }
 
+  // Stock ↔ status sync. Whenever a farmer edits the quantity we refresh the
+  // sold-out flag: raising stock above 0 clears a stuck "sold_out" so the
+  // listing goes live again, and dropping stock to 0 marks it sold out. We only
+  // ever flip between these two states, so moderator states (suspended,
+  // rejected, pending_review) and "coming_soon" are never clobbered. If the
+  // client explicitly sent a status we respect it and skip the auto-sync.
+  if (!('status' in cleanPayload)) {
+    const nextStock =
+      'stock_qty' in cleanPayload
+        ? (cleanPayload.stock_qty as number | null)
+        : (existing.stock_qty as number | null)
+    if (typeof nextStock === 'number') {
+      if (nextStock > 0 && existing.status === 'sold_out') {
+        cleanPayload.status = 'available'
+      } else if (nextStock <= 0 && existing.status === 'available') {
+        cleanPayload.status = 'sold_out'
+      }
+    }
+  }
+
   const { data: updated, error } = await supabaseAdmin
     .from('produce_listings')
     .update(cleanPayload)
     .eq('id', listingId)
     .eq('farmer_id', session.farmerId)
-    .select('id')
+    .select('id, status, stock_qty')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!updated?.length) return NextResponse.json({ error: 'Update failed' }, { status: 500 })
 
-  return NextResponse.json({ ok: true })
+  // Return the resolved status/stock so the dashboard card can update instantly
+  // (the form merges this into local state before the background refetch lands).
+  return NextResponse.json({
+    ok: true,
+    status: updated[0].status,
+    stock_qty: updated[0].stock_qty,
+  })
 }

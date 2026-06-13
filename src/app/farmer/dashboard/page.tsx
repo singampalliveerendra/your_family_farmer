@@ -66,6 +66,9 @@ type ListingRow = {
   unit: string | null
   harvest_date: string | null
   availability_period: string | null
+  delivery_mode: string | null
+  delivery_charge: number | null
+  delivery_radius_km: number | null
   created_at: string
 }
 
@@ -91,6 +94,7 @@ type Order = {
   delivery_type?: 'self_pickup' | 'home_delivery' | null
   delivery_status?: DeliveryStatus | null
   delivery_boy_id?: string | null
+  fulfillment_date?: string | null
 }
 
 const UNIT_OPTIONS = [
@@ -330,6 +334,17 @@ export default function FarmerDashboard() {
     setProcessingOrderId(null)
   }
 
+  // Farmer sets/clears the pickup-or-delivery date for an order. Saved
+  // immediately so the consumer sees the exact date the farmer chose. An empty
+  // string clears it back to null.
+  const handleSetFulfillmentDate = async (orderId: string, date: string) => {
+    const value = date || null
+    setPendingOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, fulfillment_date: value } : o)),
+    )
+    await supabase.from('orders').update({ fulfillment_date: value }).eq('id', orderId)
+  }
+
   const handleConfirmDecline = async (orderId: string, reason: string) => {
     const declined = decliningOrder
     setProcessingOrderId(orderId)
@@ -510,6 +525,9 @@ export default function FarmerDashboard() {
           weekly={weeklyEarnings}
         />
 
+        {/* Today's pickups & deliveries */}
+        {farmer && <TodayScheduleSection farmerId={farmer.id} />}
+
         {/* Orders section */}
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <div className="px-4 pt-4 pb-3 flex items-center justify-between border-b border-gray-100">
@@ -558,6 +576,7 @@ export default function FarmerDashboard() {
                   onDecline={() => setDecliningOrder(order)}
                   onMarkPaid={() => handleMarkPaid(order.id)}
                   onUpdatePaymentStatus={(s) => handleUpdatePaymentStatus(order.id, s)}
+                  onSetFulfillmentDate={(d) => handleSetFulfillmentDate(order.id, d)}
                 />
               ))
             )}
@@ -964,12 +983,6 @@ function ProfileEditModal({
   const [certPreview, setCertPreview] = useState('')
   const [existingCertUrl, setExistingCertUrl] = useState(farmer.pesticide_cert_url ?? '')
 
-  // Pickup schedule
-  const ALL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-  const [slotDays, setSlotDays] = useState<string[]>(farmer.pickup_slots?.days ?? [])
-  const [slotFrom, setSlotFrom] = useState(farmer.pickup_slots?.time_from ?? '08:00')
-  const [slotTo, setSlotTo]   = useState(farmer.pickup_slots?.time_to   ?? '12:00')
-
   // UPI ID + QR
   const [upiId, setUpiId] = useState(farmer.upi_id ?? '')
   const [qrFile, setQrFile] = useState<File | null>(null)
@@ -1055,12 +1068,6 @@ function ProfileEditModal({
     return { url: data.publicUrl, err: null }
   }
 
-  const toggleDay = (day: string) => {
-    setSlotDays((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
-    )
-  }
-
   const addPickup = () => {
     const v = newPickup.trim()
     if (!v) return
@@ -1119,9 +1126,6 @@ function ProfileEditModal({
       upi_id:           upiId.trim() || null,
       upi_qr_code_url:  (qrRes.url ?? existingQrUrl) || null,
       cod_enabled:      codEnabled,
-      pickup_slots: slotDays.length > 0
-        ? { days: slotDays, time_from: slotFrom, time_to: slotTo }
-        : null,
       lat: farmerLat,
       lng: farmerLng,
       location_name: farmerLat ? (farmerLocationName || name.trim()) : null,
@@ -1424,60 +1428,6 @@ function ProfileEditModal({
             )}
           </div>
 
-          {/* Pickup schedule */}
-          <div>
-            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
-              {tx.pickupScheduleLabel}
-            </label>
-            <p className="text-[11px] text-gray-500 mb-2 leading-snug">{tx.pickupScheduleHelp}</p>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {ALL_DAYS.map((day) => (
-                <button
-                  key={day}
-                  type="button"
-                  onClick={() => toggleDay(day)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                    slotDays.includes(day)
-                      ? 'bg-green-700 text-white border-green-700'
-                      : 'bg-white text-gray-600 border-gray-200'
-                  }`}
-                >
-                  {day.slice(0, 3)}
-                </button>
-              ))}
-            </div>
-            {slotDays.length > 0 && (
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <p className="text-[11px] text-gray-500 mb-1">{tx.pickupFrom}</p>
-                  <input
-                    type="time"
-                    value={slotFrom}
-                    onChange={(e) => setSlotFrom(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <p className="text-[11px] text-gray-500 mb-1">{tx.pickupTo}</p>
-                  <input
-                    type="time"
-                    value={slotTo}
-                    onChange={(e) => setSlotTo(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-            )}
-            {slotDays.length > 0 && (
-              <p className="text-xs text-green-700 font-semibold mt-2">
-                {tx.pickupSchedulePreview
-                  .replace('{days}', slotDays.map((d) => d.slice(0, 3)).join(', '))
-                  .replace('{from}', slotFrom)
-                  .replace('{to}', slotTo)}
-              </p>
-            )}
-          </div>
-
           {/* ── Section 3: Payment Details ── */}
           <div className="pt-3 border-t-2 border-green-100">
             <h4 className="text-sm font-extrabold text-green-800">Payment Details / చెల్లింపు వివరాలు</h4>
@@ -1761,6 +1711,13 @@ function ProduceListingForm({
   const [brix, setBrix] = useState(editData?.brix != null ? String(editData.brix) : '')
   const [soc, setSoc] = useState(editData?.soil_organic_carbon != null ? String(editData.soil_organic_carbon) : '')
   const [unit, setUnit] = useState(editData?.unit ?? 'kg')
+  // #11 — delivery method for this listing: pickup only, farmer courier, or both.
+  // Courier collects a flat charge within a radius (km) the farmer sets.
+  const [deliveryMode, setDeliveryMode] = useState<'pickup' | 'courier' | 'both'>(
+    (editData?.delivery_mode as 'pickup' | 'courier' | 'both') ?? 'pickup',
+  )
+  const [deliveryCharge, setDeliveryCharge] = useState(editData?.delivery_charge != null ? String(editData.delivery_charge) : '')
+  const [deliveryRadius, setDeliveryRadius] = useState(editData?.delivery_radius_km != null ? String(editData.delivery_radius_km) : '')
   // harvest_date is a Postgres `date`, but guard against a full timestamp
   // ever coming back so the <input type="date"> always gets YYYY-MM-DD.
   const [harvestDate, setHarvestDate] = useState(editData?.harvest_date ? editData.harvest_date.slice(0, 10) : '')
@@ -1879,6 +1836,9 @@ function ProduceListingForm({
         image_url: imageUrl,
         harvest_date: harvestDate || null,
         availability_period: period.trim() || null,
+        delivery_mode: deliveryMode,
+        delivery_charge: deliveryMode === 'pickup' ? null : (deliveryCharge ? Number(deliveryCharge) : null),
+        delivery_radius_km: deliveryMode === 'pickup' ? null : (deliveryRadius ? Number(deliveryRadius) : null),
       }
 
       let res: Response
@@ -1897,8 +1857,15 @@ function ProduceListingForm({
       const json = await res.json().catch(() => ({}))
       setLoading(false)
       if (!res.ok) { setError(json.error ?? 'Could not save changes'); return }
+      // The server may have refreshed the sold-out flag based on the new
+      // quantity (e.g. raising stock above 0 clears a stuck "Sold out").
+      // Merge its resolved status so the card updates immediately.
+      const resolved: Partial<ListingRow> = {
+        ...editPayload,
+        ...(json.status ? { status: json.status } : {}),
+      }
       setSaved(true)
-      setTimeout(() => onPublished(editPayload as Partial<ListingRow>), 1200)
+      setTimeout(() => onPublished(resolved), 1200)
       return
     }
 
@@ -1921,6 +1888,11 @@ function ProduceListingForm({
     payload.image_url = imageUrl
     payload.harvest_date = harvestDate || null
     payload.availability_period = period.trim() || null
+    payload.delivery_mode = deliveryMode
+    if (deliveryMode !== 'pickup') {
+      if (deliveryCharge) payload.delivery_charge = Number(deliveryCharge)
+      if (deliveryRadius) payload.delivery_radius_km = Number(deliveryRadius)
+    }
 
     const insertPayload = { ...payload, farmer_id: farmerId, status: 'available' }
     const { error: err } = await supabase.from('produce_listings').insert(insertPayload)
@@ -2080,26 +2052,66 @@ function ProduceListingForm({
           </select>
         </div>
 
-        {/* Delivery method */}
+        {/* Delivery method — pickup only, farmer courier, or both (#11) */}
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
             {tx.deliveryMethod}
           </label>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex items-center gap-2 border-2 border-green-600 bg-green-50 rounded-xl px-3 py-3">
-              <div className="w-4 h-4 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0">
-                <div className="w-1.5 h-1.5 bg-white rounded-full" />
-              </div>
-              <span className="text-sm font-semibold text-green-800">{tx.pickupOnly}</span>
-            </div>
-            <div className="flex items-center gap-2 border border-gray-200 bg-gray-50 rounded-xl px-3 py-3 opacity-50 cursor-not-allowed">
-              <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
-              <div>
-                <span className="text-sm font-medium text-gray-400">{tx.courierOption}</span>
-                <span className="block text-[10px] text-gray-400">{tx.courierComingSoon}</span>
-              </div>
-            </div>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { key: 'pickup', label: 'Pickup only', te: 'పికప్ మాత్రమే', icon: '🧺' },
+              { key: 'courier', label: 'I will courier', te: 'నేను డెలివరీ చేస్తా', icon: '🛵' },
+              { key: 'both', label: 'Both', te: 'రెండూ', icon: '🔁' },
+            ] as const).map((opt) => {
+              const active = deliveryMode === opt.key
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setDeliveryMode(opt.key)}
+                  className={`rounded-xl px-2 py-3 text-center border-2 transition-colors ${
+                    active ? 'border-green-600 bg-green-50' : 'border-gray-200 bg-white'
+                  }`}
+                >
+                  <span className="block text-lg leading-none">{opt.icon}</span>
+                  <span className={`block text-[11px] font-bold mt-1 leading-tight ${active ? 'text-green-800' : 'text-gray-600'}`}>
+                    {opt.label}
+                  </span>
+                  <span className={`block text-[10px] leading-tight ${active ? 'text-green-700' : 'text-gray-400'}`}>
+                    {opt.te}
+                  </span>
+                </button>
+              )
+            })}
           </div>
+
+          {/* Courier details — only when the farmer offers delivery. */}
+          {deliveryMode !== 'pickup' && (
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  placeholder="Delivery charge / డెలివరీ ఛార్జ్"
+                  value={deliveryCharge}
+                  onChange={(e) => setDeliveryCharge(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+                />
+              </div>
+              <div className="relative">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  placeholder="Radius / పరిధి"
+                  value={deliveryRadius}
+                  onChange={(e) => setDeliveryRadius(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl pl-3 pr-9 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">km</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Pricing tiers */}
@@ -2396,7 +2408,7 @@ function ManageListingsModal({
     setLoading(true)
     const { data, error: err } = await supabase
       .from('produce_listings')
-      .select('id, name, variety, emoji, status, method, stock_qty, price_tier_1_price, price_tier_1_qty, price_tier_2_price, price_tier_2_qty, price_tier_3_price, description, image_url, brix, soil_organic_carbon, unit, harvest_date, availability_period, created_at')
+      .select('id, name, variety, emoji, status, method, stock_qty, price_tier_1_price, price_tier_1_qty, price_tier_2_price, price_tier_2_qty, price_tier_3_price, description, image_url, brix, soil_organic_carbon, unit, harvest_date, availability_period, delivery_mode, delivery_charge, delivery_radius_km, created_at')
       .eq('farmer_id', farmerId)
       .order('created_at', { ascending: false })
     setLoading(false)
@@ -2405,6 +2417,20 @@ function ManageListingsModal({
   }, [farmerId])
 
   useEffect(() => { load() }, [load])
+
+  // Pause hides a listing from consumers without deleting it; Resume brings it
+  // back. Unlike Delete this is fully reversible. We flip the status between
+  // 'paused' and 'available' — consumer queries only ever show 'available'.
+  const handleTogglePause = async (row: ListingRow) => {
+    const next = row.status === 'paused' ? 'available' : 'paused'
+    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: next } : r)))
+    setError('')
+    const { error: err } = await supabase
+      .from('produce_listings')
+      .update({ status: next })
+      .eq('id', row.id)
+    if (err) { setError(err.message); load() } else { onChanged() }
+  }
 
   const handleDelete = async (row: ListingRow) => {
     if (!confirm(tx.confirmDelete.replace('{name}', row.name))) return
@@ -2479,6 +2505,7 @@ function ManageListingsModal({
               deleting={deletingId === row.id}
               onDelete={() => handleDelete(row)}
               onEdit={() => setEditingRow(row)}
+              onTogglePause={() => handleTogglePause(row)}
             />
           ))}
         </div>
@@ -2540,24 +2567,135 @@ function ManageListingsModal({
   )
 }
 
+/* ─── Today's Schedule (pickups + deliveries on a chosen date) ──── */
+type ScheduleOrder = {
+  id: string
+  buyer_name: string | null
+  buyer_phone: string | null
+  produce_name: string | null
+  quantity: number | null
+  unit: string | null
+  pickup_location: string | null
+  delivery_type: 'self_pickup' | 'home_delivery' | null
+  created_at: string
+}
+
+function TodayScheduleSection({ farmerId }: { farmerId: string }) {
+  const { tx } = useLang()
+  const todayStr = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD, local
+  const [date, setDate] = useState(todayStr)
+  const [orders, setOrders] = useState<ScheduleOrder[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    supabase
+      .from('orders')
+      .select('id, buyer_name, buyer_phone, produce_name, quantity, unit, pickup_location, delivery_type, created_at')
+      .eq('farmer_id', farmerId)
+      .eq('status', 'approved')
+      .eq('fulfillment_date', date)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => {
+        if (cancelled) return
+        setOrders((data ?? []) as ScheduleOrder[])
+        setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [farmerId, date])
+
+  const pickups = orders.filter((o) => o.delivery_type !== 'home_delivery')
+  const deliveries = orders.filter((o) => o.delivery_type === 'home_delivery')
+
+  const Row = ({ o }: { o: ScheduleOrder }) => (
+    <div className="border border-gray-100 rounded-xl px-3 py-2.5 bg-gray-50">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-gray-900 truncate">{o.produce_name} · {o.quantity} {o.unit || 'kg'}</p>
+          <p className="text-xs text-gray-600 truncate">🧑 {o.buyer_name || 'Buyer / కొనుగోలుదారు'}</p>
+          {o.pickup_location && <p className="text-[11px] text-gray-500 truncate">📍 {o.pickup_location}</p>}
+        </div>
+        {o.buyer_phone && (
+          <a href={`tel:+91${o.buyer_phone}`} className="text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5 whitespace-nowrap">
+            📞 {o.buyer_phone}
+          </a>
+        )}
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="px-4 pt-4 pb-3 flex items-center justify-between border-b border-gray-100 gap-2">
+        <h2 className="font-extrabold text-gray-900 text-base leading-tight">
+          📅 {"Today's Schedule / నేటి షెడ్యూల్"}
+        </h2>
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value || todayStr)}
+          className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:border-green-500 focus:outline-none"
+        />
+      </div>
+
+      <div className="p-4 space-y-4">
+        {loading ? (
+          <p className="text-sm text-gray-400 text-center py-4">{tx.loadingLabel}</p>
+        ) : orders.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-4">{"Nothing scheduled for this date / ఈ తేదీకి ఏమీ లేదు"}</p>
+        ) : (
+          <>
+            <div>
+              <p className="text-xs font-bold text-green-800 uppercase tracking-wide mb-2">
+                🧺 {"Pickups / పికప్‌లు"} ({pickups.length})
+              </p>
+              {pickups.length === 0 ? (
+                <p className="text-xs text-gray-400">{"No pickups / పికప్‌లు లేవు"}</p>
+              ) : (
+                <div className="space-y-2">{pickups.map((o) => <Row key={o.id} o={o} />)}</div>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-2">
+                🛵 {"Deliveries / డెలివరీలు"} ({deliveries.length})
+              </p>
+              {deliveries.length === 0 ? (
+                <p className="text-xs text-gray-400">{"No deliveries / డెలివరీలు లేవు"}</p>
+              ) : (
+                <div className="space-y-2">{deliveries.map((o) => <Row key={o.id} o={o} />)}</div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function ListingRowCard({
   row,
   deleting,
   onDelete,
   onEdit,
+  onTogglePause,
 }: {
   row: ListingRow
   deleting: boolean
   onDelete: () => void
   onEdit: () => void
+  onTogglePause: () => void
 }) {
   const { tx } = useLang()
   const emoji = row.emoji ?? '🌿'
+  const isPaused = row.status === 'paused'
   const statusLabel =
     row.status === 'available'
       ? tx.availableLabel
       : row.status === 'coming_soon'
       ? tx.comingSoon
+      : row.status === 'paused'
+      ? 'Paused by farmer / రైతు నిలిపివేశారు'
       : row.status === 'suspended'
       ? 'Suspended / నిలిపివేయబడింది'
       : row.status === 'sold_out'
@@ -2568,9 +2706,14 @@ function ListingRowCard({
       ? 'bg-green-100 text-green-800'
       : row.status === 'coming_soon'
       ? 'bg-amber-100 text-amber-800'
+      : row.status === 'paused'
+      ? 'bg-purple-100 text-purple-800'
       : row.status === 'suspended'
       ? 'bg-orange-100 text-orange-800'
       : 'bg-gray-100 text-gray-700'
+  // Farmer can pause/resume their own active or sold-out listings (not
+  // moderator-suspended or coming-soon ones).
+  const canPause = row.status === 'available' || row.status === 'sold_out' || row.status === 'paused'
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
@@ -2620,20 +2763,35 @@ function ListingRowCard({
         </div>
       </div>
 
-      <div className="px-3 pb-3 flex gap-2">
-        <button
-          onClick={onEdit}
-          className="flex-1 border border-blue-200 text-blue-700 font-bold py-2.5 rounded-xl text-sm active:bg-blue-50"
-        >
-          ✏️ {tx.editListing}
-        </button>
-        <button
-          onClick={onDelete}
-          disabled={deleting}
-          className="flex-1 border border-red-200 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
-        >
-          {deleting ? tx.deleting : `🗑 ${tx.deleteProduce}`}
-        </button>
+      <div className="px-3 pb-3 space-y-2">
+        {/* Pause / Resume — reversible hide-from-consumers, distinct from Delete. */}
+        {canPause && (
+          <button
+            onClick={onTogglePause}
+            className={`w-full font-bold py-2.5 rounded-xl text-sm border ${
+              isPaused
+                ? 'border-green-600 text-green-700 active:bg-green-50'
+                : 'border-purple-300 text-purple-700 active:bg-purple-50'
+            }`}
+          >
+            {isPaused ? '▶ Resume / తిరిగి చూపించు' : '⏸ Pause / అమ్మకం ఆపండి'}
+          </button>
+        )}
+        <div className="flex gap-2">
+          <button
+            onClick={onEdit}
+            className="flex-1 border border-blue-200 text-blue-700 font-bold py-2.5 rounded-xl text-sm active:bg-blue-50"
+          >
+            ✏️ {tx.editListing}
+          </button>
+          <button
+            onClick={onDelete}
+            disabled={deleting}
+            className="flex-1 border border-red-200 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
+          >
+            {deleting ? tx.deleting : `🗑 ${tx.deleteProduce}`}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -2648,6 +2806,7 @@ function OrderCard({
   onDecline,
   onMarkPaid,
   onUpdatePaymentStatus,
+  onSetFulfillmentDate,
 }: {
   order: Order
   processing: boolean
@@ -2656,8 +2815,10 @@ function OrderCard({
   onDecline: () => void
   onMarkPaid: () => void
   onUpdatePaymentStatus: (status: 'completed' | 'failed' | 'pending') => void
+  onSetFulfillmentDate: (date: string) => void
 }) {
   const { tx } = useLang()
+  const isDelivery = order.delivery_type === 'home_delivery'
 
   const timeAgo = (ts: string) => {
     const diff = Date.now() - new Date(ts).getTime()
@@ -2730,6 +2891,20 @@ function OrderCard({
         {order.delivery_type === 'home_delivery' && (
           <DeliveryTagForFarmer order={order} />
         )}
+
+        {/* Pickup / Delivery date — farmer picks the exact date; the consumer
+            sees it on their order page. Label depends on the delivery method. */}
+        <div className="pt-1">
+          <label className="text-[11px] font-bold text-gray-600 block mb-1">
+            📅 {isDelivery ? tx.deliveryDateLabel : tx.pickupDateLabel}
+          </label>
+          <input
+            type="date"
+            value={order.fulfillment_date ?? ''}
+            onChange={(e) => onSetFulfillmentDate(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none"
+          />
+        </div>
       </div>
 
       {isUpi && isPaymentClaimed && (

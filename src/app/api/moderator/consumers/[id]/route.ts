@@ -30,6 +30,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (typeof suspended !== 'boolean') {
     return NextResponse.json({ error: 'suspended must be true or false.' }, { status: 400 })
   }
+  // A reason is mandatory when suspending so the buyer (and other moderators)
+  // can see why. Cleared automatically on reactivation.
+  const reasonRaw = (body as { reason?: unknown })?.reason
+  const reason = typeof reasonRaw === 'string' ? reasonRaw.trim() : ''
+  if (suspended && !reason) {
+    return NextResponse.json({ error: 'A reason is required to suspend an account.' }, { status: 400 })
+  }
 
   const zone = getModeratorZone()
   const supabase = svc()
@@ -57,11 +64,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { error } = await supabase
     .from('consumers_auth')
-    .update({ suspended, suspended_at: suspended ? new Date().toISOString() : null })
+    .update({
+      suspended,
+      suspended_at: suspended ? new Date().toISOString() : null,
+      suspended_reason: suspended ? reason : null,
+    })
     .eq('id', id)
   if (error) {
     console.error('[YFF moderator/consumers PATCH] update failed:', error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  return NextResponse.json({ id, suspended })
+  return NextResponse.json({ id, suspended, suspended_reason: suspended ? reason : null })
 }

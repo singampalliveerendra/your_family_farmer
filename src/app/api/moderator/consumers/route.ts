@@ -68,22 +68,23 @@ export async function GET(req: NextRequest) {
 
   // Resolve which buyers have a login account (and whether it is suspended), so
   // the moderator can deactivate it. Match on account id first, then phone.
-  const acctById = new Map<string, { id: string; suspended: boolean }>()
-  const acctByPhone = new Map<string, { id: string; suspended: boolean }>()
+  const acctById = new Map<string, { id: string; suspended: boolean; reason: string | null }>()
+  const acctByPhone = new Map<string, { id: string; suspended: boolean; reason: string | null }>()
   const buyerList = Array.from(buyersByKey.values()).filter((b) => b.order_count > 0)
   const ids = buyerList.map((b) => b.consumer_id).filter(Boolean) as string[]
   const phones = buyerList.map((b) => b.phone).filter(Boolean) as string[]
   if (ids.length > 0 || phones.length > 0) {
     const { data: accounts } = await supabase
       .from('consumers_auth')
-      .select('id, phone, suspended')
+      .select('id, phone, suspended, suspended_reason')
       .or([
         ids.length ? `id.in.(${ids.join(',')})` : '',
         phones.length ? `phone.in.(${phones.map((p) => `"${p}"`).join(',')})` : '',
       ].filter(Boolean).join(','))
     for (const a of accounts ?? []) {
-      acctById.set(a.id, { id: a.id, suspended: a.suspended === true })
-      if (a.phone) acctByPhone.set(a.phone, { id: a.id, suspended: a.suspended === true })
+      const rec = { id: a.id, suspended: a.suspended === true, reason: (a.suspended_reason as string | null) ?? null }
+      acctById.set(a.id, rec)
+      if (a.phone) acctByPhone.set(a.phone, rec)
     }
   }
 
@@ -98,6 +99,7 @@ export async function GET(req: NextRequest) {
         last_order_at: b.last_order_at,
         account_id: acct?.id ?? null,
         suspended: acct?.suspended ?? false,
+        suspended_reason: acct?.reason ?? null,
       }
     })
     .sort((a, b) => b.total_spend - a.total_spend)

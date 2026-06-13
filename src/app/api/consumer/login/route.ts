@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
   const { data: user, error: lookupErr } = await supabase
     .from('consumers_auth')
-    .select('id, name, phone, password_hash, suspended')
+    .select('id, name, phone, password_hash, suspended, suspended_reason')
     .eq('phone', phone)
     .maybeSingle()
 
@@ -76,8 +76,13 @@ export async function POST(req: NextRequest) {
   // Suspended accounts can't sign in. Checked only after a correct password so
   // it doesn't leak which numbers are registered.
   if (user.suspended === true) {
+    const reason = (user.suspended_reason as string | null)?.trim()
     return NextResponse.json(
-      { error: 'This account has been suspended. Please contact support. / ఈ ఖాతా నిలిపివేయబడింది.' },
+      {
+        error: reason
+          ? `Account suspended: ${reason}. Please contact support. / ఖాతా నిలిపివేయబడింది: ${reason}.`
+          : 'This account has been suspended. Please contact support. / ఈ ఖాతా నిలిపివేయబడింది.',
+      },
       { status: 403 },
     )
   }

@@ -89,3 +89,70 @@ export async function fetchOrderPayments(orderId: string): Promise<Array<{ id: s
   const items = (res as { items?: Array<{ id: string; status: string }> }).items ?? []
   return items.map((p) => ({ id: String(p.id), status: String(p.status) }))
 }
+
+// The shape we care about from a Razorpay payment entity (available both from
+// payments.fetch and inside the payment.captured webhook payload).
+export type RazorpayPaymentEntity = {
+  method?: string | null
+  vpa?: string | null
+  wallet?: string | null
+  bank?: string | null
+  card?: { network?: string | null } | null
+}
+
+// Map a UPI VPA handle (the part after "@") to the app the buyer paid with.
+// The handle is the most reliable signal Razorpay gives us — there is no
+// explicit "app name" field for UPI.
+function upiAppFromVpa(vpa?: string | null): string | null {
+  if (!vpa || !vpa.includes('@')) return null
+  const handle = vpa.split('@')[1]?.toLowerCase() ?? ''
+  // PhonePe issues @ybl / @ibl / @axl (and @yapl for some banks).
+  if (['ybl', 'ibl', 'axl', 'yapl'].includes(handle)) return 'PhonePe'
+  // Google Pay handles all start with "ok" (okaxis, oksbi, okhdfcbank, okicici).
+  if (handle.startsWith('ok')) return 'Google Pay'
+  // Paytm.
+  if (['paytm', 'ptyes', 'ptaxis', 'pthdfc', 'ptsbi'].includes(handle)) return 'Paytm'
+  // Amazon Pay.
+  if (handle === 'apl' || handle === 'amazonpay') return 'Amazon Pay'
+  // CRED.
+  if (handle === 'axisb' && (vpa.startsWith('cred') || vpa.includes('.cred'))) return 'CRED'
+  return null
+}
+
+// Turn a Razorpay payment entity into a friendly label we can show buyers,
+// e.g. "PhonePe", "Google Pay", "Paytm", "UPI", "Visa card", "HDFC NetBanking".
+// Returns null when nothing useful can be derived.
+export function resolvePaymentLabel(p: RazorpayPaymentEntity | null | undefined): string | null {
+  if (!p) return null
+  const method = (p.method ?? '').toLowerCase()
+  if (method === 'upi') return upiAppFromVpa(p.vpa) ?? 'UPI'
+  if (method === 'wallet') {
+    const w = (p.wallet ?? '').toLowerCase()
+    const map: Record<string, string> = {
+      phonepe: 'PhonePe', paytm: 'Paytm', amazonpay: 'Amazon Pay',
+      freecharge: 'Freecharge', mobikwik: 'MobiKwik', airtelmoney: 'Airtel Money',
+    }
+    return map[w] ?? (p.wallet ? `${p.wallet} wallet` : 'Wallet')
+  }
+  if (method === 'card') {
+    const net = p.card?.network
+    return net ? `${net} card` : 'Card'
+  }
+  if (method === 'netbanking') return p.bank ? `${p.bank} NetBanking` : 'NetBanking'
+  if (method === 'emi') return 'EMI'
+  if (method) return method.toUpperCase()
+  return null
+}
+
+// Fetch a single payment from Razorpay and resolve its friendly method label.
+// Used by the verify route; failures are swallowed (label stays null) so a
+// transient API hiccup never blocks marking the order paid.
+export async function fetchPaymentMethodLabel(paymentId: string): Promise<string | null> {
+  try {
+    const p = (await getRazorpayClient().payments.fetch(paymentId)) as RazorpayPaymentEntity
+    return resolvePaymentLabel(p)
+  } catch (e) {
+    console.error('[YFF] fetchPaymentMethodLabel failed:', e)
+    return null
+  }
+}

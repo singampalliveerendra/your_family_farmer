@@ -55,12 +55,8 @@ export default function NewFarmerPage() {
   const [created, setCreated] = useState<Created | null>(null)
 
   // Pickup & payout details (same shape as the farmer's own profile editor).
-  const ALL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
   const [pickupLocations, setPickupLocations] = useState<string[]>([])
   const [newPickup, setNewPickup] = useState('')
-  const [slotDays, setSlotDays] = useState<string[]>([])
-  const [slotFrom, setSlotFrom] = useState('08:00')
-  const [slotTo, setSlotTo] = useState('12:00')
   const [codEnabled, setCodEnabled] = useState(false)
 
   // Farm GPS location (same as the farmer's own profile editor).
@@ -79,7 +75,6 @@ export default function NewFarmerPage() {
   const resetAll = () => {
     setForm(EMPTY_FORM)
     setPickupLocations([]); setNewPickup('')
-    setSlotDays([]); setSlotFrom('08:00'); setSlotTo('12:00')
     setCodEnabled(false)
     setLat(null); setLng(null); setLocationName(''); setLocError('')
     for (const p of [cover, avatar, cert, qr]) if (p.preview) URL.revokeObjectURL(p.preview)
@@ -137,8 +132,6 @@ export default function NewFarmerPage() {
     setPickupLocations((prev) => [...prev, v]); setNewPickup('')
   }
   const removePickup = (loc: string) => setPickupLocations((prev) => prev.filter((l) => l !== loc))
-  const toggleDay = (d: string) =>
-    setSlotDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]))
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -169,7 +162,6 @@ export default function NewFarmerPage() {
       body: JSON.stringify({
         ...form,
         pickup_locations: pickupLocations,
-        pickup_slots: slotDays.length > 0 ? { days: slotDays, time_from: slotFrom, time_to: slotTo } : null,
         cod_enabled: codEnabled,
         cover_photo_url: coverUrl,
         photo_url: avatarUrl,
@@ -354,34 +346,6 @@ export default function NewFarmerPage() {
                     <button type="button" onClick={() => removePickup(loc)} className="text-green-500 text-sm leading-none">×</button>
                   </span>
                 ))}
-              </div>
-            )}
-          </div>
-
-          <div className="mt-4">
-            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wide block mb-1">Pickup days</span>
-            <div className="flex flex-wrap gap-2">
-              {ALL_DAYS.map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => toggleDay(d)}
-                  className={`text-xs font-bold px-3 py-1.5 rounded-full border ${
-                    slotDays.includes(d) ? 'bg-green-700 text-white border-green-700' : 'bg-white text-gray-600 border-gray-200'
-                  }`}
-                >
-                  {d.slice(0, 3)}
-                </button>
-              ))}
-            </div>
-            {slotDays.length > 0 && (
-              <div className="grid grid-cols-2 gap-3 mt-3">
-                <Field label="From">
-                  <input type="time" value={slotFrom} onChange={(e) => setSlotFrom(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label="To">
-                  <input type="time" value={slotTo} onChange={(e) => setSlotTo(e.target.value)} className={inputCls} />
-                </Field>
               </div>
             )}
           </div>

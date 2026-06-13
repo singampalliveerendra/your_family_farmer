@@ -184,6 +184,14 @@ export const t = {
     paymentReceivedApprovedShort: 'Received & Approved',
     receivedApprovesOrderHint: 'Tap "Received" — order is auto-approved.',
     decline: 'Decline',
+    pickupDateLabel: 'Pickup date',
+    deliveryDateLabel: 'Delivery date',
+    dateNotSet: 'Not set yet',
+    statusPending: '⏳ Pending',
+    statusConfirmed: '✓ Confirmed',
+    statusApproved: '✓ Approved',
+    statusDeclined: '✕ Declined',
+    statusCancelled: '✕ Cancelled',
     filterToday: 'Today',
     filterWeek: 'This week',
     filterMonth: 'This month',
@@ -336,15 +344,6 @@ export const t = {
     certUploaded: '✓ Certificate uploaded',
     uploadCert: 'Upload certificate photo',
     removeCert: 'Remove',
-
-    // Pickup schedule
-    pickupScheduleLabel: 'Pickup schedule',
-    pickupScheduleHelp: 'Set days & time buyers can pick up from your farm',
-    pickupDays: 'Available days',
-    pickupFrom: 'From',
-    pickupTo: 'To',
-    pickupSchedulePreview: 'Pickup: {days} · {from}–{to}',
-    noScheduleSet: 'No schedule set yet',
 
     // Earnings summary
     earningsTitle: 'Earnings this month',
@@ -545,6 +544,14 @@ export const t = {
     paymentReceivedApprovedShort: 'అందింది & ఆమోదం',
     receivedApprovesOrderHint: '"అందింది" నొక్కితే ఆర్డర్ ఆటోమేటిక్‌గా ఆమోదించబడుతుంది.',
     decline: 'తిరస్కరించు',
+    pickupDateLabel: 'పికప్ తేదీ',
+    deliveryDateLabel: 'డెలివరీ తేదీ',
+    dateNotSet: 'ఇంకా నిర్ణయించలేదు',
+    statusPending: '⏳ పెండింగ్',
+    statusConfirmed: '✓ ధృవీకరించబడింది',
+    statusApproved: '✓ ఆమోదించబడింది',
+    statusDeclined: '✕ ఆర్డర్ తిరస్కరించబడింది',
+    statusCancelled: '✕ రద్దు చేయబడింది',
     filterToday: 'ఈరోజు',
     filterWeek: 'ఈ వారం',
     filterMonth: 'ఈ నెల',
@@ -697,15 +704,6 @@ export const t = {
     certUploaded: '✓ సర్టిఫికెట్ అప్‌లోడ్ అయింది',
     uploadCert: 'సర్టిఫికెట్ ఫోటో అప్‌లోడ్',
     removeCert: 'తొలగించు',
-
-    // Pickup schedule
-    pickupScheduleLabel: 'పికప్ సమయం',
-    pickupScheduleHelp: 'మీరు పికప్ కోసం ఏ రోజులు అందుబాటులో ఉంటారు?',
-    pickupDays: 'అందుబాటు రోజులు',
-    pickupFrom: 'మొదటి సమయం',
-    pickupTo: 'చివరి సమయం',
-    pickupSchedulePreview: 'పికప్: {days} · {from}–{to}',
-    noScheduleSet: 'ఇంకా సమయం నిర్ణయించలేదు',
 
     // Earnings summary
     earningsTitle: 'ఈ నెల ఆదాయం',

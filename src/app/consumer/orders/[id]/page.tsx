@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import LanguageToggle from '@/components/LanguageToggle'
+import { useLang } from '@/lib/LanguageContext'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import ComplaintModal from '@/components/consumer/ComplaintModal'
 
@@ -19,6 +20,7 @@ type Order = {
   pickup_location: string | null
   status: 'pending' | 'approved' | 'declined' | 'cancelled'
   payment_method: string | null
+  payment_method_detail?: string | null
   payment_status: string | null
   razorpay_payment_id: string | null
   refund_status: string | null
@@ -48,6 +50,7 @@ type Order = {
   out_for_delivery_at?: string | null
   delivered_at?: string | null
   collected_at?: string | null
+  fulfillment_date?: string | null
   rider?: { id: string; name: string | null; phone: string } | null
 }
 
@@ -55,6 +58,7 @@ export default function OrderDetailsPage() {
   const params = useParams<{ id: string }>()
   const id = typeof params?.id === 'string' ? params.id : ''
   const { state, openAuth } = useConsumerAuth()
+  const { tx } = useLang()
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -143,19 +147,22 @@ export default function OrderDetailsPage() {
       : 'bg-amber-100 text-amber-800'
 
   const statusLabel = (s: string) =>
-    s === 'approved' ? '✓ Confirmed'
-      : s === 'declined' ? '✕ Declined'
-      : s === 'cancelled' ? '✕ Cancelled'
-      : '⏳ Pending'
+    s === 'approved' ? tx.statusConfirmed
+      : s === 'declined' ? tx.statusDeclined
+      : s === 'cancelled' ? tx.statusCancelled
+      : tx.statusPending
 
   const paymentLabel = (o: Order) => {
     if (o.payment_method === 'cod') return 'Cash on Delivery / నగదు చెల్లింపు'
     if (o.payment_method === 'upi') {
-      if (o.payment_status === 'completed') return 'UPI ✓ Paid'
+      // Show the real method (PhonePe / Google Pay / UPI…) once we know it,
+      // instead of the gateway name. Falls back to "UPI" before it resolves.
+      const m = o.payment_method_detail || 'UPI'
+      if (o.payment_status === 'paid' || o.payment_status === 'completed') return `${m} ✓ Paid`
       if (o.payment_status === 'pending_confirmation' || o.payment_status === 'payment_claimed')
-        return 'UPI ⏳ Awaiting farmer confirmation'
-      if (o.payment_status === 'failed') return 'UPI ✕ Not received'
-      return 'UPI · Pending'
+        return `${m} ⏳ Awaiting farmer confirmation`
+      if (o.payment_status === 'failed') return `${m} ✕ Not received`
+      return `${m} · Pending`
     }
     return o.payment_method ?? '—'
   }
@@ -270,6 +277,25 @@ export default function OrderDetailsPage() {
                 </button>
               )}
             </div>
+
+            {/* Pickup / Delivery date the farmer scheduled for this order. */}
+            {order.fulfillment_date && order.status !== 'declined' && order.status !== 'cancelled' && (
+              <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
+                <span className="text-2xl">📅</span>
+                <div>
+                  <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide">
+                    {order.delivery_type === 'home_delivery'
+                      ? 'Delivery date / డెలివరీ తేదీ'
+                      : 'Pickup date / పికప్ తేదీ'}
+                  </p>
+                  <p className="text-sm font-extrabold text-green-900 mt-0.5">
+                    {new Date(`${order.fulfillment_date}T00:00:00`).toLocaleDateString('en-IN', {
+                      weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+                    })}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Delivery timeline + handover OTP — only for home delivery orders */}
             {order.delivery_type === 'home_delivery' && order.status !== 'declined' && (
@@ -400,7 +426,7 @@ function ReceiptOverlay({ order, onClose }: { order: Order; onClose: () => void 
           {order.farmer && (
             <div className="flex justify-between"><span className="text-gray-500">Farmer / రైతు</span><span className="font-semibold text-gray-900 text-right">{order.farmer.name} · {order.farmer.village}</span></div>
           )}
-          <div className="flex justify-between"><span className="text-gray-500">Payment / చెల్లింపు</span><span className="font-semibold text-gray-900 uppercase">{order.payment_method || '—'}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Payment / చెల్లింపు</span><span className="font-semibold text-gray-900">{order.payment_method_detail || (order.payment_method === 'cod' ? 'Cash on Delivery' : order.payment_method === 'upi' ? 'UPI' : order.payment_method || '—')}</span></div>
         </div>
 
         <div className="border-t border-dashed border-gray-300 py-3">
@@ -420,7 +446,8 @@ function ReceiptOverlay({ order, onClose }: { order: Order; onClose: () => void 
         </div>
 
         <p className="text-[9px] text-gray-400 text-center mt-3 break-all">Ref: {paymentRef}</p>
-        <p className="text-[9px] text-gray-400 text-center mt-1">Thank you for supporting natural farmers 🌱</p>
+        <p className="text-[10px] font-semibold text-green-700 text-center mt-2">Thank you for supporting our farmers — GoGrameen Team 🌱</p>
+        <p className="text-[9px] text-gray-400 text-center mt-0.5">మా రైతులకు మద్దతు ఇచ్చినందుకు ధన్యవాదాలు — గోగ్రామీణ్ టీం</p>
 
         <div className="yff-no-print mt-5 grid grid-cols-2 gap-2">
           <button onClick={onClose} className="border border-gray-300 text-gray-700 font-bold py-2.5 rounded-xl text-sm active:bg-gray-50">Close / మూసివేయి</button>
@@ -545,22 +572,29 @@ function DeliveryPanel({ order }: { order: Order }) {
 function OrderStatusPanel({ order }: { order: Order }) {
   const approved = order.status === 'approved'
   const collected = !!order.collected_at
-  // placed → (confirmed, ready) unlock together on approval → picked up.
-  const current = collected ? 3 : approved ? 2 : 0
+  // Online orders that have been paid show an extra "Payment received" step.
+  const paidOnline = order.payment_method === 'upi'
+    && (order.payment_status === 'paid' || order.payment_status === 'completed')
 
-  const placedAt = order.created_at
-    ? new Date(order.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-    : ''
-  const collectedAt = order.collected_at
-    ? new Date(order.collected_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-    : ''
+  const fmt = (iso?: string | null) =>
+    iso ? new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
+  const placedAt = fmt(order.created_at)
+  const collectedAt = fmt(order.collected_at)
 
   const steps = [
     { label: 'Order placed / ఆర్డర్ పెట్టారు', sub: 'We received your order / మీ ఆర్డర్ అందింది', at: placedAt },
+    ...(paidOnline
+      ? [{ label: 'Payment received / చెల్లింపు అందింది', sub: `${order.payment_method_detail || 'UPI'} payment confirmed / చెల్లింపు ధృవీకరించబడింది`, at: '' }]
+      : []),
     { label: 'Confirmed by farmer / రైతు ధృవీకరించారు', sub: 'Farmer accepted your order / రైతు అంగీకరించారు', at: '' },
     { label: 'Ready for pickup / తీసుకెళ్లడానికి సిద్ధం', sub: order.pickup_location ? `Collect at ${order.pickup_location}` : 'Collect from the farmer / రైతు నుండి తీసుకోండి', at: '' },
     { label: 'Picked up / తీసుకున్నారు', sub: 'Collection confirmed / తీసుకున్నట్టు ధృవీకరించారు', at: collectedAt },
   ]
+
+  // current step index: placed(+payment) → confirmed/ready (on approval) → picked up.
+  const lastIdx = steps.length - 1
+  const readyIdx = lastIdx - 1
+  const current = collected ? lastIdx : approved ? readyIdx : paidOnline ? 1 : 0
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">

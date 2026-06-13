@@ -30,8 +30,6 @@ type Produce = {
   harvest_date?: string | null
 }
 
-type PickupSlots = { days: string[]; time_from: string; time_to: string }
-
 type Farmer = {
   id?: string
   name?: string
@@ -39,7 +37,6 @@ type Farmer = {
   village?: string
   slug?: string
   pickup_locations?: string[] | null
-  pickup_slots?: PickupSlots | null
   upi_id?: string | null
 }
 
@@ -84,7 +81,6 @@ export default function ProduceTab({
     farmerVillage: f.village ?? '',
     farmerSlug: f.slug ?? '',
     farmerPickupLocations: Array.isArray(f.pickup_locations) ? f.pickup_locations : [],
-    farmerPickupSlots: f.pickup_slots ?? null,
     farmerUpiId: f.upi_id ?? undefined,
   }
 
@@ -315,7 +311,6 @@ type FarmerCartInfo = {
   farmerVillage: string
   farmerSlug: string
   farmerPickupLocations: string[]
-  farmerPickupSlots: PickupSlots | null
   farmerUpiId?: string
 }
 

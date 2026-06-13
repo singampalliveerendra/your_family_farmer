@@ -103,10 +103,10 @@ export default function ConsumerOrdersPage() {
   }
 
   const statusLabel = (s: string) =>
-    s === 'approved' ? '✓ Confirmed'
-      : s === 'declined' ? '✕ Declined'
-      : s === 'cancelled' ? '✕ Cancelled'
-      : '⏳ Pending'
+    s === 'approved' ? tx.statusConfirmed
+      : s === 'declined' ? tx.statusDeclined
+      : s === 'cancelled' ? tx.statusCancelled
+      : tx.statusPending
 
   const paymentBadge = (order: Order) => {
     if (!order.payment_method || order.payment_method === 'cod') return null

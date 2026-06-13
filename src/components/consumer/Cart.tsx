@@ -48,12 +48,6 @@ function loadRazorpayScript(): Promise<boolean> {
   })
 }
 
-type PickupSlots = {
-  days: string[]
-  time_from: string
-  time_to: string
-}
-
 export type CartItem = {
   listingId: string
   qty: number
@@ -74,7 +68,6 @@ export type CartItem = {
   farmerVillage: string
   farmerSlug: string
   farmerPickupLocations?: string[]
-  farmerPickupSlots?: PickupSlots | null
   farmerUpiId?: string
   farmerQrCodeUrl?: string
 }
@@ -213,7 +206,6 @@ type UpiPaymentState = {
   buyerPhone: string
   items: Array<{ name: string; variety?: string; emoji?: string; qty: number; unit?: string; pricePerKg?: number }>
   pickupLocation?: string
-  pickupDay?: string
 }
 
 /* ─── Cart FAB + Sheet ───────────────────────────────── */
@@ -269,7 +261,7 @@ function CartSheet({
 }) {
   const { setQty, removeItem, clear, clearFarmer } = useCart()
   const { info, save: saveInfo } = useConsumerInfo()
-  const { consumer, openAuth } = useConsumerAuth()
+  const { consumer, openAuth, requireAuth } = useConsumerAuth()
   // Guest checkout: when not logged in, the buyer also supplies an email and
   // (always) an address. `isGuest` flips the form into guest mode.
   const isGuest = !consumer
@@ -288,7 +280,6 @@ function CartSheet({
   const [deliveryAltPhone, setDeliveryAltPhone] = useState('')
   const [sentFarmers, setSentFarmers] = useState<Record<string, boolean>>({})
   const [pickupByFarmer, setPickupByFarmer] = useState<Record<string, string>>({})
-  const [pickupDayByFarmer, setPickupDayByFarmer] = useState<Record<string, string>>({})
   const [toast, setToast] = useState('')
   const [placingUpiOrder, setPlacingUpiOrder] = useState<string | null>(null)
   const [submittingResult, setSubmittingResult] = useState(false)
@@ -462,7 +453,6 @@ function CartSheet({
         farmerId: f.farmerId,
         paymentMethod,
         pickupLocation: pickupByFarmer[f.farmerId] || null,
-        pickupDay: pickupDayByFarmer[f.farmerId] || null,
         items: group.map((it) => ({ listingId: it.listingId, qty: it.qty })),
         deliveryType,
         deliveryAddress: deliveryType === 'home_delivery' ? deliveryAddress.trim() : null,
@@ -546,7 +536,6 @@ function CartSheet({
         pricePerKg: it.pricePerKg,
       })),
       pickupLocation: pickupByFarmer[f.farmerId] || undefined,
-      pickupDay: pickupDayByFarmer[f.farmerId] || undefined,
     })
   }
 
@@ -1396,32 +1385,16 @@ function CartSheet({
                         </div>
                       )}
 
-                      {f.farmerPickupSlots && f.farmerPickupSlots.days.length > 0 && (
-                        <div className="pt-2">
-                          <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                            Pickup day / పికప్ రోజు
-                          </label>
-                          <p className="text-[11px] text-green-700 font-medium mb-1.5">
-                            Available {f.farmerPickupSlots.time_from}–{f.farmerPickupSlots.time_to}
-                          </p>
-                          <select
-                            value={pickupDayByFarmer[f.farmerId] ?? ''}
-                            onChange={(e) =>
-                              setPickupDayByFarmer((prev) => ({
-                                ...prev,
-                                [f.farmerId]: e.target.value,
-                              }))
-                            }
-                            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none"
-                          >
-                            <option value="">Select a day / రోజు ఎంచుకోండి</option>
-                            {f.farmerPickupSlots.days.map((day) => (
-                              <option key={day} value={day}>{day}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-
+                      <div className="flex gap-2 items-start">
+                        {/* Cancel closes the cart without removing items. */}
+                        <button
+                          type="button"
+                          onClick={onClose}
+                          className="mt-1 px-4 py-3.5 rounded-xl text-sm font-bold border border-gray-300 text-gray-700 active:bg-gray-50 whitespace-nowrap"
+                        >
+                          Cancel / రద్దు
+                        </button>
+                        <div className="flex-1">
                       {(() => {
                         const farmerCodOk = liveCodEnabled[f.farmerId] === true
 
@@ -1477,6 +1450,8 @@ function CartSheet({
                           </button>
                         )
                       })()}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )

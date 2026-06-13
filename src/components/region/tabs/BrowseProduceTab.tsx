@@ -51,6 +51,9 @@ export default function BrowseProduceTab({
   const getFarmer = (farmerId: string) => farmerList.find((f) => f.id === farmerId)
 
   const filtered = list.filter((p) => {
+    // Never surface a sold-out listing as orderable. stock_qty === 0 means it
+    // ran out (a null/undefined stock means "unlimited", so keep those).
+    if (p.stock_qty === 0) return false
     if (!search.trim()) return true
     const q = search.toLowerCase()
     return (
