@@ -1,0 +1,151 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "536542607f49",
+  "session_id": "224d4e2c-0a9a-4b01-ac5f-b1a2d7bc922d",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-13T07:31:02.842788916Z",
+  "branch": "main",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "src/app/api/consumer/complaints/route.ts",
+    "src/app/api/consumer/orders/[id]/route.ts",
+    "src/app/api/farmer/complaints/route.ts",
+    "src/app/api/moderator/escalations/route.ts",
+    "src/app/api/moderator/farmers/route.ts",
+    "src/app/api/moderator/orders/lookup/route.ts",
+    "src/app/api/orders/place/route.ts",
+    "src/app/api/orders/razorpay/create/route.ts",
+    "src/app/api/orders/razorpay/verify/route.ts",
+    "src/app/api/rider/complaints/route.ts",
+    "src/app/consumer/complaints/page.tsx",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/farmer/complaints/page.tsx",
+    "src/app/farmer/dashboard/orders/page.tsx",
+    "src/app/farmer/login/page.tsx",
+    "src/app/globals.css",
+    "src/app/layout.tsx",
+    "src/app/moderator/escalations/page.tsx",
+    "src/app/moderator/farmers/new/page.tsx",
+    "src/app/moderator/page.tsx",
+    "src/app/rider/complaints/page.tsx",
+    "src/app/rider/dashboard/page.tsx",
+    "src/app/rider/login/page.tsx",
+    "src/components/SplashScreen.tsx",
+    "src/components/consumer/AuthModal.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/lib/translations.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "41164d48ac39",
+  "token_usage": {
+    "input_tokens": 4838,
+    "cache_creation_tokens": 143776,
+    "cache_read_tokens": 8403601,
+    "output_tokens": 63309,
+    "api_call_count": 84
+  },
+  "session_metrics": {
+    "turn_count": 5
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-13T07:31:02.810109367Z",
+    "agent_lines": 601,
+    "agent_removed": 27,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 44,
+    "total_committed": 601,
+    "total_lines_changed": 672,
+    "agent_percentage": 93.45238095238095,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 1987,
+      "user_lines_removed": 44,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs - Copy.html": 22,
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs.html": 22,
+        "mod.md": 430,
+        "scripts/audit-log-migration.sql": 151,
+        "scripts/guest-checkout-migration.sql": 12,
+        "scripts/otp-sessions-migration.sql": 24,
+        "scripts/pickup-confirm-migration.sql": 15,
+        "src/app/api/auth/reset-password-otp/route.ts": 77,
+        "src/app/api/consumer/orders/[id]/route.ts": 1,
+        "src/app/api/farmer/orders/[id]/confirm-pickup/route.ts": 89,
+        "src/app/api/moderator/audit/route.ts": 40,
+        "src/app/api/orders/place/route.ts": 77,
+        "src/app/api/orders/razorpay/create/route.ts": 16,
+        "src/app/api/orders/razorpay/verify/route.ts": 16,
+        "src/app/api/otp/send/route.ts": 74,
+        "src/app/api/otp/verify/route.ts": 86,
+        "src/app/consumer/orders/[id]/page.tsx": 25,
+        "src/app/farmer/dashboard/orders/page.tsx": 5,
+        "src/app/farmer/login/page.tsx": 19,
+        "src/app/globals.css": 5,
+        "src/app/layout.tsx": 10,
+        "src/app/moderator/audit/page.tsx": 177,
+        "src/app/moderator/page.tsx": 12,
+        "src/app/rider/login/page.tsx": 19,
+        "src/components/ForgotPasswordModal.tsx": 349,
+        "src/components/SplashScreen.tsx": 13,
+        "src/components/consumer/AuthModal.tsx": 21,
+        "src/components/consumer/Cart.tsx": 8,
+        "src/lib/guest-order-token.ts": 57,
+        "src/lib/otp-accounts.ts": 55,
+        "src/lib/translations.ts": 2,
+        "src/lib/twofactor.ts": 58
+      },
+      "user_removed_per_file": {
+        "src/app/api/consumer/orders/[id]/route.ts": 1,
+        "src/app/api/orders/place/route.ts": 22,
+        "src/app/api/orders/razorpay/create/route.ts": 3,
+        "src/app/api/orders/razorpay/verify/route.ts": 3,
+        "src/app/consumer/orders/[id]/page.tsx": 1,
+        "src/app/farmer/dashboard/orders/page.tsx": 1,
+        "src/components/SplashScreen.tsx": 12,
+        "src/components/consumer/Cart.tsx": 1
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 2215,
+      "agent_lines_removed": 45
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 2261,
+      "agent_lines_removed": 57
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 2302,
+      "agent_lines_removed": 64
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 2632,
+      "agent_lines_removed": 71
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 2632,
+      "agent_lines_removed": 71
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+Farmer registration for Moderator should have similar form as farmer to fill in all the details
+
+---
+
+Complaints should have the user number who raised it. do it neatly have to prove everything in everywhere
+
+---
+
+Raised by in Complaint form should be auto filled.
+
+---
+
+Complaints should have the user number who raised it.
+
+---
+
+All users should be able to see the complaints they raise.

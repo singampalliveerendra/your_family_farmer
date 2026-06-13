@@ -3,19 +3,34 @@
   "checkpoint_id": "536542607f49",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 2,
+  "checkpoints_count": 7,
   "files_touched": [
+    "src/app/api/consumer/complaints/route.ts",
     "src/app/api/consumer/orders/[id]/route.ts",
+    "src/app/api/farmer/complaints/route.ts",
+    "src/app/api/moderator/escalations/route.ts",
+    "src/app/api/moderator/farmers/route.ts",
+    "src/app/api/moderator/orders/lookup/route.ts",
     "src/app/api/orders/place/route.ts",
+    "src/app/api/orders/razorpay/create/route.ts",
+    "src/app/api/orders/razorpay/verify/route.ts",
+    "src/app/api/rider/complaints/route.ts",
+    "src/app/consumer/complaints/page.tsx",
     "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/farmer/complaints/page.tsx",
     "src/app/farmer/dashboard/orders/page.tsx",
     "src/app/farmer/login/page.tsx",
     "src/app/globals.css",
     "src/app/layout.tsx",
+    "src/app/moderator/escalations/page.tsx",
+    "src/app/moderator/farmers/new/page.tsx",
     "src/app/moderator/page.tsx",
+    "src/app/rider/complaints/page.tsx",
+    "src/app/rider/dashboard/page.tsx",
     "src/app/rider/login/page.tsx",
     "src/components/SplashScreen.tsx",
     "src/components/consumer/AuthModal.tsx",
+    "src/components/consumer/Cart.tsx",
     "src/lib/translations.ts"
   ],
   "sessions": [
@@ -24,13 +39,19 @@
       "transcript": "/53/6542607f49/0/full.jsonl",
       "content_hash": "/53/6542607f49/0/content_hash.txt",
       "prompt": "/53/6542607f49/0/prompt.txt"
+    },
+    {
+      "metadata": "/53/6542607f49/1/metadata.json",
+      "transcript": "/53/6542607f49/1/full.jsonl",
+      "content_hash": "/53/6542607f49/1/content_hash.txt",
+      "prompt": "/53/6542607f49/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 4670,
-    "cache_creation_tokens": 160938,
-    "cache_read_tokens": 4229281,
-    "output_tokens": 49704,
-    "api_call_count": 63
+    "input_tokens": 9508,
+    "cache_creation_tokens": 304714,
+    "cache_read_tokens": 12632882,
+    "output_tokens": 113013,
+    "api_call_count": 147
   }
 }
