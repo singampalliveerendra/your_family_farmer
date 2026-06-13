@@ -1,0 +1,69 @@
+All users should be able to see the complaints they raise.and Complaints should have the user number who raised it.and Add Log a Complaint in all users other than Moderator. and Raised by in Complaint form should be auto filled. did we push all there or not for depoying
+
+---
+
+please run and redploy
+
+---
+
+│               Requirement               │ Status │                                   Where                                   │
+  ├─────────────────────────────────────────┼────────┼───────────────────────────────────────────────────────────────────────────┤
+  │ Users see complaints they raise         │ ✅     │ GET filters by raised_by_id + raised_by_role in each role's API           │
+  ├─────────────────────────────────────────┼────────┼───────────────────────────────────────────────────────────────────────────┤
+  │ Complaint stores raiser's phone number  │ ✅     │ raised_by_phone captured on insert, returned on select                    │
+  ├─────────────────────────────────────────┼────────┼───────────────────────────────────────────────────────────────────────────┤
+  │ "Log a Complaint" for all roles except  │ ✅     │ consumer/, farmer/, rider/ complaints pages exist; moderator only views   │
+  │ Moderator                               │        │ (audit/escalations)                                                       │
+  ├─────────────────────────────────────────┼────────┼───────────────────────────────────────────────────────────────────────────┤
+  │ "Raised by" auto-filled                 │ ✅     │ raised_by set server-side from me.name, not user input                    │
+  └───────────────────────── where we can exacltly see this in ui
+
+---
+
+where is the complaints option in consumer i didnt even see
+
+---
+
+i has to be very clear
+
+---
+
+commit and push
+
+---
+
+yes do
+
+---
+
+30s
+1 line selected
+
+3
+Find in logs
+CtrlF
+Running build in Washington, D.C., USA (East) – iad1
+Build machine configuration: 2 cores, 8 GB
+Cloning github.com/singampalliveerendra/your_family_farmer (Branch: main, Commit: 1ab58c3)
+Cloning completed: 1.075s
+Restored build cache from previous deployment (REDACTED)
+Running "vercel build"
+Vercel CLI 54.12.2
+Installing dependencies...
+up to date in 834ms
+147 packages are looking for funding
+  run `npm fund` for details
+Detected Next.js version: 16.2.6
+Running "npm run build"
+
+---
+
+but not getting in ui
+
+---
+
+its showong on localhost but not after deployent
+
+---
+
+https://www.gogrameen.in/consumer
