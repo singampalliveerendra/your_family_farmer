@@ -13,12 +13,6 @@ import LocationSearch from '@/components/LocationSearch'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 
-type PickupSlots = {
-  days: string[]
-  time_from: string
-  time_to: string
-}
-
 type Farmer = {
   id: string
   name: string
@@ -27,7 +21,6 @@ type Farmer = {
   phone: string
   method: string
   pickup_locations?: string[] | null
-  pickup_slots?: PickupSlots | null
   lat?: number | null
   lng?: number | null
 }
@@ -274,9 +267,9 @@ export default function ConsumerPage() {
             </Link>
             <Link
               href="/consumer/complaints"
-              className="inline-flex items-center gap-2 bg-green-800 border border-green-700 text-green-200 text-xs font-semibold px-4 py-2.5 rounded-full"
+              className="inline-flex items-center gap-2 bg-amber-400 text-green-950 text-sm font-bold px-4 py-2.5 rounded-full shadow-md active:bg-amber-500"
             >
-              🛟 Complaints / ఫిర్యాదులు →
+              🛟 Log a Complaint / ఫిర్యాదు →
             </Link>
           </div>
         </div>
@@ -507,7 +500,6 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
       farmerVillage: farmer.village,
       farmerSlug: farmer.slug,
       farmerPickupLocations: farmer.pickup_locations ?? [],
-      farmerPickupSlots: farmer.pickup_slots ?? null,
     }, 1)
   }
 
