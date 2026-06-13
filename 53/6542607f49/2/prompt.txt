@@ -1,0 +1,178 @@
+my client forgot his farmer section password so he want his password so send me or do something
+
+---
+
+account name is kapil korlepara
+
+---
+
+can you please add simple password
+
+---
+
+now i have a  api key 2factor.in first tell me what i have to do manually and do remaining Implement Forgot Password with OTP verification using 2factor.in API for farmers, consumers and delivery boys:
+
+1. Add to .env.local:
+   REDACTED
+
+2. Create API route: src/app/api/otp/send/route.ts
+   - Accept phone number in request body
+   - Call 2factor.in API to send OTP:
+     GET https://2factor.in/API/V1/{API_KEY}/SMS/{PHONE}/AUTOGEN
+   - Store OTP session ID returned by 2factor in Supabase:
+     CREATE TABLE IF NOT EXISTS otp_sessions (
+       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       phone varchar(15) NOT NULL,
+       session_id text NOT NULL,
+       purpose text DEFAULT 'forgot_password',
+       created_at timestamptz DEFAULT now(),
+       expires_at timestamptz DEFAULT now() + interval '10 minutes',
+       used boolean DEFAULT false
+     );
+   - Return success/failure to frontend
+   - Rate limit: max 3 OTP requests per phone per hour
+
+3. Create API route: src/app/api/otp/verify/route.ts
+   - Accept phone number + OTP in request body
+   - Get session_id from otp_sessions table by phone
+   - Check if not expired (expires_at > now())
+   - Check if not already used
+   - Verify OTP with 2factor API:
+     GET https://2factor.in/API/V1/{API_KEY}/SMS/VERIFY/{SESSION_ID}/{OTP}
+   - If verified: mark otp session as used, return success token
+   - If wrong OTP: return error "Wrong OTP / తప్పు OTP"
+   - If expired: return error "OTP expired / OTP గడువు తీరింది"
+
+4. Create API route: src/app/api/auth/reset-password/route.ts
+   - Accept phone + new password + reset token
+   - Verify reset token is valid
+   - Hash new password with bcrypt
+   - Update password in correct table based on user type:
+     * farmers table → update password_hash
+     * consumers_auth table → update password_hash
+     * riders/delivery table → update password_hash
+   - Return success
+
+5. Add Forgot Password UI for ALL user types:
+
+   FARMER (/farmer/login):
+   - Add "Forgot Password? / పాస్‌వర్డ్ మర్చిపోయారా?" link below login button
+   - Opens forgot password flow
+
+   CONSUMER (login popup):
+   - Add "Forgot Password? / పాస్‌వర్డ్ మర్చిపోయారా?" link below login button
+
+   DELIVERY BOY (delivery login page):
+   - Add same forgot password link
+
+6. Forgot Password Flow UI (same for all user types):
+
+   STEP 1 - Enter Phone:
+   - Heading: "Reset Password / పాస్‌వర్డ్ రీసెట్ చేయండి"
+   - Phone number input with +91
+   - "Send OTP / OTP పంపండి" button
+   - On submit: call /api/otp/send
+   - Show: "OTP sent to your number / మీ నంబర్‌కు OTP పంపబడింది" ✅
+
+   STEP 2 - Enter OTP:
+   - Heading: "Enter OTP / OTP నమోదు చేయండి"
+   - "OTP sent to +91 XXXXXX7890"
+   - 6 digit OTP input boxes (one box per digit)
+   - 10 minute countdown timer: "OTP expires in 8:45"
+   - "Verify OTP / OTP ధృవీకరించండి" button
+   - "Resend OTP / మళ్ళీ పంపండి" link (show after 60 seconds)
+   - On submit: call /api/otp/verify
+   - If success: go to step 3
+
+   STEP 3 - Set New Password:
+   - Heading: "Set New Password / కొత్త పాస్‌వర్డ్ పెట్టండి"
+   - New password input (min 6 chars)
+   - Confirm password input
+   - Show/hide password toggle
+   - "Update Password / పాస్‌వర్డ్ అప్‌డేట్ చేయండి" button
+   - On submit: call /api/auth/reset-password
+   - On success: show "Password updated successfully! / పాస్‌వర్డ్ విజయవంతంగా అప్‌డేట్ అయింది ✅"
+   - Redirect to login after 2 seconds
+
+7. Error handling:
+   - Phone not found: "No account found with this number / ఈ నంబర్‌తో ఖాతా లేదు"
+   - Wrong OTP: "Incorrect OTP, try again / తప్పు OTP, మళ్ళీ ప్రయత్నించండి"
+   - OTP expired: "OTP expired, please resend / OTP గడువు తీరింది, మళ్ళీ పంపండి"
+   - Passwords don't match: "Passwords do not match / పాస్‌వర్డ్‌లు సరిపోలలేదు"
+   - Too many attempts: "Too many attempts, try after 1 hour / చాలా ప్రయత్నాలు, 1 గంట తర్వాత ప్రయత్నించండి"
+
+8. Security:
+   - OTP expires after 10 minutes
+   - OTP can only be used once
+   - Max 3 OTP requests per phone per hour
+   - Reset token expires after 15 minutes
+   - Delete used OTP sessions after 24 hours
+
+9. All text bilingual English/Telugu
+
+---
+
+now i added keys in both local and verecel
+
+---
+
+can i test manually
+
+---
+
+actuall i am gettig otp via call so i dont want that i need text message
+
+---
+
+https://documenter.getpostman.com/view/301893/TWDamFGh . this is the document link
+
+---
+
+so hot get otps in message
+
+---
+
+Phone Number7893074271
+Emailkapil.korlepara@gmail.com
+API Key2ee1e1ed-6006-11f1-8f15-02*****
+SMS OTP Balance200.00
+Voice OTP Balance50.00
+Transactional SMS Balance200.00
+Promotional SMS Balance0.00   this is i got
+
+---
+
+again getting call
+
+---
+
+the origin account of 2 factor is my client tell me what the client have to check exactly in simple way
+
+---
+
+okay i sent this . stop the server in local for now
+
+---
+
+while anyone open this go grammen website its immediatle showing the consumer page for 6 to 8 milliseconds and then opeining our animation so please fix that first
+
+---
+
+Approved Templates (1)
+
+Template Name: Password Reset
+Sender Id: GoGram
+Template: XXXX is your OTP to reset your Password at GoGrameen application.
+Created On: 2026-06-07
+
+Company Name: GoGrameen
+Website: https://www.gogrameen.in/
+Status: APPROVED. the client send this image  . i think now sms otp work now once check
+
+---
+
+still getting call
+
+---
+
+still getting call iam tring with my nuber 7601059161

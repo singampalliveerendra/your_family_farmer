@@ -1,0 +1,55 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "536542607f49",
+  "session_id": "9ca55f00-9e48-46a0-acb7-f88ba5393bb5",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-13T07:31:03.466654045Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "scripts/otp-sessions-migration.sql",
+    "src/app/api/auth/reset-password-otp/route.ts",
+    "src/app/api/consumer/orders/[id]/route.ts",
+    "src/app/api/orders/place/route.ts",
+    "src/app/api/otp/send/route.ts",
+    "src/app/api/otp/verify/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/farmer/dashboard/orders/page.tsx",
+    "src/app/farmer/login/page.tsx",
+    "src/app/globals.css",
+    "src/app/layout.tsx",
+    "src/app/moderator/page.tsx",
+    "src/app/rider/login/page.tsx",
+    "src/components/ForgotPasswordModal.tsx",
+    "src/components/SplashScreen.tsx",
+    "src/components/consumer/AuthModal.tsx",
+    "src/lib/otp-accounts.ts",
+    "src/lib/translations.ts",
+    "src/lib/twofactor.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "54dc1f498006",
+  "token_usage": {
+    "input_tokens": 10416,
+    "cache_creation_tokens": 255315,
+    "cache_read_tokens": 6438617,
+    "output_tokens": 75858,
+    "api_call_count": 85
+  },
+  "session_metrics": {
+    "turn_count": 14
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-13T07:31:03.430593872Z",
+    "agent_lines": 932,
+    "agent_removed": 37,
+    "human_added": 1225,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 2157,
+    "total_lines_changed": 2227,
+    "agent_percentage": 43.51145038167939,
+    "metric_version": 2
+  }
+}
