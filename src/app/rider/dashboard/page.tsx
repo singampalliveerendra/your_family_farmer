@@ -202,8 +202,8 @@ export default function RiderDashboardPage() {
             </p>
           </div>
           <div className="flex flex-col items-end gap-2 flex-shrink-0">
-            <Link href="/rider/complaints" className="text-white text-xs underline whitespace-nowrap">
-              Complaints / ఫిర్యాదులు
+            <Link href="/rider/complaints" className="inline-flex items-center gap-1 bg-amber-400 text-green-950 text-xs font-bold px-3 py-1.5 rounded-full shadow-md active:bg-amber-500 whitespace-nowrap">
+              🛟 Log a Complaint / ఫిర్యాదు
             </Link>
             <button
               onClick={handleLogout}
