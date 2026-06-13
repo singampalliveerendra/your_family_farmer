@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "4a0513a52267",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/app/api/moderator/agents/[id]/route.ts",
+    "src/app/api/moderator/agents/route.ts",
+    "src/app/api/moderator/audit/route.ts",
+    "src/app/api/moderator/consumers/[id]/route.ts",
+    "src/app/api/moderator/consumers/route.ts",
+    "src/app/api/moderator/demand-intents/[id]/route.ts",
+    "src/app/api/moderator/escalations/[id]/route.ts",
+    "src/app/api/moderator/escalations/route.ts",
+    "src/app/api/moderator/farmers/[id]/route.ts",
+    "src/app/api/moderator/farmers/route.ts",
+    "src/app/api/moderator/listings/[id]/route.ts",
+    "src/app/api/moderator/listings/route.ts",
+    "src/app/api/moderator/login/route.ts",
+    "src/app/api/moderator/me/route.ts",
+    "src/app/api/moderator/notify-scarce/route.ts",
+    "src/app/api/moderator/orders/lookup/route.ts",
+    "src/app/api/moderator/prices/[id]/route.ts",
+    "src/app/api/moderator/prices/route.ts",
+    "src/app/api/moderator/reports/route.ts",
+    "src/app/api/moderator/stats/route.ts",
+    "src/app/api/moderator/supply/route.ts",
+    "src/lib/moderator-session.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/4a/0513a52267/0/metadata.json",
+      "transcript": "/4a/0513a52267/0/full.jsonl",
+      "content_hash": "/4a/0513a52267/0/content_hash.txt",
+      "prompt": "/4a/0513a52267/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  }
+}

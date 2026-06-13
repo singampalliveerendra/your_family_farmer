@@ -1,0 +1,1 @@
+Farmer registration for Moderator should have similar form as farmer to fill in all the details
