@@ -1,0 +1,57 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "6105cd7d2f06",
+  "session_id": "b04e0df0-a4f0-4546-b906-322ec6f76616",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-13T17:11:05.542008443Z",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/app/api/orders/razorpay/verify/route.ts",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/app/api/consumer/orders/[id]/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "scripts/client-fixes-migration.sql"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "368b4e6eeea8",
+  "checkpoint_transcript_start": 1057,
+  "transcript_lines_at_start": 1057,
+  "token_usage": {
+    "input_tokens": 850,
+    "cache_creation_tokens": 45248,
+    "cache_read_tokens": 14863120,
+    "output_tokens": 36367,
+    "api_call_count": 38
+  },
+  "session_metrics": {
+    "turn_count": 35
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-13T17:11:05.462018678Z",
+    "agent_lines": 22,
+    "agent_removed": 10,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 22,
+    "total_lines_changed": 32,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 474,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs - Copy.html": 22,
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs.html": 22,
+        "mod.md": 430
+      }
+    }
+  ]
+}

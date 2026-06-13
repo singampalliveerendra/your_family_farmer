@@ -1,0 +1,173 @@
+i am not i gajuwaka
+
+---
+
+i am not i gajuwaka iam in hyderabd
+
+---
+
+i am not i gajuwaka iam in hyderabd so now i want to test the moderator page
+
+---
+
+in moderator Register new farmer
+Onboard a farmer on their behalf
+
+Hyderabad zone
+Full name *
+Phone (WhatsApp)
++91 94400 12345
+Village
+District
+Farming method
+
+Natural (no chemicals)
+Farm size (acres)
+Farming since (year)
+2015
+Story / quote
+Farm location & photos
+
+Farm location (GPS)
+Set the farm location so nearby buyers discover their produce first.
+
+📍 Use GPS (most accurate)
+OR
+Search farm location
+Farm cover photo
+📷
+Add photo
+Farmer photo
+📷
+Add photo
+Pesticide-free / certification photo
+📷
+Add photo
+Pickup & payment
+
+Farm address (for pickup)
+House / street, landmark, village
+Pickup locations
+e.g. Market road junction
+Add
+UPI ID (for payouts)
+name@ybl
+
+Accepts Cash on Delivery
+UPI QR code
+Buyers scan this to pay. Upload a screenshot of their UPI QR.
+
+📷
+Add photo
+Save & share profile link
+Cancel in this where is the passswordoption how the farmerwill login if they needed
+
+---
+
+Why a Produce I added is shown as "Sold Out". Even if i edited the available quantity. did you fix this
+
+---
+
+Fix these 15 issues my client raised:
+
+1. SOLD OUT BUG:
+   Produce is showing "Sold Out" even after farmer edited and increased the quantity.
+   Check the stock check logic - when farmer updates quantity, the "sold out" status should automatically be removed if new quantity is more than 0.
+   Refresh the stock status whenever farmer edits a listing.
+
+2. REMOVE PICKUP DAY:
+   Remove the "Pickup Day" field completely from farmer dashboard and consumer cart.
+   Pickup schedule and pickup days option should be deleted.
+
+3. ADD PICKUP OR DELIVERY DATE:
+   Instead of fixed pickup days, allow farmer to mention a specific date for pickup or delivery for each order.
+   Add a date picker in the order management screen.
+   Farmer can select a date and consumer sees that exact date.
+   Label: "Pickup Date" or "Delivery Date" based on delivery method selected.
+
+4. ORDER DECLINED TELUGU TRANSLATION:
+   "Order Declined" status is missing Telugu translation.
+   Add Telugu translation everywhere this status appears.
+   Telugu: "ఆర్డర్ తిరస్కరించబడింది"
+
+5. CHANGE PAYMENT RECEIPT END LINE:
+   In the payment receipt that consumer downloads, the last line needs to be changed.
+   Update the closing line to something more friendly like:
+   "Thank you for supporting our farmers - GoGrameen Team"
+   Translate to Telugu also.
+
+6. SHOW PAYMENT METHOD AS PHONEPE/UPI NOT RAZORPAY:
+   Currently payment is showing as "Razorpay" everywhere.
+   Change it to show the actual method used like "UPI", "PhonePe", "Google Pay", "Paytm" etc.
+   Get the actual payment method from Razorpay response and show that instead.
+
+7. ADD DATES TO ALL ORDER STATUSES:
+   In order details page, currently only some statuses show dates.
+   Add date and time for every status change:
+   - "Order Placed on: 12 May 2026, 3:30 PM"
+   - "Payment Received on: 12 May 2026, 3:32 PM"
+   - "Confirmed by Farmer on: 12 May 2026, 4:00 PM"
+   - "Ready for Pickup on: ..."
+   - "Completed on: ..."
+
+8. LANGUAGE TOGGLE NOT WORKING:
+   When user clicks language toggle (EN/తె), nothing actually changes on the page.
+   Fix the language switching - all text should change between English and Telugu when clicked.
+   Test thoroughly on all pages.
+
+9. PICKUPS AND DELIVERIES TODAY FOR FARMER:
+   Add a new section in farmer dashboard called "Today's Schedule".
+   Show two lists:
+   - Pickups Today: orders with pickup date as today
+   - Deliveries Today: orders with delivery date as today
+   - Date picker to view other dates
+   - Show buyer name, phone, produce, quantity, time
+
+10. SUSPEND CONSUMER WITH REASON:
+    When moderator suspends a consumer, currently no reason is asked.
+    Add a mandatory text field for "Reason for suspension".
+    Display the suspension reason in red highlighted banner at top of that consumer's profile and all their order pages.
+    Example: "Account suspended: Multiple fake orders"
+
+11. ENABLE "I WILL COURIER" OPTION:
+    Currently in add produce form, "I will courier" option is shown as "Coming soon" and disabled.
+    Enable it - farmer can choose between "Pickup only" or "I will courier" or "Both options".
+    When courier is selected, ask farmer for delivery charges and delivery radius.
+
+12. NEW ORDER STATUSES:
+    Add these new statuses to orders:
+    - "Order Placed"
+    - "Payment Received"
+    - "Confirmed by Farmer"
+    - "Ready for Pickup"
+    - "Out for Delivery" (if courier)
+    - "Picked Up" or "Delivered"
+    - "Completed"
+    - "Cancelled"
+    - "Declined"
+    Show these as a progress bar/timeline in order details.
+
+13. ADD CANCEL BUTTON IN CART:
+    In the "Your Cart" form/popup, add a "Cancel" button next to the existing buttons.
+    Cancel button should close the cart popup without removing items.
+    Place it on the left, payment button on the right.
+
+14. SUSPEND AND RESUME PRODUCE BY FARMER:
+    Farmer should have a button on each produce to:
+    - "Pause" - temporarily hide from consumer (suspend)
+    - "Resume" - show it back to consumers
+    Suspended produce shows badge "Paused by farmer" in farmer dashboard.
+    Consumer cannot see suspended produce.
+    Different from "Delete" - suspended produce can be resumed anytime.
+
+15. REMOVE DUPLICATE PICKUP SECTION:
+    In farmer profile, the "Pickup and Schedule" section appears twice.
+    Find both instances and remove one duplicate.
+    Keep only one clean section.
+
+All text and buttons should have both English and Telugu translations.
+Test each fix on mobile view since most users are on phones. .have you implemented or fixd everything correctly and accuratley check once
+
+---
+
+do everyting neatly go ahead step by step
