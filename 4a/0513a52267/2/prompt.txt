@@ -1,0 +1,110 @@
+and one more thing tha client want me to change the razorpay original keys to testing keys againa so send me the testing keys
+
+---
+
+key_id,key_secret
+rzp_test_SrzSiKjGRG9kbd,OPzsMu4JYWB02H436Ddbvzwr
+
+---
+
+whatshould i exactly add in vercel now
+
+---
+
+done git commit and push
+
+---
+
+Building
+·
+feat: client-requested fixes round (sold-out, pickup→date, courier, pause/resume, suspend reason, payment method, today's schedule, cart cancel) Addresses the June client feedback: - #1 Sold-out auto-clears when farmer raises stock; sold-out hidden from browse - #2/#15 Remove pickup-day/schedule from cart, produce form, farmer & moderator profiles - #3 Per-order pickup/delivery date picker (farmer sets, consumer sees) - #4 'Order Declined' Telugu across order pages - #5 Friendlier receipt closing line + Telugu - #6 Show real payment method (PhonePe/Google Pay/UPI/Card) instead of Razorpay - #7/#12 Self-pickup timeline gains a Payment-received step - #9 Farmer dashboard 'Today's Schedule' (pickups + deliveries, date picker) - #10 Suspend consumer requires a reason; shown in moderator console + at login - #11 Enable 'I will courier' / Both with delivery charge + radius per listing - #13 Cancel button in cart (closes without clearing items) - #14 Farmer Pause/Resume produce with 'Paused by farmer' badge Schema
+Just now
+github/singampalliveerendra
+
+---
+
+deployment done but getting this 
+  Creating an optimized production build ...
+✓ Compiled successfully in 13.0s
+  Running TypeScript ...
+Failed to type check.
+./src/components/consumer/Cart.tsx:1434:46
+Type error: Cannot find name 'requireAuth'.
+  1432 | ...                       return (
+  1433 | ...                         <button
+> 1434 | ...                           onClick={() => requireAuth(() => handleRazorpayOrderFarmer...
+       |                                              ^
+  1435 | ...                           disabled={detailsMissing || payingOnline === f.farmerId}
+  1436 | ...                           className={`mt-1 w-full font-bold py-3.5 rounded-xl text-s...
+  1437 | ...                             detailsMissing
+Next.js build worker exited with code: 1 and signal: null
+Error: Command "npm run build" exited with 1
+
+---
+
+its working now
+
+---
+
+tell me what what we are built timm now last 20 features so i will add in trello
+
+---
+
+Type error: Cannot find name 'requireAuth'.
+  1432 | ...                       return (
+  1433 | ...                         <button
+> 1434 | ...                           onClick={() => requireAuth(() => handleRazorpayOrderFarmer...
+       |                                              ^
+  1435 | ...                           disabled={detailsMissing || payingOnline === f.farmerId}
+  1436 | ...                           className={`mt-1 w-full font-bold py-3.5 rounded-xl text-s...
+  1437 | ...                             detailsMissing
+Next.js build worker exited with code: 1 and signal: null
+Error: Command "npm run build" exited with 1 what this exactly means please explain
+
+---
+
+i am just asking whatit means
+
+---
+
+the testing api not working . iam getting could not place order please try again
+
+---
+
+getting but not testing its real payments
+
+---
+
+send exactly what to add in vercel
+
+---
+
+now i exactly added new one and removed old original one now getting issue
+
+---
+
+how moderator login works
+
+---
+
+i want to register a new moderator so tell me the process
+
+---
+
+okay add a user with 7601059161 ans pawword- 786786
+
+---
+
+Too many attempts. Wait 15 min.
+
+---
+
+You are not assigned to this zone.
+
+---
+
+You are not assigned to this zone.   iam actually in hyderabad now
+
+---
+
+go with B
