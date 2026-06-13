@@ -1,0 +1,57 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "536542607f49",
+  "session_id": "2237dde5-b8d4-4c74-819a-43d91581c865",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-13T07:30:59.133909155Z",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "src/app/api/consumer/orders/[id]/route.ts",
+    "src/app/api/orders/place/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/farmer/dashboard/orders/page.tsx",
+    "src/app/farmer/login/page.tsx",
+    "src/app/globals.css",
+    "src/app/layout.tsx",
+    "src/app/moderator/page.tsx",
+    "src/app/rider/login/page.tsx",
+    "src/components/SplashScreen.tsx",
+    "src/components/consumer/AuthModal.tsx",
+    "src/lib/translations.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "0a6d7d2a71ec",
+  "token_usage": {
+    "input_tokens": 4670,
+    "cache_creation_tokens": 160938,
+    "cache_read_tokens": 4229281,
+    "output_tokens": 49704,
+    "api_call_count": 63
+  },
+  "session_metrics": {
+    "turn_count": 6
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-13T07:30:59.102157513Z",
+    "agent_lines": 209,
+    "agent_removed": 37,
+    "human_added": 1924,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 2133,
+    "total_lines_changed": 2203,
+    "agent_percentage": 11.166591012256015,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
