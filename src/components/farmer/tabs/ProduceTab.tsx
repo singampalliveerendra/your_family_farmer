@@ -28,6 +28,9 @@ type Produce = {
   description?: string
   image_url?: string
   harvest_date?: string | null
+  delivery_mode?: string | null
+  delivery_charge?: number | null
+  delivery_radius_km?: number | null
 }
 
 type Farmer = {
@@ -378,6 +381,12 @@ function ProduceCard({
               <span className="bg-amber-100 text-amber-800 text-[10px] font-semibold px-2 py-0.5 rounded-full">BRIX {item.brix}</span>
             )}
             {item.harvest_date && <FreshnessBadge harvestDate={item.harvest_date} />}
+            {(item.delivery_mode === 'courier' || item.delivery_mode === 'both') && (
+              <span className="bg-blue-100 text-blue-800 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                🛵 {(item.delivery_charge ?? 0) > 0 ? `Delivery ₹${item.delivery_charge}` : 'Free delivery'}
+                {item.delivery_radius_km ? ` · ${item.delivery_radius_km}km` : ''}
+              </span>
+            )}
           </div>
           {item.description && (
             <p className="text-xs text-gray-600 mt-2 leading-snug whitespace-pre-line">

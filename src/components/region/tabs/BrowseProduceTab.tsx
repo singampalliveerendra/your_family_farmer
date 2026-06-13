@@ -20,6 +20,8 @@ type ProduceItem = {
   unit?: string
   stock_qty?: number
   method?: string
+  delivery_mode?: string | null
+  delivery_charge?: number | null
 }
 
 type Farmer = {
@@ -158,6 +160,11 @@ export default function BrowseProduceTab({
                     {item.method === 'natural' && (
                       <span className="bg-green-100 text-green-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                         Natural
+                      </span>
+                    )}
+                    {(item.delivery_mode === 'courier' || item.delivery_mode === 'both') && (
+                      <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                        🛵 {(item.delivery_charge ?? 0) > 0 ? `₹${item.delivery_charge}` : 'Free'}
                       </span>
                     )}
                   </div>
