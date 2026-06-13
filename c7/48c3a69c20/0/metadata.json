@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "c748c3a69c20",
+  "session_id": "a491acee-2766-499f-bd00-30e58ec985ab",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-13T11:43:31.832315576Z",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/app/consumer/page.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "1d72f364e603",
+  "token_usage": {
+    "input_tokens": 11373,
+    "cache_creation_tokens": 258179,
+    "cache_read_tokens": 22596060,
+    "output_tokens": 90956,
+    "api_call_count": 198
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-13T11:43:31.787029258Z",
+    "agent_lines": 2,
+    "agent_removed": 10,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 2,
+    "total_lines_changed": 12,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 474,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs - Copy.html": 22,
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs.html": 22,
+        "mod.md": 430
+      }
+    }
+  ]
+}
