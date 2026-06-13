@@ -27,3 +27,10 @@ ALTER TABLE public.produce_listings ADD COLUMN IF NOT EXISTS delivery_mode text 
 ALTER TABLE public.produce_listings ADD COLUMN IF NOT EXISTS delivery_charge numeric;
 ALTER TABLE public.produce_listings ADD COLUMN IF NOT EXISTS delivery_radius_km numeric;
 COMMENT ON COLUMN public.produce_listings.delivery_mode IS 'pickup | courier | both — how the farmer fulfils this listing (#11).';
+
+-- #7 — Exact timestamps for the order timeline so the consumer sees the date+time
+-- of every status change (payment received, farmer confirmation).
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS paid_at timestamptz;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS confirmed_at timestamptz;
+COMMENT ON COLUMN public.orders.paid_at IS 'When the online payment was confirmed (Razorpay verify or farmer-confirmed UPI).';
+COMMENT ON COLUMN public.orders.confirmed_at IS 'When the farmer confirmed/approved the order.';

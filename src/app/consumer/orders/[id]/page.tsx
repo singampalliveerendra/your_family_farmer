@@ -22,6 +22,8 @@ type Order = {
   payment_method: string | null
   payment_method_detail?: string | null
   payment_status: string | null
+  paid_at?: string | null
+  confirmed_at?: string | null
   razorpay_payment_id: string | null
   refund_status: string | null
   refund_id: string | null
@@ -578,17 +580,15 @@ function OrderStatusPanel({ order }: { order: Order }) {
 
   const fmt = (iso?: string | null) =>
     iso ? new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
-  const placedAt = fmt(order.created_at)
-  const collectedAt = fmt(order.collected_at)
 
   const steps = [
-    { label: 'Order placed / ఆర్డర్ పెట్టారు', sub: 'We received your order / మీ ఆర్డర్ అందింది', at: placedAt },
+    { label: 'Order placed / ఆర్డర్ పెట్టారు', sub: 'We received your order / మీ ఆర్డర్ అందింది', at: fmt(order.created_at) },
     ...(paidOnline
-      ? [{ label: 'Payment received / చెల్లింపు అందింది', sub: `${order.payment_method_detail || 'UPI'} payment confirmed / చెల్లింపు ధృవీకరించబడింది`, at: '' }]
+      ? [{ label: 'Payment received / చెల్లింపు అందింది', sub: `${order.payment_method_detail || 'UPI'} payment confirmed / చెల్లింపు ధృవీకరించబడింది`, at: fmt(order.paid_at) }]
       : []),
-    { label: 'Confirmed by farmer / రైతు ధృవీకరించారు', sub: 'Farmer accepted your order / రైతు అంగీకరించారు', at: '' },
+    { label: 'Confirmed by farmer / రైతు ధృవీకరించారు', sub: 'Farmer accepted your order / రైతు అంగీకరించారు', at: fmt(order.confirmed_at) },
     { label: 'Ready for pickup / తీసుకెళ్లడానికి సిద్ధం', sub: order.pickup_location ? `Collect at ${order.pickup_location}` : 'Collect from the farmer / రైతు నుండి తీసుకోండి', at: '' },
-    { label: 'Picked up / తీసుకున్నారు', sub: 'Collection confirmed / తీసుకున్నట్టు ధృవీకరించారు', at: collectedAt },
+    { label: 'Picked up / తీసుకున్నారు', sub: 'Collection confirmed / తీసుకున్నట్టు ధృవీకరించారు', at: fmt(order.collected_at) },
   ]
 
   // current step index: placed(+payment) → confirmed/ready (on approval) → picked up.

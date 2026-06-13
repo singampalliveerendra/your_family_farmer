@@ -75,6 +75,7 @@ export async function POST(req: NextRequest) {
     .from('orders')
     .update({
       payment_status: 'paid',
+      paid_at: new Date().toISOString(),
       razorpay_payment_id: razorpayPaymentId,
       ...(methodLabel ? { payment_method_detail: methodLabel } : {}),
     })

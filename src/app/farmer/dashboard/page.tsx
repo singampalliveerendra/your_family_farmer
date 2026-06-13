@@ -328,7 +328,7 @@ export default function FarmerDashboard() {
 
   const handleApprove = async (orderId: string) => {
     setProcessingOrderId(orderId)
-    await supabase.from('orders').update({ status: 'approved' }).eq('id', orderId)
+    await supabase.from('orders').update({ status: 'approved', confirmed_at: new Date().toISOString() }).eq('id', orderId)
     setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
     setApprovedCount((c) => c + 1)
     setProcessingOrderId(null)
@@ -382,7 +382,7 @@ export default function FarmerDashboard() {
 
   const handleMarkPaid = async (orderId: string) => {
     setProcessingPaidId(orderId)
-    await supabase.from('orders').update({ payment_status: 'completed' }).eq('id', orderId)
+    await supabase.from('orders').update({ payment_status: 'completed', paid_at: new Date().toISOString() }).eq('id', orderId)
     setPendingOrders((prev) =>
       prev.map((o) => o.id === orderId ? { ...o, payment_status: 'completed' } : o)
     )
@@ -392,7 +392,11 @@ export default function FarmerDashboard() {
   const handleUpdatePaymentStatus = async (orderId: string, status: 'completed' | 'failed' | 'pending') => {
     setProcessingPaidId(orderId)
     const update: Record<string, string> = { payment_status: status }
-    if (status === 'completed') update.status = 'approved'
+    if (status === 'completed') {
+      update.status = 'approved'
+      update.paid_at = new Date().toISOString()
+      update.confirmed_at = new Date().toISOString()
+    }
     await supabase.from('orders').update(update).eq('id', orderId)
     setPendingOrders((prev) =>
       prev.map((o) => o.id === orderId ? { ...o, payment_status: status, ...(status === 'completed' ? { status: 'approved' } : {}) } : o)
