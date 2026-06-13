@@ -1,0 +1,1 @@
+Add 'Guest Checkout' feature i.e customer should be able to purchase a produce without logging in i.e just by providing e-mail, mobile number and address.  before doing tell me what you understand

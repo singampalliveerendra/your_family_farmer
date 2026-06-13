@@ -5,11 +5,16 @@
   "branch": "main",
   "checkpoints_count": 8,
   "files_touched": [
+    "scripts/audit-log-migration.sql",
+    "scripts/guest-checkout-migration.sql",
     "scripts/otp-sessions-migration.sql",
+    "scripts/pickup-confirm-migration.sql",
     "src/app/api/auth/reset-password-otp/route.ts",
     "src/app/api/consumer/complaints/route.ts",
     "src/app/api/consumer/orders/[id]/route.ts",
     "src/app/api/farmer/complaints/route.ts",
+    "src/app/api/farmer/orders/[id]/confirm-pickup/route.ts",
+    "src/app/api/moderator/audit/route.ts",
     "src/app/api/moderator/escalations/route.ts",
     "src/app/api/moderator/farmers/route.ts",
     "src/app/api/moderator/orders/lookup/route.ts",
@@ -26,6 +31,7 @@
     "src/app/farmer/login/page.tsx",
     "src/app/globals.css",
     "src/app/layout.tsx",
+    "src/app/moderator/audit/page.tsx",
     "src/app/moderator/escalations/page.tsx",
     "src/app/moderator/farmers/new/page.tsx",
     "src/app/moderator/page.tsx",
@@ -36,6 +42,7 @@
     "src/components/SplashScreen.tsx",
     "src/components/consumer/AuthModal.tsx",
     "src/components/consumer/Cart.tsx",
+    "src/lib/guest-order-token.ts",
     "src/lib/otp-accounts.ts",
     "src/lib/translations.ts",
     "src/lib/twofactor.ts"
@@ -58,13 +65,19 @@
       "transcript": "/53/6542607f49/2/full.jsonl",
       "content_hash": "/53/6542607f49/2/content_hash.txt",
       "prompt": "/53/6542607f49/2/prompt.txt"
+    },
+    {
+      "metadata": "/53/6542607f49/3/metadata.json",
+      "transcript": "/53/6542607f49/3/full.jsonl",
+      "content_hash": "/53/6542607f49/3/content_hash.txt",
+      "prompt": "/53/6542607f49/3/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 19924,
-    "cache_creation_tokens": 560029,
-    "cache_read_tokens": 19071499,
-    "output_tokens": 188871,
-    "api_call_count": 232
+    "input_tokens": 23547,
+    "cache_creation_tokens": 651967,
+    "cache_read_tokens": 21142421,
+    "output_tokens": 213870,
+    "api_call_count": 262
   }
 }
