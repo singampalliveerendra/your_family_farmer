@@ -60,7 +60,7 @@ export default function OrderDetailsPage() {
   const params = useParams<{ id: string }>()
   const id = typeof params?.id === 'string' ? params.id : ''
   const { state, openAuth } = useConsumerAuth()
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -191,12 +191,12 @@ export default function OrderDetailsPage() {
       <div className="bg-green-900 px-4 pt-6 pb-10">
         <div className="flex items-center justify-between mb-4">
           <Link href="/consumer/orders" className="text-green-300 text-sm flex items-center gap-1">
-            ← Back / వెనక్కు
+            ← {L('Back', 'వెనక్కు')}
           </Link>
           <LanguageToggle />
         </div>
         <h1 className="text-white text-xl font-extrabold leading-tight">
-          Order details / ఆర్డర్ వివరాలు
+          {L('Order details', 'ఆర్డర్ వివరాలు')}
         </h1>
       </div>
 
@@ -209,12 +209,12 @@ export default function OrderDetailsPage() {
               onClick={openAuth}
               className="w-full bg-green-700 text-white font-bold py-3.5 rounded-xl text-sm active:bg-green-800"
             >
-              Log in / లాగిన్
+              {L('Log in', 'లాగిన్')}
             </button>
           </div>
         ) : loading ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center text-sm text-gray-500">
-            Loading... / లోడ్ అవుతోంది
+            {L('Loading...', 'లోడ్ అవుతోంది')}
           </div>
         ) : error ? (
           <div className="bg-white rounded-2xl border border-red-100 p-6 text-sm text-red-600">{error}</div>
@@ -265,7 +265,7 @@ export default function OrderDetailsPage() {
                   onClick={() => setShowReceipt(true)}
                   className="mt-3 w-full border border-green-600 text-green-700 font-bold py-2.5 rounded-xl text-sm active:bg-green-50"
                 >
-                  🧾 View receipt / రసీదు చూడండి
+                  🧾 {L('View receipt', 'రసీదు చూడండి')}
                 </button>
               )}
 
@@ -287,8 +287,8 @@ export default function OrderDetailsPage() {
                 <div>
                   <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide">
                     {order.delivery_type === 'home_delivery'
-                      ? 'Delivery date / డెలివరీ తేదీ'
-                      : 'Pickup date / పికప్ తేదీ'}
+                      ? L('Delivery date', 'డెలివరీ తేదీ')
+                      : L('Pickup date', 'పికప్ తేదీ')}
                   </p>
                   <p className="text-sm font-extrabold text-green-900 mt-0.5">
                     {new Date(`${order.fulfillment_date}T00:00:00`).toLocaleDateString('en-IN', {
@@ -366,7 +366,7 @@ export default function OrderDetailsPage() {
                     rel="noopener noreferrer"
                     className="w-full bg-green-600 text-white font-bold py-3.5 rounded-xl text-sm active:bg-green-700 flex items-center justify-center gap-2"
                   >
-                    💬 Contact Farmer / రైతును సంప్రదించు
+                    💬 {L('Contact Farmer', 'రైతును సంప్రదించు')}
                   </a>
                 )}
               </div>
@@ -377,7 +377,7 @@ export default function OrderDetailsPage() {
               onClick={() => setShowComplaint(true)}
               className="w-full border border-gray-300 text-gray-700 font-bold py-3 rounded-xl text-sm active:bg-gray-50"
             >
-              🛟 Report a problem / సమస్యను నివేదించండి
+              🛟 {L('Report a problem', 'సమస్యను నివేదించండి')}
             </button>
           </>
         )}
