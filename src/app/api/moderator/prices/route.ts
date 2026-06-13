@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
   if (!isModeratorRequest(req)) {
     return NextResponse.json({ error: 'Moderator login required.' }, { status: 401 })
   }
-  const zone = getModeratorZone()
+  const zone = getModeratorZone(req)
   const supabase = svc()
 
   const { data: prices, error } = await supabase
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
   if (!isModeratorRequest(req)) {
     return NextResponse.json({ error: 'Moderator login required.' }, { status: 401 })
   }
-  const zone = getModeratorZone()
+  const zone = getModeratorZone(req)
   const supabase = svc()
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null

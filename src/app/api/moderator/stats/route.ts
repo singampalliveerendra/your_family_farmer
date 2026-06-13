@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Moderator login required.' }, { status: 401 })
   }
 
-  const zone = getModeratorZone()
+  const zone = getModeratorZone(req)
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,

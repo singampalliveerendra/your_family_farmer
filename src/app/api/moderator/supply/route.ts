@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   if (!isModeratorRequest(req)) {
     return NextResponse.json({ error: 'Moderator login required.' }, { status: 401 })
   }
-  const zone = getModeratorZone()
+  const zone = getModeratorZone(req)
   const supabase = svc()
 
   // Farmers in this zone — supply is scoped to them.

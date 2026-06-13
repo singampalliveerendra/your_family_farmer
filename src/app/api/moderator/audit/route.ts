@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   if (!isModeratorRequest(req)) {
     return NextResponse.json({ error: 'Moderator login required.' }, { status: 401 })
   }
-  const zone = getModeratorZone()
+  const zone = getModeratorZone(req)
   const supabase = svc()
 
   const limit = Math.min(Number(req.nextUrl.searchParams.get('limit') ?? 200) || 200, 500)

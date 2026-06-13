@@ -31,41 +31,63 @@ export function getModeratorPassword(): string {
   return pw
 }
 
-// The single zone this moderator manages. Defaults to the launch zone.
-export function getModeratorZone(): string {
+// The zone the request's moderator manages. Read from their signed session
+// token (stamped with their own region_slug at login), so moderators of
+// different zones can all use one deployment and each stays scoped to their
+// own region. Falls back to the MODERATOR_ZONE env var when there's no
+// moderator session on the request (e.g. routing complaints for other roles).
+export function getModeratorZone(req?: NextRequest): string {
+  if (req) {
+    const t = readModeratorToken(req)
+    if (t?.zone) return t.zone
+  }
   return process.env.MODERATOR_ZONE || 'tadepalligudem'
 }
 
-export function createModeratorSessionToken(): string {
+export function createModeratorSessionToken(zone: string): string {
   const issuedAt = Date.now()
-  const payload = `moderator.${issuedAt}`
+  const zoneB64 = b64url(Buffer.from(zone, 'utf8'))
+  const payload = `moderator.${issuedAt}.${zoneB64}`
   return `${payload}.${sign(payload)}`
 }
 
-export function isModeratorRequest(req: NextRequest): boolean {
+// Parse + verify the moderator cookie. Returns the decoded zone (and issue
+// time) when valid, or null. Token shape: moderator.<issuedAt>.<zoneB64>.<sig>
+function readModeratorToken(req: NextRequest): { issuedAt: number; zone: string } | null {
   const token = req.cookies.get(COOKIE_NAME)?.value
-  if (!token) return false
+  if (!token) return null
   const parts = token.split('.')
-  if (parts.length !== 3) return false
-  const [marker, issuedAtStr, sig] = parts
-  if (marker !== 'moderator') return false
+  if (parts.length !== 4) return null
+  const [marker, issuedAtStr, zoneB64, sig] = parts
+  if (marker !== 'moderator') return null
   const issuedAt = Number(issuedAtStr)
-  if (!Number.isFinite(issuedAt)) return false
-  if (Date.now() - issuedAt > TOKEN_TTL_MS) return false
+  if (!Number.isFinite(issuedAt)) return null
+  if (Date.now() - issuedAt > TOKEN_TTL_MS) return null
   let expected: string
   try {
-    expected = sign(`${marker}.${issuedAtStr}`)
+    expected = sign(`${marker}.${issuedAtStr}.${zoneB64}`)
   } catch {
-    return false
+    return null
   }
   const a = Buffer.from(sig)
   const b = Buffer.from(expected)
-  if (a.length !== b.length) return false
-  return timingSafeEqual(a, b)
+  if (a.length !== b.length) return null
+  if (!timingSafeEqual(a, b)) return null
+  let zone = ''
+  try {
+    zone = Buffer.from(zoneB64.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')
+  } catch {
+    return null
+  }
+  return { issuedAt, zone }
 }
 
-export function setModeratorSessionCookie(res: NextResponse): void {
-  const token = createModeratorSessionToken()
+export function isModeratorRequest(req: NextRequest): boolean {
+  return readModeratorToken(req) !== null
+}
+
+export function setModeratorSessionCookie(res: NextResponse, zone: string): void {
+  const token = createModeratorSessionToken(zone)
   res.cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

@@ -6,5 +6,5 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   const ok = isModeratorRequest(req)
-  return NextResponse.json({ moderator: ok, zone: ok ? getModeratorZone() : null })
+  return NextResponse.json({ moderator: ok, zone: ok ? getModeratorZone(req) : null })
 }

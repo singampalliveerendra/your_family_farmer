@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { setModeratorSessionCookie, getModeratorZone } from '@/lib/moderator-session'
+import { setModeratorSessionCookie } from '@/lib/moderator-session'
 import { verifyPassword } from '@/lib/password'
 import { normalizePhone } from '@/lib/phone'
 import { rateLimit } from '@/lib/rate-limit'
@@ -52,11 +52,11 @@ export async function POST(req: NextRequest) {
   if (mod.active === false) {
     return NextResponse.json({ error: 'This moderator account is inactive.' }, { status: 403 })
   }
-  if (mod.region_slug !== getModeratorZone()) {
-    return NextResponse.json({ error: 'You are not assigned to this zone.' }, { status: 403 })
-  }
 
-  const res = NextResponse.json({ ok: true })
-  setModeratorSessionCookie(res)
+  // No global-zone gate: each moderator's own region_slug is carried in their
+  // session, so any zone's moderator can sign in here and stays scoped to
+  // their region across the panel.
+  const res = NextResponse.json({ ok: true, zone: mod.region_slug })
+  setModeratorSessionCookie(res, mod.region_slug)
   return res
 }

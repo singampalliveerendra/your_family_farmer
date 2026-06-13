@@ -38,7 +38,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'A reason is required to suspend an account.' }, { status: 400 })
   }
 
-  const zone = getModeratorZone()
+  const zone = getModeratorZone(req)
   const supabase = svc()
 
   // Confirm the consumer exists.

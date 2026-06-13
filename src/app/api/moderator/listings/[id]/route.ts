@@ -30,7 +30,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Moderator login required.' }, { status: 401 })
   }
   const { id } = await params
-  const zone = getModeratorZone()
+  const zone = getModeratorZone(req)
   const supabase = svc()
 
   const body = await req.json().catch(() => null)
