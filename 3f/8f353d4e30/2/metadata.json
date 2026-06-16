@@ -1,0 +1,79 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "3f8f353d4e30",
+  "session_id": "a5f4c282-6f1e-4e45-862e-c5f83cba4e5d",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-16T13:03:43.319936857Z",
+  "branch": "feat/suspend-consumer-reason-privacy",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "src/app/api/consumer/login/route.ts",
+    "src/app/api/consumer/me/route.ts",
+    "src/components/consumer/GlobalNav.tsx",
+    "src/lib/ConsumerAuthContext.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "57493bf7ef9f",
+  "token_usage": {
+    "input_tokens": 3452,
+    "cache_creation_tokens": 122833,
+    "cache_read_tokens": 1711530,
+    "output_tokens": 29987,
+    "api_call_count": 41
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-16T13:03:43.305880027Z",
+    "agent_lines": 0,
+    "agent_removed": 5,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 5,
+    "total_committed": 4,
+    "total_lines_changed": 10,
+    "agent_percentage": 50,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 856,
+      "user_lines_removed": 53,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs - Copy.html": 22,
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs.html": 22,
+        "mod.md": 430,
+        "src/app/api/consumer/me/route.ts": 13,
+        "src/app/farmer/dashboard/page.tsx": 288,
+        "src/components/consumer/GlobalNav.tsx": 22,
+        "src/lib/ConsumerAuthContext.tsx": 45,
+        "src/lib/translations.ts": 14
+      },
+      "user_removed_per_file": {
+        "src/app/api/consumer/me/route.ts": 4,
+        "src/app/farmer/dashboard/page.tsx": 46,
+        "src/components/consumer/GlobalNav.tsx": 1,
+        "src/lib/translations.ts": 2
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 861,
+      "agent_lines_removed": 59
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 861,
+      "agent_lines_removed": 59
+    }
+  ]
+}

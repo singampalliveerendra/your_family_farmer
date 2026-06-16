@@ -1,0 +1,58 @@
+← Back / వెనక్కు
+EN
+తె
+My Orders / నా ఆర్డర్లు
+Your complete order history / మీ ఆర్డర్ల చరిత్ర
+
+1 order found
+
+Green leaf
+
+YFF-20260613-0056
+
+1 kg · ₹1
+
+⏳ Pending
+🧑‍🌾 From veeru · gajuwaka
+
+13 Jun 2026, 06:36 pm
+
+🛟 My complaints / నా ఫిర్యాదులు
+ after clicking that green leaf order iam getting this ← Back
+EN
+తె
+Order details
+TypeError: fetch failedeven the client sent this and the error is ← Back
+EN
+తె
+Order details
+column orders.collected_at does not exist
+
+---
+
+Fix these 2 small issues:
+
+1. DUPLICATE PICKUP SECTION:
+   In the farmer profile page, the "Pickup and Schedule" section is appearing TWICE.
+   Find both instances and remove one - keep only one clean section.
+
+2. SUSPEND CONSUMER WITH REASON:
+   When moderator suspends a consumer, currently no reason is being asked.
+   
+   Add these changes:
+   - Show a popup with a text field asking "Why are you suspending this consumer?"
+   - The reason field is mandatory - cannot suspend without reason
+   - Examples: "Multiple fake orders", "Abusive behavior", "Did not pay"
+   - Save this reason in the consumers table
+   - On the consumer's profile page, show a red banner at the top:
+     "Account Suspended: {reason}"
+   - This banner should be visible to admin and moderator only
+   - The consumer themselves should see: "Your account has been suspended. Please contact support.". the client sent this
+
+---
+
+[]
+
+---
+
+continue
