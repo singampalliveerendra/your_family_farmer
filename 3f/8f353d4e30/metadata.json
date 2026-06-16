@@ -3,7 +3,7 @@
   "checkpoint_id": "3f8f353d4e30",
   "strategy": "manual-commit",
   "branch": "feat/suspend-consumer-reason-privacy",
-  "checkpoints_count": 3,
+  "checkpoints_count": 7,
   "files_touched": [
     "src/app/api/consumer/login/route.ts",
     "src/app/api/consumer/me/route.ts",
@@ -16,13 +16,19 @@
       "transcript": "/3f/8f353d4e30/0/full.jsonl",
       "content_hash": "/3f/8f353d4e30/0/content_hash.txt",
       "prompt": "/3f/8f353d4e30/0/prompt.txt"
+    },
+    {
+      "metadata": "/3f/8f353d4e30/1/metadata.json",
+      "transcript": "/3f/8f353d4e30/1/full.jsonl",
+      "content_hash": "/3f/8f353d4e30/1/content_hash.txt",
+      "prompt": "/3f/8f353d4e30/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 3988,
-    "cache_creation_tokens": 40384,
-    "cache_read_tokens": 480710,
-    "output_tokens": 11267,
-    "api_call_count": 14
+    "input_tokens": 9965,
+    "cache_creation_tokens": 346431,
+    "cache_read_tokens": 10467893,
+    "output_tokens": 87187,
+    "api_call_count": 120
   }
 }

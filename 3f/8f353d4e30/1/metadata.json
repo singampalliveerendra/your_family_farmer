@@ -1,0 +1,81 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "3f8f353d4e30",
+  "session_id": "39b3f3a1-e323-4fa1-8483-86b62a248613",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-16T13:03:40.100171755Z",
+  "branch": "feat/suspend-consumer-reason-privacy",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "src/app/api/consumer/me/route.ts",
+    "src/components/consumer/GlobalNav.tsx",
+    "src/lib/ConsumerAuthContext.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "921f3b873ec6",
+  "token_usage": {
+    "input_tokens": 5977,
+    "cache_creation_tokens": 306047,
+    "cache_read_tokens": 9987183,
+    "output_tokens": 75920,
+    "api_call_count": 106
+  },
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-16T13:03:40.064634657Z",
+    "agent_lines": 80,
+    "agent_removed": 5,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 80,
+    "total_lines_changed": 85,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 474,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs - Copy.html": 22,
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs.html": 22,
+        "mod.md": 430
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 554,
+      "agent_lines_removed": 5
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 671,
+      "agent_lines_removed": 37
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 856,
+      "agent_lines_removed": 53
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 856,
+      "agent_lines_removed": 53
+    }
+  ]
+}

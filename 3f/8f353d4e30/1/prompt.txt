@@ -1,0 +1,19 @@
+Add a Reason while suspending a consumer by a Moderator. That should be shown in the Consumer header highlighting the suspension.
+
+---
+
+Allow the farmer to mention a date for pickup or delivery. Description
+Edit
+After a consumer ordered an item, the farmer sees "Approved" and "Decline" in his order list. Lets change the "Approved" to "Pickup available date" or "Order Delivery date" depending on the option the user has selected and let the farmer choose a date. That should be visible to consumer on his order. Also the item should be retained the active orders for Farmer until the order is resolved.
+
+---
+
+A Farmer should be able to suspend a produce and resume it.
+
+---
+
+commit and push
+
+---
+
+did you add required queries in supabase
