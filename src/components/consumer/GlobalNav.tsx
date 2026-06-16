@@ -10,7 +10,7 @@ type ActiveTab = 'consumer' | 'farmer' | 'delivery' | 'moderator'
 
 export default function GlobalNav({ activeTab = 'consumer' }: { activeTab?: ActiveTab }) {
   const { tx } = useLang()
-  const { state, consumer, openAuth, logout } = useConsumerAuth()
+  const { state, consumer, openAuth, logout, suspendedReason, dismissSuspension } = useConsumerAuth()
 
   const tabs = [
     { key: 'consumer' as const, href: '/consumer', label: tx.consumerNav },
@@ -76,6 +76,27 @@ export default function GlobalNav({ activeTab = 'consumer' }: { activeTab?: Acti
           )
         })}
       </div>
+
+      {/* Suspension banner — shown when this account has been suspended by a
+          moderator, surfacing the reason they gave. */}
+      {suspendedReason && (
+        <div className="bg-red-600 text-white px-4 py-2.5 flex items-start gap-2.5">
+          <span className="text-base leading-none mt-0.5" aria-hidden>🚫</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-black uppercase tracking-wide leading-tight">
+              Account suspended / ఖాతా నిలిపివేయబడింది
+            </p>
+            <p className="text-xs font-medium leading-snug mt-0.5 break-words">{suspendedReason}</p>
+          </div>
+          <button
+            onClick={dismissSuspension}
+            aria-label="Dismiss"
+            className="text-white/80 active:text-white text-lg leading-none px-1 flex-shrink-0"
+          >
+            ×
+          </button>
+        </div>
+      )}
     </nav>
   )
 }

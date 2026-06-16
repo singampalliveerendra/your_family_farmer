@@ -74,14 +74,13 @@ export async function POST(req: NextRequest) {
   if (!user.password_hash || !verifyPassword(password, user.password_hash)) return wrongCreds
 
   // Suspended accounts can't sign in. Checked only after a correct password so
-  // it doesn't leak which numbers are registered.
+  // it doesn't leak which numbers are registered. The moderator's reason is
+  // never shown to the consumer — only a generic message. The reason stays
+  // visible to moderators/admins in their consumers view.
   if (user.suspended === true) {
-    const reason = (user.suspended_reason as string | null)?.trim()
     return NextResponse.json(
       {
-        error: reason
-          ? `Account suspended: ${reason}. Please contact support. / ఖాతా నిలిపివేయబడింది: ${reason}.`
-          : 'This account has been suspended. Please contact support. / ఈ ఖాతా నిలిపివేయబడింది.',
+        error: 'Your account has been suspended. Please contact support. / మీ ఖాతా నిలిపివేయబడింది. దయచేసి సపోర్ట్‌ను సంప్రదించండి.',
       },
       { status: 403 },
     )

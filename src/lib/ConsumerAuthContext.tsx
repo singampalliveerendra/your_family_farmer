@@ -18,6 +18,13 @@ type ConsumerAuthContextValue = {
   state: AuthState
   consumer: Consumer | null
   /**
+   * The moderator's reason when this account has been suspended, or null.
+   * Surfaced so the header can show a highlighted suspension banner.
+   */
+  suspendedReason: string | null
+  /** Dismiss the suspension banner (does not un-suspend the account). */
+  dismissSuspension: () => void
+  /**
    * Run `action` immediately when authenticated; otherwise open the auth modal
    * and run `action` after a successful login or registration.
    */
@@ -30,6 +37,9 @@ type ConsumerAuthContextValue = {
 }
 
 const STORAGE_KEY = 'yff_consumer_v2'
+// Suspension reason is persisted separately so the banner survives the reload
+// that follows the server clearing the session cookie on a suspended account.
+const SUSPEND_KEY = 'yff_consumer_suspended'
 const AUTH_EVENT = 'yff:consumer-auth-change'
 
 const ConsumerAuthContext = createContext<ConsumerAuthContextValue | null>(null)
@@ -57,8 +67,24 @@ function writeCachedConsumer(c: Consumer | null) {
   window.dispatchEvent(new Event(AUTH_EVENT))
 }
 
+function readSuspendedReason(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    return localStorage.getItem(SUSPEND_KEY) || null
+  } catch {
+    return null
+  }
+}
+
+function writeSuspendedReason(reason: string | null) {
+  if (typeof window === 'undefined') return
+  if (reason) localStorage.setItem(SUSPEND_KEY, reason)
+  else localStorage.removeItem(SUSPEND_KEY)
+}
+
 export function ConsumerAuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: 'loading', consumer: null })
+  const [suspendedReason, setSuspendedReason] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const pendingAction = useRef<(() => void) | null>(null)
 
@@ -66,6 +92,8 @@ export function ConsumerAuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const cached = readCachedConsumer()
     if (cached) setState({ status: 'authenticated', consumer: cached })
+    // Show any previously-stored suspension reason immediately on reload.
+    setSuspendedReason(readSuspendedReason())
 
     let cancelled = false
     fetch('/api/consumer/me', { credentials: 'same-origin' })
@@ -75,9 +103,17 @@ export function ConsumerAuthProvider({ children }: { children: ReactNode }) {
         const c: Consumer | null = json?.consumer ?? null
         if (c) {
           writeCachedConsumer(c)
+          writeSuspendedReason(null)
+          setSuspendedReason(null)
           setState({ status: 'authenticated', consumer: c })
         } else {
           writeCachedConsumer(null)
+          if (json?.suspended) {
+            const reason = (json.suspendedReason as string | null)?.trim()
+              || 'Your account has been suspended. Please contact support.'
+            writeSuspendedReason(reason)
+            setSuspendedReason(reason)
+          }
           setState({ status: 'anonymous', consumer: null })
         }
       })
@@ -103,6 +139,8 @@ export function ConsumerAuthProvider({ children }: { children: ReactNode }) {
 
   const handleAuthSuccess = useCallback((consumer: Consumer) => {
     writeCachedConsumer(consumer)
+    writeSuspendedReason(null)
+    setSuspendedReason(null)
     setState({ status: 'authenticated', consumer })
     setModalOpen(false)
     const action = pendingAction.current
@@ -158,6 +196,11 @@ export function ConsumerAuthProvider({ children }: { children: ReactNode }) {
     setModalOpen(true)
   }, [state.status])
 
+  const dismissSuspension = useCallback(() => {
+    writeSuspendedReason(null)
+    setSuspendedReason(null)
+  }, [])
+
   const openAuth = useCallback(() => setModalOpen(true), [])
   const closeAuth = useCallback(() => {
     pendingAction.current = null
@@ -169,6 +212,8 @@ export function ConsumerAuthProvider({ children }: { children: ReactNode }) {
       value={{
         state,
         consumer: state.consumer,
+        suspendedReason,
+        dismissSuspension,
         requireAuth,
         login,
         register,
