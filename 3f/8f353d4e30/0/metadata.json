@@ -1,0 +1,79 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "3f8f353d4e30",
+  "session_id": "366a56e2-790b-481d-a2fa-f100da861946",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-16T13:03:39.667109296Z",
+  "branch": "feat/suspend-consumer-reason-privacy",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "src/app/api/consumer/login/route.ts",
+    "src/app/api/consumer/me/route.ts",
+    "src/components/consumer/GlobalNav.tsx",
+    "src/lib/ConsumerAuthContext.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "57e5cdf7de35",
+  "token_usage": {
+    "input_tokens": 3988,
+    "cache_creation_tokens": 40384,
+    "cache_read_tokens": 480710,
+    "output_tokens": 11267,
+    "api_call_count": 14
+  },
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-16T13:03:39.640897149Z",
+    "agent_lines": 0,
+    "agent_removed": 5,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 5,
+    "total_committed": 4,
+    "total_lines_changed": 10,
+    "agent_percentage": 50,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 856,
+      "user_lines_removed": 53,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs - Copy.html": 22,
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs.html": 22,
+        "mod.md": 430,
+        "src/app/api/consumer/me/route.ts": 13,
+        "src/app/farmer/dashboard/page.tsx": 288,
+        "src/components/consumer/GlobalNav.tsx": 22,
+        "src/lib/ConsumerAuthContext.tsx": 45,
+        "src/lib/translations.ts": 14
+      },
+      "user_removed_per_file": {
+        "src/app/api/consumer/me/route.ts": 4,
+        "src/app/farmer/dashboard/page.tsx": 46,
+        "src/components/consumer/GlobalNav.tsx": 1,
+        "src/lib/translations.ts": 2
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 857,
+      "agent_lines_removed": 54
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 857,
+      "agent_lines_removed": 54
+    }
+  ]
+}
