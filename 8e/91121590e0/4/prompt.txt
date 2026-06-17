@@ -1,0 +1,54 @@
+Fix these 2 small issues:
+
+1. DUPLICATE PICKUP SECTION:
+   In the farmer profile page, the "Pickup and Schedule" section is appearing TWICE.
+   Find both instances and remove one - keep only one clean section.
+
+2. SUSPEND CONSUMER WITH REASON:
+   When moderator suspends a consumer, currently no reason is being asked.
+   
+   Add these changes:
+   - Show a popup with a text field asking "Why are you suspending this consumer?"
+   - The reason field is mandatory - cannot suspend without reason
+   - Examples: "Multiple fake orders", "Abusive behavior", "Did not pay"
+   - Save this reason in the consumers table
+   - On the consumer's profile page, show a red banner at the top:
+     "Account Suspended: {reason}"
+   - This banner should be visible to admin and moderator only
+   - The consumer themselves should see: "Your account has been suspended. Please contact support.".have we done this
+
+---
+
+Add new order flow statuses for completing orders:
+
+Currently after farmer confirms an order, there's no proper way to mark the order as complete. Add these new statuses:
+
+For PICKUP orders:
+1. After farmer mentions pickup date, add a button "Picked Up / తీసుకువెళ్ళారు" in farmer dashboard
+2. Farmer taps this when consumer comes and collects the order
+3. This marks order as completed and moves it from "Active Orders" to "Order History"
+
+For COURIER/SHIPPED orders:
+1. After farmer mentions delivery date, add a button "Shipped / షిప్ చేయబడింది" in farmer dashboard  
+2. Farmer taps this when they hand over to courier or send the parcel
+3. Order status changes to "Shipped" - still shows in active orders
+4. Consumer now sees a "Received / అందుకున్నాను" button on their order
+5. When consumer confirms received, order moves to history
+
+Order status timeline now becomes:
+- Order Placed
+- Payment Received  
+- Confirmed by Farmer
+- For Pickup: → Picked Up → Completed (moves to history)
+- For Courier: → Shipped → Received by Consumer → Completed (moves to history)
+
+Add columns in orders table:
+- shipped_at (date when farmer marked shipped)
+- picked_up_at (date when picked up)
+- received_at (date when consumer marked received)
+
+Show clear timeline with all dates in order details for both farmer and consumer.
+
+Both farmer and consumer should see notifications when status changes.
+
+All buttons and statuses in English and Telugu.what about this
