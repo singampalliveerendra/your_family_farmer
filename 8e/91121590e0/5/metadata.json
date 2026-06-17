@@ -1,0 +1,61 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "8e91121590e0",
+  "session_id": "e27a787e-dab5-4c84-a306-9f93f06815a7",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-17T09:24:45.67422059Z",
+  "branch": "feat/suspend-consumer-reason-privacy",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "package.json",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/lib/translations.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "2a4c8ee95b62",
+  "token_usage": {
+    "input_tokens": 4038,
+    "cache_creation_tokens": 52263,
+    "cache_read_tokens": 665049,
+    "output_tokens": 12383,
+    "api_call_count": 17
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-17T09:24:45.662406856Z",
+    "agent_lines": 38,
+    "agent_removed": 0,
+    "human_added": 278,
+    "human_modified": 49,
+    "human_removed": 0,
+    "total_committed": 365,
+    "total_lines_changed": 379,
+    "agent_percentage": 10.026385224274406,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 777,
+      "user_lines_removed": 49,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs - Copy.html": 22,
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs.html": 22,
+        "mod.md": 430,
+        "package.json": 1,
+        "src/app/farmer/dashboard/page.tsx": 288,
+        "src/lib/translations.ts": 14
+      },
+      "user_removed_per_file": {
+        "package.json": 1,
+        "src/app/farmer/dashboard/page.tsx": 46,
+        "src/lib/translations.ts": 2
+      }
+    }
+  ]
+}
