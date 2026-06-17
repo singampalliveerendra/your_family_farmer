@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "258f6dbc563c",
+  "strategy": "manual-commit",
+  "branch": "feat/suspend-consumer-reason-privacy",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/consumer/orders/page.tsx",
+    "src/app/consumer/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/components/consumer/GlobalNav.tsx",
+    "src/components/farmer/tabs/ProduceTab.tsx",
+    "src/components/region/tabs/BrowseProduceTab.tsx",
+    "src/lib/localizeName.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/25/8f6dbc563c/0/metadata.json",
+      "transcript": "/25/8f6dbc563c/0/full.jsonl",
+      "content_hash": "/25/8f6dbc563c/0/content_hash.txt",
+      "prompt": "/25/8f6dbc563c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 5564,
+    "cache_creation_tokens": 105430,
+    "cache_read_tokens": 7678878,
+    "output_tokens": 41429,
+    "api_call_count": 92
+  }
+}
