@@ -1,14 +1,26 @@
 import { createClient } from '@supabase/supabase-js'
+import { randomInt } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
+import { isModeratorRequest, getModeratorZone, getModeratorId } from '@/lib/moderator-session'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const METHODS = ['natural', 'organic', 'low_chemical', 'chemical'] as const
 
+// Unambiguous alphabet for activation codes — no 0/O/1/I/L so a farmer reading
+// the code off WhatsApp can't mistype it.
+const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ'
+
 function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+// A shareable activation code, e.g. "YFF-7K9Q". Caller checks DB uniqueness.
+function makeActivationCode(): string {
+  let s = ''
+  for (let i = 0; i < 4; i++) s += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]
+  return `YFF-${s}`
 }
 
 function svc() {
@@ -18,19 +30,32 @@ function svc() {
   )
 }
 
-// GET — all farmers in the moderator's zone, with a live listing count.
+// GET — farmers in the moderator's zone, with a live listing count.
+// `?mine=1` narrows to farmers this moderator personally onboarded (for the
+// my-farmers page) and includes the activation code so it can be re-shared.
 export async function GET(req: NextRequest) {
   if (!isModeratorRequest(req)) {
     return NextResponse.json({ error: 'Moderator login required.' }, { status: 401 })
   }
   const zone = getModeratorZone(req)
+  const mineOnly = req.nextUrl.searchParams.get('mine') === '1'
+  const moderatorId = getModeratorId(req)
   const supabase = svc()
 
-  const { data: farmers, error } = await supabase
+  let query = supabase
     .from('farmers')
-    .select('id, slug, name, village, district, method, phone, active, created_at')
+    .select('id, slug, name, village, district, method, phone, active, created_at, activation_code, registered_by_moderator')
     .eq('region_slug', zone)
     .order('created_at', { ascending: false })
+
+  if (mineOnly) {
+    // A legacy session (no id) has no "mine" — return an empty list rather than
+    // leaking the whole zone, prompting a re-login to populate the id.
+    if (!moderatorId) return NextResponse.json({ farmers: [], needsRelogin: true })
+    query = query.eq('registered_by_moderator', moderatorId)
+  }
+
+  const { data: farmers, error } = await query
 
   if (error) {
     console.error('[YFF moderator/farmers] query failed:', error.message)
@@ -79,6 +104,11 @@ export async function POST(req: NextRequest) {
   const farm_address = String((body as { farm_address?: unknown }).farm_address ?? '').trim()
   const upi_id = String((body as { upi_id?: unknown }).upi_id ?? '').trim()
   const cod_enabled = (body as { cod_enabled?: unknown }).cod_enabled === true
+  // Bank payout + soil details collected during moderator-led onboarding.
+  const bank_account_number = String((body as { bank_account_number?: unknown }).bank_account_number ?? '').trim()
+  const bank_ifsc = String((body as { bank_ifsc?: unknown }).bank_ifsc ?? '').trim().toUpperCase()
+  const socRaw = (body as { soil_organic_carbon?: unknown }).soil_organic_carbon
+  const soil_organic_carbon = Number(socRaw) > 0 ? Number(socRaw) : null
 
   // Photos & farm GPS — the same media a farmer can attach to their own profile.
   const cover_photo_url = String((body as { cover_photo_url?: unknown }).cover_photo_url ?? '').trim()
@@ -111,6 +141,9 @@ export async function POST(req: NextRequest) {
   if (upi_id && !/^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$/.test(upi_id)) {
     return NextResponse.json({ error: 'Invalid UPI ID. Example: name@ybl' }, { status: 400 })
   }
+  if (bank_ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bank_ifsc)) {
+    return NextResponse.json({ error: 'Invalid IFSC. Example: SBIN0001234' }, { status: 400 })
+  }
   const method = (METHODS as readonly string[]).includes(methodRaw) ? methodRaw : 'natural'
 
   // Unique slug — append -2, -3, ... if taken.
@@ -121,6 +154,17 @@ export async function POST(req: NextRequest) {
     if (!existing) break
     slug = `${base}-${i}`
   }
+
+  // Unique activation code to share with the farmer for login activation.
+  let activation_code = makeActivationCode()
+  for (let i = 0; i < 20; i++) {
+    const { data: clash } = await supabase.from('farmers').select('id').eq('activation_code', activation_code).maybeSingle()
+    if (!clash) break
+    activation_code = makeActivationCode()
+  }
+
+  // The moderator who is onboarding this farmer (from their signed session).
+  const registered_by_moderator = getModeratorId(req)
 
   const { data: inserted, error } = await supabase
     .from('farmers')
@@ -140,6 +184,9 @@ export async function POST(req: NextRequest) {
       upi_id: upi_id || null,
       upi_qr_code_url: upi_qr_code_url || null,
       cod_enabled,
+      bank_account_number: bank_account_number || null,
+      bank_ifsc: bank_ifsc || null,
+      soil_organic_carbon,
       cover_photo_url: cover_photo_url || null,
       photo_url: photo_url || null,
       pesticide_cert_url: pesticide_cert_url || null,
@@ -148,8 +195,10 @@ export async function POST(req: NextRequest) {
       location_name: lat != null && lng != null ? (location_name || name) : null,
       region_slug: zone,
       active: true,
+      activation_code,
+      registered_by_moderator,
     })
-    .select('id, slug, name, phone')
+    .select('id, slug, name, phone, activation_code')
     .single()
 
   if (error) {

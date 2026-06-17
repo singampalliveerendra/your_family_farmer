@@ -57,6 +57,6 @@ export async function POST(req: NextRequest) {
   // session, so any zone's moderator can sign in here and stays scoped to
   // their region across the panel.
   const res = NextResponse.json({ ok: true, zone: mod.region_slug })
-  setModeratorSessionCookie(res, mod.region_slug)
+  setModeratorSessionCookie(res, mod.region_slug, mod.id)
   return res
 }

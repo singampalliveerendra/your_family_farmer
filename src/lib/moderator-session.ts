@@ -44,28 +44,43 @@ export function getModeratorZone(req?: NextRequest): string {
   return process.env.MODERATOR_ZONE || 'tadepalligudem'
 }
 
-export function createModeratorSessionToken(zone: string): string {
+// Token shape: moderator.<issuedAt>.<zoneB64>.<idB64>.<sig>. The moderator id
+// lets endpoints attribute actions (e.g. "registered by this moderator") and
+// scope per-moderator lists. Older tokens minted before the id was added have
+// the legacy 4-part shape (no idB64); those are still accepted (id = null) so
+// existing sessions don't break — the moderator just re-logs in to get an id.
+export function createModeratorSessionToken(zone: string, moderatorId?: string | null): string {
   const issuedAt = Date.now()
   const zoneB64 = b64url(Buffer.from(zone, 'utf8'))
-  const payload = `moderator.${issuedAt}.${zoneB64}`
+  const idB64 = b64url(Buffer.from(moderatorId ?? '', 'utf8'))
+  const payload = `moderator.${issuedAt}.${zoneB64}.${idB64}`
   return `${payload}.${sign(payload)}`
 }
 
-// Parse + verify the moderator cookie. Returns the decoded zone (and issue
-// time) when valid, or null. Token shape: moderator.<issuedAt>.<zoneB64>.<sig>
-function readModeratorToken(req: NextRequest): { issuedAt: number; zone: string } | null {
+// Parse + verify the moderator cookie. Returns the decoded zone, id, and issue
+// time when valid, or null. Accepts both the current 5-part token and the
+// legacy 4-part token (which carries no id).
+function readModeratorToken(req: NextRequest): { issuedAt: number; zone: string; id: string | null } | null {
   const token = req.cookies.get(COOKIE_NAME)?.value
   if (!token) return null
   const parts = token.split('.')
-  if (parts.length !== 4) return null
-  const [marker, issuedAtStr, zoneB64, sig] = parts
+  if (parts.length !== 4 && parts.length !== 5) return null
+  const hasId = parts.length === 5
+  const marker = parts[0]
+  const issuedAtStr = parts[1]
+  const zoneB64 = parts[2]
+  const idB64 = hasId ? parts[3] : ''
+  const sig = hasId ? parts[4] : parts[3]
   if (marker !== 'moderator') return null
   const issuedAt = Number(issuedAtStr)
   if (!Number.isFinite(issuedAt)) return null
   if (Date.now() - issuedAt > TOKEN_TTL_MS) return null
+  const signedPayload = hasId
+    ? `${marker}.${issuedAtStr}.${zoneB64}.${idB64}`
+    : `${marker}.${issuedAtStr}.${zoneB64}`
   let expected: string
   try {
-    expected = sign(`${marker}.${issuedAtStr}.${zoneB64}`)
+    expected = sign(signedPayload)
   } catch {
     return null
   }
@@ -73,21 +88,31 @@ function readModeratorToken(req: NextRequest): { issuedAt: number; zone: string 
   const b = Buffer.from(expected)
   if (a.length !== b.length) return null
   if (!timingSafeEqual(a, b)) return null
+  const decode = (s: string) => Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')
   let zone = ''
+  let id: string | null = null
   try {
-    zone = Buffer.from(zoneB64.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')
+    zone = decode(zoneB64)
+    if (hasId) { const d = decode(idB64); id = d || null }
   } catch {
     return null
   }
-  return { issuedAt, zone }
+  return { issuedAt, zone, id }
 }
 
 export function isModeratorRequest(req: NextRequest): boolean {
   return readModeratorToken(req) !== null
 }
 
-export function setModeratorSessionCookie(res: NextResponse, zone: string): void {
-  const token = createModeratorSessionToken(zone)
+// The id of the moderator who owns this request's session, or null for legacy
+// sessions minted before the id was added (they re-login to populate it).
+export function getModeratorId(req?: NextRequest): string | null {
+  if (!req) return null
+  return readModeratorToken(req)?.id ?? null
+}
+
+export function setModeratorSessionCookie(res: NextResponse, zone: string, moderatorId?: string | null): void {
+  const token = createModeratorSessionToken(zone, moderatorId)
   res.cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

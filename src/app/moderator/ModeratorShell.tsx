@@ -10,6 +10,7 @@ type NavItem = { label: string; href: string; ready: boolean }
 const NAV: NavItem[] = [
   { label: 'Dashboard', href: '/moderator', ready: true },
   { label: 'Farmer onboarding', href: '/moderator/farmers', ready: true },
+  { label: 'My farmers', href: '/moderator/my-farmers', ready: true },
   { label: 'Escalations', href: '/moderator/escalations', ready: true },
   { label: 'Listings', href: '/moderator/listings', ready: true },
   { label: 'Consumers', href: '/moderator/consumers', ready: true },
