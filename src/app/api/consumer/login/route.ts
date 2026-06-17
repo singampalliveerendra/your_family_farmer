@@ -74,16 +74,15 @@ export async function POST(req: NextRequest) {
   if (!user.password_hash || !verifyPassword(password, user.password_hash)) return wrongCreds
 
   // Suspended accounts can't sign in. Checked only after a correct password so
-  // it doesn't leak which numbers are registered. The moderator's reason is
-  // never shown to the consumer — only a generic message. The reason stays
-  // visible to moderators/admins in their consumers view.
+  // it doesn't leak which numbers are registered. The moderator's reason IS
+  // shown to the consumer (per client request) so they know why; legacy
+  // suspensions with no recorded reason fall back to the generic message.
   if (user.suspended === true) {
-    return NextResponse.json(
-      {
-        error: 'Your account has been suspended. Please contact support. / మీ ఖాతా నిలిపివేయబడింది. దయచేసి సపోర్ట్‌ను సంప్రదించండి.',
-      },
-      { status: 403 },
-    )
+    const reason = (user.suspended_reason as string | null)?.trim()
+    const error = reason
+      ? `Your account has been suspended.\nReason: ${reason}\nPlease contact support. / మీ ఖాతా నిలిపివేయబడింది.\nకారణం: ${reason}\nదయచేసి సపోర్ట్‌ను సంప్రదించండి.`
+      : 'Your account has been suspended. Please contact support. / మీ ఖాతా నిలిపివేయబడింది. దయచేసి సపోర్ట్‌ను సంప్రదించండి.'
+    return NextResponse.json({ error }, { status: 403 })
   }
 
   await supabase

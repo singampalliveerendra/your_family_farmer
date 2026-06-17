@@ -31,10 +31,14 @@ export async function GET(req: NextRequest) {
 
   if (user.suspended === true) {
     // Suspended account: clear the cookie so they can't perform authenticated
-    // actions. The moderator's reason is intentionally NOT returned to the
-    // consumer — they only see a generic banner. The reason is visible to
-    // moderators/admins (in the moderator consumers view), not the buyer.
-    const res = NextResponse.json({ consumer: null, suspended: true, suspendedReason: null }, { status: 200 })
+    // actions. The moderator's reason IS returned to the consumer so the header
+    // banner can show why they were suspended (per client request). Falls back
+    // to null for legacy suspensions with no recorded reason, in which case the
+    // client shows a generic message.
+    const res = NextResponse.json(
+      { consumer: null, suspended: true, suspendedReason: user.suspended_reason ?? null },
+      { status: 200 },
+    )
     clearSessionCookie(res)
     return res
   }
