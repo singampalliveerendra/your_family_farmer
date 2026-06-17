@@ -10,6 +10,17 @@ import ComplaintModal from '@/components/consumer/ComplaintModal'
 
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
 
+// Fire a browser notification for a buyer-facing status change (e.g. the farmer
+// shipped the parcel). Permission-gated: silently no-ops unless the buyer has
+// granted notifications, so it's safe to call unconditionally.
+function fireConsumerNotification(title: string, body: string) {
+  if (typeof window === 'undefined' || !('Notification' in window)) return
+  if (Notification.permission !== 'granted') return
+  try {
+    new Notification(title, { body, icon: '/icon-192.png', tag: 'yff-order-status' })
+  } catch { /* some browsers throw on background tabs — ignore */ }
+}
+
 type Order = {
   id: string
   order_code: string | null
@@ -173,7 +184,18 @@ export default function OrderDetailsPage() {
         .then(async (r) => {
           if (!r.ok) return
           const json = await r.json().catch(() => ({}))
-          if (json.order) setOrder(json.order as Order)
+          if (!json.order) return
+          const next = json.order as Order
+          // Notify the buyer the moment a status they're waiting on flips.
+          setOrder((prev) => {
+            if (prev && !prev.shipped_at && next.shipped_at) {
+              fireConsumerNotification(
+                'Your order has shipped 📦 / ఆర్డర్ షిప్ చేయబడింది',
+                `${next.produce_name ?? 'Your order'} is on the way. Tap "Received" once it arrives. / మీ ఆర్డర్ వస్తోంది.`,
+              )
+            }
+            return next
+          })
         })
         .catch(() => {})
     }, 25000)
@@ -633,11 +655,16 @@ function DeliveryPanel({ order }: { order: Order }) {
   )
 }
 
-// Order status timeline for self-pickup orders. Home delivery has its own
-// richer DeliveryPanel; this covers the simpler pickup lifecycle.
+// Order status timeline for self-pickup and courier orders. Home delivery has
+// its own richer DeliveryPanel; this covers the pickup and courier lifecycles.
+// Courier diverges after "Confirmed": Shipped → Received instead of Ready →
+// Picked up, so a courier buyer sees the right milestones (and dates).
 function OrderStatusPanel({ order }: { order: Order }) {
   const approved = order.status === 'approved'
+  const isCourier = order.delivery_type === 'courier'
   const collected = !!order.collected_at
+  const shipped = !!order.shipped_at
+  const received = !!order.received_at
   // Online orders that have been paid show an extra "Payment received" step.
   const paidOnline = order.payment_method === 'upi'
     && (order.payment_status === 'paid' || order.payment_status === 'completed')
@@ -645,20 +672,27 @@ function OrderStatusPanel({ order }: { order: Order }) {
   const fmt = (iso?: string | null) =>
     iso ? new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
 
-  const steps = [
-    { label: 'Order placed / ఆర్డర్ పెట్టారు', sub: 'We received your order / మీ ఆర్డర్ అందింది', at: fmt(order.created_at) },
+  type Step = { label: string; sub: string; at: string; done: boolean }
+  const steps: Step[] = [
+    { label: 'Order placed / ఆర్డర్ పెట్టారు', sub: 'We received your order / మీ ఆర్డర్ అందింది', at: fmt(order.created_at), done: true },
     ...(paidOnline
-      ? [{ label: 'Payment received / చెల్లింపు అందింది', sub: `${order.payment_method_detail || 'UPI'} payment confirmed / చెల్లింపు ధృవీకరించబడింది`, at: fmt(order.paid_at) }]
+      ? [{ label: 'Payment received / చెల్లింపు అందింది', sub: `${order.payment_method_detail || 'UPI'} payment confirmed / చెల్లింపు ధృవీకరించబడింది`, at: fmt(order.paid_at), done: true }]
       : []),
-    { label: 'Confirmed by farmer / రైతు ధృవీకరించారు', sub: 'Farmer accepted your order / రైతు అంగీకరించారు', at: fmt(order.confirmed_at) },
-    { label: 'Ready for pickup / తీసుకెళ్లడానికి సిద్ధం', sub: order.pickup_location ? `Collect at ${order.pickup_location}` : 'Collect from the farmer / రైతు నుండి తీసుకోండి', at: '' },
-    { label: 'Picked up / తీసుకున్నారు', sub: 'Collection confirmed / తీసుకున్నట్టు ధృవీకరించారు', at: fmt(order.collected_at) },
+    { label: 'Confirmed by farmer / రైతు ధృవీకరించారు', sub: 'Farmer accepted your order / రైతు అంగీకరించారు', at: fmt(order.confirmed_at), done: approved },
+    ...(isCourier
+      ? [
+          { label: 'Shipped / షిప్ చేయబడింది', sub: 'Farmer handed the parcel to the courier / రైతు పార్సెల్ పంపారు', at: fmt(order.shipped_at), done: shipped },
+          { label: 'Received / అందుకున్నారు', sub: 'You confirmed you received it / మీరు అందుకున్నట్టు ధృవీకరించారు', at: fmt(order.received_at), done: received },
+        ]
+      : [
+          { label: 'Ready for pickup / తీసుకెళ్లడానికి సిద్ధం', sub: order.pickup_location ? `Collect at ${order.pickup_location}` : 'Collect from the farmer / రైతు నుండి తీసుకోండి', at: '', done: approved },
+          { label: 'Picked up / తీసుకున్నారు', sub: 'Collection confirmed / తీసుకున్నట్టు ధృవీకరించారు', at: fmt(order.collected_at), done: collected },
+        ]),
   ]
 
-  // current step index: placed(+payment) → confirmed/ready (on approval) → picked up.
-  const lastIdx = steps.length - 1
-  const readyIdx = lastIdx - 1
-  const current = collected ? lastIdx : approved ? readyIdx : paidOnline ? 1 : 0
+  // Current = the furthest milestone reached (last step marked done).
+  let current = 0
+  steps.forEach((s, i) => { if (s.done) current = i })
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">

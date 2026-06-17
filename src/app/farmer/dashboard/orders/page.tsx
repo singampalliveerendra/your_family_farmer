@@ -24,8 +24,10 @@ type Order = {
   refund_status: string | null
   refund_amount: number | null
   refunded_at: string | null
-  delivery_type: 'self_pickup' | 'home_delivery' | null
+  delivery_type: 'self_pickup' | 'home_delivery' | 'courier' | null
   collected_at: string | null
+  shipped_at: string | null
+  received_at: string | null
   fulfillment_date: string | null
   created_at: string
 }
@@ -48,7 +50,7 @@ export default function OrderHistoryPage() {
     // code must come from the customer, so the farmer's browser never sees it.
     const { data } = await supabase
       .from('orders')
-      .select('id, farmer_id, order_code, produce_listing_id, produce_name, quantity, unit, total_price, buyer_name, buyer_phone, pickup_location, status, payment_status, decline_reason, refund_status, refund_amount, refunded_at, delivery_type, collected_at, fulfillment_date, created_at')
+      .select('id, farmer_id, order_code, produce_listing_id, produce_name, quantity, unit, total_price, buyer_name, buyer_phone, pickup_location, status, payment_status, decline_reason, refund_status, refund_amount, refunded_at, delivery_type, collected_at, shipped_at, received_at, fulfillment_date, created_at')
       .eq('farmer_id', farmerId)
       .in('status', ['approved', 'declined'])
       .order('created_at', { ascending: false })
@@ -154,6 +156,7 @@ function HistoryCard({ order, onSetDate }: { order: Order; onSetDate: (date: str
   const { tx } = useLang()
   const isApproved = order.status === 'approved'
   const isDelivery = order.delivery_type === 'home_delivery'
+  const isCourier = order.delivery_type === 'courier'
 
   const timeStr = new Date(order.created_at).toLocaleDateString('en-IN', {
     day: 'numeric',
@@ -161,6 +164,22 @@ function HistoryCard({ order, onSetDate }: { order: Order; onSetDate: (date: str
     hour: '2-digit',
     minute: '2-digit',
   })
+
+  const stamp = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
+
+  // Completion line for an approved order: the final milestone + its date.
+  // Courier: Received (done) ▸ Shipped (in transit). Pickup: Picked up.
+  const completion = !isApproved ? null
+    : isCourier
+      ? order.received_at
+        ? { text: `✓ Received / అందుకున్నారు · ${stamp(order.received_at)}`, cls: 'text-green-700' }
+        : order.shipped_at
+          ? { text: `📦 Shipped / షిప్ చేయబడింది · ${stamp(order.shipped_at)}`, cls: 'text-amber-700' }
+          : null
+      : !isDelivery && order.collected_at
+        ? { text: `✓ Picked up / తీసుకువెళ్ళారు · ${stamp(order.collected_at)}`, cls: 'text-green-700' }
+        : null
 
   return (
     <div className={`rounded-2xl border overflow-hidden ${isApproved ? 'border-green-200 bg-white' : 'border-gray-200 bg-gray-50'}`}>
@@ -209,6 +228,11 @@ function HistoryCard({ order, onSetDate }: { order: Order; onSetDate: (date: str
 
         {order.pickup_location && (
           <p className="text-xs text-gray-500">📍 {order.pickup_location}</p>
+        )}
+
+        {/* Completion status + date (picked up / shipped / received). */}
+        {completion && (
+          <p className={`text-xs font-bold ${completion.cls}`}>{completion.text}</p>
         )}
 
         {/* Approved orders: farmer sets/edits the pickup-or-delivery date. */}

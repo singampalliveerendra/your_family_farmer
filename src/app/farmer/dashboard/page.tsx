@@ -317,6 +317,14 @@ export default function FarmerDashboard() {
           // Declined/cancelled, or an approved order that's now picked up /
           // delivered — it's resolved, so drop it from the active list.
           if ((row.status !== 'pending' && row.status !== 'approved') || isResolved(row)) {
+            // Buyer just confirmed receipt of a courier order — tell the farmer
+            // before it drops out of the active list and into history.
+            if (row.received_at && !prev.received_at) {
+              fireNotification(
+                `Order received ✓ / అందుకున్నారు`,
+                `${row.buyer_name ?? 'Buyer'} confirmed they received ${row.produce_name ?? 'the order'}`,
+              )
+            }
             setPendingOrders((cur) => cur.filter((o) => o.id !== row.id))
             return
           }
