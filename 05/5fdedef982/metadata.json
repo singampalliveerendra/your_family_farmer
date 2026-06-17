@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "055fdedef982",
+  "strategy": "manual-commit",
+  "branch": "feat/suspend-consumer-reason-privacy",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "scripts/farmers-moderator-registration.sql",
+    "src/app/api/moderator/farmers/route.ts",
+    "src/app/api/moderator/login/route.ts",
+    "src/app/moderator/ModeratorShell.tsx",
+    "src/app/moderator/farmers/new/page.tsx",
+    "src/app/moderator/farmers/page.tsx",
+    "src/app/moderator/my-farmers/page.tsx",
+    "src/app/moderator/register-farmer/page.tsx",
+    "src/lib/moderator-session.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/05/5fdedef982/0/metadata.json",
+      "transcript": "/05/5fdedef982/0/full.jsonl",
+      "content_hash": "/05/5fdedef982/0/content_hash.txt",
+      "prompt": "/05/5fdedef982/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 5244,
+    "cache_creation_tokens": 175105,
+    "cache_read_tokens": 5890431,
+    "output_tokens": 63999,
+    "api_call_count": 61
+  }
+}
