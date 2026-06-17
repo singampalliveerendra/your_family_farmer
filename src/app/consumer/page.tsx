@@ -12,6 +12,7 @@ import { haversineKm, nearestTown, formatDistance, farmerCoords } from '@/lib/lo
 import LocationSearch from '@/components/LocationSearch'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
+import { localizeName } from '@/lib/localizeName'
 
 type Farmer = {
   id: string
@@ -265,12 +266,6 @@ export default function ConsumerPage() {
             >
               📦 My Orders / నా ఆర్డర్లు →
             </Link>
-            <Link
-              href="/consumer/complaints"
-              className="inline-flex items-center gap-2 bg-amber-400 text-green-950 text-sm font-bold px-4 py-2.5 rounded-full shadow-md active:bg-amber-500"
-            >
-              🛟 Log a Complaint / ఫిర్యాదు →
-            </Link>
           </div>
         </div>
       </div>
@@ -429,7 +424,7 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
   const farmerHref  = farmer ? `/farmer/${farmer.slug}` : '#'
   const unit        = item.unit || 'kg'
 
-  const { tx } = useLang()
+  const { tx, lang } = useLang()
   const { cart, addItem, setQty } = useCart()
   const { requireAuth } = useConsumerAuth()
   const inCart = cart[item.id]
@@ -544,10 +539,10 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
         {/* Name + variety — single line each, ellipsis on overflow */}
         <Link href={farmerHref} className="block min-w-0">
           <h3 className="font-bold text-[15px] leading-[1.2] text-gray-900 truncate">
-            {item.name}
+            {localizeName(item.name, lang)}
           </h3>
           {item.variety && (
-            <p className="text-[12px] text-[#666] truncate mt-0.5">{item.variety}</p>
+            <p className="text-[12px] text-[#666] truncate mt-0.5">{localizeName(item.variety, lang)}</p>
           )}
         </Link>
 
@@ -662,6 +657,7 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
 
 /* ─── Coming soon card ──────────────────────────────────── */
 function ComingSoonCard({ item }: { item: ProduceListing }) {
+  const { lang }  = useLang()
   const emoji     = item.emoji ?? '🌱'
   const produceBg = PRODUCE_BG[emoji] ?? DEFAULT_PRODUCE_BG
   const farmer    = item.farmer
@@ -682,9 +678,9 @@ function ComingSoonCard({ item }: { item: ProduceListing }) {
       </Link>
 
       <div className="p-3 flex flex-col flex-1 min-w-0">
-        <h3 className="font-bold text-[15px] leading-[1.2] text-gray-700 truncate">{item.name}</h3>
+        <h3 className="font-bold text-[15px] leading-[1.2] text-gray-700 truncate">{localizeName(item.name, lang)}</h3>
         {item.variety && (
-          <p className="text-[12px] text-[#666] truncate mt-0.5">{item.variety}</p>
+          <p className="text-[12px] text-[#666] truncate mt-0.5">{localizeName(item.variety, lang)}</p>
         )}
         {farmer && (
           <p className="text-[11px] text-[#666] truncate mt-1">👨‍🌾 {farmer.name} · {farmer.village}</p>

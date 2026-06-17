@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
+import { localizeName } from '@/lib/localizeName'
 import { useCart } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 
@@ -41,7 +42,7 @@ export default function BrowseProduceTab({
   produce: Record<string, unknown>[]
   farmers: Record<string, unknown>[]
 }) {
-  const { tx } = useLang()
+  const { tx, lang } = useLang()
   const { addItem, cart } = useCart()
   const { requireAuth } = useConsumerAuth()
   const [search, setSearch] = useState('')
@@ -134,9 +135,9 @@ export default function BrowseProduceTab({
               <div key={item.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
                 <Link href={`/farmer/${farmer.slug}#produce`} className="block p-3">
                   <div className="text-3xl mb-2">{item.emoji ?? '🌿'}</div>
-                  <h3 className="text-sm font-bold text-gray-900 leading-tight">{item.name}</h3>
+                  <h3 className="text-sm font-bold text-gray-900 leading-tight">{localizeName(item.name, lang)}</h3>
                   {item.variety && (
-                    <p className="text-[10px] text-gray-500 mt-0.5 truncate">{item.variety}</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5 truncate">{localizeName(item.variety, lang)}</p>
                   )}
                   <p className="text-xs text-green-700 font-semibold mt-1 truncate">
                     {farmer.name}

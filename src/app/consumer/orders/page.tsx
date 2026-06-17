@@ -3,8 +3,10 @@
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
+import { localizeName } from '@/lib/localizeName'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
+import ComplaintModal from '@/components/consumer/ComplaintModal'
 
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
 
@@ -36,12 +38,15 @@ type Order = {
 }
 
 export default function ConsumerOrdersPage() {
-  const { tx } = useLang()
+  const { tx, lang } = useLang()
   const { state, openAuth } = useConsumerAuth()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [retryingId, setRetryingId] = useState<string | null>(null)
+  // Order code the complaint modal is pinned to ('' means a general complaint
+  // with no preset). null means the modal is closed.
+  const [complaintFor, setComplaintFor] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -191,7 +196,7 @@ export default function ConsumerOrdersPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="font-extrabold text-gray-900 text-sm leading-tight">
-                            {order.produce_name || '—'}
+                            {localizeName(order.produce_name, lang) || '—'}
                           </p>
                           {order.order_code && (
                             <p className="text-[11px] font-mono font-semibold text-gray-400 mt-0.5">
@@ -308,6 +313,22 @@ export default function ConsumerOrdersPage() {
                           </button>
                         </div>
                       )}
+
+                      {/* Per-order complaint — opens the shared modal pinned to
+                          this order's code so the buyer needn't type it. */}
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setComplaintFor(order.order_code ?? '')
+                          }}
+                          className="w-full text-center text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl py-2.5 active:bg-amber-100"
+                        >
+                          🛟 Log a Complaint / ఫిర్యాదు
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </Link>
@@ -330,6 +351,14 @@ export default function ConsumerOrdersPage() {
           🔒 Buyer protection & refund policy / కొనుగోలుదారు రక్షణ & రీఫండ్ విధానం
         </Link>
       </div>
+
+      {complaintFor !== null && (
+        <ComplaintModal
+          presetOrderCode={complaintFor || null}
+          onClose={() => setComplaintFor(null)}
+          onCreated={() => setComplaintFor(null)}
+        />
+      )}
     </main>
   )
 }

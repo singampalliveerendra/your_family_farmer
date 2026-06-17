@@ -1474,7 +1474,7 @@ function ProfileEditModal({
 
           <div>
             <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
-              Farm pickup address / పొలం చిరునామా
+              Farm Address / పొలం చిరునామా
             </label>
             <p className="text-[11px] text-gray-500 mb-2 leading-snug">
               Where should the delivery rider come to collect the produce? Include door number, street and landmark.

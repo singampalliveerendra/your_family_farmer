@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
+import { useLang } from '@/lib/LanguageContext'
+import { localizeName } from '@/lib/localizeName'
 import { compressImage } from '@/lib/imageCompress'
 import { DELIVERY_FEE_RUPEES } from '@/lib/delivery-fee'
 
@@ -262,6 +264,7 @@ function CartSheet({
   const { setQty, removeItem, clear, clearFarmer } = useCart()
   const { info, save: saveInfo } = useConsumerInfo()
   const { consumer, openAuth, requireAuth } = useConsumerAuth()
+  const { lang } = useLang()
   // Guest checkout: when not logged in, the buyer also supplies an email and
   // (always) an address. `isGuest` flips the form into guest mode.
   const isGuest = !consumer
@@ -455,7 +458,7 @@ function CartSheet({
       body: JSON.stringify({
         farmerId: f.farmerId,
         paymentMethod,
-        pickupLocation: pickupByFarmer[f.farmerId] || null,
+        pickupLocation: deliveryType === 'self_pickup' ? (pickupByFarmer[f.farmerId] || null) : null,
         items: group.map((it) => ({ listingId: it.listingId, qty: it.qty })),
         deliveryType,
         deliveryAddress: needsAddress ? deliveryAddress.trim() : null,
@@ -538,7 +541,7 @@ function CartSheet({
         unit: it.unit,
         pricePerKg: it.pricePerKg,
       })),
-      pickupLocation: pickupByFarmer[f.farmerId] || undefined,
+      pickupLocation: deliveryType === 'self_pickup' ? (pickupByFarmer[f.farmerId] || undefined) : undefined,
     })
   }
 
@@ -1113,7 +1116,7 @@ function CartSheet({
                 >
                   <span className="flex items-center gap-2">
                     <span className="text-base">🚶</span>
-                    I&apos;ll pick up from the farm / నేను తీసుకుంటాను
+                    I will pick up / నేను తీసుకుంటాను
                   </span>
                   {deliveryType === 'self_pickup' && <span className="text-green-600 text-base">✓</span>}
                 </button>
@@ -1299,6 +1302,12 @@ function CartSheet({
                   0,
                 )
                 const sent = sentFarmers[f.farmerId]
+                // For self-pickup, a pickup point is mandatory when the farmer
+                // offers them. It's irrelevant (and disabled) for delivery/courier.
+                const pickupRequired =
+                  deliveryType === 'self_pickup' && (f.farmerPickupLocations?.length ?? 0) > 0
+                const pickupMissing = pickupRequired && !pickupByFarmer[f.farmerId]
+                const groupDetailsMissing = detailsMissing || pickupMissing
                 return (
                   <div
                     key={f.farmerId}
@@ -1324,7 +1333,7 @@ function CartSheet({
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm text-gray-900 truncate">
-                              {it.name}
+                              {localizeName(it.name, lang)}
                             </p>
                             {it.pricePerKg && (
                               <p className="text-xs text-gray-500">₹{it.pricePerKg}/{it.unit || 'kg'}</p>
@@ -1392,22 +1401,39 @@ function CartSheet({
                         <div className="pt-2">
                           <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
                             Pickup location / పికప్ స్థలం
+                            {deliveryType === 'self_pickup' && <span className="text-red-500"> *</span>}
                           </label>
                           <select
                             value={pickupByFarmer[f.farmerId] ?? ''}
+                            disabled={deliveryType !== 'self_pickup'}
                             onChange={(e) =>
                               setPickupByFarmer((prev) => ({
                                 ...prev,
                                 [f.farmerId]: e.target.value,
                               }))
                             }
-                            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none"
+                            className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none ${
+                              deliveryType !== 'self_pickup'
+                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : pickupMissing
+                                  ? 'border-red-300 bg-white focus:border-red-500'
+                                  : 'border-gray-200 bg-white focus:border-green-500'
+                            }`}
                           >
                             <option value="">Select a pickup point / స్థలం ఎంచుకోండి</option>
                             {f.farmerPickupLocations.map((loc) => (
                               <option key={loc} value={loc}>{loc}</option>
                             ))}
                           </select>
+                          {deliveryType !== 'self_pickup' ? (
+                            <p className="text-[11px] text-gray-400 mt-1">
+                              Not needed for delivery / డెలివరీకి అవసరం లేదు
+                            </p>
+                          ) : pickupMissing ? (
+                            <p className="text-[11px] text-red-600 mt-1">
+                              Please choose a pickup point / పికప్ స్థలం ఎంచుకోండి
+                            </p>
+                          ) : null}
                         </div>
                       )}
 
@@ -1431,9 +1457,9 @@ function CartSheet({
                           return (
                             <button
                               onClick={() => requireAuth(() => handleRazorpayOrderFarmer(group))}
-                              disabled={detailsMissing || payingOnline === f.farmerId}
+                              disabled={groupDetailsMissing || payingOnline === f.farmerId}
                               className={`mt-1 w-full font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 ${
-                                detailsMissing
+                                groupDetailsMissing
                                   ? 'bg-gray-200 text-gray-500'
                                   : 'bg-blue-600 text-white active:bg-blue-700 disabled:opacity-50'
                               }`}
@@ -1457,11 +1483,11 @@ function CartSheet({
                         return (
                           <button
                             onClick={() => requireAuth(() => handleCodOrderFarmer(group))}
-                            disabled={detailsMissing}
+                            disabled={groupDetailsMissing}
                             className={`mt-1 w-full font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 ${
                               sent
                                 ? 'bg-green-100 text-green-800'
-                                : detailsMissing
+                                : groupDetailsMissing
                                   ? 'bg-gray-200 text-gray-500'
                                   : 'bg-green-700 text-white active:bg-green-800'
                             }`}

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
+import { localizeName } from '@/lib/localizeName'
 import { FreshnessBadge } from '@/components/FreshnessBadge'
 import { useCart } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
@@ -328,7 +329,7 @@ function ProduceCard({
   onAddToCart: (qty: number) => void
   onDelete?: () => void
 }) {
-  const { tx } = useLang()
+  const { tx, lang } = useLang()
   const [added, setAdded] = useState(false)
 
   const bgColors: Record<string, string> = {
@@ -363,8 +364,8 @@ function ProduceCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <h3 className="font-bold text-gray-900 text-sm">{item.name}</h3>
-              {item.variety && <p className="text-xs text-gray-500">{item.variety}</p>}
+              <h3 className="font-bold text-gray-900 text-sm">{localizeName(item.name, lang)}</h3>
+              {item.variety && <p className="text-xs text-gray-500">{localizeName(item.variety, lang)}</p>}
             </div>
             {item.stock_qty !== undefined && (
               <span className="text-xs text-gray-500 flex-shrink-0">{item.stock_qty} {tx.stockLeft}</span>
@@ -444,7 +445,7 @@ function ProduceCard({
 }
 
 function ComingSoonCard({ item, farmerId, onDelete }: { item: Produce; farmerId: string; onDelete?: () => void }) {
-  const { tx } = useLang()
+  const { tx, lang } = useLang()
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [submitted, setSubmitted] = useState(false)
@@ -467,7 +468,7 @@ function ComingSoonCard({ item, farmerId, onDelete }: { item: Produce; farmerId:
     <div className="bg-white rounded-xl border-2 border-dashed border-gray-200 p-4">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <h3 className="font-bold text-gray-700 text-sm">{item.emoji ?? '🌱'} {item.name}</h3>
+          <h3 className="font-bold text-gray-700 text-sm">{item.emoji ?? '🌱'} {localizeName(item.name, lang)}</h3>
           {item.available_to && (
             <p className="text-xs text-gray-500 mt-0.5">
               {tx.expected} {new Date(item.available_to).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}

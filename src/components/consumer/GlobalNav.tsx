@@ -34,6 +34,14 @@ export default function GlobalNav({ activeTab = 'consumer' }: { activeTab?: Acti
         </Link>
 
         <div className="flex items-center gap-2.5 flex-shrink-0">
+          <Link
+            href="/consumer/complaints"
+            aria-label="Log a Complaint"
+            title="Log a Complaint / ఫిర్యాదు"
+            className="text-[11px] font-bold text-green-950 bg-amber-400 active:bg-amber-500 rounded-full px-3 py-1.5 leading-tight whitespace-nowrap"
+          >
+            🛟 Complaint
+          </Link>
           {state.status === 'loading' ? null : consumer ? (
             <ConsumerMenu name={consumer.name} onLogout={logout} />
           ) : (

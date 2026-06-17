@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useLang } from '@/lib/LanguageContext'
+import { localizeName } from '@/lib/localizeName'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import ComplaintModal from '@/components/consumer/ComplaintModal'
 
@@ -73,7 +74,7 @@ export default function OrderDetailsPage() {
   const params = useParams<{ id: string }>()
   const id = typeof params?.id === 'string' ? params.id : ''
   const { state, openAuth } = useConsumerAuth()
-  const { tx, L } = useLang()
+  const { tx, L, lang } = useLang()
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -305,7 +306,7 @@ export default function OrderDetailsPage() {
                     <p className="text-[11px] font-mono font-semibold text-gray-400">{order.order_code}</p>
                   )}
                   <p className="text-base font-extrabold text-gray-900 leading-tight">
-                    {order.produce_name || '—'}
+                    {localizeName(order.produce_name, lang) || '—'}
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5">
                     {order.quantity} {order.unit || 'kg'}
@@ -488,6 +489,7 @@ export default function OrderDetailsPage() {
 // everything except .yff-receipt so "Print / Save as PDF" produces a clean
 // one-page receipt on both phones and laptops.
 function ReceiptOverlay({ order, onClose }: { order: Order; onClose: () => void }) {
+  const { lang } = useLang()
   const placed = new Date(order.created_at).toLocaleString('en-IN', {
     day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
   })
@@ -519,7 +521,7 @@ function ReceiptOverlay({ order, onClose }: { order: Order; onClose: () => void 
 
         <div className="border-t border-dashed border-gray-300 py-3">
           <div className="flex justify-between text-xs">
-            <span className="text-gray-700">{order.produce_name} × {order.quantity} {order.unit || 'kg'}</span>
+            <span className="text-gray-700">{localizeName(order.produce_name, lang)} × {order.quantity} {order.unit || 'kg'}</span>
             <span className="font-semibold text-gray-900">₹{order.total_price ?? 0}</span>
           </div>
         </div>
