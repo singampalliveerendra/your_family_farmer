@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "1fa162e5ca8e",
+  "strategy": "manual-commit",
+  "branch": "feat/suspend-consumer-reason-privacy",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/farmer/dashboard/orders/page.tsx",
+    "src/app/farmer/dashboard/page.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/1f/a162e5ca8e/0/metadata.json",
+      "transcript": "/1f/a162e5ca8e/0/full.jsonl",
+      "content_hash": "/1f/a162e5ca8e/0/content_hash.txt",
+      "prompt": "/1f/a162e5ca8e/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 989,
+    "cache_creation_tokens": 136711,
+    "cache_read_tokens": 5341458,
+    "output_tokens": 56591,
+    "api_call_count": 43
+  }
+}

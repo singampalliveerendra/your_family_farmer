@@ -1,0 +1,65 @@
+Add new order flow statuses for completing orders:
+
+Currently after farmer confirms an order, there's no proper way to mark the order as complete. Add these new statuses:
+
+For PICKUP orders:
+1. After farmer mentions pickup date, add a button "Picked Up / తీసుకువెళ్ళారు" in farmer dashboard
+2. Farmer taps this when consumer comes and collects the order
+3. This marks order as completed and moves it from "Active Orders" to "Order History"
+
+For COURIER/SHIPPED orders:
+1. After farmer mentions delivery date, add a button "Shipped / షిప్ చేయబడింది" in farmer dashboard  
+2. Farmer taps this when they hand over to courier or send the parcel
+3. Order status changes to "Shipped" - still shows in active orders
+4. Consumer now sees a "Received / అందుకున్నాను" button on their order
+5. When consumer confirms received, order moves to history
+
+Order status timeline now becomes:
+- Order Placed
+- Payment Received  
+- Confirmed by Farmer
+- For Pickup: → Picked Up → Completed (moves to history)
+- For Courier: → Shipped → Received by Consumer → Completed (moves to history)
+
+Add columns in orders table:
+- shipped_at (date when farmer marked shipped)
+- picked_up_at (date when picked up)
+- received_at (date when consumer marked received)
+
+Show clear timeline with all dates in order details for both farmer and consumer.
+
+Both farmer and consumer should see notifications when status changes.
+
+All buttons and statuses in English and Telugu.i think while doing this the pc is switch off once continue this
+
+---
+
+Add Farmer Registration form for Moderators:
+
+Currently moderators don't have a proper form to register new farmers.
+Add the SAME form that farmer uses for self-registration to moderator side.
+
+Create page: /moderator/register-farmer
+
+The form should have ALL the same fields a farmer fills:
+- Farmer name
+- Phone number
+- Village name
+- District
+- Farm location (GPS or manual entry with address search)
+- Farming method (Natural / Organic / Conventional)
+- UPI ID for receiving payments
+- Bank account number and IFSC
+- Pickup locations
+- Farm photos
+- Pesticide certificate upload (optional)
+- Soil organic carbon info
+
+After moderator fills the form:
+- Save farmer to farmers table
+- Mark farmer as "Registered by moderator" with moderator's ID
+- Auto-generate activation code for farmer login
+- Show success message: "Farmer registered. Share this activation code with farmer: YFF-XXXX"
+- Moderator can copy code and send to farmer via WhatsApp
+
+Also add a list page /moderator/my-farmers showing all farmers registered by this moderator with their status.
