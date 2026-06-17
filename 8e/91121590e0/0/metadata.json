@@ -1,0 +1,84 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "8e91121590e0",
+  "session_id": "063eaf23-a22a-424c-afb5-7b7bc63180a8",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-17T09:24:44.600208683Z",
+  "branch": "feat/suspend-consumer-reason-privacy",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "package.json",
+    "src/app/api/consumer/orders/[id]/route.ts",
+    "src/app/api/orders/place/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/lib/translations.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "18f708f566fb",
+  "token_usage": {
+    "input_tokens": 3991,
+    "cache_creation_tokens": 35829,
+    "cache_read_tokens": 310703,
+    "output_tokens": 5788,
+    "api_call_count": 15
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-17T09:24:44.591970396Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 61,
+    "total_committed": 0,
+    "total_lines_changed": 61,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 1191,
+      "user_lines_removed": 61,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs - Copy.html": 22,
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs.html": 22,
+        "mod.md": 430,
+        "package.json": 1,
+        "scripts/order-completion-migration.sql": 19,
+        "src/app/api/consumer/orders/[id]/received/route.ts": 64,
+        "src/app/api/consumer/orders/[id]/route.ts": 1,
+        "src/app/api/farmer/orders/[id]/picked-up/route.ts": 68,
+        "src/app/api/farmer/orders/[id]/ship/route.ts": 65,
+        "src/app/api/orders/place/route.ts": 9,
+        "src/app/consumer/orders/[id]/page.tsx": 65,
+        "src/app/farmer/dashboard/page.tsx": 375,
+        "src/components/consumer/Cart.tsx": 36,
+        "src/lib/translations.ts": 14
+      },
+      "user_removed_per_file": {
+        "package.json": 1,
+        "src/app/api/consumer/orders/[id]/route.ts": 1,
+        "src/app/api/orders/place/route.ts": 2,
+        "src/app/consumer/orders/[id]/page.tsx": 1,
+        "src/app/farmer/dashboard/page.tsx": 44,
+        "src/components/consumer/Cart.tsx": 10,
+        "src/lib/translations.ts": 2
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1191,
+      "agent_lines_removed": 61
+    }
+  ]
+}
