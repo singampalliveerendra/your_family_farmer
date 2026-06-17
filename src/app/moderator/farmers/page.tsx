@@ -118,6 +118,12 @@ export default function ModeratorFarmersPage() {
                   {f.active ? 'Active' : 'Inactive'}
                 </span>
                 <button
+                  onClick={() => router.push(`/moderator/farmers/${f.id}/edit`)}
+                  className="text-[11px] text-green-700 underline font-semibold"
+                >
+                  Edit
+                </button>
+                <button
                   onClick={() => toggleActive(f)}
                   disabled={busyId === f.id}
                   className="text-[11px] text-gray-500 underline disabled:opacity-50"

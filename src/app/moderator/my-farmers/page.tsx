@@ -138,10 +138,16 @@ export default function MyFarmersPage() {
                 </span>
               </div>
               <div className="col-span-4 md:col-span-1 text-sm text-gray-700 md:text-center">{f.listing_count}</div>
-              <div className="col-span-8 md:col-span-2 flex items-center justify-end">
+              <div className="col-span-8 md:col-span-2 flex items-center justify-end gap-2">
                 <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${f.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'}`}>
                   {f.active ? 'Active' : 'Inactive'}
                 </span>
+                <button
+                  onClick={() => router.push(`/moderator/farmers/${f.id}/edit`)}
+                  className="text-[11px] text-green-700 underline font-semibold"
+                >
+                  Edit
+                </button>
               </div>
             </div>
           ))}
