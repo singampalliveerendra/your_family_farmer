@@ -1,0 +1,1 @@
+Moderator should be able to edit farmer profile. Right now only add and deactivate is possible. Edit Profile should also be available  . what you understand
