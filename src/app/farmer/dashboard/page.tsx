@@ -1079,6 +1079,12 @@ function ProfileEditModal({
   const [newPickup, setNewPickup] = useState('')
   const [farmAddress, setFarmAddress] = useState(farmer.farm_address ?? '')
 
+  // Pickup schedule — which days and what time window buyers can collect.
+  const ALL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+  const [slotDays, setSlotDays] = useState<string[]>(farmer.pickup_slots?.days ?? [])
+  const [slotFrom, setSlotFrom] = useState(farmer.pickup_slots?.time_from ?? '08:00')
+  const [slotTo, setSlotTo]   = useState(farmer.pickup_slots?.time_to   ?? '12:00')
+
   // Cover photo
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [coverPreview, setCoverPreview] = useState('')
@@ -1189,6 +1195,12 @@ function ProfileEditModal({
   const removePickup = (loc: string) =>
     setPickupLocations((prev) => prev.filter((l) => l !== loc))
 
+  const toggleDay = (day: string) => {
+    setSlotDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
+    )
+  }
+
   const handleSave = async () => {
     if (!name.trim()) { setError(tx.nameRequired); return }
     if (!village.trim()) { setError(tx.villageRequired); return }
@@ -1237,6 +1249,9 @@ function ProfileEditModal({
       upi_id:           upiId.trim() || null,
       upi_qr_code_url:  (qrRes.url ?? existingQrUrl) || null,
       cod_enabled:      codEnabled,
+      pickup_slots: slotDays.length > 0
+        ? { days: slotDays, time_from: slotFrom, time_to: slotTo }
+        : null,
       lat: farmerLat,
       lng: farmerLng,
       location_name: farmerLat ? (farmerLocationName || name.trim()) : null,
@@ -1535,6 +1550,52 @@ function ProfileEditModal({
                     </button>
                   </span>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Pickup schedule */}
+          <div>
+            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
+              {tx.pickupScheduleLabel}
+            </label>
+            <p className="text-[11px] text-gray-500 mb-2 leading-snug">{tx.pickupScheduleHelp}</p>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {ALL_DAYS.map((day) => (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => toggleDay(day)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                    slotDays.includes(day)
+                      ? 'bg-green-700 text-white border-green-700'
+                      : 'bg-white text-gray-600 border-gray-200'
+                  }`}
+                >
+                  {day.slice(0, 3)}
+                </button>
+              ))}
+            </div>
+            {slotDays.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-[11px] text-gray-500 mb-1">{tx.pickupFrom}</p>
+                  <input
+                    type="time"
+                    value={slotFrom}
+                    onChange={(e) => setSlotFrom(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <p className="text-[11px] text-gray-500 mb-1">{tx.pickupTo}</p>
+                  <input
+                    type="time"
+                    value={slotTo}
+                    onChange={(e) => setSlotTo(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+                  />
+                </div>
               </div>
             )}
           </div>
