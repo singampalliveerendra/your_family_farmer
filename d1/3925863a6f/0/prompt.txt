@@ -1,0 +1,15 @@
+After the farmer mentions the date of delivery or pickup. The farmer should be able to say “Shipped“ or “Pickedup“.
+
+Picked up when  the consumer comes and picks it up. This marks the end of the active order and should move to History.
+
+Shipped when the farmer shipped the order.
+
+Now the Consumer need to say “Received“. This marks the end of active order and should move to History
+
+---
+
+do
+
+---
+
+Add a Reason while suspending a consumer by a Moderator. That should be shown in the Consumer header highlighting the suspension.  my client sent me this again tell me what you understand in this
