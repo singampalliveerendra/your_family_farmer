@@ -273,7 +273,10 @@ function CartSheet({
   // Delivery preference (per checkout). For home_delivery, a flat
   // DELIVERY_FEE_RUPEES is charged once per cart (per farmer group at checkout)
   // and collected by the rider in cash on delivery, regardless of payment method.
-  const [deliveryType, setDeliveryType] = useState<'self_pickup' | 'home_delivery'>('self_pickup')
+  const [deliveryType, setDeliveryType] = useState<'self_pickup' | 'home_delivery' | 'courier'>('self_pickup')
+  // home_delivery (our rider) and courier (the farmer ships it) both need a
+  // destination address; self-pickup does not.
+  const needsAddress = deliveryType === 'home_delivery' || deliveryType === 'courier'
   const [deliveryAddress, setDeliveryAddress] = useState('')
   const [deliveryLandmark, setDeliveryLandmark] = useState('')
   const [deliveryPincode, setDeliveryPincode] = useState('')
@@ -428,7 +431,7 @@ function CartSheet({
   const farmerGroups = Object.values(byFarmer)
 
   const baseDetailsMissing = !name.trim() || phone.replace(/\D/g, '').length < 10
-  const deliveryDetailsMissing = deliveryType === 'home_delivery'
+  const deliveryDetailsMissing = needsAddress
     && (deliveryAddress.trim().length < 10 || !/^\d{6}$/.test(deliveryPincode.trim()))
   const detailsMissing = baseDetailsMissing || deliveryDetailsMissing
 
@@ -455,10 +458,10 @@ function CartSheet({
         pickupLocation: pickupByFarmer[f.farmerId] || null,
         items: group.map((it) => ({ listingId: it.listingId, qty: it.qty })),
         deliveryType,
-        deliveryAddress: deliveryType === 'home_delivery' ? deliveryAddress.trim() : null,
-        deliveryLandmark: deliveryType === 'home_delivery' ? deliveryLandmark.trim() : null,
-        deliveryPincode: deliveryType === 'home_delivery' ? deliveryPincode.trim() : null,
-        deliveryAltPhone: deliveryType === 'home_delivery' ? deliveryAltPhone.replace(/\D/g, '').slice(-10) : null,
+        deliveryAddress: needsAddress ? deliveryAddress.trim() : null,
+        deliveryLandmark: needsAddress ? deliveryLandmark.trim() : null,
+        deliveryPincode: needsAddress ? deliveryPincode.trim() : null,
+        deliveryAltPhone: needsAddress ? deliveryAltPhone.replace(/\D/g, '').slice(-10) : null,
         idempotencyKey: getIdempotencyKey(f.farmerId),
       }),
     }).catch(() => null)
@@ -1035,6 +1038,8 @@ function CartSheet({
             <p className="text-xs text-gray-500">
               {deliveryType === 'home_delivery'
                 ? 'Home delivery / ఇంటికి డెలివరీ'
+                : deliveryType === 'courier'
+                ? 'Farmer couriers it / రైతు షిప్ చేస్తారు'
                 : 'Self pickup from farm / పొలం నుండి స్వీయ పికప్'}
             </p>
           </div>
@@ -1127,16 +1132,37 @@ function CartSheet({
                   </span>
                   {deliveryType === 'home_delivery' && <span className="text-blue-600 text-base">✓</span>}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setDeliveryType('courier')}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-sm font-bold transition-colors ${
+                    deliveryType === 'courier'
+                      ? 'border-amber-600 bg-amber-50 text-amber-900'
+                      : 'border-gray-200 bg-white text-gray-700'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="text-base">📦</span>
+                    Farmer couriers it / రైతు షిప్ చేస్తారు
+                  </span>
+                  {deliveryType === 'courier' && <span className="text-amber-600 text-base">✓</span>}
+                </button>
                 {deliveryType === 'home_delivery' && (
                   <p className="text-[11px] text-blue-700 bg-blue-50 rounded-xl px-3 py-2 leading-snug">
                     A delivery boy will pick up from the farmer and bring it to your address.
                     Delivery charge is collected separately by our team.
                   </p>
                 )}
+                {deliveryType === 'courier' && (
+                  <p className="text-[11px] text-amber-700 bg-amber-50 rounded-xl px-3 py-2 leading-snug">
+                    The farmer will courier the parcel to your address. You can confirm receipt
+                    on your order page once it arrives. / రైతు మీ చిరునామాకు పార్సెల్ పంపుతారు.
+                  </p>
+                )}
               </div>
 
-              {/* Address form — only when home delivery is selected */}
-              {deliveryType === 'home_delivery' && (
+              {/* Address form — needed for home delivery and farmer courier */}
+              {needsAddress && (
                 <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
                   <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
                     Delivery address / డెలివరీ చిరునామా
@@ -1285,8 +1311,8 @@ function CartSheet({
                         </p>
                         <p className="text-xs text-green-700">📍 {f.farmerVillage}</p>
                       </div>
-                      <span className={`text-[10px] font-bold text-white px-2 py-1 rounded-full whitespace-nowrap ${deliveryType === 'home_delivery' ? 'bg-blue-600' : 'bg-green-700'}`}>
-                        {deliveryType === 'home_delivery' ? '🛵 Delivery' : 'Pickup'}
+                      <span className={`text-[10px] font-bold text-white px-2 py-1 rounded-full whitespace-nowrap ${deliveryType === 'home_delivery' ? 'bg-blue-600' : deliveryType === 'courier' ? 'bg-amber-600' : 'bg-green-700'}`}>
+                        {deliveryType === 'home_delivery' ? '🛵 Delivery' : deliveryType === 'courier' ? '📦 Courier' : 'Pickup'}
                       </span>
                     </div>
 

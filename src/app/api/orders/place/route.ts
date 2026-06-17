@@ -98,13 +98,20 @@ export async function POST(req: NextRequest) {
     if (!guestPhone) return bad('Enter a valid 10-digit mobile number.')
   }
 
-  const deliveryType = body.deliveryType === 'home_delivery' ? 'home_delivery' : 'self_pickup'
+  // self_pickup → buyer collects from the farm; home_delivery → our rider
+  // brings it; courier → the farmer ships it themselves. Both delivery kinds
+  // need a destination address.
+  const deliveryType =
+    body.deliveryType === 'home_delivery' ? 'home_delivery'
+    : body.deliveryType === 'courier' ? 'courier'
+    : 'self_pickup'
+  const needsAddress = deliveryType === 'home_delivery' || deliveryType === 'courier'
   let deliveryAddress: string | null = null
   let deliveryLandmark: string | null = null
   let deliveryPincode: string | null = null
   let deliveryAltPhone: string | null = null
 
-  if (deliveryType === 'home_delivery') {
+  if (needsAddress) {
     deliveryAddress = String(body.deliveryAddress ?? '').trim().slice(0, 400)
     deliveryLandmark = String(body.deliveryLandmark ?? '').trim().slice(0, 200) || null
     const rawPincode = String(body.deliveryPincode ?? '').trim()

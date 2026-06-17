@@ -72,6 +72,18 @@ type ListingRow = {
   created_at: string
 }
 
+// Lightweight listing shape for the dashboard's inline "Your produce" section
+// (the Manage Listings modal loads the full ListingRow separately).
+type DashboardListing = {
+  id: string
+  name: string
+  emoji: string | null
+  status: string
+  price_tier_1_price: number | null
+  unit: string | null
+  stock_qty: number | null
+}
+
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
 
 type Order = {
@@ -91,10 +103,25 @@ type Order = {
   utr_number: string | null
   decline_reason: string | null
   created_at: string
-  delivery_type?: 'self_pickup' | 'home_delivery' | null
+  delivery_type?: 'self_pickup' | 'home_delivery' | 'courier' | null
   delivery_status?: DeliveryStatus | null
   delivery_boy_id?: string | null
   fulfillment_date?: string | null
+  collected_at?: string | null
+  shipped_at?: string | null
+  received_at?: string | null
+}
+
+// An approved order is "resolved" (and so leaves the farmer's active list) once:
+//   self_pickup   → the buyer collected it (collected_at set)
+//   courier       → the buyer confirmed receipt (received_at set); note a
+//                   shipped-but-unreceived courier order stays active
+//   home_delivery → the rider delivered it (delivery_status 'delivered')
+function isResolved(o: Order): boolean {
+  if (o.status !== 'approved') return false
+  if (o.delivery_type === 'home_delivery') return o.delivery_status === 'delivered'
+  if (o.delivery_type === 'courier') return !!o.received_at
+  return !!o.collected_at
 }
 
 const UNIT_OPTIONS = [
@@ -155,7 +182,7 @@ export default function FarmerDashboard() {
   const [farmer, setFarmer] = useState<Farmer | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
-  const [activeListings, setActiveListings] = useState(0)
+  const [listings, setListings] = useState<DashboardListing[]>([])
   const [pendingOrders, setPendingOrders] = useState<Order[]>([])
   const [approvedCount, setApprovedCount] = useState(0)
   const [totalRevenue, setTotalRevenue] = useState(0)
@@ -192,15 +219,22 @@ export default function FarmerDashboard() {
     monthStart.setHours(0, 0, 0, 0)
 
     const [listingsRes, pendingRes, approvedRes, intentsRes, monthlyRes] = await Promise.all([
-      supabase.from('produce_listings').select('id', { count: 'exact', head: true }).eq('farmer_id', farmerData.id).eq('status', 'available'),
-      supabase.from('orders').select('*').eq('farmer_id', farmerData.id).eq('status', 'pending').order('created_at', { ascending: false }),
+      // Full (lightweight) listing rows so the dashboard can show them inline
+      // with a quick suspend/resume; the active-listings count is derived below.
+      supabase.from('produce_listings').select('id, name, emoji, status, price_tier_1_price, unit, stock_qty').eq('farmer_id', farmerData.id).order('created_at', { ascending: false }),
+      // Active orders = still pending, OR approved but not yet picked up/delivered.
+      // Approved orders stay here so the farmer keeps the scheduled date in view
+      // until the buyer collects (or the rider delivers).
+      supabase.from('orders').select('*').eq('farmer_id', farmerData.id).in('status', ['pending', 'approved']).order('created_at', { ascending: false }),
       supabase.from('orders').select('id, total_price').eq('farmer_id', farmerData.id).eq('status', 'approved').gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString()),
       supabase.from('demand_intents').select('crop_name, quantity_kg').eq('region_slug', farmerData.region_slug).eq('fulfilled', false),
       supabase.from('orders').select('id, total_price, created_at').eq('farmer_id', farmerData.id).eq('status', 'approved').gte('created_at', monthStart.toISOString()),
     ])
 
-    setActiveListings(listingsRes.count ?? 0)
-    setPendingOrders((pendingRes.data ?? []) as Order[])
+    setListings((listingsRes.data ?? []) as DashboardListing[])
+    // Drop approved orders that are already resolved (collected / delivered).
+    const activeOrders = (pendingRes.data ?? []).filter((o) => !isResolved(o as Order)) as Order[]
+    setPendingOrders(activeOrders)
     const approved = approvedRes.data ?? []
     setApprovedCount(approved.length)
     setTotalRevenue(approved.reduce((sum, o) => sum + (o.total_price ?? 0), 0))
@@ -280,12 +314,13 @@ export default function FarmerDashboard() {
         (payload) => {
           const row = payload.new as Order
           const prev = payload.old as Partial<Order>
-          // Order moved out of pending — drop from list
-          if (row.status !== 'pending') {
+          // Declined/cancelled, or an approved order that's now picked up /
+          // delivered — it's resolved, so drop it from the active list.
+          if ((row.status !== 'pending' && row.status !== 'approved') || isResolved(row)) {
             setPendingOrders((cur) => cur.filter((o) => o.id !== row.id))
             return
           }
-          // Update or insert in pending list
+          // Still active (pending, or approved-and-awaiting): update or insert.
           setPendingOrders((cur) => {
             const exists = cur.some((o) => o.id === row.id)
             return exists ? cur.map((o) => o.id === row.id ? row : o) : [row, ...cur]
@@ -326,11 +361,59 @@ export default function FarmerDashboard() {
     router.replace('/farmer/login')
   }
 
-  const handleApprove = async (orderId: string) => {
+  // Quick suspend/resume from the dashboard's inline produce list. Mirrors the
+  // Manage Listings modal: flips 'suspended_by_farmer' ⇄ 'available'.
+  const handleToggleListingSuspend = async (id: string, currentStatus: string) => {
+    const next = currentStatus === 'suspended_by_farmer' ? 'available' : 'suspended_by_farmer'
+    setListings((prev) => prev.map((l) => (l.id === id ? { ...l, status: next } : l)))
+    const { error } = await supabase.from('produce_listings').update({ status: next }).eq('id', id)
+    if (error) { void loadDashboard() } // re-sync on failure
+  }
+
+  // Approving requires the farmer to first set a pickup/delivery date — that
+  // date is saved alongside the approval and shown to the buyer. The order then
+  // stays in the active list (now marked approved) until it's picked up or
+  // delivered, so the farmer keeps the schedule in view.
+  const handleApprove = async (orderId: string, date: string) => {
+    if (!date) return
     setProcessingOrderId(orderId)
-    await supabase.from('orders').update({ status: 'approved', confirmed_at: new Date().toISOString() }).eq('id', orderId)
-    setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
+    await supabase
+      .from('orders')
+      .update({ status: 'approved', fulfillment_date: date, confirmed_at: new Date().toISOString() })
+      .eq('id', orderId)
+    setPendingOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, status: 'approved', fulfillment_date: date } : o)),
+    )
     setApprovedCount((c) => c + 1)
+    setProcessingOrderId(null)
+  }
+
+  // Self-pickup: farmer taps "Picked Up" when the buyer collects. Stamps
+  // collected_at server-side, which resolves the order — drop it from the
+  // active list (it now appears in Order History).
+  const handleMarkPickedUp = async (orderId: string) => {
+    setProcessingOrderId(orderId)
+    const res = await fetch(`/api/farmer/orders/${orderId}/picked-up`, { method: 'POST', credentials: 'same-origin' })
+    if (res.ok) {
+      setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
+    } else {
+      void loadDashboard() // re-sync on failure
+    }
+    setProcessingOrderId(null)
+  }
+
+  // Courier: farmer taps "Shipped" when they hand the parcel over. Stamps
+  // shipped_at but the order stays active (awaiting the buyer's "Received").
+  const handleMarkShipped = async (orderId: string) => {
+    setProcessingOrderId(orderId)
+    const res = await fetch(`/api/farmer/orders/${orderId}/ship`, { method: 'POST', credentials: 'same-origin' })
+    if (res.ok) {
+      const json = (await res.json().catch(() => ({}))) as { shipped_at?: string }
+      const shippedAt = json.shipped_at ?? new Date().toISOString()
+      setPendingOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, shipped_at: shippedAt } : o)))
+    } else {
+      void loadDashboard() // re-sync on failure
+    }
     setProcessingOrderId(null)
   }
 
@@ -418,6 +501,13 @@ export default function FarmerDashboard() {
 
   if (loading) return <LoadingScreen />
   if (notFound) return <FarmerNotFound onLogout={handleLogout} />
+
+  // The list now also holds approved-but-unresolved orders; the stat card should
+  // still reflect only the orders that genuinely need a response.
+  const pendingCount = pendingOrders.filter((o) => o.status === 'pending').length
+  // Active = visible-to-buyers listings, derived so the count stays in sync when
+  // the farmer suspends/resumes from the inline produce list below.
+  const activeListings = listings.filter((l) => l.status === 'available').length
 
   const profileComplete = isProfileComplete(farmer)
   const displayName = farmer!.name?.trim() || tx.welcome
@@ -511,7 +601,7 @@ export default function FarmerDashboard() {
             </div>
           </button>
           {[
-            { label: tx.pendingOrders, value: pendingOrders.length, color: pendingOrders.length > 0 ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-gray-50', vcolor: pendingOrders.length > 0 ? 'text-orange-700' : 'text-gray-500' },
+            { label: tx.pendingOrders, value: pendingCount, color: pendingCount > 0 ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-gray-50', vcolor: pendingCount > 0 ? 'text-orange-700' : 'text-gray-500' },
             { label: tx.approvedThisWeek, value: approvedCount, color: 'border-green-200 bg-green-50', vcolor: 'text-green-800' },
             { label: tx.totalRevenue, value: totalRevenue > 0 ? `₹${totalRevenue}` : '—', color: 'border-purple-200 bg-purple-50', vcolor: 'text-purple-800' },
           ].map((s) => (
@@ -521,6 +611,13 @@ export default function FarmerDashboard() {
             </div>
           ))}
         </div>
+
+        {/* Your produce — inline list with quick suspend/resume */}
+        <DashboardProduceSection
+          listings={listings}
+          onManage={() => setShowListings(true)}
+          onToggleSuspend={handleToggleListingSuspend}
+        />
 
         {/* Monthly earnings summary */}
         <EarningsCard
@@ -576,11 +673,13 @@ export default function FarmerDashboard() {
                   order={order}
                   processing={processingOrderId === order.id}
                   processingPaid={processingPaidId === order.id}
-                  onApprove={() => handleApprove(order.id)}
+                  onApprove={(date) => handleApprove(order.id, date)}
                   onDecline={() => setDecliningOrder(order)}
                   onMarkPaid={() => handleMarkPaid(order.id)}
                   onUpdatePaymentStatus={(s) => handleUpdatePaymentStatus(order.id, s)}
                   onSetFulfillmentDate={(d) => handleSetFulfillmentDate(order.id, d)}
+                  onMarkPickedUp={() => handleMarkPickedUp(order.id)}
+                  onMarkShipped={() => handleMarkShipped(order.id)}
                 />
               ))
             )}
@@ -2436,6 +2535,20 @@ function ManageListingsModal({
     if (err) { setError(err.message); load() } else { onChanged() }
   }
 
+  // Suspend is a second, independent reversible take-down (status
+  // 'suspended_by_farmer'), distinct from Pause and from a moderator suspension.
+  // Like Pause it hides the listing from buyers; Resume returns it to available.
+  const handleToggleSuspend = async (row: ListingRow) => {
+    const next = row.status === 'suspended_by_farmer' ? 'available' : 'suspended_by_farmer'
+    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: next } : r)))
+    setError('')
+    const { error: err } = await supabase
+      .from('produce_listings')
+      .update({ status: next })
+      .eq('id', row.id)
+    if (err) { setError(err.message); load() } else { onChanged() }
+  }
+
   const handleDelete = async (row: ListingRow) => {
     if (!confirm(tx.confirmDelete.replace('{name}', row.name))) return
 
@@ -2510,6 +2623,7 @@ function ManageListingsModal({
               onDelete={() => handleDelete(row)}
               onEdit={() => setEditingRow(row)}
               onTogglePause={() => handleTogglePause(row)}
+              onToggleSuspend={() => handleToggleSuspend(row)}
             />
           ))}
         </div>
@@ -2683,16 +2797,19 @@ function ListingRowCard({
   onDelete,
   onEdit,
   onTogglePause,
+  onToggleSuspend,
 }: {
   row: ListingRow
   deleting: boolean
   onDelete: () => void
   onEdit: () => void
   onTogglePause: () => void
+  onToggleSuspend: () => void
 }) {
   const { tx } = useLang()
   const emoji = row.emoji ?? '🌿'
   const isPaused = row.status === 'paused'
+  const isSuspended = row.status === 'suspended_by_farmer'
   const statusLabel =
     row.status === 'available'
       ? tx.availableLabel
@@ -2700,6 +2817,8 @@ function ListingRowCard({
       ? tx.comingSoon
       : row.status === 'paused'
       ? 'Paused by farmer / రైతు నిలిపివేశారు'
+      : row.status === 'suspended_by_farmer'
+      ? 'Suspended by you / మీరు నిలిపివేశారు'
       : row.status === 'suspended'
       ? 'Suspended / నిలిపివేయబడింది'
       : row.status === 'sold_out'
@@ -2712,12 +2831,16 @@ function ListingRowCard({
       ? 'bg-amber-100 text-amber-800'
       : row.status === 'paused'
       ? 'bg-purple-100 text-purple-800'
+      : row.status === 'suspended_by_farmer'
+      ? 'bg-red-100 text-red-800'
       : row.status === 'suspended'
       ? 'bg-orange-100 text-orange-800'
       : 'bg-gray-100 text-gray-700'
   // Farmer can pause/resume their own active or sold-out listings (not
-  // moderator-suspended or coming-soon ones).
+  // moderator-suspended or coming-soon ones). Pause and Suspend are mutually
+  // exclusive states, so each control hides while the other is active.
   const canPause = row.status === 'available' || row.status === 'sold_out' || row.status === 'paused'
+  const canSuspend = row.status === 'available' || row.status === 'sold_out' || row.status === 'suspended_by_farmer'
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
@@ -2768,18 +2891,36 @@ function ListingRowCard({
       </div>
 
       <div className="px-3 pb-3 space-y-2">
-        {/* Pause / Resume — reversible hide-from-consumers, distinct from Delete. */}
-        {canPause && (
-          <button
-            onClick={onTogglePause}
-            className={`w-full font-bold py-2.5 rounded-xl text-sm border ${
-              isPaused
-                ? 'border-green-600 text-green-700 active:bg-green-50'
-                : 'border-purple-300 text-purple-700 active:bg-purple-50'
-            }`}
-          >
-            {isPaused ? '▶ Resume / తిరిగి చూపించు' : '⏸ Pause / అమ్మకం ఆపండి'}
-          </button>
+        {/* Pause / Suspend — two independent reversible hide-from-buyers
+            controls, both distinct from Delete. Only the relevant one shows
+            once a listing is already paused or suspended. */}
+        {(canPause || canSuspend) && (
+          <div className="flex gap-2">
+            {canPause && (
+              <button
+                onClick={onTogglePause}
+                className={`flex-1 font-bold py-2.5 rounded-xl text-sm border ${
+                  isPaused
+                    ? 'border-green-600 text-green-700 active:bg-green-50'
+                    : 'border-purple-300 text-purple-700 active:bg-purple-50'
+                }`}
+              >
+                {isPaused ? '▶ Resume / తిరిగి చూపించు' : '⏸ Pause / అమ్మకం ఆపండి'}
+              </button>
+            )}
+            {canSuspend && (
+              <button
+                onClick={onToggleSuspend}
+                className={`flex-1 font-bold py-2.5 rounded-xl text-sm border ${
+                  isSuspended
+                    ? 'border-green-600 text-green-700 active:bg-green-50'
+                    : 'border-red-300 text-red-600 active:bg-red-50'
+                }`}
+              >
+                {isSuspended ? '▶ Resume / తిరిగి చూపించు' : '⛔ Suspend / నిలిపివేయి'}
+              </button>
+            )}
+          </div>
         )}
         <div className="flex gap-2">
           <button
@@ -2811,18 +2952,34 @@ function OrderCard({
   onMarkPaid,
   onUpdatePaymentStatus,
   onSetFulfillmentDate,
+  onMarkPickedUp,
+  onMarkShipped,
 }: {
   order: Order
   processing: boolean
   processingPaid: boolean
-  onApprove: () => void
+  onApprove: (date: string) => void
   onDecline: () => void
   onMarkPaid: () => void
   onUpdatePaymentStatus: (status: 'completed' | 'failed' | 'pending') => void
   onSetFulfillmentDate: (date: string) => void
+  onMarkPickedUp: () => void
+  onMarkShipped: () => void
 }) {
   const { tx } = useLang()
   const isDelivery = order.delivery_type === 'home_delivery'
+  const isCourier = order.delivery_type === 'courier'
+  const isPickup = !isDelivery && !isCourier
+  const isShipped = !!order.shipped_at
+  const isApproved = order.status === 'approved'
+  const fulfillmentDate = order.fulfillment_date ?? ''
+  // Local (not UTC) "today" so the picker still allows today's date in IST
+  // evenings. Used as the minimum selectable pickup/delivery date. Computed
+  // once on mount via the lazy initializer.
+  const [todayStr] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })
 
   const timeAgo = (ts: string) => {
     const diff = Date.now() - new Date(ts).getTime()
@@ -2840,13 +2997,20 @@ function OrderCard({
   const isPaymentClaimed = order.payment_status === 'payment_claimed' || order.payment_status === 'pending_confirmation'
 
   return (
-    <div className="border border-gray-200 rounded-2xl overflow-hidden">
+    <div className={`border rounded-2xl overflow-hidden ${isApproved ? 'border-green-200 bg-green-50/30' : 'border-gray-200'}`}>
       <div className="p-3 space-y-1.5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="font-extrabold text-gray-900 text-sm leading-tight">
-              {order.buyer_name || '—'}
-            </p>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <p className="font-extrabold text-gray-900 text-sm leading-tight">
+                {order.buyer_name || '—'}
+              </p>
+              {isApproved && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800 whitespace-nowrap">
+                  {tx.statusApproved}
+                </span>
+              )}
+            </div>
             {order.buyer_phone && (
               <a href={`tel:+91${order.buyer_phone}`} className="text-xs font-semibold text-green-700">
                 📞 +91 {order.buyer_phone}
@@ -2896,18 +3060,26 @@ function OrderCard({
           <DeliveryTagForFarmer order={order} />
         )}
 
-        {/* Pickup / Delivery date — farmer picks the exact date; the consumer
-            sees it on their order page. Label depends on the delivery method. */}
+        {/* Pickup / delivery date. For a pending order this is the gate to
+            approval — the farmer chooses a date, then confirms below. For an
+            approved order it shows the scheduled date and can still be changed.
+            Either way the buyer sees it on their order page. */}
         <div className="pt-1">
           <label className="text-[11px] font-bold text-gray-600 block mb-1">
-            📅 {isDelivery ? tx.deliveryDateLabel : tx.pickupDateLabel}
+            📅 {isPickup ? tx.pickupDateLabel : tx.deliveryDateLabel}
           </label>
           <input
             type="date"
-            value={order.fulfillment_date ?? ''}
+            value={fulfillmentDate}
+            min={todayStr}
             onChange={(e) => onSetFulfillmentDate(e.target.value)}
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none"
           />
+          {isApproved && fulfillmentDate && !(isCourier && isShipped) && (
+            <p className="text-[11px] font-semibold text-green-700 mt-1">
+              ⏳ {isPickup ? tx.awaitingPickup : tx.awaitingDelivery}
+            </p>
+          )}
         </div>
       </div>
 
@@ -2957,24 +3129,89 @@ function OrderCard({
       )}
 
       <div className="px-3 pb-3 space-y-2">
-        <div className={`grid gap-2 ${isUpi && isPaymentClaimed ? 'grid-cols-1' : 'grid-cols-2'}`}>
-          {!(isUpi && isPaymentClaimed) && (
+        {!isApproved ? (
+          <>
+            {/* Pending: confirming the chosen pickup/delivery date approves the
+                order. The confirm button stays disabled until a date is set. */}
+            <div className={`grid gap-2 ${isUpi && isPaymentClaimed ? 'grid-cols-1' : 'grid-cols-2'}`}>
+              {!(isUpi && isPaymentClaimed) && (
+                <button
+                  onClick={() => onApprove(fulfillmentDate)}
+                  disabled={processing || !fulfillmentDate}
+                  className="bg-green-600 text-white font-bold py-3 rounded-xl text-sm active:bg-green-700 disabled:opacity-50"
+                >
+                  {processing ? tx.approving : (isPickup ? tx.confirmPickupDate : tx.confirmDeliveryDate)}
+                </button>
+              )}
+              <button
+                onClick={onDecline}
+                disabled={processing}
+                className="border-2 border-red-300 text-red-600 font-bold py-3 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
+              >
+                {processing ? tx.declining : `✕ ${tx.decline}`}
+              </button>
+            </div>
+            {!fulfillmentDate && !(isUpi && isPaymentClaimed) && (
+              <p className="text-[11px] text-gray-500 text-center">{tx.chooseDateToApprove}</p>
+            )}
+          </>
+        ) : isPickup ? (
+          // Approved self-pickup: one tap to mark collected once the buyer comes.
+          <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={onApprove}
+              onClick={onMarkPickedUp}
               disabled={processing}
-              className="bg-green-600 text-white font-bold py-3 rounded-xl text-sm active:bg-green-700 disabled:opacity-50"
+              className="bg-green-600 text-white font-bold py-2.5 rounded-xl text-sm active:bg-green-700 disabled:opacity-50"
             >
-              {processing ? tx.approving : `✓ ${tx.approve}`}
+              {processing ? '…' : '✓ Picked Up / తీసుకువెళ్ళారు'}
             </button>
-          )}
+            <button
+              onClick={onDecline}
+              disabled={processing}
+              className="border-2 border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
+            >
+              {processing ? tx.declining : `✕ ${tx.decline}`}
+            </button>
+          </div>
+        ) : isCourier ? (
+          // Approved courier: farmer marks Shipped, then waits for the buyer to
+          // confirm receipt (which finally resolves the order).
+          isShipped ? (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-center">
+              <p className="text-xs font-bold text-amber-800">📦 Shipped / షిప్ చేయబడింది</p>
+              <p className="text-[11px] text-amber-700 mt-0.5">
+                Awaiting buyer&apos;s receipt confirmation / అందుకున్నట్టు ధృవీకరణ కోసం వేచి ఉంది
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={onMarkShipped}
+                disabled={processing}
+                className="bg-amber-600 text-white font-bold py-2.5 rounded-xl text-sm active:bg-amber-700 disabled:opacity-50"
+              >
+                {processing ? '…' : '📦 Shipped / షిప్ చేయబడింది'}
+              </button>
+              <button
+                onClick={onDecline}
+                disabled={processing}
+                className="border-2 border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
+              >
+                {processing ? tx.declining : `✕ ${tx.decline}`}
+              </button>
+            </div>
+          )
+        ) : (
+          // Approved home-delivery (rider flow): the farmer can still cancel;
+          // the rider closes it out at the door.
           <button
             onClick={onDecline}
             disabled={processing}
-            className="border-2 border-red-300 text-red-600 font-bold py-3 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
+            className="w-full border-2 border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
           >
             {processing ? tx.declining : `✕ ${tx.decline}`}
           </button>
-        </div>
+        )}
         {isCod && !isPaid && (
           <button
             onClick={onMarkPaid}
@@ -2990,6 +3227,100 @@ function OrderCard({
 }
 
 export { FreshnessBadge } from '@/components/FreshnessBadge'
+
+/* ─── Dashboard "Your produce" section ───────────────────────── */
+function DashboardProduceSection({
+  listings,
+  onManage,
+  onToggleSuspend,
+}: {
+  listings: DashboardListing[]
+  onManage: () => void
+  onToggleSuspend: (id: string, currentStatus: string) => void
+}) {
+  // Status chips mirror the Manage Listings card so the two stay consistent.
+  const chip = (status: string): { label: string; color: string } => {
+    switch (status) {
+      case 'available': return { label: 'Live / అందుబాటులో', color: 'bg-green-100 text-green-800' }
+      case 'paused': return { label: 'Paused / నిలిపివేశారు', color: 'bg-purple-100 text-purple-800' }
+      case 'suspended_by_farmer': return { label: 'Suspended / నిలిపివేశారు', color: 'bg-red-100 text-red-800' }
+      case 'suspended': return { label: 'Suspended by team', color: 'bg-orange-100 text-orange-800' }
+      case 'sold_out': return { label: 'Sold out / అయిపోయింది', color: 'bg-gray-100 text-gray-700' }
+      case 'coming_soon': return { label: 'Coming soon', color: 'bg-amber-100 text-amber-800' }
+      default: return { label: status, color: 'bg-gray-100 text-gray-700' }
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="px-4 pt-4 pb-3 flex items-center justify-between border-b border-gray-100">
+        <div>
+          <h2 className="font-extrabold text-gray-900 text-base leading-tight">
+            Your produce / మీ పంట
+          </h2>
+          <p className="text-xs text-gray-500 mt-0.5">Suspend or resume any item</p>
+        </div>
+        <button onClick={onManage} className="text-xs font-bold text-green-700">
+          Manage →
+        </button>
+      </div>
+
+      {listings.length === 0 ? (
+        <div className="text-center py-8 px-4">
+          <div className="text-4xl mb-2">🌾</div>
+          <p className="font-semibold text-gray-500 text-sm">No produce listed yet</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-gray-100">
+          {listings.map((l) => {
+            const isSuspended = l.status === 'suspended_by_farmer'
+            // Only the dashboard's own suspend/resume states are togglable here;
+            // pause / moderator-suspend / coming-soon are handled in Manage.
+            const canToggle = l.status === 'available' || l.status === 'sold_out' || isSuspended
+            const c = chip(l.status)
+            return (
+              <div key={l.id} className="flex items-center gap-3 px-4 py-3">
+                <div className="w-9 h-9 bg-green-50 rounded-lg flex items-center justify-center text-xl flex-shrink-0">
+                  {l.emoji ?? '🌿'}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-gray-900 text-sm truncate">{l.name}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {l.price_tier_1_price != null && (
+                      <span className="text-xs font-bold text-green-700">
+                        ₹{l.price_tier_1_price}
+                        <span className="text-gray-400 font-normal">/{l.unit || 'kg'}</span>
+                      </span>
+                    )}
+                    <span className={`${c.color} text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap`}>
+                      {c.label}
+                    </span>
+                  </div>
+                </div>
+                {canToggle ? (
+                  <button
+                    onClick={() => onToggleSuspend(l.id, l.status)}
+                    className={`font-bold py-2 px-3 rounded-lg text-xs border flex-shrink-0 ${
+                      isSuspended
+                        ? 'border-green-600 text-green-700 active:bg-green-50'
+                        : 'border-red-300 text-red-600 active:bg-red-50'
+                    }`}
+                  >
+                    {isSuspended ? '▶ Resume' : '⛔ Suspend'}
+                  </button>
+                ) : (
+                  <button onClick={onManage} className="text-xs font-semibold text-gray-400 px-2 flex-shrink-0">
+                    Manage
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 /* ─── Earnings summary card ──────────────────────────────────── */
 function EarningsCard({

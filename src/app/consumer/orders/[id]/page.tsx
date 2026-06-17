@@ -40,7 +40,7 @@ type Order = {
     phone: string | null
     upi_id: string | null
   } | null
-  delivery_type?: 'self_pickup' | 'home_delivery' | null
+  delivery_type?: 'self_pickup' | 'home_delivery' | 'courier' | null
   delivery_status?: DeliveryStatus | null
   delivery_address?: string | null
   delivery_landmark?: string | null
@@ -52,6 +52,8 @@ type Order = {
   out_for_delivery_at?: string | null
   delivered_at?: string | null
   collected_at?: string | null
+  shipped_at?: string | null
+  received_at?: string | null
   fulfillment_date?: string | null
   rider?: { id: string; name: string | null; phone: string } | null
 }
@@ -69,12 +71,19 @@ export default function OrderDetailsPage() {
   const [showReceipt, setShowReceipt] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [showComplaint, setShowComplaint] = useState(false)
+  const [confirmingReceipt, setConfirmingReceipt] = useState(false)
 
   // Buyer may cancel only while still pending and within 30 min of placing.
   const canCancel = !!order
     && order.status === 'pending'
     && !!order.created_at
     && Date.now() - new Date(order.created_at).getTime() < 30 * 60 * 1000
+
+  // A shipped courier order awaits the buyer's "Received" confirmation.
+  const canConfirmReceipt = !!order
+    && order.delivery_type === 'courier'
+    && !!order.shipped_at
+    && !order.received_at
 
   const handleCancel = async () => {
     if (!order) return
@@ -95,6 +104,27 @@ export default function OrderDetailsPage() {
       alert('Network error. Please try again. / నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.')
     } finally {
       setCancelling(false)
+    }
+  }
+
+  const handleConfirmReceipt = async () => {
+    if (!order) return
+    if (!window.confirm('Confirm you received this order? / మీరు ఈ ఆర్డర్‌ను అందుకున్నారా?')) return
+    setConfirmingReceipt(true)
+    try {
+      const res = await fetch(`/api/consumer/orders/${order.id}/received`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) { alert(json.error || 'Could not confirm receipt. / అందుకున్నట్టు ధృవీకరించలేకపోయాం.'); return }
+      const r = await fetch(`/api/consumer/orders/${order.id}`, { credentials: 'same-origin' })
+      const fresh = await r.json().catch(() => ({}))
+      if (r.ok && fresh.order) setOrder(fresh.order as Order)
+    } catch {
+      alert('Network error. Please try again. / నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.')
+    } finally {
+      setConfirmingReceipt(false)
     }
   }
 
@@ -125,6 +155,30 @@ export default function OrderDetailsPage() {
       })
     return () => { cancelled = true }
   }, [id, state.status])
+
+  // Light polling so status changes the farmer/rider make (e.g. Shipped) show up
+  // here without a manual refresh. Stops once the order reaches a final state.
+  const orderDone = !!order && (
+    order.status === 'declined'
+    || order.status === 'cancelled'
+    || !!order.received_at
+    || !!order.collected_at
+    || order.delivery_status === 'delivered'
+  )
+  const orderActive = !!order && !orderDone && (order.status === 'pending' || order.status === 'approved')
+  useEffect(() => {
+    if (!orderActive || !id || state.status !== 'authenticated') return
+    const timer = setInterval(() => {
+      fetch(`/api/consumer/orders/${id}`, { credentials: 'same-origin' })
+        .then(async (r) => {
+          if (!r.ok) return
+          const json = await r.json().catch(() => ({}))
+          if (json.order) setOrder(json.order as Order)
+        })
+        .catch(() => {})
+    }, 25000)
+    return () => clearInterval(timer)
+  }, [orderActive, id, state.status])
 
   // Resolve a fresh signed URL for the payment screenshot
   useEffect(() => {
@@ -276,6 +330,16 @@ export default function OrderDetailsPage() {
                   className="mt-2 w-full border border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
                 >
                   {cancelling ? 'Cancelling... / రద్దు చేస్తోంది...' : '✕ Cancel order / ఆర్డర్ రద్దు (30 min లోపు)'}
+                </button>
+              )}
+
+              {canConfirmReceipt && (
+                <button
+                  onClick={handleConfirmReceipt}
+                  disabled={confirmingReceipt}
+                  className="mt-3 w-full bg-green-600 text-white font-bold py-3 rounded-xl text-sm active:bg-green-700 disabled:opacity-50"
+                >
+                  {confirmingReceipt ? '…' : '✓ Received / అందుకున్నాను'}
                 </button>
               )}
             </div>
