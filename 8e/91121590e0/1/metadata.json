@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "8e91121590e0",
+  "session_id": "366a56e2-790b-481d-a2fa-f100da861946",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-17T09:24:44.741555174Z",
+  "branch": "feat/suspend-consumer-reason-privacy",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "package.json",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/lib/translations.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "57e5cdf7de35",
+  "token_usage": {
+    "input_tokens": 3988,
+    "cache_creation_tokens": 40384,
+    "cache_read_tokens": 480710,
+    "output_tokens": 11267,
+    "api_call_count": 14
+  },
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-17T09:24:44.71851474Z",
+    "agent_lines": 390,
+    "agent_removed": 47,
+    "human_added": 327,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 717,
+    "total_lines_changed": 778,
+    "agent_percentage": 56.169665809768645,
+    "metric_version": 2
+  }
+}
