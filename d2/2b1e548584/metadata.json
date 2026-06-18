@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "d22b1e548584",
+  "strategy": "manual-commit",
+  "branch": "fix/hide-suspended-produce-count",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/app/farmer/[slug]/page.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d2/2b1e548584/0/metadata.json",
+      "transcript": "/d2/2b1e548584/0/full.jsonl",
+      "content_hash": "/d2/2b1e548584/0/content_hash.txt",
+      "prompt": "/d2/2b1e548584/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 276,
+    "cache_creation_tokens": 246212,
+    "cache_read_tokens": 2005300,
+    "output_tokens": 6346,
+    "api_call_count": 9
+  }
+}
