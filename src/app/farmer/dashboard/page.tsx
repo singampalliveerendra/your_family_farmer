@@ -366,11 +366,23 @@ export default function FarmerDashboard() {
 
   // Quick suspend/resume from the dashboard's inline produce list. Mirrors the
   // Manage Listings modal: flips 'suspended_by_farmer' ⇄ 'available'.
+  // Status changes go through the service-role API (same as Edit): the anon
+  // client has no UPDATE policy on produce_listings, so a direct update would
+  // silently match 0 rows and never persist.
   const handleToggleListingSuspend = async (id: string, currentStatus: string) => {
     const next = currentStatus === 'suspended_by_farmer' ? 'available' : 'suspended_by_farmer'
     setListings((prev) => prev.map((l) => (l.id === id ? { ...l, status: next } : l)))
-    const { error } = await supabase.from('produce_listings').update({ status: next }).eq('id', id)
-    if (error) { void loadDashboard() } // re-sync on failure
+    try {
+      const res = await fetch('/api/farmer/update-listing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ listingId: id, payload: { status: next } }),
+      })
+      if (!res.ok) { void loadDashboard() } // re-sync on failure
+    } catch {
+      void loadDashboard() // re-sync on failure
+    }
   }
 
   // Approving requires the farmer to first set a pickup/delivery date — that
@@ -2617,33 +2629,38 @@ function ManageListingsModal({
 
   useEffect(() => { load() }, [load])
 
+  // Status changes go through the service-role API (same as Edit). The anon
+  // Supabase client has no UPDATE policy on produce_listings, so a direct
+  // .update() silently matches 0 rows and never persists — which is why Pause
+  // and Suspend appeared to do nothing.
+  const setListingStatus = async (row: ListingRow, next: string) => {
+    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: next } : r)))
+    setError('')
+    try {
+      const res = await fetch('/api/farmer/update-listing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ listingId: row.id, payload: { status: next } }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(json.error ?? 'Could not update listing'); load() } else { onChanged() }
+    } catch {
+      setError('Network error — is the server running?'); load()
+    }
+  }
+
   // Pause hides a listing from consumers without deleting it; Resume brings it
   // back. Unlike Delete this is fully reversible. We flip the status between
   // 'paused' and 'available' — consumer queries only ever show 'available'.
-  const handleTogglePause = async (row: ListingRow) => {
-    const next = row.status === 'paused' ? 'available' : 'paused'
-    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: next } : r)))
-    setError('')
-    const { error: err } = await supabase
-      .from('produce_listings')
-      .update({ status: next })
-      .eq('id', row.id)
-    if (err) { setError(err.message); load() } else { onChanged() }
-  }
+  const handleTogglePause = (row: ListingRow) =>
+    setListingStatus(row, row.status === 'paused' ? 'available' : 'paused')
 
   // Suspend is a second, independent reversible take-down (status
   // 'suspended_by_farmer'), distinct from Pause and from a moderator suspension.
   // Like Pause it hides the listing from buyers; Resume returns it to available.
-  const handleToggleSuspend = async (row: ListingRow) => {
-    const next = row.status === 'suspended_by_farmer' ? 'available' : 'suspended_by_farmer'
-    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: next } : r)))
-    setError('')
-    const { error: err } = await supabase
-      .from('produce_listings')
-      .update({ status: next })
-      .eq('id', row.id)
-    if (err) { setError(err.message); load() } else { onChanged() }
-  }
+  const handleToggleSuspend = (row: ListingRow) =>
+    setListingStatus(row, row.status === 'suspended_by_farmer' ? 'available' : 'suspended_by_farmer')
 
   const handleDelete = async (row: ListingRow) => {
     if (!confirm(tx.confirmDelete.replace('{name}', row.name))) return

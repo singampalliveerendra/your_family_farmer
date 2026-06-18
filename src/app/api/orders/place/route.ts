@@ -29,6 +29,7 @@ type ListingRow = {
   name: string
   unit: string | null
   stock_qty: number | null
+  status: string | null
   farmer_id: string
   price_tier_1_qty: number | null
   price_tier_1_price: number | null
@@ -205,7 +206,7 @@ export async function POST(req: NextRequest) {
   const { data: listings } = await supabase
     .from('produce_listings')
     .select(
-      'id, name, unit, stock_qty, farmer_id, price_tier_1_qty, price_tier_1_price, price_tier_2_qty, price_tier_2_price, price_tier_3_price',
+      'id, name, unit, stock_qty, status, farmer_id, price_tier_1_qty, price_tier_1_price, price_tier_2_qty, price_tier_2_price, price_tier_3_price',
     )
     .in('id', listingIds) as { data: ListingRow[] | null }
 
@@ -228,6 +229,12 @@ export async function POST(req: NextRequest) {
     const listing = listingById.get(item.listingId)
     if (!listing) return bad('Item missing.')
     if (listing.farmer_id !== farmerId) return bad('Items must belong to the same farmer.')
+    // Block ordering a listing the farmer (or moderator) has taken down. A
+    // stale cart could still hold a since-paused/suspended item; only
+    // 'available' produce may be purchased.
+    if (listing.status !== 'available') {
+      return bad(`${listing.name} is no longer available.`)
+    }
 
     const unitPrice = getTierPrice(item.qty, {
       priceTier1Qty: listing.price_tier_1_qty,
