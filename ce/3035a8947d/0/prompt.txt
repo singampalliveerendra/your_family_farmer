@@ -1,0 +1,31 @@
+🌿
+Green leaf
+Available
+₹1/kg
+84 kg
+natural
+⏸ Pause / అమ్మకం ఆపండి
+⛔ Suspend / నిలిపివేయి
+✏️ Edit
+🗑 Delete produce
+strawberry
+strawberry
+natural
+
+Available
+₹200/kg
+76 kg
+natural
+🔴 Picked 48 days ago
+⏸ Pause / అమ్మకం ఆపండి
+⛔ Suspend / నిలిపివేయి
+✏️ Edit
+🗑 Delete produce.in this the pause and suspend not at all working if user suspend the produce have to suspend and consumer will not able to order or see in did you understand my point
+
+---
+
+test
+
+---
+
+should i have to add any query in supabase
