@@ -1,0 +1,9 @@
+Add a Reason while suspending a consumer by a Moderator. That should be shown in the Consumer header highlighting the suspension. what you understand in this
+
+---
+
+but the highloght banner not in broswer notifcation they have to see in user ui only
+
+---
+
+should i have to add any query in supabase
