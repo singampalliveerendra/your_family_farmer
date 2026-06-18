@@ -7,10 +7,13 @@ export const dynamic = 'force-dynamic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-// Farmer marks a courier order as shipped — used when they hand the parcel to a
-// courier or post it themselves. Stamps shipped_at. The order STAYS in Active
-// Orders (it is not yet resolved); it only leaves once the buyer confirms
-// receipt via the consumer "Received" route, which stamps received_at.
+// Farmer marks an order as shipped — used when they hand the parcel to a
+// courier or post it themselves. The farmer can choose this on any
+// farmer-fulfilled order (self-pickup or courier); picking "Shipped" commits
+// the order to the courier flow, so we also set delivery_type = 'courier' to
+// give the buyer the Shipped → Received timeline. Stamps shipped_at; the order
+// STAYS in Active Orders (not yet resolved) until the buyer confirms receipt
+// via the consumer "Received" route, which stamps received_at.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const session = getFarmerSessionFromRequest(req)
   if (!session) return NextResponse.json({ error: 'Please log in.' }, { status: 401 })
@@ -25,7 +28,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: order, error: loadErr } = await supabase
     .from('orders')
-    .select('id, farmer_id, status, delivery_type, shipped_at')
+    .select('id, farmer_id, status, delivery_type, shipped_at, collected_at')
     .eq('id', id)
     .maybeSingle()
 
@@ -34,11 +37,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (order.farmer_id !== session.farmerId) {
     return NextResponse.json({ error: 'Not your order.' }, { status: 403 })
   }
-  if (order.delivery_type !== 'courier') {
-    return NextResponse.json({ error: 'Only a courier order can be marked shipped.' }, { status: 409 })
+  // Rider deliveries are closed at the door, not shipped by the farmer.
+  if (order.delivery_type === 'home_delivery') {
+    return NextResponse.json({ error: 'A home-delivery order is closed by the rider, not shipped.' }, { status: 409 })
   }
   if (order.status !== 'approved') {
     return NextResponse.json({ error: 'Confirm the order before marking it shipped.' }, { status: 409 })
+  }
+  if (order.collected_at) {
+    return NextResponse.json({ error: 'This order was already picked up.' }, { status: 409 })
   }
   if (order.shipped_at) {
     return NextResponse.json({ error: 'This order is already marked shipped.' }, { status: 409 })
@@ -46,11 +53,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: updated, error: updErr } = await supabase
     .from('orders')
-    .update({ shipped_at: new Date().toISOString() })
+    .update({ shipped_at: new Date().toISOString(), delivery_type: 'courier' })
     .eq('id', id)
     .eq('farmer_id', session.farmerId)
     .eq('status', 'approved')
     .is('shipped_at', null)
+    .is('collected_at', null)
     .select('id, shipped_at')
 
   if (updErr) {

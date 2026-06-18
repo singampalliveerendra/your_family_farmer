@@ -3224,53 +3224,7 @@ function OrderCard({
               <p className="text-[11px] text-gray-500 text-center">{tx.chooseDateToApprove}</p>
             )}
           </>
-        ) : isPickup ? (
-          // Approved self-pickup: one tap to mark collected once the buyer comes.
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={onMarkPickedUp}
-              disabled={processing}
-              className="bg-green-600 text-white font-bold py-2.5 rounded-xl text-sm active:bg-green-700 disabled:opacity-50"
-            >
-              {processing ? '…' : '✓ Picked Up / తీసుకువెళ్ళారు'}
-            </button>
-            <button
-              onClick={onDecline}
-              disabled={processing}
-              className="border-2 border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
-            >
-              {processing ? tx.declining : `✕ ${tx.decline}`}
-            </button>
-          </div>
-        ) : isCourier ? (
-          // Approved courier: farmer marks Shipped, then waits for the buyer to
-          // confirm receipt (which finally resolves the order).
-          isShipped ? (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-center">
-              <p className="text-xs font-bold text-amber-800">📦 Shipped / షిప్ చేయబడింది</p>
-              <p className="text-[11px] text-amber-700 mt-0.5">
-                Awaiting buyer&apos;s receipt confirmation / అందుకున్నట్టు ధృవీకరణ కోసం వేచి ఉంది
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={onMarkShipped}
-                disabled={processing}
-                className="bg-amber-600 text-white font-bold py-2.5 rounded-xl text-sm active:bg-amber-700 disabled:opacity-50"
-              >
-                {processing ? '…' : '📦 Shipped / షిప్ చేయబడింది'}
-              </button>
-              <button
-                onClick={onDecline}
-                disabled={processing}
-                className="border-2 border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
-              >
-                {processing ? tx.declining : `✕ ${tx.decline}`}
-              </button>
-            </div>
-          )
-        ) : (
+        ) : isDelivery ? (
           // Approved home-delivery (rider flow): the farmer can still cancel;
           // the rider closes it out at the door.
           <button
@@ -3280,6 +3234,45 @@ function OrderCard({
           >
             {processing ? tx.declining : `✕ ${tx.decline}`}
           </button>
+        ) : isShipped ? (
+          // Already shipped (courier flow): waiting for the buyer to confirm
+          // receipt, which finally resolves the order.
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-center">
+            <p className="text-xs font-bold text-amber-800">📦 Shipped / షిప్ చేయబడింది</p>
+            <p className="text-[11px] text-amber-700 mt-0.5">
+              Awaiting buyer&apos;s receipt confirmation / అందుకున్నట్టు ధృవీకరణ కోసం వేచి ఉంది
+            </p>
+          </div>
+        ) : (
+          // Approved farmer-fulfilled order, not yet shipped or collected. The
+          // farmer chooses how it leaves: Shipped (→ buyer confirms Received) or
+          // Picked Up (buyer collected at the farm — resolves immediately).
+          // Whichever they tap is the status the buyer then sees.
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={onMarkShipped}
+                disabled={processing}
+                className="bg-amber-600 text-white font-bold py-2.5 rounded-xl text-sm active:bg-amber-700 disabled:opacity-50"
+              >
+                {processing ? '…' : '📦 Shipped / షిప్ చేయబడింది'}
+              </button>
+              <button
+                onClick={onMarkPickedUp}
+                disabled={processing}
+                className="bg-green-600 text-white font-bold py-2.5 rounded-xl text-sm active:bg-green-700 disabled:opacity-50"
+              >
+                {processing ? '…' : '✓ Picked Up / తీసుకువెళ్ళారు'}
+              </button>
+            </div>
+            <button
+              onClick={onDecline}
+              disabled={processing}
+              className="w-full border-2 border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
+            >
+              {processing ? tx.declining : `✕ ${tx.decline}`}
+            </button>
+          </>
         )}
         {isCod && !isPaid && (
           <button
