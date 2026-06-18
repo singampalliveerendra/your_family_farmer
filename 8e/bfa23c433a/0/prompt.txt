@@ -1,0 +1,25 @@
+Vishakapatnam, gajuwaka,bc road
+Pickup locations
+Where can buyers pick up? Add one at a time.
+
+e.g. Bus stand
++ Add
+Pickup schedule
+Set days & time buyers can pick up from your farm
+
+Mon
+Tue
+Wed
+Thu
+Fri
+Sat
+Sun
+From
+
+
+08:00
+To
+
+
+12:00
+we have a add option for pickup location and the client also need add for pickup scheduley also . so before doing tell me what you understand and why is this feature useful for

@@ -1,0 +1,65 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "8ebfa23c433a",
+  "session_id": "f3b49fe3-416f-468c-ab7d-ce41af4cd9fa",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-18T09:05:57.251084161Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/app/api/moderator/farmers/[id]/route.ts",
+    "src/app/api/moderator/farmers/route.ts",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/app/moderator/farmers/[id]/edit/page.tsx",
+    "src/components/moderator/ModeratorFarmerForm.tsx",
+    "src/lib/pickup-slots.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "a6f56d2a8f98",
+  "checkpoint_transcript_start": 227,
+  "transcript_lines_at_start": 227,
+  "token_usage": {
+    "input_tokens": 991,
+    "cache_creation_tokens": 51184,
+    "cache_read_tokens": 7639402,
+    "output_tokens": 31448,
+    "api_call_count": 44
+  },
+  "session_metrics": {
+    "turn_count": 5
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-18T09:05:57.211405457Z",
+    "agent_lines": 207,
+    "agent_removed": 68,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 207,
+    "total_lines_changed": 275,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 474,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs - Copy.html": 22,
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs.html": 22,
+        "mod.md": 430
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 681,
+      "agent_lines_removed": 68
+    }
+  ]
+}
