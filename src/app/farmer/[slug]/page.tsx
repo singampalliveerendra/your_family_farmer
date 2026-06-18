@@ -87,7 +87,12 @@ export default async function FarmerPage({ params }: { params: Promise<{ slug: s
     <main className="min-h-screen bg-gray-50 pb-24">
       <TopNav regionSlug={farmer.region_slug} />
       <FarmCover farmer={farmer} />
-      <TrustStrip farmer={farmer} produceCount={produce?.length ?? 0} />
+      {/* Count only live listings — a produce the farmer has suspended (or that
+          is still "coming soon") must not inflate the public "Produce now" stat. */}
+      <TrustStrip
+        farmer={farmer}
+        produceCount={(produce ?? []).filter((p) => (p as { status?: string }).status === 'available').length}
+      />
       <Suspense fallback={null}>
         <TabSection
           farmer={farmer}
