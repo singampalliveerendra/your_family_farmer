@@ -1,0 +1,35 @@
+read the whole code and tell about this project and read annd take all files
+
+---
+
+did you find issue or bugs in it
+
+---
+
+in this the farmer need a options of “Shipped“ or “Pickuped" both and if farmer seect one then the consumer have to see that the delivery statuts that send by farmer This page is a Farmer Dashboard.
+
+It has three main sections:
+
+Today’s Schedule – Shows pickups and deliveries for the selected date. Each item displays product name, quantity, customer name, and a call button.
+
+Pickups – Orders the farmer needs to collect or prepare.
+
+Deliveries – Orders that need to be delivered to customers.
+
+The bottom section is Orders, which shows recent customer orders with tabs for Today, This Week, and This Month.
+
+Each order card shows:
+
+Customer name
+
+Approval status
+
+Phone number
+
+Product, quantity, and price
+
+Delivery type (home delivery)
+
+Current order status (for example: Waiting for Rider)
+
+The purpose of this page is to help farmers quickly see today’s pickups, deliveries, and active orders in one place. in this explain before doing what page iam telling about
