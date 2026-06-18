@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import LocationSearch from '@/components/LocationSearch'
+import { normalizePickupSlots, emptyPickupSlot, type PickupSlot } from '@/lib/pickup-slots'
+
+const ALL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 export type Created = {
   id: string
@@ -29,6 +32,7 @@ export type FarmerInitial = {
   bank_account_number: string
   bank_ifsc: string
   pickup_locations: string[]
+  pickup_slots: PickupSlot[]
   cod_enabled: boolean
   lat: number | null
   lng: number | null
@@ -81,7 +85,7 @@ export function emptyFarmerInitial(): FarmerInitial {
     method: 'natural', farm_size_acres: '', farming_since_year: '', story_quote: '',
     farm_address: '', upi_id: '', soil_organic_carbon: '',
     bank_account_number: '', bank_ifsc: '',
-    pickup_locations: [], cod_enabled: false,
+    pickup_locations: [], pickup_slots: [], cod_enabled: false,
     lat: null, lng: null, location_name: '',
     cover_photo_url: null, photo_url: null, pesticide_cert_url: null, upi_qr_code_url: null,
   }
@@ -114,6 +118,7 @@ export default function ModeratorFarmerForm({
 
   const [pickupLocations, setPickupLocations] = useState<string[]>(initial.pickup_locations)
   const [newPickup, setNewPickup] = useState('')
+  const [slots, setSlots] = useState<PickupSlot[]>(initial.pickup_slots)
   const [codEnabled, setCodEnabled] = useState(initial.cod_enabled)
 
   const [lat, setLat] = useState<number | null>(initial.lat)
@@ -178,6 +183,17 @@ export default function ModeratorFarmerForm({
   }
   const removePickup = (loc: string) => setPickupLocations((prev) => prev.filter((l) => l !== loc))
 
+  const addSlot = () => setSlots((prev) => [...prev, emptyPickupSlot()])
+  const removeSlot = (idx: number) => setSlots((prev) => prev.filter((_, i) => i !== idx))
+  const toggleSlotDay = (idx: number, day: string) =>
+    setSlots((prev) => prev.map((s, i) =>
+      i === idx
+        ? { ...s, days: s.days.includes(day) ? s.days.filter((d) => d !== day) : [...s.days, day] }
+        : s,
+    ))
+  const setSlotTime = (idx: number, key: 'time_from' | 'time_to', val: string) =>
+    setSlots((prev) => prev.map((s, i) => (i === idx ? { ...s, [key]: val } : s)))
+
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
@@ -211,6 +227,7 @@ export default function ModeratorFarmerForm({
     const payload = {
       ...form,
       pickup_locations: pickupLocations,
+      pickup_slots: normalizePickupSlots(slots),
       cod_enabled: codEnabled,
       cover_photo_url: coverR.url,
       photo_url: avatarR.url,
@@ -357,6 +374,53 @@ export default function ModeratorFarmerForm({
               ))}
             </div>
           )}
+        </div>
+
+        {/* Pickup schedule — one or more day + time-window entries */}
+        <div className="mt-4">
+          <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wide block mb-1">Pickup schedule</span>
+          <p className="text-[11px] text-gray-500 mb-2">Set the days &amp; times buyers can collect. Add more than one for different days.</p>
+
+          <div className="space-y-3">
+            {slots.map((slot, idx) => (
+              <div key={idx} className="border border-gray-200 rounded-xl p-3 bg-gray-50">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold text-gray-500">Timing {idx + 1}</span>
+                  <button type="button" onClick={() => removeSlot(idx)} className="text-red-500 text-xs font-bold active:text-red-700">✕ Remove</button>
+                </div>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {ALL_DAYS.map((day) => (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => toggleSlotDay(idx, day)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                        slot.days.includes(day)
+                          ? 'bg-green-700 text-white border-green-700'
+                          : 'bg-white text-gray-600 border-gray-200'
+                      }`}
+                    >
+                      {day.slice(0, 3)}
+                    </button>
+                  ))}
+                </div>
+                {slot.days.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="text-[11px] text-gray-500 mb-1">From</p>
+                      <input type="time" value={slot.time_from} onChange={(e) => setSlotTime(idx, 'time_from', e.target.value)} className={inputCls} />
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-gray-500 mb-1">To</p>
+                      <input type="time" value={slot.time_to} onChange={(e) => setSlotTime(idx, 'time_to', e.target.value)} className={inputCls} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <button type="button" onClick={addSlot} className="mt-2 text-sm font-bold text-green-700 active:text-green-900">+ Add timing</button>
         </div>
 
         <div className="grid md:grid-cols-2 gap-4 mt-4">

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
+import { normalizePickupSlots } from '@/lib/pickup-slots'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,7 +21,7 @@ function svc() {
 const EDIT_COLUMNS =
   'id, slug, name, phone, village, district, method, active, story_quote, ' +
   'farm_size_acres, farming_since_year, farm_address, soil_organic_carbon, ' +
-  'upi_id, cod_enabled, bank_account_number, bank_ifsc, pickup_locations, ' +
+  'upi_id, cod_enabled, bank_account_number, bank_ifsc, pickup_locations, pickup_slots, ' +
   'cover_photo_url, photo_url, pesticide_cert_url, upi_qr_code_url, ' +
   'lat, lng, location_name'
 
@@ -129,6 +130,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     update.pickup_locations = Array.isArray(raw)
       ? Array.from(new Set(raw.map((p) => String(p).trim()).filter(Boolean)))
       : []
+  }
+
+  // Pickup schedule — normalize to a clean array of {days,time_from,time_to};
+  // store null when empty so the column stays tidy.
+  if ('pickup_slots' in b) {
+    const clean = normalizePickupSlots(b.pickup_slots)
+    update.pickup_slots = clean.length > 0 ? clean : null
   }
 
   // Photos — the client sends the resolved URL (existing, newly uploaded, or

@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { randomInt } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { isModeratorRequest, getModeratorZone, getModeratorId } from '@/lib/moderator-session'
+import { normalizePickupSlots } from '@/lib/pickup-slots'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -126,16 +127,11 @@ export async function POST(req: NextRequest) {
     ? Array.from(new Set(rawPickups.map((p) => String(p).trim()).filter(Boolean)))
     : []
 
-  // pickup_slots: { days: string[], time_from, time_to } — stored only when at
-  // least one day is chosen, matching the farmer-side profile editor.
-  const slots = (body as { pickup_slots?: unknown }).pickup_slots as
-    | { days?: unknown; time_from?: unknown; time_to?: unknown }
-    | null
-    | undefined
-  const slotDays = Array.isArray(slots?.days) ? slots!.days.map((d) => String(d)).filter(Boolean) : []
-  const pickup_slots = slotDays.length > 0
-    ? { days: slotDays, time_from: String(slots?.time_from ?? '08:00'), time_to: String(slots?.time_to ?? '12:00') }
-    : null
+  // pickup_slots: an array of { days, time_from, time_to } windows. Normalized
+  // (drops empty-day windows) and stored as null when none — matching the
+  // farmer-side profile editor.
+  const cleanSlots = normalizePickupSlots((body as { pickup_slots?: unknown }).pickup_slots)
+  const pickup_slots = cleanSlots.length > 0 ? cleanSlots : null
 
   if (!name) return NextResponse.json({ error: 'Name is required.' }, { status: 400 })
   if (upi_id && !/^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$/.test(upi_id)) {
