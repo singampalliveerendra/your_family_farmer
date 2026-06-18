@@ -83,6 +83,7 @@ const PRODUCE_BG: Record<string, string> = {
 const DEFAULT_PRODUCE_BG = '#f5f5f5'
 
 export default function ConsumerPage() {
+  const { L } = useLang()
   const [available, setAvailable]     = useState<ProduceListing[]>([])
   const [comingSoon, setComingSoon]   = useState<ProduceListing[]>([])
   const [filtered, setFiltered]       = useState<ProduceListing[]>([])
@@ -221,13 +222,10 @@ export default function ConsumerPage() {
       <div className="bg-green-900">
         <div className="max-w-3xl mx-auto px-4 pt-8 pb-14">
           <h1 className="text-2xl sm:text-4xl font-extrabold text-white leading-snug">
-            Fresh from your<br />local farmer
+            {L('Fresh from your local farmer', 'మీ స్థానిక రైతు నుండి తాజా ఆహారం')}
           </h1>
-          <p className="text-green-300 text-base sm:text-lg mt-1 font-medium">
-            మీ స్థానిక రైతు నుండి తాజా ఆహారం
-          </p>
           <p className="text-green-400 text-sm mt-1">
-            Straight from farm · No middlemen / నేరుగా పొలం నుండి · మధ్యవర్తులు లేరు
+            {L('Straight from farm · No middlemen', 'నేరుగా పొలం నుండి · మధ్యవర్తులు లేరు')}
           </p>
 
           {/* Stats */}
@@ -240,7 +238,7 @@ export default function ConsumerPage() {
               <div key={s.en}>
                 <div className="text-4xl font-black text-white">{s.val}</div>
                 <div className="text-xs text-green-300 mt-0.5 leading-snug">
-                  {s.en}<br />{s.te}
+                  {L(s.en, s.te)}
                 </div>
               </div>
             ))}
@@ -257,14 +255,14 @@ export default function ConsumerPage() {
               onClick={() => setShowLocationSheet(true)}
               className="inline-flex items-center gap-1.5 bg-green-800 border border-green-700 text-green-200 text-sm font-semibold px-4 py-2.5 rounded-full active:bg-green-700"
             >
-              📍 {consumerLocationName || 'Set location / లొకేషన్ పెట్టండి'}
+              📍 {consumerLocationName || L('Set location', 'లొకేషన్ పెట్టండి')}
               <span className="text-green-400 text-xs ml-0.5">✎</span>
             </button>
             <Link
               href="/consumer/orders"
               className="inline-flex items-center gap-2 bg-green-800 border border-green-700 text-green-200 text-xs font-semibold px-4 py-2.5 rounded-full"
             >
-              📦 My Orders / నా ఆర్డర్లు →
+              {L('📦 My Orders', 'నా ఆర్డర్లు →')}
             </Link>
           </div>
         </div>
@@ -279,7 +277,7 @@ export default function ConsumerPage() {
             </svg>
             <input
               type="search"
-              placeholder="Search produce... / పంట వెతకండి..."
+              placeholder={L('Search produce...', 'పంట వెతకండి...')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-base focus:border-green-500 focus:outline-none"
@@ -290,10 +288,10 @@ export default function ConsumerPage() {
             onChange={(e) => setMethod(e.target.value)}
             className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white focus:border-green-500 focus:outline-none"
           >
-            <option value="all">🌿 All methods / అన్ని పద్ధతులు</option>
-            <option value="natural">🌱 Natural / సహజం</option>
-            <option value="organic">🍃 Organic / సేంద్రీయ</option>
-            <option value="low_chemical">⚡ Low chemical / తక్కువ రసాయన</option>
+            <option value="all">{L('🌿 All methods', 'అన్ని పద్ధతులు')}</option>
+            <option value="natural">{L('🌱 Natural', 'సహజం')}</option>
+            <option value="organic">{L('🍃 Organic', 'సేంద్రీయ')}</option>
+            <option value="low_chemical">{L('⚡ Low chemical', 'తక్కువ రసాయన')}</option>
           </select>
         </div>
       </div>
@@ -311,7 +309,7 @@ export default function ConsumerPage() {
                   : 'bg-white text-gray-700 border-gray-200'
               }`}
             >
-              {chip.en} / {chip.te}
+              {L(chip.en, chip.te)}
             </button>
           ))}
         </div>
@@ -331,7 +329,7 @@ export default function ConsumerPage() {
                     : 'bg-white text-gray-700 border-gray-200'
                 }`}
               >
-                {d === null ? 'All / అన్నీ' : `< ${d} km`}
+                {d === null ? L('All', 'అన్నీ') : `< ${d} km`}
               </button>
             ))}
           </div>
@@ -342,14 +340,14 @@ export default function ConsumerPage() {
       <div className="max-w-3xl mx-auto px-3 mt-6">
         <div className="flex items-end justify-between mb-4">
           <div>
-            <h2 className="text-xl font-extrabold text-gray-900">Available now / ఇప్పుడు అందుబాటులో</h2>
+            <h2 className="text-xl font-extrabold text-gray-900">{L('Available now', 'ఇప్పుడు అందుబాటులో')}</h2>
             <p className="text-green-700 font-semibold text-sm leading-tight">
-              Fresh produce from farms nearby / తాజా పంట
+              {L('Fresh produce from farms nearby', 'తాజా పంట')}
             </p>
           </div>
           {!loading && (
             <span className="text-sm font-bold text-gray-400">
-              {displayItems.length} items / వస్తువులు
+              {displayItems.length} {L('items', 'వస్తువులు')}
             </span>
           )}
         </div>
@@ -380,9 +378,9 @@ export default function ConsumerPage() {
       {!loading && comingSoon.length > 0 && (
         <div className="max-w-3xl mx-auto px-3 mt-10">
           <div className="mb-4">
-            <h2 className="text-xl font-extrabold text-gray-900">Coming soon / త్వరలో వస్తుంది</h2>
+            <h2 className="text-xl font-extrabold text-gray-900">{L('Coming soon', 'త్వరలో వస్తుంది')}</h2>
             <p className="text-amber-600 font-semibold text-sm">
-              Reserve early / ముందుగానే రిజర్వ్
+              {L('Reserve early', 'ముందుగానే రిజర్వ్')}
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2 auto-rows-fr">
@@ -424,7 +422,7 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
   const farmerHref  = farmer ? `/farmer/${farmer.slug}` : '#'
   const unit        = item.unit || 'kg'
 
-  const { tx, lang } = useLang()
+  const { tx, lang, L } = useLang()
   const { cart, addItem, setQty } = useCart()
   const { requireAuth } = useConsumerAuth()
   const inCart = cart[item.id]
@@ -462,16 +460,16 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
 
     if (fresh !== null) {
       if (fresh <= 0) {
-        setStockMsg('Out of stock / అయిపోయింది')
+        setStockMsg(L('Out of stock', 'అయిపోయింది'))
         return
       }
       const curQty = inCart?.qty ?? 0
       if (curQty >= fresh) {
-        setStockMsg(`Maximum available / గరిష్ట పరిమాణం: ${fresh} ${unit}`)
+        setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${fresh} ${unit}`)
         return
       }
       if (curQty + 1 > fresh) {
-        setStockMsg(`Stock updated / స్టాక్ మారింది, only ${fresh} ${unit} available`)
+        setStockMsg(L(`Stock updated, only ${fresh} ${unit} available`, `స్టాక్ మారింది, కేవలం ${fresh} ${unit} అందుబాటులో`))
         return
       }
     }
@@ -500,7 +498,7 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
 
   const handleInc = () => {
     if (liveStock !== null && inCart.qty >= liveStock) {
-      setStockMsg(`Maximum available / గరిష్ట పరిమాణం: ${liveStock} ${unit}`)
+      setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${liveStock} ${unit}`)
       return
     }
     setStockMsg('')
@@ -606,14 +604,14 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
               href={farmerHref}
               className="flex items-center justify-center w-full h-10 bg-[#1a5c2a] text-white font-bold rounded-xl text-sm"
             >
-              View / చూడండి
+              {L('View', 'చూడండి')}
             </Link>
           ) : isOutOfStock ? (
             <button
               disabled
               className="w-full h-10 bg-gray-200 text-gray-500 font-bold rounded-xl text-sm cursor-not-allowed"
             >
-              Out of stock / అయిపోయింది
+              {L('Out of stock', 'అయిపోయింది')}
             </button>
           ) : !inCart ? (
             <button
@@ -621,7 +619,7 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
               disabled={adding}
               className="w-full h-10 bg-[#1a5c2a] active:opacity-90 text-white font-bold rounded-xl text-sm disabled:opacity-60 whitespace-nowrap"
             >
-              {adding ? 'Checking... / తనిఖీ' : '+ Add / చేర్చు'}
+              {adding ? L('Checking...', 'తనిఖీ') : L('+ Add', 'చేర్చు')}
             </button>
           ) : (
             <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl h-10 px-2">
@@ -657,7 +655,7 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
 
 /* ─── Coming soon card ──────────────────────────────────── */
 function ComingSoonCard({ item }: { item: ProduceListing }) {
-  const { lang }  = useLang()
+  const { lang, L }  = useLang()
   const emoji     = item.emoji ?? '🌱'
   const produceBg = PRODUCE_BG[emoji] ?? DEFAULT_PRODUCE_BG
   const farmer    = item.farmer
@@ -687,7 +685,7 @@ function ComingSoonCard({ item }: { item: ProduceListing }) {
         )}
         {item.available_to && (
           <p className="text-[11px] text-amber-600 font-semibold truncate mt-1">
-            Ready / సిద్ధం: {new Date(item.available_to).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+            {L('Ready', 'సిద్ధం')}: {new Date(item.available_to).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
           </p>
         )}
         {farmer && (
@@ -696,7 +694,7 @@ function ComingSoonCard({ item }: { item: ProduceListing }) {
               href={farmerHref}
               className="flex items-center justify-center w-full h-10 border-2 border-[#1a5c2a] text-[#1a5c2a] font-bold rounded-xl text-sm"
             >
-              View / చూడండి
+              {L('View', 'చూడండి')}
             </Link>
           </div>
         )}
@@ -726,22 +724,19 @@ function LoadingSkeleton() {
 
 /* ─── Distance empty state ──────────────────────────────── */
 function DistanceEmptyState({ km, onClear }: { km: number; onClear: () => void }) {
+  const { L } = useLang()
   return (
     <div className="text-center py-14">
       <div className="text-6xl mb-4">📍</div>
-      <p className="text-gray-800 font-bold text-lg">No farmers within {km} km</p>
-      <p className="text-gray-500 text-sm mt-1">
-        {km} కి.మీ లోపల రైతులు లేరు
-      </p>
+      <p className="text-gray-800 font-bold text-lg">{L(`No farmers within ${km} km`, `${km} కి.మీ లోపల రైతులు లేరు`)}</p>
       <p className="text-gray-400 text-xs mt-2 leading-snug px-8">
-        Farmers nearby may not have set their location yet.<br />
-        దగ్గరలోని రైతులు ఇంకా లొకేషన్ పెట్టలేదు.
+        {L('Farmers nearby may not have set their location yet.', 'దగ్గరలోని రైతులు ఇంకా లొకేషన్ పెట్టలేదు.')}
       </p>
       <button
         onClick={onClear}
         className="mt-5 bg-green-700 text-white font-bold px-6 py-3 rounded-xl text-sm"
       >
-        Show all produce / అన్ని పంటలు చూపించు
+        {L('Show all produce', 'అన్ని పంటలు చూపించు')}
       </button>
     </div>
   )
@@ -749,13 +744,13 @@ function DistanceEmptyState({ km, onClear }: { km: number; onClear: () => void }
 
 /* ─── Empty state ───────────────────────────────────────── */
 function EmptyState() {
+  const { L } = useLang()
   return (
     <div className="text-center py-14">
       <div className="text-6xl mb-4">🔍</div>
-      <p className="text-gray-800 font-bold text-lg">No produce found / పంట కనుగొనబడలేదు</p>
+      <p className="text-gray-800 font-bold text-lg">{L('No produce found', 'పంట కనుగొనబడలేదు')}</p>
       <p className="text-gray-400 text-sm mt-2">
-        Try a different search or category<br />
-        వేరే వెతకండి లేదా వేరే వర్గాన్ని ఎంచుకోండి
+        {L('Try a different search or category', 'వేరే వెతకండి లేదా వేరే వర్గాన్ని ఎంచుకోండి')}
       </p>
     </div>
   )
@@ -769,12 +764,13 @@ function LocationBottomSheet({
   onSet: (lat: number, lng: number, name: string) => void
   onClose: () => void
 }) {
+  const { L } = useLang()
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [gpsError, setGpsError]   = useState('')
 
   const handleGPS = () => {
     if (!navigator.geolocation) {
-      setGpsError('GPS not supported on this device / GPS అందుబాటులో లేదు')
+      setGpsError(L('GPS not supported on this device', 'GPS అందుబాటులో లేదు'))
       return
     }
     setGpsStatus('loading')
@@ -789,8 +785,8 @@ function LocationBottomSheet({
         setGpsStatus('error')
         setGpsError(
           err.code === 1
-            ? 'Location access denied. Search your town below. / లొకేషన్ అనుమతి లేదు. పట్టణం వెతకండి.'
-            : 'Could not get GPS. Search your town below. / GPS రాలేదు. పట్టణం వెతకండి.'
+            ? L('Location access denied. Search your town below.', 'లొకేషన్ అనుమతి లేదు. పట్టణం వెతకండి.')
+            : L('Could not get GPS. Search your town below.', 'GPS రాలేదు. పట్టణం వెతకండి.')
         )
       },
       { timeout: 12000, enableHighAccuracy: true },
@@ -803,10 +799,10 @@ function LocationBottomSheet({
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-extrabold text-gray-900 text-lg leading-tight">
-              Where are you? / మీరు ఎక్కడ ఉన్నారు?
+              {L('Where are you?', 'మీరు ఎక్కడ ఉన్నారు?')}
             </h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              See produce from farmers near you / దగ్గరలోని రైతుల పంట చూడండి
+              {L('See produce from farmers near you', 'దగ్గరలోని రైతుల పంట చూడండి')}
             </p>
           </div>
           <button onClick={onClose} className="text-gray-400 text-3xl leading-none p-1">×</button>
@@ -821,10 +817,10 @@ function LocationBottomSheet({
           {gpsStatus === 'loading' ? (
             <>
               <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-              Detecting... / వెతుకుతోంది
+              {L('Detecting...', 'వెతుకుతోంది')}
             </>
           ) : (
-            <>📍 Use my current location / నా లొకేషన్ వాడండి</>
+            <>{L('📍 Use my current location', 'నా లొకేషన్ వాడండి')}</>
           )}
         </button>
 
@@ -835,18 +831,17 @@ function LocationBottomSheet({
         {/* Divider */}
         <div className="flex items-center gap-3">
           <div className="flex-1 border-t border-gray-200" />
-          <span className="text-xs text-gray-400 font-semibold">OR / లేదా</span>
+          <span className="text-xs text-gray-400 font-semibold">{L('OR', 'లేదా')}</span>
           <div className="flex-1 border-t border-gray-200" />
         </div>
 
         {/* Search input */}
         <div>
           <label className="text-xs font-bold text-gray-700 uppercase tracking-wide block mb-2">
-            Search your location / లొకేషన్ వెతకండి
+            {L('Search your location', 'లొకేషన్ వెతకండి')}
           </label>
           <p className="text-[11px] text-gray-500 mb-2">
-            Type any city, town or village in AP / Telangana<br />
-            ఆంధ్రప్రదేశ్ / తెలంగాణలో ఏ పట్టణమైనా టైప్ చేయండి
+            {L('Type any city, town or village in AP / Telangana', 'ఆంధ్రప్రదేశ్ / తెలంగాణలో ఏ పట్టణమైనా టైప్ చేయండి')}
           </p>
           <LocationSearch
             placeholder="e.g. Visakhapatnam, Hyderabad, Eluru..."
@@ -858,7 +853,7 @@ function LocationBottomSheet({
           onClick={onClose}
           className="w-full text-sm text-gray-500 py-2"
         >
-          Skip for now / తర్వాత చేస్తాను
+          {L('Skip for now', 'తర్వాత చేస్తాను')}
         </button>
       </div>
     </div>
@@ -867,6 +862,7 @@ function LocationBottomSheet({
 
 /* ─── Demand intent banner ──────────────────────────────────── */
 function DemandIntentBanner() {
+  const { L } = useLang()
   const [open, setOpen] = useState(false)
   const [crop, setCrop] = useState('')
   const [qty, setQty] = useState('')
@@ -880,7 +876,7 @@ function DemandIntentBanner() {
 
   const handleSubmit = async () => {
     if (!crop.trim() || !name.trim() || !phone.trim()) {
-      setError('Please fill crop name, your name, and phone number. / పంట పేరు, మీ పేరు, ఫోన్ నంబర్ నింపండి.')
+      setError(L('Please fill crop name, your name, and phone number.', 'పంట పేరు, మీ పేరు, ఫోన్ నంబర్ నింపండి.'))
       return
     }
     setLoading(true)
@@ -907,13 +903,10 @@ function DemandIntentBanner() {
           <span className="text-2xl">📣</span>
           <div className="flex-1 min-w-0">
             <h3 className="font-extrabold text-amber-900 text-base leading-tight">
-              Raise a Demand Intent / డిమాండ్ నమోదు
+              {L('Raise a Demand Intent', 'డిమాండ్ నమోదు')}
             </h3>
             <p className="text-amber-700 text-sm mt-1 leading-snug">
-              Let local farmers know what you need — they&apos;ll reach out when available.
-            </p>
-            <p className="text-amber-600 text-xs mt-0.5">
-              స్థానిక రైతులకు మీకు ఏమి కావాలో తెలియజేయండి
+              {L("Let local farmers know what you need — they'll reach out when available.", 'స్థానిక రైతులకు మీకు ఏమి కావాలో తెలియజేయండి')}
             </p>
           </div>
         </div>
@@ -924,16 +917,15 @@ function DemandIntentBanner() {
             className="mt-4 w-full bg-amber-600 text-white font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2"
           >
             <span className="text-lg leading-none">+</span>
-            Raise Intent / డిమాండ్ నమోదు
+            {L('Raise Intent', 'డిమాండ్ నమోదు')}
           </button>
         )}
 
         {submitted && (
           <div className="mt-4 text-center py-3">
-            <p className="text-green-700 font-bold text-base">✓ Intent raised! / నమోదైంది!</p>
+            <p className="text-green-700 font-bold text-base">{L('✓ Intent raised!', 'నమోదైంది!')}</p>
             <p className="text-green-600 text-sm mt-1">
-              Farmers in your area will be notified.<br />
-              మీ ప్రాంతంలోని రైతులకు తెలియజేస్తాము.
+              {L('Farmers in your area will be notified.', 'మీ ప్రాంతంలోని రైతులకు తెలియజేస్తాము.')}
             </p>
           </div>
         )}
@@ -942,7 +934,7 @@ function DemandIntentBanner() {
           <div className="mt-4 space-y-3">
             <input
               type="text"
-              placeholder="Crop name * (e.g. Tomato / టమాటా)"
+              placeholder={L('Crop name * (e.g. Tomato', 'టమాటా)')}
               value={crop}
               onChange={(e) => setCrop(e.target.value)}
               className="w-full border border-amber-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-amber-500 focus:outline-none"
@@ -950,7 +942,7 @@ function DemandIntentBanner() {
             <div className="grid grid-cols-2 gap-2">
               <input
                 type="number"
-                placeholder="Quantity (kg) / పరిమాణం"
+                placeholder={L('Quantity (kg)', 'పరిమాణం')}
                 value={qty}
                 onChange={(e) => setQty(e.target.value)}
                 className="border border-amber-200 rounded-xl px-3 py-3 text-sm bg-white focus:border-amber-500 focus:outline-none"
@@ -964,21 +956,21 @@ function DemandIntentBanner() {
             </div>
             <input
               type="text"
-              placeholder="Delivery location / డెలివరీ స్థలం"
+              placeholder={L('Delivery location', 'డెలివరీ స్థలం')}
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               className="w-full border border-amber-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-amber-500 focus:outline-none"
             />
             <input
               type="text"
-              placeholder="Your name * / మీ పేరు"
+              placeholder={L('Your name *', 'మీ పేరు')}
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full border border-amber-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-amber-500 focus:outline-none"
             />
             <input
               type="tel"
-              placeholder="Your WhatsApp number * / మీ వాట్సాప్ నంబర్"
+              placeholder={L('Your WhatsApp number *', 'మీ వాట్సాప్ నంబర్')}
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               className="w-full border border-amber-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-amber-500 focus:outline-none"
@@ -993,14 +985,14 @@ function DemandIntentBanner() {
                 onClick={() => { setOpen(false); setError('') }}
                 className="flex-1 border-2 border-gray-300 text-gray-600 font-semibold py-3 rounded-xl text-sm"
               >
-                Cancel / రద్దు
+                {L('Cancel', 'రద్దు')}
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={loading}
                 className="flex-1 bg-amber-600 text-white font-bold py-3 rounded-xl text-sm disabled:opacity-50"
               >
-                {loading ? 'Submitting... / నమోదు అవుతోంది' : 'Submit / నమోదు'}
+                {loading ? L('Submitting...', 'నమోదు అవుతోంది') : L('Submit', 'నమోదు')}
               </button>
             </div>
           </div>

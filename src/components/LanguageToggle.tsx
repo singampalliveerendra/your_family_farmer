@@ -3,7 +3,7 @@
 import { useLang } from '@/lib/LanguageContext'
 
 export default function LanguageToggle() {
-  const { lang, setLang } = useLang()
+  const { lang, setLang, L } = useLang()
 
   return (
     <div className="flex items-center bg-white/10 rounded-full p-0.5 text-xs font-bold">

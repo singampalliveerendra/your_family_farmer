@@ -36,7 +36,7 @@ type Filter = 'today' | 'week' | 'month'
 
 export default function OrderHistoryPage() {
   const router = useRouter()
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<Filter>('week')
@@ -153,7 +153,7 @@ export default function OrderHistoryPage() {
 }
 
 function HistoryCard({ order, onSetDate }: { order: Order; onSetDate: (date: string) => void }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const isApproved = order.status === 'approved'
   const isDelivery = order.delivery_type === 'home_delivery'
   const isCourier = order.delivery_type === 'courier'
@@ -173,12 +173,12 @@ function HistoryCard({ order, onSetDate }: { order: Order; onSetDate: (date: str
   const completion = !isApproved ? null
     : isCourier
       ? order.received_at
-        ? { text: `✓ Received / అందుకున్నారు · ${stamp(order.received_at)}`, cls: 'text-green-700' }
+        ? { text: `${L('✓ Received', '✓ అందుకున్నారు')} · ${stamp(order.received_at)}`, cls: 'text-green-700' }
         : order.shipped_at
-          ? { text: `📦 Shipped / షిప్ చేయబడింది · ${stamp(order.shipped_at)}`, cls: 'text-amber-700' }
+          ? { text: `${L('📦 Shipped', '📦 షిప్ చేయబడింది')} · ${stamp(order.shipped_at)}`, cls: 'text-amber-700' }
           : null
       : !isDelivery && order.collected_at
-        ? { text: `✓ Picked up / తీసుకువెళ్ళారు · ${stamp(order.collected_at)}`, cls: 'text-green-700' }
+        ? { text: `${L('✓ Picked up', '✓ తీసుకువెళ్ళారు')} · ${stamp(order.collected_at)}`, cls: 'text-green-700' }
         : null
 
   return (
@@ -253,13 +253,13 @@ function HistoryCard({ order, onSetDate }: { order: Order; onSetDate: (date: str
         {/* Declined orders: show the reason and the refund status to the farmer */}
         {!isApproved && order.decline_reason && (
           <p className="text-xs text-gray-600 leading-snug">
-            <span className="font-semibold">Reason / కారణం:</span> {order.decline_reason}
+            <span className="font-semibold">{L('Reason', 'కారణం:')}</span> {order.decline_reason}
           </p>
         )}
         {!isApproved && (order.refund_status || (order.refund_amount ?? 0) > 0) && (
           <div className="mt-1 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5">
             <p className="text-xs font-bold text-green-800 flex items-center gap-1">
-              💸 Refund initiated to customer / రీఫండ్ ప్రారంభమైంది
+              {L('💸 Refund initiated to customer', 'రీఫండ్ ప్రారంభమైంది')}
             </p>
             <p className="text-[11px] text-gray-600 leading-snug mt-0.5">
               ₹{order.refund_amount ?? order.total_price ?? 0} · reflects in 3–5 business days

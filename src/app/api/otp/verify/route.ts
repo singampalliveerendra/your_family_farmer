@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { reqLang, tr } from '@/lib/serverLang'
 import { randomBytes } from 'crypto'
 import { normalizePhone } from '@/lib/phone'
 import { rateLimit } from '@/lib/rate-limit'
@@ -16,6 +17,7 @@ function err(message: string, status: number) {
 }
 
 export async function POST(req: NextRequest) {
+  const lang = reqLang(req)
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') return err('Invalid request.', 400)
 
@@ -26,7 +28,7 @@ export async function POST(req: NextRequest) {
   if (!phone) return err('Enter a valid 10-digit phone number.', 400)
   if (!USER_TYPES.includes(userType)) return err('Invalid request.', 400)
   if (otp.length < 4 || otp.length > 8) {
-    return err('Incorrect OTP, try again / తప్పు OTP, మళ్ళీ ప్రయత్నించండి', 400)
+    return err(tr(lang, 'Incorrect OTP, try again', 'తప్పు OTP, మళ్ళీ ప్రయత్నించండి'), 400)
   }
 
   // Throttle verify attempts so the OTP can't be brute-forced.
@@ -35,7 +37,7 @@ export async function POST(req: NextRequest) {
     !rateLimit(`otp-verify:phone:${phone}`, 10, 60 * 60 * 1000) ||
     !rateLimit(`otp-verify:ip:${ip}`, 40, 60 * 60 * 1000)
   ) {
-    return err('Too many attempts, try after 1 hour / చాలా ప్రయత్నాలు, 1 గంట తర్వాత ప్రయత్నించండి', 429)
+    return err(tr(lang, 'Too many attempts, try after 1 hour', 'చాలా ప్రయత్నాలు, 1 గంట తర్వాత ప్రయత్నించండి'), 429)
   }
 
   const supabase = createClient(
@@ -55,15 +57,15 @@ export async function POST(req: NextRequest) {
 
   const session = sessions?.[0]
   if (!session) {
-    return err('OTP expired, please resend / OTP గడువు తీరింది, మళ్ళీ పంపండి', 400)
+    return err(tr(lang, 'OTP expired, please resend', 'OTP గడువు తీరింది, మళ్ళీ పంపండి'), 400)
   }
   if (new Date(session.expires_at).getTime() < Date.now()) {
-    return err('OTP expired, please resend / OTP గడువు తీరింది, మళ్ళీ పంపండి', 400)
+    return err(tr(lang, 'OTP expired, please resend', 'OTP గడువు తీరింది, మళ్ళీ పంపండి'), 400)
   }
 
   const result = await verifyOtp(session.session_id, otp)
   if (!result.ok) {
-    return err('Incorrect OTP, try again / తప్పు OTP, మళ్ళీ ప్రయత్నించండి', 400)
+    return err(tr(lang, 'Incorrect OTP, try again', 'తప్పు OTP, మళ్ళీ ప్రయత్నించండి'), 400)
   }
 
   // OTP good → burn it and issue a short-lived reset token.

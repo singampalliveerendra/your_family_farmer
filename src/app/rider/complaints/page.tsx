@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useLang } from '@/lib/LanguageContext'
 
 type Complaint = {
   id: string
@@ -17,11 +18,11 @@ type Complaint = {
   raised_by_phone: string | null
 }
 
-const TYPE_OPTIONS = [
-  { value: 'payment_issue', label: 'Payment / payout / చెల్లింపు సమస్య' },
-  { value: 'delivery_delay', label: 'Pickup / delivery / పికప్ ఆలస్యం' },
-  { value: 'quality_complaint', label: 'Customer / farmer dispute / వివాదం' },
-  { value: 'other', label: 'Something else / ఇతర' },
+const TYPE_OPTIONS = (L: (en: string, te: string) => string) => [
+  { value: 'payment_issue', label: L('Payment / payout', 'చెల్లింపు సమస్య') },
+  { value: 'delivery_delay', label: L('Pickup / delivery', 'పికప్ ఆలస్యం') },
+  { value: 'quality_complaint', label: L('Customer / farmer dispute', 'వివాదం') },
+  { value: 'other', label: L('Something else', 'ఇతర') },
 ]
 const TYPE_LABEL: Record<string, string> = {
   delivery_delay: 'Pickup / delivery',
@@ -35,15 +36,16 @@ const STATUS_STYLE: Record<string, string> = {
   in_progress: 'bg-blue-100 text-blue-800',
   resolved: 'bg-green-100 text-green-800',
 }
-const STATUS_LABEL: Record<string, string> = {
-  open: '⏳ Open / తెరిచి ఉంది',
-  in_progress: '🛠 In progress / పరిష్కరిస్తున్నారు',
-  resolved: '✓ Resolved / పరిష్కరించబడింది',
-}
+const STATUS_LABEL = (L: (en: string, te: string) => string): Record<string, string> => ({
+  open: L('⏳ Open', 'తెరిచి ఉంది'),
+  in_progress: L('🛠 In progress', 'పరిష్కరిస్తున్నారు'),
+  resolved: L('✓ Resolved', 'పరిష్కరించబడింది'),
+})
 
 type TabKey = 'active' | 'resolved'
 
 export default function RiderComplaintsPage() {
+  const { L } = useLang()
   const router = useRouter()
   const [complaints, setComplaints] = useState<Complaint[]>([])
   const [loading, setLoading] = useState(true)
@@ -71,9 +73,9 @@ export default function RiderComplaintsPage() {
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
       <div className="bg-green-900 px-4 pt-6 pb-10">
-        <Link href="/rider/dashboard" className="text-green-300 text-sm flex items-center gap-1 mb-4">← Dashboard / డాష్‌బోర్డ్</Link>
-        <h1 className="text-white text-xl font-extrabold leading-tight">My complaints / నా ఫిర్యాదులు</h1>
-        <p className="text-green-400 text-sm mt-1">Raise an issue with the GoGrameen team / సమస్యను నమోదు చేయండి</p>
+        <Link href="/rider/dashboard" className="text-green-300 text-sm flex items-center gap-1 mb-4">{L('← Dashboard', 'డాష్‌బోర్డ్')}</Link>
+        <h1 className="text-white text-xl font-extrabold leading-tight">{L('My complaints', 'నా ఫిర్యాదులు')}</h1>
+        <p className="text-green-400 text-sm mt-1">{L('Raise an issue with the GoGrameen team', 'సమస్యను నమోదు చేయండి')}</p>
       </div>
 
       <div className="px-4 -mt-5 space-y-4 max-w-lg mx-auto">
@@ -81,7 +83,7 @@ export default function RiderComplaintsPage() {
           onClick={() => setShowNew(true)}
           className="w-full bg-green-700 text-white font-bold py-3.5 rounded-xl text-sm active:bg-green-800"
         >
-          + Log a new complaint / కొత్త ఫిర్యాదు
+          {L('+ Log a new complaint', 'కొత్త ఫిర్యాదు')}
         </button>
 
         {error && <div className="bg-white rounded-2xl border border-red-100 p-4 text-sm text-red-600">{error}</div>}
@@ -101,12 +103,12 @@ export default function RiderComplaintsPage() {
         </div>
 
         {loading ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center text-sm text-gray-500">Loading… / లోడ్ అవుతోంది</div>
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center text-sm text-gray-500">{L('Loading…', 'లోడ్ అవుతోంది')}</div>
         ) : shown.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-5xl mb-3">{tab === 'active' ? '✅' : '📭'}</div>
             <p className="font-semibold text-gray-500 text-sm">
-              {tab === 'active' ? 'No active complaints / ప్రస్తుత ఫిర్యాదులు లేవు' : 'No resolved complaints yet'}
+              {tab === 'active' ? L('No active complaints', 'ప్రస్తుత ఫిర్యాదులు లేవు') : 'No resolved complaints yet'}
             </p>
           </div>
         ) : (
@@ -115,7 +117,7 @@ export default function RiderComplaintsPage() {
               <div key={c.id} className="bg-white rounded-2xl border border-gray-100 p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_STYLE[c.status]}`}>{STATUS_LABEL[c.status]}</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_STYLE[c.status]}`}>{STATUS_LABEL(L)[c.status]}</span>
                     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{TYPE_LABEL[c.type] ?? c.type}</span>
                   </div>
                   <span className="text-[11px] text-gray-400 whitespace-nowrap">
@@ -129,7 +131,7 @@ export default function RiderComplaintsPage() {
                 )}
                 {c.status === 'resolved' && c.resolution_notes && (
                   <div className="mt-2 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
-                    <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide">Resolution / పరిష్కారం</p>
+                    <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide">{L('Resolution', 'పరిష్కారం')}</p>
                     <p className="text-xs text-green-800 mt-0.5 leading-snug">{c.resolution_notes}</p>
                   </div>
                 )}
@@ -145,6 +147,7 @@ export default function RiderComplaintsPage() {
 }
 
 function NewComplaint({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { L } = useLang()
   const [type, setType] = useState('payment_issue')
   const [description, setDescription] = useState('')
   const [orderCode, setOrderCode] = useState('')
@@ -152,7 +155,7 @@ function NewComplaint({ onClose, onCreated }: { onClose: () => void; onCreated: 
   const [err, setErr] = useState('')
 
   const submit = async () => {
-    if (!description.trim()) { setErr('Please describe the problem / సమస్యను వివరించండి'); return }
+    if (!description.trim()) { setErr(L('Please describe the problem', 'సమస్యను వివరించండి')); return }
     setSaving(true); setErr('')
     const r = await fetch('/api/rider/complaints', {
       method: 'POST',
@@ -169,30 +172,30 @@ function NewComplaint({ onClose, onCreated }: { onClose: () => void; onCreated: 
     <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
-          <p className="font-extrabold text-gray-900">Log a complaint / ఫిర్యాదు</p>
+          <p className="font-extrabold text-gray-900">{L('Log a complaint', 'ఫిర్యాదు')}</p>
           <button onClick={onClose} className="text-gray-400 text-2xl leading-none p-1">×</button>
         </div>
         {err && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">{err}</p>}
 
-        <label className="block text-xs font-bold text-gray-500 mb-1">Type / రకం</label>
+        <label className="block text-xs font-bold text-gray-500 mb-1">{L('Type', 'రకం')}</label>
         <select value={type} onChange={(e) => setType(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm mb-3 focus:outline-none focus:border-green-500">
-          {TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          {TYPE_OPTIONS(L).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
 
-        <label className="block text-xs font-bold text-gray-500 mb-1">What happened? / ఏం జరిగింది?</label>
+        <label className="block text-xs font-bold text-gray-500 mb-1">{L('What happened?', 'ఏం జరిగింది?')}</label>
         <textarea
           value={description} onChange={(e) => setDescription(e.target.value)} rows={4} autoFocus
-          placeholder="e.g. Payout for delivery not received / ఉదా: డెలివరీకి చెల్లింపు అందలేదు"
+          placeholder={L('e.g. Payout for delivery not received', 'ఉదా: డెలివరీకి చెల్లింపు అందలేదు')}
           className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm mb-3 focus:outline-none focus:border-green-500"
         />
 
-        <label className="block text-xs font-bold text-gray-500 mb-1">Order code / ఆర్డర్ కోడ్ <span className="font-normal text-gray-300">(optional)</span></label>
+        <label className="block text-xs font-bold text-gray-500 mb-1">{L('Order code', 'ఆర్డర్ కోడ్')} <span className="font-normal text-gray-300">{L('(optional)', '(ఐచ్ఛికం)')}</span></label>
         <input value={orderCode} onChange={(e) => setOrderCode(e.target.value)} placeholder="YFF-1042" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm mb-4 font-mono focus:outline-none focus:border-green-500" />
 
         <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 border-2 border-gray-200 text-gray-700 font-bold py-3 rounded-xl text-sm active:bg-gray-50">Cancel / రద్దు</button>
+          <button onClick={onClose} className="flex-1 border-2 border-gray-200 text-gray-700 font-bold py-3 rounded-xl text-sm active:bg-gray-50">{L('Cancel', 'రద్దు')}</button>
           <button onClick={submit} disabled={saving} className="flex-1 bg-green-700 text-white font-bold py-3 rounded-xl text-sm active:bg-green-800 disabled:opacity-50">
-            {saving ? 'Sending… / పంపుతోంది' : 'Submit / సమర్పించండి'}
+            {saving ? L('Sending…', 'పంపుతోంది') : L('Submit', 'సమర్పించండి')}
           </button>
         </div>
       </div>

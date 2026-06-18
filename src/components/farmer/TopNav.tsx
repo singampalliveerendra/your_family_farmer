@@ -5,7 +5,7 @@ import { useLang } from '@/lib/LanguageContext'
 import LanguageToggle from '@/components/LanguageToggle'
 
 export default function TopNav({ regionSlug }: { regionSlug: string }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const router = useRouter()
 
   const handleBack = () => {
@@ -25,7 +25,7 @@ export default function TopNav({ regionSlug }: { regionSlug: string }) {
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M19 12H5M12 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <span className="text-sm font-medium">{tx.back} / వెనక్కు</span>
+        <span className="text-sm font-medium">{tx.back}</span>
       </button>
 
       <LanguageToggle />

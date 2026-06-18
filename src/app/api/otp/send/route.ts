@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { reqLang, tr } from '@/lib/serverLang'
 import { normalizePhone } from '@/lib/phone'
 import { rateLimit } from '@/lib/rate-limit'
 import { findAccount, USER_TYPES, type UserType } from '@/lib/otp-accounts'
@@ -13,6 +14,7 @@ function err(message: string, status: number) {
 }
 
 export async function POST(req: NextRequest) {
+  const lang = reqLang(req)
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') return err('Invalid request.', 400)
 
@@ -20,7 +22,7 @@ export async function POST(req: NextRequest) {
   const userType = (body as { userType?: unknown }).userType as UserType
 
   if (!phone) {
-    return err('Enter a valid 10-digit phone number. / సరైన 10 అంకెల ఫోన్ నంబర్ నమోదు చేయండి.', 400)
+    return err(tr(lang, 'Enter a valid 10-digit phone number.', 'సరైన 10 అంకెల ఫోన్ నంబర్ నమోదు చేయండి.'), 400)
   }
   if (!USER_TYPES.includes(userType)) return err('Invalid request.', 400)
 
@@ -30,7 +32,7 @@ export async function POST(req: NextRequest) {
     !rateLimit(`otp-send:phone:${phone}`, 3, 60 * 60 * 1000) ||
     !rateLimit(`otp-send:ip:${ip}`, 20, 60 * 60 * 1000)
   ) {
-    return err('Too many attempts, try after 1 hour / చాలా ప్రయత్నాలు, 1 గంట తర్వాత ప్రయత్నించండి', 429)
+    return err(tr(lang, 'Too many attempts, try after 1 hour', 'చాలా ప్రయత్నాలు, 1 గంట తర్వాత ప్రయత్నించండి'), 429)
   }
 
   const supabase = createClient(
@@ -47,13 +49,13 @@ export async function POST(req: NextRequest) {
   // Only send OTPs to numbers that actually have an account on this surface.
   const account = await findAccount(supabase, userType, phone)
   if (!account) {
-    return err('No account found with this number / ఈ నంబర్‌తో ఖాతా లేదు', 404)
+    return err(tr(lang, 'No account found with this number', 'ఈ నంబర్‌తో ఖాతా లేదు'), 404)
   }
 
   const result = await sendOtp(phone)
   if (!result.ok) {
     console.error('[YFF otp/send] 2factor failed:', result.error)
-    return err('Could not send OTP. Please try again. / OTP పంపడం విఫలమైంది, మళ్ళీ ప్రయత్నించండి', 502)
+    return err(tr(lang, 'Could not send OTP. Please try again.', 'OTP పంపడం విఫలమైంది, మళ్ళీ ప్రయత్నించండి'), 502)
   }
 
   const { error: insertErr } = await supabase.from('otp_sessions').insert({

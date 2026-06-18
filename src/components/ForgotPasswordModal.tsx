@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { UserType } from '@/lib/otp-accounts'
+import { useLang } from '@/lib/LanguageContext'
 
 type Step = 'phone' | 'otp' | 'password' | 'done'
 
@@ -32,6 +33,7 @@ export default function ForgotPasswordModal({
   onClose: () => void
   onResetComplete?: () => void
 }) {
+  const { L } = useLang()
   const [step, setStep] = useState<Step>('phone')
   const [phone, setPhone] = useState(initialPhone.replace(/\D/g, '').slice(-10))
   const [otp, setOtp] = useState<string[]>(Array(OTP_LEN).fill(''))
@@ -130,8 +132,8 @@ export default function ForgotPasswordModal({
 
   async function submitNewPassword() {
     if (loading) return
-    if (password.length < 6) { setError('Password must be at least 6 characters / పాస్‌వర్డ్ కనీసం 6 అక్షరాలు'); return }
-    if (password !== confirm) { setError('Passwords do not match / పాస్‌వర్డ్‌లు సరిపోలలేదు'); return }
+    if (password.length < 6) { setError(L('Password must be at least 6 characters', 'పాస్‌వర్డ్ కనీసం 6 అక్షరాలు')); return }
+    if (password !== confirm) { setError(L('Passwords do not match', 'పాస్‌వర్డ్‌లు సరిపోలలేదు')); return }
     setLoading(true)
     setError('')
     const res = await fetch('/api/auth/reset-password-otp', {
@@ -160,10 +162,10 @@ export default function ForgotPasswordModal({
       >
         <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between">
           <h2 className="text-base font-extrabold text-gray-900 leading-tight">
-            {step === 'phone' && 'Reset Password / పాస్‌వర్డ్ రీసెట్ చేయండి'}
-            {step === 'otp' && 'Enter OTP / OTP నమోదు చేయండి'}
-            {step === 'password' && 'Set New Password / కొత్త పాస్‌వర్డ్ పెట్టండి'}
-            {step === 'done' && 'Done / పూర్తయింది'}
+            {step === 'phone' && L('Reset Password', 'పాస్‌వర్డ్ రీసెట్ చేయండి')}
+            {step === 'otp' && L('Enter OTP', 'OTP నమోదు చేయండి')}
+            {step === 'password' && L('Set New Password', 'కొత్త పాస్‌వర్డ్ పెట్టండి')}
+            {step === 'done' && L('Done', 'పూర్తయింది')}
           </h2>
           <button
             type="button"
@@ -180,13 +182,11 @@ export default function ForgotPasswordModal({
           {step === 'phone' && (
             <>
               <p className="text-sm text-gray-600">
-                Enter your phone number and we&apos;ll send you an OTP.
-                <br />
-                <span className="text-gray-500">మీ ఫోన్ నంబర్‌కు OTP పంపుతాము.</span>
+                {L("Enter your phone number and we'll send you an OTP.", 'మీ ఫోన్ నంబర్‌కు OTP పంపుతాము.')}
               </p>
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Phone Number / ఫోన్ నంబర్
+                  {L('Phone Number', 'ఫోన్ నంబర్')}
                 </label>
                 <div className="flex items-stretch gap-2">
                   <span className="flex items-center px-3 bg-gray-100 rounded-xl text-sm text-gray-600 font-semibold">
@@ -211,7 +211,7 @@ export default function ForgotPasswordModal({
                 disabled={loading || phoneDigits.length !== 10}
                 className="w-full bg-green-700 text-white font-bold py-3.5 rounded-xl text-sm disabled:opacity-50 active:bg-green-800"
               >
-                {loading ? 'Please wait…' : 'Send OTP / OTP పంపండి'}
+                {loading ? 'Please wait…' : L('Send OTP', 'OTP పంపండి')}
               </button>
             </>
           )}
@@ -220,9 +220,7 @@ export default function ForgotPasswordModal({
           {step === 'otp' && (
             <>
               <p className="text-sm text-gray-600">
-                OTP sent to {maskPhone(phoneDigits)}
-                <br />
-                <span className="text-gray-500">మీ నంబర్‌కు OTP పంపబడింది ✅</span>
+                {L(`OTP sent to ${maskPhone(phoneDigits)}`, `${maskPhone(phoneDigits)}కు OTP పంపబడింది ✅`)}
               </p>
               <div className="flex justify-between gap-2" onPaste={onOtpPaste}>
                 {otp.map((d, i) => (
@@ -244,7 +242,7 @@ export default function ForgotPasswordModal({
                 <span className="text-gray-500">
                   {remaining > 0
                     ? `OTP expires in ${fmt(remaining)}`
-                    : 'OTP expired / OTP గడువు తీరింది'}
+                    : L('OTP expired', 'OTP గడువు తీరింది')}
                 </span>
                 <button
                   type="button"
@@ -254,7 +252,7 @@ export default function ForgotPasswordModal({
                 >
                   {resendIn > 0
                     ? `Resend in ${resendIn}s`
-                    : 'Resend OTP / మళ్ళీ పంపండి'}
+                    : L('Resend OTP', 'మళ్ళీ పంపండి')}
                 </button>
               </div>
 
@@ -265,7 +263,7 @@ export default function ForgotPasswordModal({
                 disabled={loading || otpValue.length !== OTP_LEN}
                 className="w-full bg-green-700 text-white font-bold py-3.5 rounded-xl text-sm disabled:opacity-50 active:bg-green-800"
               >
-                {loading ? 'Verifying…' : 'Verify OTP / OTP ధృవీకరించండి'}
+                {loading ? 'Verifying…' : L('Verify OTP', 'OTP ధృవీకరించండి')}
               </button>
             </>
           )}
@@ -275,7 +273,7 @@ export default function ForgotPasswordModal({
             <>
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  New Password / కొత్త పాస్‌వర్డ్
+                  {L('New Password', 'కొత్త పాస్‌వర్డ్')}
                 </label>
                 <div className="relative">
                   <input
@@ -298,7 +296,7 @@ export default function ForgotPasswordModal({
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Confirm Password / పాస్‌వర్డ్ నిర్ధారించండి
+                  {L('Confirm Password', 'పాస్‌వర్డ్ నిర్ధారించండి')}
                 </label>
                 <input
                   type={showPw ? 'text' : 'password'}
@@ -316,7 +314,7 @@ export default function ForgotPasswordModal({
                 disabled={loading}
                 className="w-full bg-green-700 text-white font-bold py-3.5 rounded-xl text-sm disabled:opacity-50 active:bg-green-800"
               >
-                {loading ? 'Updating…' : 'Update Password / పాస్‌వర్డ్ అప్‌డేట్ చేయండి'}
+                {loading ? 'Updating…' : L('Update Password', 'పాస్‌వర్డ్ అప్‌డేట్ చేయండి')}
               </button>
             </>
           )}
@@ -326,10 +324,7 @@ export default function ForgotPasswordModal({
             <div className="text-center py-6">
               <div className="text-4xl mb-3">✅</div>
               <p className="text-base font-bold text-gray-900">
-                Password updated successfully!
-              </p>
-              <p className="text-sm text-gray-500 mt-1">
-                పాస్‌వర్డ్ విజయవంతంగా అప్‌డేట్ అయింది
+                {L('Password updated successfully!', 'పాస్‌వర్డ్ విజయవంతంగా అప్‌డేట్ అయింది')}
               </p>
               <p className="text-xs text-gray-400 mt-3">Redirecting to login…</p>
             </div>

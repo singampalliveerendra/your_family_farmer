@@ -42,7 +42,7 @@ export default function BrowseProduceTab({
   produce: Record<string, unknown>[]
   farmers: Record<string, unknown>[]
 }) {
-  const { tx, lang } = useLang()
+  const { tx, lang, L } = useLang()
   const { addItem, cart } = useCart()
   const { requireAuth } = useConsumerAuth()
   const [search, setSearch] = useState('')

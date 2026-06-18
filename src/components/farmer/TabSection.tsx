@@ -18,7 +18,7 @@ type Props = {
 }
 
 export default function TabSection({ farmer, produce, reviews, media }: Props) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const [activeTab, setActiveTab] = useState(1)
   const searchParams = useSearchParams()
   const isEditMode = searchParams.get('edit') === 'true'

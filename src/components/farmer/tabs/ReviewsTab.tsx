@@ -20,7 +20,7 @@ export default function ReviewsTab({
   reviews: Record<string, unknown>[]
   farmerId: string
 }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const [reviews, setReviews] = useState<Review[]>(initialReviews as Review[])
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
@@ -184,7 +184,7 @@ export default function ReviewsTab({
                   className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
                 />
               </div>
-              <p className="text-[11px] text-gray-400 mt-1">Used only to verify your review. / సమీక్షను ధృవీకరించడానికి మాత్రమే.</p>
+              <p className="text-[11px] text-gray-400 mt-1">{L('Used only to verify your review.', 'సమీక్షను ధృవీకరించడానికి మాత్రమే.')}</p>
             </div>
 
             <div>

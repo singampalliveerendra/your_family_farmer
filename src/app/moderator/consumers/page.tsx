@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import ModeratorShell, { useModeratorAuth } from '../ModeratorShell'
+import { useLang } from '@/lib/LanguageContext'
 
 type Buyer = { name: string; phone: string | null; order_count: number; total_spend: number; last_order_at: string | null; account_id: string | null; suspended: boolean; suspended_reason?: string | null }
 type Intent = {
@@ -22,6 +23,7 @@ function fmtDate(iso: string | null): string {
 
 export default function ModeratorConsumersPage() {
   const { zone, checked } = useModeratorAuth()
+  const { L } = useLang()
   const [buyers, setBuyers] = useState<Buyer[]>([])
   const [intents, setIntents] = useState<Intent[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,7 +50,7 @@ export default function ModeratorConsumersPage() {
     // to log in, and it shows here in red for other moderators.
     let reason = ''
     if (next) {
-      const entered = window.prompt(`Reason for suspending ${b.name}?\nసస్పెండ్ చేయడానికి కారణం? (e.g. Multiple fake orders)`)
+      const entered = window.prompt(L(`Reason for suspending ${b.name}?`, `${b.name}ని సస్పెండ్ చేయడానికి కారణం? (ఉదా. నకిలీ ఆర్డర్‌లు)`))
       if (entered === null) return // cancelled
       reason = entered.trim()
       if (!reason) { setError('A reason is required to suspend an account.'); return }

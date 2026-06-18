@@ -119,11 +119,11 @@ function isResolved(o: Order): boolean {
   return !!o.collected_at
 }
 
-const UNIT_OPTIONS = [
+const UNIT_OPTIONS = (L: (en: string, te: string) => string) => [
   { value: 'kg', label: 'kg' },
   { value: 'gram', label: 'gram' },
-  { value: 'piece', label: 'piece / నగ' },
-  { value: 'bunch', label: 'bunch / కట్ట' },
+  { value: 'piece', label: L('piece', 'నగ') },
+  { value: 'bunch', label: L('bunch', 'కట్ట') },
   { value: 'litre', label: 'litre' },
 ]
 
@@ -136,7 +136,7 @@ type PreviewData = {
   stock: string
 }
 
-// 📦 is a generic "Other / ఇతర" icon so a farmer can list any produce
+// 📦 is a generic L('Other', 'ఇతర') icon so a farmer can list any produce
 // even when no specific icon exists. Keep it last in the picker.
 const EMOJI_OPTIONS = ['🍅', '🍌', '🥭', '🫑', '🥬', '🍆', '🥕', '🌽', '🧅', '🧄', '🥦', '🌿', '🍓', '🫒', '🌾', '🥥', '📦']
 
@@ -173,7 +173,7 @@ const isProfileComplete = (f: Farmer | null) =>
 
 export default function FarmerDashboard() {
   const router = useRouter()
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const [farmer, setFarmer] = useState<Farmer | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -316,7 +316,7 @@ export default function FarmerDashboard() {
             // before it drops out of the active list and into history.
             if (row.received_at && !prev.received_at) {
               fireNotification(
-                `Order received ✓ / అందుకున్నారు`,
+                L('Order received ✓', 'అందుకున్నారు'),
                 `${row.buyer_name ?? 'Buyer'} confirmed they received ${row.produce_name ?? 'the order'}`,
               )
             }
@@ -453,7 +453,7 @@ export default function FarmerDashboard() {
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
-        alert(json.error || 'Could not decline the order. Please try again. / ఆర్డర్ తిరస్కరించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.')
+        alert(json.error || L('Could not decline the order. Please try again.', 'ఆర్డర్ తిరస్కరించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
         return
       }
       // Whether a refund went out (real Razorpay refund, or 'initiated' for
@@ -467,7 +467,7 @@ export default function FarmerDashboard() {
       })
       setDecliningOrder(null)
     } catch {
-      alert('Network error. Please try again. / నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.')
+      alert(L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.'))
     } finally {
       setProcessingOrderId(null)
     }
@@ -823,19 +823,20 @@ function DeclineSuccessSheet({
   result: { buyerName: string | null; amount: number | null; refundInitiated: boolean }
   onClose: () => void
 }) {
+  const { L } = useLang()
   const buyer = result.buyerName || 'the customer'
   return (
     <div className="fixed inset-0 z-[130] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 text-center space-y-3">
         <div className="text-4xl">✅</div>
         <h2 className="font-extrabold text-gray-900 text-lg leading-tight">
-          Order declined / ఆర్డర్ తిరస్కరించబడింది
+          {L('Order declined', 'ఆర్డర్ తిరస్కరించబడింది')}
         </h2>
 
         {result.refundInitiated ? (
           <div className="bg-green-50 border border-green-200 rounded-2xl p-4 text-left space-y-1.5">
             <p className="font-bold text-green-800 text-sm flex items-center gap-1.5">
-              <span>💸</span> Refund initiated / రీఫండ్ ప్రారంభమైంది
+              <span>💸</span> {L('Refund initiated', 'రీఫండ్ ప్రారంభమైంది')}
             </p>
             <p className="text-sm text-gray-700 leading-snug">
               {result.amount != null && result.amount > 0 ? (
@@ -845,18 +846,13 @@ function DeclineSuccessSheet({
               )}
             </p>
             <p className="text-xs text-gray-500 leading-snug">
-              It will reach their account in <span className="font-semibold">3–5 business days</span>.
-              The customer has been told this automatically.
-              <br />
-              కొనుగోలుదారు ఖాతాకు 3–5 పని దినాలలో జమ అవుతుంది.
+              {L('It will reach their account in 3–5 business days. The customer has been told this automatically.', 'కొనుగోలుదారు ఖాతాకు 3–5 పని దినాలలో జమ అవుతుంది. కస్టమర్‌కు ఇది తెలియజేయబడింది.')}
             </p>
           </div>
         ) : (
           <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 text-left">
             <p className="text-sm text-gray-700 leading-snug">
-              {buyer} hadn&apos;t paid yet, so no refund is needed.
-              <br />
-              <span className="text-gray-500 text-xs">చెల్లింపు జరగలేదు, రీఫండ్ అవసరం లేదు.</span>
+              {L(`${buyer} hadn't paid yet, so no refund is needed.`, `${buyer} ఇంకా చెల్లించలేదు, కాబట్టి రీఫండ్ అవసరం లేదు.`)}
             </p>
           </div>
         )}
@@ -865,7 +861,7 @@ function DeclineSuccessSheet({
           onClick={onClose}
           className="w-full bg-green-700 text-white font-bold py-3 rounded-xl text-sm active:bg-green-800"
         >
-          Done / సరే
+          {L('Done', 'సరే')}
         </button>
       </div>
     </div>
@@ -891,6 +887,7 @@ function DeclineReasonSheet({
   onCancel: () => void
   onConfirm: (reason: string) => void
 }) {
+  const { L } = useLang()
   const [selected, setSelected] = useState<string | null>(null)
   const [custom, setCustom] = useState('')
 
@@ -903,10 +900,10 @@ function DeclineReasonSheet({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="font-extrabold text-gray-900 text-lg leading-tight">
-              Why decline this order? / ఎందుకు తిరస్కరిస్తున్నారు?
+              {L('Why decline this order?', 'ఎందుకు తిరస్కరిస్తున్నారు?')}
             </h2>
             <p className="text-xs text-gray-500 mt-0.5 leading-snug">
-              The reason will be shown to the buyer / కారణం కొనుగోలుదారుకు చూపబడుతుంది
+              {L('The reason will be shown to the buyer', 'కారణం కొనుగోలుదారుకు చూపబడుతుంది')}
             </p>
           </div>
           <button
@@ -926,7 +923,7 @@ function DeclineReasonSheet({
 
         <div className="space-y-2">
           <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
-            Pick a reason / కారణం ఎంచుకోండి
+            {L('Pick a reason', 'కారణం ఎంచుకోండి')}
           </p>
           <div className="grid grid-cols-2 gap-2">
             {DECLINE_PRESETS.map((preset) => (
@@ -948,7 +945,7 @@ function DeclineReasonSheet({
 
         <div>
           <label className="text-xs font-bold text-gray-700 uppercase tracking-wide block mb-1.5">
-            Or type your reason / లేదా టైప్ చేయండి
+            {L('Or type your reason', 'లేదా టైప్ చేయండి')}
           </label>
           <textarea
             value={custom}
@@ -965,7 +962,7 @@ function DeclineReasonSheet({
             disabled={processing}
             className="flex-1 border-2 border-gray-300 text-gray-700 font-bold py-3 rounded-xl text-sm disabled:opacity-50"
           >
-            Cancel / రద్దు
+            {L('Cancel', 'రద్దు')}
           </button>
           <button
             onClick={() => onConfirm(finalReason)}
@@ -982,6 +979,7 @@ function DeclineReasonSheet({
 
 /* ─── Notification permission banner ───────────────────────── */
 function NotificationPermissionBanner() {
+  const { L } = useLang()
   const [perm, setPerm] = useState<'unsupported' | 'default' | 'granted' | 'denied'>('unsupported')
   const [dismissed, setDismissed] = useState(false)
 
@@ -1017,7 +1015,7 @@ function NotificationPermissionBanner() {
         <span className="text-xl flex-shrink-0">🔕</span>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-bold text-amber-900 leading-snug">
-            Notifications blocked / నోటిఫికేషన్‌లు బ్లాక్
+            {L('Notifications blocked', 'నోటిఫికేషన్‌లు బ్లాక్')}
           </p>
           <p className="text-[11px] text-amber-700 mt-0.5 leading-snug">
             Enable notifications in your browser settings to get alerted on new orders.
@@ -1033,7 +1031,7 @@ function NotificationPermissionBanner() {
       <span className="text-xl flex-shrink-0">🔔</span>
       <div className="flex-1 min-w-0">
         <p className="text-xs font-bold text-blue-900 leading-snug">
-          Get notified instantly / తక్షణ నోటిఫికేషన్
+          {L('Get notified instantly', 'తక్షణ నోటిఫికేషన్')}
         </p>
         <p className="text-[11px] text-blue-700 mt-0.5 leading-snug">
           Allow notifications to be alerted the moment a buyer places an order.
@@ -1043,7 +1041,7 @@ function NotificationPermissionBanner() {
             onClick={handleEnable}
             className="bg-blue-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs active:bg-blue-700"
           >
-            Enable / ఆన్ చేయండి
+            {L('Enable', 'ఆన్ చేయండి')}
           </button>
           <button
             onClick={handleDismiss}
@@ -1067,7 +1065,7 @@ function ProfileEditModal({
   onClose: () => void
   onSaved: (updated: Farmer) => void
 }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const [name, setName] = useState(farmer.name ?? '')
   const [village, setVillage] = useState(farmer.village ?? '')
   const [district, setDistrict] = useState(farmer.district ?? '')
@@ -1148,8 +1146,8 @@ function ProfileEditModal({
       (err) => {
         setLocError(
           err.code === 1
-            ? 'Location permission denied / లొకేషన్ అనుమతి లేదు. Please allow location in browser settings.'
-            : 'Could not get location. Please try again. / మళ్ళీ ప్రయత్నించండి.'
+            ? L('Location permission denied', 'లొకేషన్ అనుమతి లేదు. Please allow location in browser settings.')
+            : L('Could not get location. Please try again.', 'మళ్ళీ ప్రయత్నించండి.')
         )
         setLocating(false)
       },
@@ -1284,9 +1282,9 @@ function ProfileEditModal({
   }
 
   const handleChangePassword = async () => {
-    if (!currentPassword) { setPwError('Current password is required / ప్రస్తుత పాస్‌వర్డ్ అవసరం'); return }
-    if (newPassword.length < 6) { setPwError('Minimum 6 characters / కనీసం 6 అక్షరాలు'); return }
-    if (newPassword !== confirmPassword) { setPwError('Passwords do not match / పాస్‌వర్డ్‌లు సరిపోలలేదు'); return }
+    if (!currentPassword) { setPwError(L('Current password is required', 'ప్రస్తుత పాస్‌వర్డ్ అవసరం')); return }
+    if (newPassword.length < 6) { setPwError(L('Minimum 6 characters', 'కనీసం 6 అక్షరాలు')); return }
+    if (newPassword !== confirmPassword) { setPwError(L('Passwords do not match', 'పాస్‌వర్డ్‌లు సరిపోలలేదు')); return }
     setPwLoading(true)
     setPwError('')
     const res = await fetch('/api/auth/reset-password', {
@@ -1321,7 +1319,7 @@ function ProfileEditModal({
         <div className="p-4 space-y-4">
           {/* ── Section 1: Farm Profile ── */}
           <div className="pt-1 border-t-2 border-green-100 first:border-t-0">
-            <h4 className="text-sm font-extrabold text-green-800">Farm Profile / పొలం వివరాలు</h4>
+            <h4 className="text-sm font-extrabold text-green-800">{L('Farm Profile', 'పొలం వివరాలు')}</h4>
             <p className="text-[11px] text-gray-500">Name, photo, certifications</p>
           </div>
 
@@ -1371,11 +1369,10 @@ function ProfileEditModal({
           {/* Farm GPS location */}
           <div>
             <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
-              Farm location / పొలం లొకేషన్
+              {L('Farm location', 'పొలం లొకేషన్')}
             </label>
             <p className="text-[11px] text-gray-500 mb-2 leading-snug">
-              Set your farm location so nearby buyers discover your produce first.<br />
-              దగ్గరలో ఉన్న కొనుగోలుదారులు మీ పంటను ముందుగా కనుగొంటారు.
+              {L('Set your farm location so nearby buyers discover your produce first.', 'దగ్గరలో ఉన్న కొనుగోలుదారులు మీ పంటను ముందుగా కనుగొంటారు.')}
             </p>
             {farmerLat && farmerLng ? (
               <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-3">
@@ -1387,7 +1384,7 @@ function ProfileEditModal({
                   onClick={() => { setFarmerLat(null); setFarmerLng(null); setFarmerLocationName('') }}
                   className="text-xs text-green-700 underline font-semibold"
                 >
-                  Change / మార్చు
+                  {L('Change', 'మార్చు')}
                 </button>
               </div>
             ) : (
@@ -1401,19 +1398,19 @@ function ProfileEditModal({
                   {locating ? (
                     <>
                       <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                      Getting location... / లొకేషన్ తెస్తోంది
+                      {L('Getting location...', 'లొకేషన్ తెస్తోంది')}
                     </>
                   ) : (
-                    <>📍 Use GPS (most accurate) / GPS వాడండి</>
+                    <>{L('📍 Use GPS (most accurate)', 'GPS వాడండి')}</>
                   )}
                 </button>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 border-t border-gray-200" />
-                  <span className="text-[10px] text-gray-400 font-semibold">OR / లేదా</span>
+                  <span className="text-[10px] text-gray-400 font-semibold">{L('OR', 'లేదా')}</span>
                   <div className="flex-1 border-t border-gray-200" />
                 </div>
                 <LocationSearch
-                  placeholder="Search farm location / పొలం లొకేషన్ వెతకండి"
+                  placeholder={L('Search farm location', 'పొలం లొకేషన్ వెతకండి')}
                   onSelect={(lat, lng, name) => {
                     setFarmerLat(lat)
                     setFarmerLng(lng)
@@ -1490,18 +1487,16 @@ function ProfileEditModal({
 
           {/* ── Section 2: Pickup & Schedule ── */}
           <div className="pt-3 border-t-2 border-green-100">
-            <h4 className="text-sm font-extrabold text-green-800">Pickup &amp; Schedule / పికప్ &amp; షెడ్యూల్</h4>
+            <h4 className="text-sm font-extrabold text-green-800">{L('Pickup & Schedule', 'పికప్ & షెడ్యూల్')}</h4>
             <p className="text-[11px] text-gray-500">Where and when buyers collect</p>
           </div>
 
           <div>
             <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
-              Farm Address / పొలం చిరునామా
+              {L('Farm Address', 'పొలం చిరునామా')}
             </label>
             <p className="text-[11px] text-gray-500 mb-2 leading-snug">
-              Where should the delivery rider come to collect the produce? Include door number, street and landmark.
-              <br />
-              డెలివరీ రైడర్ ఎక్కడకు వచ్చి సరుకు తీసుకోవాలి? డోర్ నంబర్, వీధి, ల్యాండ్‌మార్క్ ఇవ్వండి.
+              {L('Where should the delivery rider come to collect the produce? Include door number, street and landmark.', 'డెలివరీ రైడర్ ఎక్కడకు వచ్చి సరుకు తీసుకోవాలి? డోర్ నంబర్, వీధి, ల్యాండ్‌మార్క్ ఇవ్వండి.')}
             </p>
             <textarea
               value={farmAddress}
@@ -1573,14 +1568,14 @@ function ProfileEditModal({
                 <div key={idx} className="border border-gray-200 rounded-xl p-3 bg-gray-50">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[11px] font-bold text-gray-500">
-                      Timing {idx + 1} / సమయం {idx + 1}
+                      {L('Timing', 'సమయం')} {idx + 1}
                     </span>
                     <button
                       type="button"
                       onClick={() => removeSlot(idx)}
                       className="text-red-500 text-xs font-bold active:text-red-700"
                     >
-                      ✕ Remove / తీసివేయి
+                      {L('✕ Remove', 'తీసివేయి')}
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-2 mb-3">
@@ -1630,13 +1625,13 @@ function ProfileEditModal({
               onClick={addSlot}
               className="mt-2 text-sm font-bold text-green-700 active:text-green-900"
             >
-              + Add timing / సమయం జోడించు
+              {L('+ Add timing', 'సమయం జోడించు')}
             </button>
           </div>
 
           {/* ── Section 3: Payment Details ── */}
           <div className="pt-3 border-t-2 border-green-100">
-            <h4 className="text-sm font-extrabold text-green-800">Payment Details / చెల్లింపు వివరాలు</h4>
+            <h4 className="text-sm font-extrabold text-green-800">{L('Payment Details', 'చెల్లింపు వివరాలు')}</h4>
             <p className="text-[11px] text-gray-500">UPI ID, QR code, cash on delivery</p>
           </div>
 
@@ -1668,7 +1663,7 @@ function ProfileEditModal({
             {/* UPI QR Code */}
             <div>
               <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1">
-                UPI QR Code (optional) / UPI QR కోడ్
+                {L('UPI QR Code (optional)', 'UPI QR కోడ్')}
               </label>
               <p className="text-[11px] text-gray-500 mb-2">
                 Buyers can scan this to pay. Get your QR from PhonePe, GPay, or BHIM app.
@@ -1710,12 +1705,12 @@ function ProfileEditModal({
                 />
                 <span className="flex-1">
                   <span className="block text-sm font-bold text-gray-900">
-                    Accept Cash on Delivery / నగదు చెల్లింపు అంగీకరించు
+                    {L('Accept Cash on Delivery', 'నగదు చెల్లింపు అంగీకరించు')}
                   </span>
                   <span className="block text-[11px] text-gray-500 mt-0.5">
                     {codEnabled
-                      ? 'Buyers can choose to pay in cash on pickup. / కొనుగోలుదారులు పికప్ సమయంలో నగదు చెల్లించవచ్చు.'
-                      : 'Off — buyers must pay via UPI before pickup. / ఆఫ్ — కొనుగోలుదారులు పికప్‌కు ముందు UPI ద్వారా చెల్లించాలి.'}
+                      ? L('Buyers can choose to pay in cash on pickup.', 'కొనుగోలుదారులు పికప్ సమయంలో నగదు చెల్లించవచ్చు.')
+                      : L('Off — buyers must pay via UPI before pickup.', 'ఆఫ్ — కొనుగోలుదారులు పికప్‌కు ముందు UPI ద్వారా చెల్లించాలి.')}
                   </span>
                 </span>
               </label>
@@ -1729,7 +1724,7 @@ function ProfileEditModal({
               onClick={() => { setShowPwSection((v) => !v); setPwError(''); setPwSuccess(false) }}
               className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-gray-700 bg-gray-50 active:bg-gray-100"
             >
-              <span>🔑 Change Password / పాస్‌వర్డ్ మార్చండి</span>
+              <span>{L('🔑 Change Password', 'పాస్‌వర్డ్ మార్చండి')}</span>
               <span className="text-gray-400 text-lg leading-none">{showPwSection ? '−' : '+'}</span>
             </button>
 
@@ -1737,27 +1732,27 @@ function ProfileEditModal({
               <div className="px-4 py-3 space-y-3">
                 {pwSuccess ? (
                   <p className="text-sm text-green-700 bg-green-50 rounded-xl px-3 py-2 text-center font-semibold">
-                    ✓ Password updated! / పాస్‌వర్డ్ మార్చబడింది!
+                    {L('✓ Password updated!', 'పాస్‌వర్డ్ మార్చబడింది!')}
                   </p>
                 ) : (
                   <>
                     <input
                       type="password"
-                      placeholder="Current password / ప్రస్తుత పాస్‌వర్డ్"
+                      placeholder={L('Current password', 'ప్రస్తుత పాస్‌వర్డ్')}
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
                       className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
                     />
                     <input
                       type="password"
-                      placeholder="New password / కొత్త పాస్‌వర్డ్"
+                      placeholder={L('New password', 'కొత్త పాస్‌వర్డ్')}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
                     />
                     <input
                       type="password"
-                      placeholder="Confirm password / నిర్ధారించండి"
+                      placeholder={L('Confirm password', 'నిర్ధారించండి')}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
@@ -1770,7 +1765,7 @@ function ProfileEditModal({
                       disabled={pwLoading || !currentPassword || newPassword.length < 6}
                       className="w-full bg-gray-800 text-white font-bold py-3 rounded-xl text-sm disabled:opacity-50 active:bg-gray-900"
                     >
-                      {pwLoading ? 'Updating… / మారుస్తోంది…' : 'Update Password / పాస్‌వర్డ్ అప్‌డేట్ చేయండి'}
+                      {pwLoading ? L('Updating…', 'మారుస్తోంది…') : L('Update Password', 'పాస్‌వర్డ్ అప్‌డేట్ చేయండి')}
                     </button>
                   </>
                 )}
@@ -1900,7 +1895,7 @@ function ProduceListingForm({
   onClose: () => void
   onPublished: (saved?: Partial<ListingRow>) => void
 }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const isEdit = !!editData
   const [name, setName] = useState(editData?.name ?? '')
   const [variety, setVariety] = useState(editData?.variety ?? '')
@@ -2164,21 +2159,21 @@ function ProduceListingForm({
             ))}
           </div>
           <p className="text-[11px] text-gray-500 mt-1.5">
-            📦 = Other / ఇతర — pick this for any produce without its own icon
+            {L('📦 = Other — pick this for any produce without its own icon', '📦 = ఇతర — ప్రత్యేక ఐకాన్ లేని ఏ పంటకైనా దీన్ని ఎంచుకోండి')}
           </p>
         </div>
 
         {/* Unit selector */}
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            Unit / కొలత
+            {L('Unit', 'కొలత')}
           </label>
           <select
             value={unit}
             onChange={(e) => setUnit(e.target.value)}
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
           >
-            {UNIT_OPTIONS.map((o) => (
+            {UNIT_OPTIONS(L).map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
@@ -2228,7 +2223,7 @@ function ProduceListingForm({
           </div>
           <div>
             <p className="text-[11px] text-gray-500 mb-1">
-              Harvest date (actual or expected) / కోత తేదీ (అసలు లేదా అంచనా)
+              {L('Harvest date (actual or expected)', 'కోత తేదీ (అసలు లేదా అంచనా)')}
             </p>
             {/* No max — farmers can list produce before harvest with an
                 expected date, so today AND future dates are allowed. */}
@@ -2299,7 +2294,7 @@ function ProduceListingForm({
                 <input
                   type="number"
                   inputMode="numeric"
-                  placeholder="Delivery charge / డెలివరీ ఛార్జ్"
+                  placeholder={L('Delivery charge', 'డెలివరీ ఛార్జ్')}
                   value={deliveryCharge}
                   onChange={(e) => setDeliveryCharge(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
@@ -2309,7 +2304,7 @@ function ProduceListingForm({
                 <input
                   type="number"
                   inputMode="numeric"
-                  placeholder="Radius / పరిధి"
+                  placeholder={L('Radius', 'పరిధి')}
                   value={deliveryRadius}
                   onChange={(e) => setDeliveryRadius(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl pl-3 pr-9 py-2.5 text-sm focus:border-green-500 focus:outline-none"
@@ -2526,7 +2521,7 @@ function ProduceListingForm({
 
 /* ─── Preview modal ─────────────────────────────────────────── */
 function PreviewModal({ data, onClose }: { data: PreviewData; onClose: () => void }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const EMOJI_BG: Record<string, string> = {
     '🍅': 'bg-red-100', '🥬': 'bg-green-100', '🥭': 'bg-orange-100',
     '🍆': 'bg-purple-100', '🥕': 'bg-orange-100', '🌽': 'bg-yellow-100',
@@ -2602,7 +2597,7 @@ function ManageListingsModal({
   onClose: () => void
   onChanged: () => void
 }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const [rows, setRows] = useState<ListingRow[]>([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -2698,7 +2693,7 @@ function ManageListingsModal({
             className="w-full bg-green-700 text-white font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 active:bg-green-800"
           >
             <span className="text-lg leading-none">+</span>
-            Add New Produce / కొత్త పంట చేర్చండి
+            {L('Add New Produce', 'కొత్త పంట చేర్చండి')}
           </button>
 
           {loading && (
@@ -2803,7 +2798,7 @@ type ScheduleOrder = {
 }
 
 function TodayScheduleSection({ farmerId }: { farmerId: string }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const todayStr = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD, local
   const [date, setDate] = useState(todayStr)
   const [orders, setOrders] = useState<ScheduleOrder[]>([])
@@ -2835,7 +2830,7 @@ function TodayScheduleSection({ farmerId }: { farmerId: string }) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm font-bold text-gray-900 truncate">{o.produce_name} · {o.quantity} {o.unit || 'kg'}</p>
-          <p className="text-xs text-gray-600 truncate">🧑 {o.buyer_name || 'Buyer / కొనుగోలుదారు'}</p>
+          <p className="text-xs text-gray-600 truncate">🧑 {o.buyer_name || L('Buyer', 'కొనుగోలుదారు')}</p>
           {o.pickup_location && <p className="text-[11px] text-gray-500 truncate">📍 {o.pickup_location}</p>}
         </div>
         {o.buyer_phone && (
@@ -2851,7 +2846,7 @@ function TodayScheduleSection({ farmerId }: { farmerId: string }) {
     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
       <div className="px-4 pt-4 pb-3 flex items-center justify-between border-b border-gray-100 gap-2">
         <h2 className="font-extrabold text-gray-900 text-base leading-tight">
-          📅 {"Today's Schedule / నేటి షెడ్యూల్"}
+          📅 {L("Today's Schedule", 'నేటి షెడ్యూల్')}
         </h2>
         <input
           type="date"
@@ -2865,25 +2860,25 @@ function TodayScheduleSection({ farmerId }: { farmerId: string }) {
         {loading ? (
           <p className="text-sm text-gray-400 text-center py-4">{tx.loadingLabel}</p>
         ) : orders.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-4">{"Nothing scheduled for this date / ఈ తేదీకి ఏమీ లేదు"}</p>
+          <p className="text-sm text-gray-400 text-center py-4">{L('Nothing scheduled for this date', 'ఈ తేదీకి ఏమీ లేదు')}</p>
         ) : (
           <>
             <div>
               <p className="text-xs font-bold text-green-800 uppercase tracking-wide mb-2">
-                🧺 {"Pickups / పికప్‌లు"} ({pickups.length})
+                🧺 {L('Pickups', 'పికప్‌లు')} ({pickups.length})
               </p>
               {pickups.length === 0 ? (
-                <p className="text-xs text-gray-400">{"No pickups / పికప్‌లు లేవు"}</p>
+                <p className="text-xs text-gray-400">{L('No pickups', 'పికప్‌లు లేవు')}</p>
               ) : (
                 <div className="space-y-2">{pickups.map((o) => <Row key={o.id} o={o} />)}</div>
               )}
             </div>
             <div>
               <p className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-2">
-                🛵 {"Deliveries / డెలివరీలు"} ({deliveries.length})
+                🛵 {L('Deliveries', 'డెలివరీలు')} ({deliveries.length})
               </p>
               {deliveries.length === 0 ? (
-                <p className="text-xs text-gray-400">{"No deliveries / డెలివరీలు లేవు"}</p>
+                <p className="text-xs text-gray-400">{L('No deliveries', 'డెలివరీలు లేవు')}</p>
               ) : (
                 <div className="space-y-2">{deliveries.map((o) => <Row key={o.id} o={o} />)}</div>
               )}
@@ -2910,7 +2905,7 @@ function ListingRowCard({
   onTogglePause: () => void
   onToggleSuspend: () => void
 }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const emoji = row.emoji ?? '🌿'
   const isPaused = row.status === 'paused'
   const isSuspended = row.status === 'suspended_by_farmer'
@@ -2920,13 +2915,13 @@ function ListingRowCard({
       : row.status === 'coming_soon'
       ? tx.comingSoon
       : row.status === 'paused'
-      ? 'Paused by farmer / రైతు నిలిపివేశారు'
+      ? L('Paused by farmer', 'రైతు నిలిపివేశారు')
       : row.status === 'suspended_by_farmer'
-      ? 'Suspended by you / మీరు నిలిపివేశారు'
+      ? L('Suspended by you', 'మీరు నిలిపివేశారు')
       : row.status === 'suspended'
-      ? 'Suspended / నిలిపివేయబడింది'
+      ? L('Suspended', 'నిలిపివేయబడింది')
       : row.status === 'sold_out'
-      ? 'Sold out / అయిపోయింది'
+      ? L('Sold out', 'అయిపోయింది')
       : row.status
   const statusColor =
     row.status === 'available'
@@ -3009,7 +3004,7 @@ function ListingRowCard({
                     : 'border-purple-300 text-purple-700 active:bg-purple-50'
                 }`}
               >
-                {isPaused ? '▶ Resume / తిరిగి చూపించు' : '⏸ Pause / అమ్మకం ఆపండి'}
+                {isPaused ? L('▶ Resume', 'తిరిగి చూపించు') : L('⏸ Pause', 'అమ్మకం ఆపండి')}
               </button>
             )}
             {canSuspend && (
@@ -3021,7 +3016,7 @@ function ListingRowCard({
                     : 'border-red-300 text-red-600 active:bg-red-50'
                 }`}
               >
-                {isSuspended ? '▶ Resume / తిరిగి చూపించు' : '⛔ Suspend / నిలిపివేయి'}
+                {isSuspended ? L('▶ Resume', 'తిరిగి చూపించు') : L('⛔ Suspend', 'నిలిపివేయి')}
               </button>
             )}
           </div>
@@ -3070,7 +3065,7 @@ function OrderCard({
   onMarkPickedUp: () => void
   onMarkShipped: () => void
 }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const isDelivery = order.delivery_type === 'home_delivery'
   const isCourier = order.delivery_type === 'courier'
   const isPickup = !isDelivery && !isCourier
@@ -3203,7 +3198,7 @@ function OrderCard({
             )}
           </div>
           <p className="text-xs font-bold text-gray-700">
-            Update Payment Status / చెల్లింపు స్థితి నవీకరించండి
+            {L('Update Payment Status', 'చెల్లింపు స్థితి నవీకరించండి')}
           </p>
           <p className="text-[11px] text-gray-500 -mt-1">{tx.receivedApprovesOrderHint}</p>
           <div className="grid grid-cols-3 gap-2">
@@ -3212,21 +3207,21 @@ function OrderCard({
               disabled={processingPaid}
               className="bg-green-700 text-white font-bold py-2.5 rounded-xl text-[11px] leading-tight disabled:opacity-50 active:bg-green-800 px-1"
             >
-              ✓ Received<br />& Approve<br /><span className="font-normal">అందింది & ఆమోదం</span>
+              {L('✓ Received & Approve', 'అందింది & ఆమోదం')}
             </button>
             <button
               onClick={() => onUpdatePaymentStatus('failed')}
               disabled={processingPaid}
               className="border-2 border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-xs disabled:opacity-50 active:bg-red-50"
             >
-              ✕ Not Received<br /><span className="font-normal">రాలేదు</span>
+              {L('✕ Not Received', 'రాలేదు')}
             </button>
             <button
               onClick={() => onUpdatePaymentStatus('pending')}
               disabled={processingPaid}
               className="border-2 border-amber-300 text-amber-700 font-bold py-2.5 rounded-xl text-xs disabled:opacity-50 active:bg-amber-50"
             >
-              ⏳ Pending<br /><span className="font-normal">పెండింగ్</span>
+              {L('⏳ Pending', 'పెండింగ్')}
             </button>
           </div>
         </div>
@@ -3273,9 +3268,9 @@ function OrderCard({
           // Already shipped (courier flow): waiting for the buyer to confirm
           // receipt, which finally resolves the order.
           <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 text-center">
-            <p className="text-xs font-bold text-amber-800">📦 Shipped / షిప్ చేయబడింది</p>
+            <p className="text-xs font-bold text-amber-800">{L('📦 Shipped', 'షిప్ చేయబడింది')}</p>
             <p className="text-[11px] text-amber-700 mt-0.5">
-              Awaiting buyer&apos;s receipt confirmation / అందుకున్నట్టు ధృవీకరణ కోసం వేచి ఉంది
+              {L('Awaiting buyer\'s receipt confirmation', 'అందుకున్నట్టు ధృవీకరణ కోసం వేచి ఉంది')}
             </p>
           </div>
         ) : (
@@ -3290,14 +3285,14 @@ function OrderCard({
                 disabled={processing}
                 className="bg-amber-600 text-white font-bold py-2.5 rounded-xl text-sm active:bg-amber-700 disabled:opacity-50"
               >
-                {processing ? '…' : '📦 Shipped / షిప్ చేయబడింది'}
+                {processing ? '…' : L('📦 Shipped', 'షిప్ చేయబడింది')}
               </button>
               <button
                 onClick={onMarkPickedUp}
                 disabled={processing}
                 className="bg-green-600 text-white font-bold py-2.5 rounded-xl text-sm active:bg-green-700 disabled:opacity-50"
               >
-                {processing ? '…' : '✓ Picked Up / తీసుకువెళ్ళారు'}
+                {processing ? '…' : L('✓ Picked Up', 'తీసుకువెళ్ళారు')}
               </button>
             </div>
             <button
@@ -3335,14 +3330,15 @@ function DashboardProduceSection({
   onManage: () => void
   onToggleSuspend: (id: string, currentStatus: string) => void
 }) {
+  const { L } = useLang()
   // Status chips mirror the Manage Listings card so the two stay consistent.
   const chip = (status: string): { label: string; color: string } => {
     switch (status) {
-      case 'available': return { label: 'Live / అందుబాటులో', color: 'bg-green-100 text-green-800' }
-      case 'paused': return { label: 'Paused / నిలిపివేశారు', color: 'bg-purple-100 text-purple-800' }
-      case 'suspended_by_farmer': return { label: 'Suspended / నిలిపివేశారు', color: 'bg-red-100 text-red-800' }
+      case 'available': return { label: L('Live', 'అందుబాటులో'), color: 'bg-green-100 text-green-800' }
+      case 'paused': return { label: L('Paused', 'నిలిపివేశారు'), color: 'bg-purple-100 text-purple-800' }
+      case 'suspended_by_farmer': return { label: L('Suspended', 'నిలిపివేశారు'), color: 'bg-red-100 text-red-800' }
       case 'suspended': return { label: 'Suspended by team', color: 'bg-orange-100 text-orange-800' }
-      case 'sold_out': return { label: 'Sold out / అయిపోయింది', color: 'bg-gray-100 text-gray-700' }
+      case 'sold_out': return { label: L('Sold out', 'అయిపోయింది'), color: 'bg-gray-100 text-gray-700' }
       case 'coming_soon': return { label: 'Coming soon', color: 'bg-amber-100 text-amber-800' }
       default: return { label: status, color: 'bg-gray-100 text-gray-700' }
     }
@@ -3353,7 +3349,7 @@ function DashboardProduceSection({
       <div className="px-4 pt-4 pb-3 flex items-center justify-between border-b border-gray-100">
         <div>
           <h2 className="font-extrabold text-gray-900 text-base leading-tight">
-            Your produce / మీ పంట
+            {L('Your produce', 'మీ పంట')}
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">Suspend or resume any item</p>
         </div>
@@ -3429,7 +3425,7 @@ function EarningsCard({
   orderCount: number
   weekly: number[]
 }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const maxWeek = Math.max(...weekly, 1)
 
   return (
@@ -3590,7 +3586,7 @@ function FarmPhotosSection({ farmerId }: { farmerId: string }) {
 
 /* ─── Loading screen ────────────────────────────────────────── */
 function LoadingScreen() {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   return (
     <main className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="text-center space-y-3">
@@ -3660,7 +3656,7 @@ function DeliveryTagForFarmer({ order }: { order: Order }) {
 
 /* ─── Farmer not found ──────────────────────────────────────── */
 function FarmerNotFound({ onLogout }: { onLogout: () => void }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
       <div className="text-center max-w-sm space-y-4">

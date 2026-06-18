@@ -24,7 +24,7 @@ export default function QualityTab({
   farmer: Record<string, unknown>
   produce: Record<string, unknown>[]
 }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const f = farmer as Farmer
   const listings = produce as Produce[]
   const available = listings.filter((p) => p.status === 'available')
@@ -110,7 +110,7 @@ export default function QualityTab({
 }
 
 function SoilCard({ label, value, icon, good }: { label: string; value: string; icon: string; good: boolean }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   return (
     <div className="bg-white rounded-lg border border-gray-100 p-3 text-center">
       <span className="text-xl">{icon}</span>

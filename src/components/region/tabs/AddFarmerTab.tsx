@@ -5,7 +5,7 @@ import { useLang } from '@/lib/LanguageContext'
 const TARGET = 10
 
 export default function AddFarmerTab({ farmerCount }: { farmerCount: number }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const progress = Math.min((farmerCount / TARGET) * 100, 100)
 
   return (

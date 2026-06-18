@@ -17,14 +17,14 @@ export default function RegionHero({
   farmerCount: number
   produceCount: number
 }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const r = region as Region
 
   return (
     <div className="bg-green-800 px-4 py-6 text-white">
       <h1 className="text-xl font-bold leading-tight">{tx.naturalFoodTitle}</h1>
       <p className="text-green-200 text-sm mt-1">
-        {r.district} district / జిల్లా · Krishna river belt
+        {L(`${r.district} district · Krishna river belt`, `${r.district} జిల్లా · కృష్ణా నది పరీవాహక ప్రాంతం`)}
       </p>
 
       <div className="grid grid-cols-3 gap-3 mt-4">

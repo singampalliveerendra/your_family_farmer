@@ -3,7 +3,7 @@
 import { useLang } from '@/lib/LanguageContext'
 
 export function FreshnessBadge({ harvestDate, dot = false }: { harvestDate: string; dot?: boolean }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
 
   // Parse as local midnight so timezone doesn't flip the day
   const harvest = new Date(harvestDate + 'T00:00:00')

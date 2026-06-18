@@ -33,7 +33,7 @@ export default function FarmersTab({
   produce: Record<string, unknown>[]
   highlightedFarmerId: string | null
 }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const list = farmers as Farmer[]
   const produceList = produce as Produce[]
   const [sort, setSort] = useState<Sort>('newest')

@@ -15,7 +15,7 @@ export default function TrustStrip({
   farmer: Farmer
   produceCount: number
 }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const yearsfarming = new Date().getFullYear() - farmer.farming_since_year
 
   const stats = [

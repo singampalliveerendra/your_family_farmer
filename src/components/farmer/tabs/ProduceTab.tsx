@@ -56,7 +56,7 @@ export default function ProduceTab({
   produce: Record<string, unknown>[]
   isEditMode?: boolean
 }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const f = farmer as Farmer
   const { addItem } = useCart()
   const { requireAuth } = useConsumerAuth()
@@ -69,7 +69,7 @@ export default function ProduceTab({
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure? / మీరు నిశ్చితంగా ఉన్నారా?')) return
+    if (!confirm(L('Are you sure?', 'మీరు నిశ్చితంగా ఉన్నారా?'))) return
     const { error } = await supabase.from('produce_listings').delete().eq('id', id)
     if (error) {
       alert(`Could not delete: ${error.message}`)
@@ -157,6 +157,7 @@ export default function ProduceTab({
 }
 
 function AddProduceForm({ farmerId, onAdded }: { farmerId: string; onAdded: (item: Produce) => void }) {
+  const { L } = useLang()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [variety, setVariety] = useState('')
@@ -206,7 +207,7 @@ function AddProduceForm({ farmerId, onAdded }: { farmerId: string; onAdded: (ite
         onClick={() => setOpen(true)}
         className="w-full border-2 border-dashed border-green-300 rounded-xl py-4 text-green-700 text-sm font-semibold flex items-center justify-center gap-2 hover:border-green-500 hover:bg-green-50 transition-colors"
       >
-        <span className="text-lg">+</span> Add your produce / మీ పంట చేర్చండి
+        <span className="text-lg">+</span> {L('Add your produce', 'మీ పంట చేర్చండి')}
       </button>
     )
   }
@@ -214,13 +215,13 @@ function AddProduceForm({ farmerId, onAdded }: { farmerId: string; onAdded: (ite
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-bold text-gray-800 text-sm">Add produce / పంట చేర్చండి</h3>
+        <h3 className="font-bold text-gray-800 text-sm">{L('Add produce', 'పంట చేర్చండి')}</h3>
         <button onClick={() => { reset(); setOpen(false) }} className="text-gray-400 text-lg leading-none">×</button>
       </div>
 
       {/* Emoji picker */}
       <div>
-        <p className="text-xs text-gray-500 mb-2">Pick an icon / ఐకాన్ ఎంచుకోండి</p>
+        <p className="text-xs text-gray-500 mb-2">{L('Pick an icon', 'ఐకాన్ ఎంచుకోండి')}</p>
         <div className="flex flex-wrap gap-2">
           {EMOJI_OPTIONS.map((e) => (
             <button
@@ -238,14 +239,14 @@ function AddProduceForm({ farmerId, onAdded }: { farmerId: string; onAdded: (ite
       <div className="space-y-2">
         <input
           type="text"
-          placeholder="Produce name / పంట పేరు (e.g. Papaya)"
+          placeholder={L('Produce name', 'పంట పేరు (e.g. Papaya)')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
         />
         <input
           type="text"
-          placeholder="Variety (optional) / రకం"
+          placeholder={L('Variety (optional)', 'రకం')}
           value={variety}
           onChange={(e) => setVariety(e.target.value)}
           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
@@ -256,14 +257,14 @@ function AddProduceForm({ farmerId, onAdded }: { farmerId: string; onAdded: (ite
       <div className="grid grid-cols-2 gap-2">
         <input
           type="number"
-          placeholder="Price / kg (₹) / ధర"
+          placeholder={L('Price / kg (₹)', 'ధర / కేజీ (₹)')}
           value={price}
           onChange={(e) => setPrice(e.target.value)}
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
         />
         <input
           type="number"
-          placeholder="Stock (kg) / నిల్వ"
+          placeholder={L('Stock (kg)', 'నిల్వ')}
           value={stock}
           onChange={(e) => setStock(e.target.value)}
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
@@ -282,7 +283,7 @@ function AddProduceForm({ farmerId, onAdded }: { farmerId: string; onAdded: (ite
                 : 'bg-gray-100 text-gray-600'
             }`}
           >
-            {s === 'available' ? 'Available now / అందుబాటులో' : 'Coming soon / త్వరలో'}
+            {s === 'available' ? L('Available now', 'అందుబాటులో') : L('Coming soon', 'త్వరలో')}
           </button>
         ))}
       </div>
@@ -293,7 +294,7 @@ function AddProduceForm({ farmerId, onAdded }: { farmerId: string; onAdded: (ite
 
       {success ? (
         <p className="text-center text-sm text-green-700 font-semibold py-1">
-          ✓ Added successfully! / చేర్చబడింది!
+          {L('✓ Added successfully!', 'చేర్చబడింది!')}
         </p>
       ) : (
         <button
@@ -301,7 +302,7 @@ function AddProduceForm({ farmerId, onAdded }: { farmerId: string; onAdded: (ite
           disabled={loading || !name.trim()}
           className="w-full bg-green-700 text-white text-sm font-semibold py-2.5 rounded-lg disabled:opacity-50"
         >
-          {loading ? 'Adding... / చేరుస్తోంది' : 'Add produce / పంట చేర్చండి'}
+          {loading ? L('Adding...', 'చేరుస్తోంది') : L('Add produce', 'పంట చేర్చండి')}
         </button>
       )}
     </div>
@@ -329,7 +330,7 @@ function ProduceCard({
   onAddToCart: (qty: number) => void
   onDelete?: () => void
 }) {
-  const { tx, lang } = useLang()
+  const { tx, lang, L } = useLang()
   const [added, setAdded] = useState(false)
 
   const bgColors: Record<string, string> = {
@@ -423,11 +424,11 @@ function ProduceCard({
           }`}
         >
           {added ? (
-            <>✓ Added to cart / బుట్టకు చేర్చబడింది</>
+            <>{L('✓ Added to cart', 'బుట్టకు చేర్చబడింది')}</>
           ) : (
             <>
               <span className="text-xl leading-none">+</span>
-              Add to cart / బుట్టకు చేర్చండి
+              {L('Add to cart', 'బుట్టకు చేర్చండి')}
             </>
           )}
         </button>
@@ -436,7 +437,7 @@ function ProduceCard({
             onClick={onDelete}
             className="w-full border border-red-200 text-red-600 font-semibold py-2.5 rounded-xl text-sm active:bg-red-50"
           >
-            🗑 Delete / తొలగించు
+            {L('🗑 Delete', 'తొలగించు')}
           </button>
         )}
       </div>
@@ -445,7 +446,7 @@ function ProduceCard({
 }
 
 function ComingSoonCard({ item, farmerId, onDelete }: { item: Produce; farmerId: string; onDelete?: () => void }) {
-  const { tx, lang } = useLang()
+  const { tx, lang, L } = useLang()
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [submitted, setSubmitted] = useState(false)
@@ -500,7 +501,7 @@ function ComingSoonCard({ item, farmerId, onDelete }: { item: Produce; farmerId:
           onClick={onDelete}
           className="mt-3 w-full border border-red-200 text-red-600 font-semibold py-2.5 rounded-lg text-sm active:bg-red-50"
         >
-          🗑 Delete / తొలగించు
+          {L('🗑 Delete', 'తొలగించు')}
         </button>
       )}
     </div>

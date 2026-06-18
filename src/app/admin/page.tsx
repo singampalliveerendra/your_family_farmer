@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useLang } from '@/lib/LanguageContext'
 
 type Rider = {
   id: string
@@ -52,6 +53,7 @@ type DeliveryOrder = {
 type ActiveRider = { id: string; name: string | null; phone: string; vehicle_number: string | null }
 
 export default function AdminPage() {
+  const { L } = useLang()
   const router = useRouter()
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [tab, setTab] = useState<'deliveries' | 'riders'>('deliveries')
@@ -77,17 +79,17 @@ export default function AdminPage() {
 
   const loadRiders = useCallback(async () => {
     const r = await fetch('/api/admin/riders', { credentials: 'same-origin' }).catch(() => null)
-    if (!r) { setError('Network error. / నెట్‌వర్క్ లోపం'); return }
+    if (!r) { setError(L('Network error.', 'నెట్‌వర్క్ లోపం')); return }
     const json = await r.json().catch(() => ({}))
-    if (!r.ok) { setError(json?.error ?? 'Could not load riders. / రైడర్‌లను లోడ్ చేయలేకపోయాము'); return }
+    if (!r.ok) { setError(json?.error ?? L('Could not load riders.', 'రైడర్‌లను లోడ్ చేయలేకపోయాము')); return }
     setRiders((json.riders ?? []) as Rider[])
   }, [])
 
   const loadDeliveries = useCallback(async () => {
     const r = await fetch('/api/admin/deliveries', { credentials: 'same-origin' }).catch(() => null)
-    if (!r) { setError('Network error. / నెట్‌వర్క్ లోపం'); return }
+    if (!r) { setError(L('Network error.', 'నెట్‌వర్క్ లోపం')); return }
     const json = await r.json().catch(() => ({}))
-    if (!r.ok) { setError(json?.error ?? 'Could not load deliveries. / డెలివరీలను లోడ్ చేయలేకపోయాము'); return }
+    if (!r.ok) { setError(json?.error ?? L('Could not load deliveries.', 'డెలివరీలను లోడ్ చేయలేకపోయాము')); return }
     setOrders((json.orders ?? []) as DeliveryOrder[])
     setActiveRiders((json.riders ?? []) as ActiveRider[])
   }, [])
@@ -108,21 +110,21 @@ export default function AdminPage() {
     setBusyId(id)
     const r = await fetch(`/api/admin/riders/${id}/approve`, { method: 'POST', credentials: 'same-origin' }).catch(() => null)
     setBusyId(null)
-    if (!r) { setError('Network error. / నెట్‌వర్క్ లోపం'); return }
+    if (!r) { setError(L('Network error.', 'నెట్‌వర్క్ లోపం')); return }
     const json = await r.json().catch(() => ({}))
-    if (!r.ok) { setError(json?.error ?? 'Approve failed. / ఆమోదం విఫలమైంది'); return }
+    if (!r.ok) { setError(json?.error ?? L('Approve failed.', 'ఆమోదం విఫలమైంది')); return }
     await loadRiders()
   }
 
   const handleSuspend = async (id: string) => {
     if (busyId) return
-    if (!confirm('Suspend this rider? They will not be able to log in.\nరైడర్‌ను సస్పెండ్ చేయాలా? వారు లాగిన్ అవ్వలేరు.')) return
+    if (!confirm(L('Suspend this rider? They will not be able to log in.', 'రైడర్‌ను సస్పెండ్ చేయాలా? వారు లాగిన్ అవ్వలేరు.'))) return
     setBusyId(id)
     const r = await fetch(`/api/admin/riders/${id}/suspend`, { method: 'POST', credentials: 'same-origin' }).catch(() => null)
     setBusyId(null)
-    if (!r) { setError('Network error. / నెట్‌వర్క్ లోపం'); return }
+    if (!r) { setError(L('Network error.', 'నెట్‌వర్క్ లోపం')); return }
     const json = await r.json().catch(() => ({}))
-    if (!r.ok) { setError(json?.error ?? 'Suspend failed. / సస్పెండ్ విఫలమైంది'); return }
+    if (!r.ok) { setError(json?.error ?? L('Suspend failed.', 'సస్పెండ్ విఫలమైంది')); return }
     await loadRiders()
   }
 
@@ -131,9 +133,9 @@ export default function AdminPage() {
     setBusyId(id)
     const r = await fetch(`/api/admin/riders/${id}/reinstate`, { method: 'POST', credentials: 'same-origin' }).catch(() => null)
     setBusyId(null)
-    if (!r) { setError('Network error. / నెట్‌వర్క్ లోపం'); return }
+    if (!r) { setError(L('Network error.', 'నెట్‌వర్క్ లోపం')); return }
     const json = await r.json().catch(() => ({}))
-    if (!r.ok) { setError(json?.error ?? 'Reinstate failed. / పునరుద్ధరణ విఫలమైంది'); return }
+    if (!r.ok) { setError(json?.error ?? L('Reinstate failed.', 'పునరుద్ధరణ విఫలమైంది')); return }
     await loadRiders()
   }
 
@@ -148,9 +150,9 @@ export default function AdminPage() {
       body: JSON.stringify({ riderId: targetRider }),
     }).catch(() => null)
     setBusyId(null)
-    if (!r) { setError('Network error. / నెట్‌వర్క్ లోపం'); return }
+    if (!r) { setError(L('Network error.', 'నెట్‌వర్క్ లోపం')); return }
     const json = await r.json().catch(() => ({}))
-    if (!r.ok) { setError(json?.error ?? 'Reassign failed. / తిరిగి కేటాయించడం విఫలమైంది'); return }
+    if (!r.ok) { setError(json?.error ?? L('Reassign failed.', 'తిరిగి కేటాయించడం విఫలమైంది')); return }
     setReassignTarget((m) => ({ ...m, [orderId]: '' }))
     await loadDeliveries()
   }
@@ -176,12 +178,11 @@ export default function AdminPage() {
       <div className="bg-gray-900 px-4 pt-6 pb-10">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-gray-400 text-xs">Owner panel / యజమాని ప్యానెల్</p>
-            <h1 className="text-white text-xl font-extrabold leading-tight">YFF Deliveries</h1>
-            <p className="text-gray-400 text-xs mt-0.5">డెలివరీలు</p>
+            <p className="text-gray-400 text-xs">{L('Owner panel', 'యజమాని ప్యానెల్')}</p>
+            <h1 className="text-white text-xl font-extrabold leading-tight">{L('YFF Deliveries', 'డెలివరీలు')}</h1>
           </div>
           <button onClick={handleLogout} className="text-gray-300 text-xs underline whitespace-nowrap">
-            Log out / లాగౌట్
+            {L('Log out', 'లాగౌట్')}
           </button>
         </div>
       </div>
@@ -194,7 +195,7 @@ export default function AdminPage() {
               tab === 'deliveries' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600'
             }`}
           >
-            Deliveries / డెలివరీలు ({orders.length})
+            {L('Deliveries', 'డెలివరీలు')} ({orders.length})
           </button>
           <button
             onClick={() => setTab('riders')}
@@ -202,14 +203,14 @@ export default function AdminPage() {
               tab === 'riders' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600'
             }`}
           >
-            Riders / రైడర్లు ({riders.length}{pendingRiders.length > 0 ? ` · ${pendingRiders.length} pending` : ''})
+            {L('Riders', 'రైడర్లు')} ({riders.length}{pendingRiders.length > 0 ? ` · ${pendingRiders.length} pending` : ''})
           </button>
         </div>
 
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2">
             <p className="text-xs text-red-700 font-semibold">{error}</p>
-            <button onClick={() => setError('')} className="text-[10px] text-red-600 underline mt-1">Dismiss / మూసివేయి</button>
+            <button onClick={() => setError('')} className="text-[10px] text-red-600 underline mt-1">{L('Dismiss', 'మూసివేయి')}</button>
           </div>
         )}
 
@@ -217,8 +218,7 @@ export default function AdminPage() {
           orders.length === 0 ? (
             <div className="text-center py-14 bg-white rounded-2xl border border-gray-100">
               <div className="text-5xl mb-3">📭</div>
-              <p className="font-semibold text-gray-500 text-sm">No delivery orders yet</p>
-              <p className="text-xs text-gray-400 mt-1">ఇంకా డెలివరీ ఆర్డర్‌లు లేవు</p>
+              <p className="font-semibold text-gray-500 text-sm">{L('No delivery orders yet', 'ఇంకా డెలివరీ ఆర్డర్‌లు లేవు')}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -238,8 +238,7 @@ export default function AdminPage() {
         ) : riders.length === 0 ? (
           <div className="text-center py-14 bg-white rounded-2xl border border-gray-100">
             <div className="text-5xl mb-3">🛵</div>
-            <p className="font-semibold text-gray-500 text-sm">No rider applications yet</p>
-            <p className="text-xs text-gray-400 mt-1">ఇంకా రైడర్ దరఖాస్తులు లేవు</p>
+            <p className="font-semibold text-gray-500 text-sm">{L('No rider applications yet', 'ఇంకా రైడర్ దరఖాస్తులు లేవు')}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -275,6 +274,7 @@ function DeliveryRow({
   onReassign: () => void
   busy: boolean
 }) {
+  const { L } = useLang()
   const ds = order.delivery_status ?? 'unassigned'
   const statusColor =
     ds === 'delivered' ? 'bg-green-100 text-green-800'
@@ -301,7 +301,7 @@ function DeliveryRow({
 
       <div className="grid grid-cols-2 gap-3 text-xs">
         <div>
-          <p className="text-[10px] font-bold text-gray-400 uppercase">Farmer / రైతు</p>
+          <p className="text-[10px] font-bold text-gray-400 uppercase">{L('Farmer', 'రైతు')}</p>
           <p className="font-semibold text-gray-900">{order.farmer?.name ?? '—'}</p>
           <p className="text-gray-500">{order.farmer?.village ?? ''}</p>
           {order.farmer?.phone && (
@@ -309,7 +309,7 @@ function DeliveryRow({
           )}
         </div>
         <div>
-          <p className="text-[10px] font-bold text-gray-400 uppercase">Customer / కస్టమర్</p>
+          <p className="text-[10px] font-bold text-gray-400 uppercase">{L('Customer', 'కస్టమర్')}</p>
           <p className="font-semibold text-gray-900">{order.buyer_name ?? '—'}</p>
           {order.buyer_phone && (
             <a href={`tel:${order.buyer_phone}`} className="text-blue-700 underline">📞 {order.buyer_phone}</a>
@@ -322,7 +322,7 @@ function DeliveryRow({
 
       {order.delivery_address && (
         <div className="border-t border-gray-100 pt-2 text-xs">
-          <p className="text-[10px] font-bold text-gray-400 uppercase">Drop / డెలివరీ స్థలం</p>
+          <p className="text-[10px] font-bold text-gray-400 uppercase">{L('Drop', 'డెలివరీ స్థలం')}</p>
           <p className="text-gray-800 whitespace-pre-line">{order.delivery_address}</p>
           {order.delivery_landmark && <p className="text-gray-500">📍 {order.delivery_landmark}</p>}
           {order.delivery_pincode && <p className="text-gray-500">PIN {order.delivery_pincode}</p>}
@@ -332,19 +332,19 @@ function DeliveryRow({
       <div className="border-t border-gray-100 pt-2 space-y-1.5">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold text-gray-400 uppercase">Rider / రైడర్</p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase">{L('Rider', 'రైడర్')}</p>
             {order.rider ? (
               <>
                 <p className="text-xs font-semibold text-gray-900">{order.rider.name || 'Rider'}</p>
                 <a href={`tel:${order.rider.phone}`} className="text-xs text-blue-700 underline">📞 {order.rider.phone}</a>
               </>
             ) : (
-              <p className="text-xs text-gray-500 italic">Not assigned / కేటాయించబడలేదు</p>
+              <p className="text-xs text-gray-500 italic">{L('Not assigned', 'కేటాయించబడలేదు')}</p>
             )}
           </div>
           {order.handover_otp && ds !== 'delivered' && (
             <div className="text-right">
-              <p className="text-[10px] font-bold text-gray-400 uppercase">Handover OTP / హ్యాండోవర్ కోడ్</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase">{L('Handover OTP', 'హ్యాండోవర్ కోడ్')}</p>
               <p className="font-mono font-bold text-amber-700 text-base tracking-widest">{order.handover_otp}</p>
             </div>
           )}
@@ -357,7 +357,7 @@ function DeliveryRow({
               onChange={(e) => onTargetChange(e.target.value)}
               className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-xs bg-white focus:border-green-500 focus:outline-none"
             >
-              <option value="">Choose rider / un-assign · రైడర్ ఎంచుకోండి</option>
+              <option value="">{L('Choose rider', 'un-assign · రైడర్ ఎంచుకోండి')}</option>
               {activeRiders.map((r) => (
                 <option key={r.id} value={r.id}>
                   {(r.name || r.phone) + (r.vehicle_number ? ` · ${r.vehicle_number}` : '')}
@@ -369,7 +369,7 @@ function DeliveryRow({
               disabled={busy}
               className="bg-gray-900 text-white text-xs font-bold px-3 py-2 rounded-xl disabled:opacity-50 active:bg-gray-800 whitespace-nowrap"
             >
-              {busy ? '...' : target ? 'Reassign / తిరిగి కేటాయించు' : 'Un-assign / తొలగించు'}
+              {busy ? '...' : target ? L('Reassign', 'తిరిగి కేటాయించు') : L('Un-assign', 'తొలగించు')}
             </button>
           </div>
         )}
@@ -391,6 +391,7 @@ function RiderRow({
   onReinstate: () => void
   busy: boolean
 }) {
+  const { L } = useLang()
   const statusColor =
     rider.status === 'active' ? 'bg-green-100 text-green-800'
       : rider.status === 'pending_approval' ? 'bg-amber-100 text-amber-800'
@@ -414,18 +415,18 @@ function RiderRow({
 
       <div className="text-xs grid grid-cols-2 gap-2">
         <div>
-          <p className="text-[10px] font-bold text-gray-400 uppercase">Vehicle / వాహనం</p>
+          <p className="text-[10px] font-bold text-gray-400 uppercase">{L('Vehicle', 'వాహనం')}</p>
           <p className="text-gray-800">{rider.vehicle_type || '—'} · {rider.vehicle_number || '—'}</p>
         </div>
         <div>
-          <p className="text-[10px] font-bold text-gray-400 uppercase">Service areas / సేవా ప్రాంతాలు</p>
+          <p className="text-[10px] font-bold text-gray-400 uppercase">{L('Service areas', 'సేవా ప్రాంతాలు')}</p>
           <p className="text-gray-800 whitespace-pre-line">{rider.service_areas || '—'}</p>
         </div>
       </div>
 
       {rider.id_proof_url && (
         <div>
-          <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">ID proof / గుర్తింపు పత్రం</p>
+          <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">{L('ID proof', 'గుర్తింపు పత్రం')}</p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={rider.id_proof_url}
@@ -442,7 +443,7 @@ function RiderRow({
             disabled={busy}
             className="flex-1 bg-green-700 text-white font-bold py-2.5 rounded-xl text-xs active:bg-green-800 disabled:opacity-50"
           >
-            {busy ? '...' : 'Activate / యాక్టివేట్'}
+            {busy ? '...' : L('Activate', 'యాక్టివేట్')}
           </button>
         )}
         {(rider.status === 'active' || rider.status === 'approved') && (
@@ -451,7 +452,7 @@ function RiderRow({
             disabled={busy}
             className="flex-1 border border-red-300 text-red-700 font-bold py-2.5 rounded-xl text-xs active:bg-red-50 disabled:opacity-50"
           >
-            Suspend / సస్పెండ్
+            {L('Suspend', 'సస్పెండ్')}
           </button>
         )}
         {rider.status === 'suspended' && (
@@ -460,22 +461,22 @@ function RiderRow({
             disabled={busy}
             className="flex-1 bg-gray-900 text-white font-bold py-2.5 rounded-xl text-xs active:bg-gray-800 disabled:opacity-50"
           >
-            {busy ? '...' : 'Reinstate / పునరుద్ధరించు'}
+            {busy ? '...' : L('Reinstate', 'పునరుద్ధరించు')}
           </button>
         )}
       </div>
 
       <div className="grid grid-cols-3 text-[10px] text-gray-400 border-t border-gray-100 pt-2">
         <div>
-          <p>Applied / దరఖాస్తు</p>
+          <p>{L('Applied', 'దరఖాస్తు')}</p>
           <p>{new Date(rider.created_at).toLocaleDateString('en-IN')}</p>
         </div>
         <div>
-          <p>Activated / యాక్టివ్</p>
+          <p>{L('Activated', 'యాక్టివ్')}</p>
           <p>{rider.activated_at ? new Date(rider.activated_at).toLocaleDateString('en-IN') : '—'}</p>
         </div>
         <div>
-          <p>Last login / చివరి లాగిన్</p>
+          <p>{L('Last login', 'చివరి లాగిన్')}</p>
           <p>{rider.last_login_at ? new Date(rider.last_login_at).toLocaleDateString('en-IN') : '—'}</p>
         </div>
       </div>

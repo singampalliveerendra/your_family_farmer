@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { reqLang, tr } from '@/lib/serverLang'
 import { hashPassword } from '@/lib/password'
 import { normalizePhone } from '@/lib/phone'
 import { rateLimit } from '@/lib/rate-limit'
@@ -16,6 +17,7 @@ function err(message: string, status: number) {
 }
 
 export async function POST(req: NextRequest) {
+  const lang = reqLang(req)
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') return err('Invalid request.', 400)
 
@@ -26,17 +28,17 @@ export async function POST(req: NextRequest) {
 
   if (!phone) return err('Enter a valid 10-digit phone number.', 400)
   if (!USER_TYPES.includes(userType)) return err('Invalid request.', 400)
-  if (!resetToken) return err('Reset link expired, please start again / రీసెట్ గడువు తీరింది, మళ్ళీ ప్రారంభించండి', 400)
+  if (!resetToken) return err(tr(lang, 'Reset link expired, please start again', 'రీసెట్ గడువు తీరింది, మళ్ళీ ప్రారంభించండి'), 400)
   if (newPassword.length < 6) {
-    return err('Password must be at least 6 characters / పాస్‌వర్డ్ కనీసం 6 అక్షరాలు ఉండాలి', 400)
+    return err(tr(lang, 'Password must be at least 6 characters', 'పాస్‌వర్డ్ కనీసం 6 అక్షరాలు ఉండాలి'), 400)
   }
   if (newPassword.length > 128) {
-    return err('Password is too long / పాస్‌వర్డ్ చాలా పొడవుగా ఉంది', 400)
+    return err(tr(lang, 'Password is too long', 'పాస్‌వర్డ్ చాలా పొడవుగా ఉంది'), 400)
   }
 
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
   if (!rateLimit(`otp-reset:ip:${ip}`, 20, 60 * 60 * 1000)) {
-    return err('Too many attempts, try after 1 hour / చాలా ప్రయత్నాలు, 1 గంట తర్వాత ప్రయత్నించండి', 429)
+    return err(tr(lang, 'Too many attempts, try after 1 hour', 'చాలా ప్రయత్నాలు, 1 గంట తర్వాత ప్రయత్నించండి'), 429)
   }
 
   const supabase = createClient(
@@ -55,16 +57,16 @@ export async function POST(req: NextRequest) {
 
   const session = sessions?.[0]
   if (!session || !session.reset_token_expires_at) {
-    return err('Reset link expired, please start again / రీసెట్ గడువు తీరింది, మళ్ళీ ప్రారంభించండి', 400)
+    return err(tr(lang, 'Reset link expired, please start again', 'రీసెట్ గడువు తీరింది, మళ్ళీ ప్రారంభించండి'), 400)
   }
   if (new Date(session.reset_token_expires_at).getTime() < Date.now()) {
-    return err('Reset link expired, please start again / రీసెట్ గడువు తీరింది, మళ్ళీ ప్రారంభించండి', 400)
+    return err(tr(lang, 'Reset link expired, please start again', 'రీసెట్ గడువు తీరింది, మళ్ళీ ప్రారంభించండి'), 400)
   }
 
   const updated = await updatePasswordHash(supabase, userType, phone, hashPassword(newPassword))
   if (!updated.ok) {
     if (updated.error) return err(updated.error, 500)
-    return err('No account found with this number / ఈ నంబర్‌తో ఖాతా లేదు', 404)
+    return err(tr(lang, 'No account found with this number', 'ఈ నంబర్‌తో ఖాతా లేదు'), 404)
   }
 
   // Burn the reset token so it can't be reused.

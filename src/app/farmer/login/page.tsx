@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import LanguageToggle from '@/components/LanguageToggle'
 import ForgotPasswordModal from '@/components/ForgotPasswordModal'
+import { useLang } from '@/lib/LanguageContext'
 
 export default function FarmerLoginPage() {
+  const { L } = useLang()
   const router = useRouter()
 
   const [phone, setPhone] = useState('')
@@ -51,17 +53,17 @@ export default function FarmerLoginPage() {
             </div>
           </Link>
           <h1 className="text-2xl font-extrabold text-gray-900">
-            Farmer Login / రైతు లాగిన్
+            {L('Farmer Login', 'రైతు లాగిన్')}
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            Sign in to your account / మీ ఖాతాలోకి సైన్ ఇన్ చేయండి
+            {L('Sign in to your account', 'మీ ఖాతాలోకి సైన్ ఇన్ చేయండి')}
           </p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
           <div>
             <label className="text-sm font-semibold text-gray-700 block mb-2">
-              Phone Number / ఫోన్ నంబర్
+              {L('Phone Number', 'ఫోన్ నంబర్')}
             </label>
             <div className="flex gap-2">
               <span className="flex items-center px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-600 font-medium whitespace-nowrap">
@@ -82,7 +84,7 @@ export default function FarmerLoginPage() {
 
           <div>
             <label className="text-sm font-semibold text-gray-700 block mb-2">
-              Password / పాస్‌వర్డ్
+              {L('Password', 'పాస్‌వర్డ్')}
             </label>
             <div className="relative">
               <input
@@ -112,7 +114,7 @@ export default function FarmerLoginPage() {
             disabled={loading || !canSubmit}
             className="w-full bg-green-700 text-white font-bold py-4 rounded-xl text-base disabled:opacity-50 active:bg-green-800 transition-colors"
           >
-            {loading ? 'Please wait…' : 'Log in / లాగిన్'}
+            {loading ? 'Please wait…' : L('Log in', 'లాగిన్')}
           </button>
 
           <button
@@ -120,20 +122,20 @@ export default function FarmerLoginPage() {
             onClick={() => setShowForgot(true)}
             className="w-full text-center text-sm text-green-700 font-semibold underline"
           >
-            Forgot Password? / పాస్‌వర్డ్ మర్చిపోయారా?
+            {L('Forgot Password?', 'పాస్‌వర్డ్ మర్చిపోయారా?')}
           </button>
 
           <div className="text-xs text-gray-600 text-center pt-1">
             New here?{' '}
             <Link href="/farmer/signup" className="text-green-700 font-bold underline">
-              Create an account / ఖాతా సృష్టించండి
+              {L('Create an account', 'ఖాతా సృష్టించండి')}
             </Link>
           </div>
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6">
           <Link href="/consumer" className="text-green-700 underline">
-            Browse produce instead / పంట బ్రౌజ్ చేయండి
+            {L('Browse produce instead', 'పంట బ్రౌజ్ చేయండి')}
           </Link>
         </p>
       </div>

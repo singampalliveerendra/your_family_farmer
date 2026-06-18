@@ -10,7 +10,7 @@ type Region = {
 
 export default function RegionTopBar({ region }: { region: Record<string, unknown> }) {
   const r = region as Region
-  const { tx } = useLang()
+  const { tx, L } = useLang()
 
   return (
     <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import ComplaintModal from '@/components/consumer/ComplaintModal'
+import { useLang } from '@/lib/LanguageContext'
 
 type Complaint = {
   id: string
@@ -31,15 +32,16 @@ const STATUS_STYLE: Record<string, string> = {
   in_progress: 'bg-blue-100 text-blue-800',
   resolved: 'bg-green-100 text-green-800',
 }
-const STATUS_LABEL: Record<string, string> = {
-  open: '⏳ Open / తెరిచి ఉంది',
-  in_progress: '🛠 In progress / పరిష్కరిస్తున్నారు',
-  resolved: '✓ Resolved / పరిష్కరించబడింది',
-}
+const STATUS_LABEL = (L: (en: string, te: string) => string): Record<string, string> => ({
+  open: L('⏳ Open', 'తెరిచి ఉంది'),
+  in_progress: L('🛠 In progress', 'పరిష్కరిస్తున్నారు'),
+  resolved: L('✓ Resolved', 'పరిష్కరించబడింది'),
+})
 
 type TabKey = 'active' | 'resolved'
 
 export default function ConsumerComplaintsPage() {
+  const { L } = useLang()
   const { state, openAuth } = useConsumerAuth()
   const [complaints, setComplaints] = useState<Complaint[]>([])
   const [loading, setLoading] = useState(true)
@@ -71,21 +73,21 @@ export default function ConsumerComplaintsPage() {
       {/* Header */}
       <div className="bg-green-900 px-4 pt-6 pb-10">
         <div className="flex items-center justify-between mb-4">
-          <Link href="/consumer" className="text-green-300 text-sm flex items-center gap-1">← Back / వెనక్కు</Link>
+          <Link href="/consumer" className="text-green-300 text-sm flex items-center gap-1">{L('← Back', 'వెనక్కు')}</Link>
           <LanguageToggle />
         </div>
-        <h1 className="text-white text-xl font-extrabold leading-tight">My complaints / నా ఫిర్యాదులు</h1>
-        <p className="text-green-400 text-sm mt-1">Raise an issue and track its status / సమస్యను నమోదు చేసి స్థితిని చూడండి</p>
+        <h1 className="text-white text-xl font-extrabold leading-tight">{L('My complaints', 'నా ఫిర్యాదులు')}</h1>
+        <p className="text-green-400 text-sm mt-1">{L('Raise an issue and track its status', 'సమస్యను నమోదు చేసి స్థితిని చూడండి')}</p>
       </div>
 
       <div className="px-4 -mt-5 space-y-4 max-w-lg mx-auto">
         {state.status === 'loading' || loading ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center text-sm text-gray-500">Loading… / లోడ్ అవుతోంది</div>
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center text-sm text-gray-500">{L('Loading…', 'లోడ్ అవుతోంది')}</div>
         ) : state.status === 'anonymous' ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center space-y-4">
             <div className="text-5xl">🔒</div>
             <p className="font-bold text-gray-900">Log in to raise a complaint</p>
-            <button onClick={openAuth} className="w-full bg-green-700 text-white font-bold py-3.5 rounded-xl text-sm active:bg-green-800">Log in / లాగిన్</button>
+            <button onClick={openAuth} className="w-full bg-green-700 text-white font-bold py-3.5 rounded-xl text-sm active:bg-green-800">{L('Log in', 'లాగిన్')}</button>
           </div>
         ) : (
           <>
@@ -93,7 +95,7 @@ export default function ConsumerComplaintsPage() {
               onClick={() => setShowNew(true)}
               className="w-full bg-green-700 text-white font-bold py-3.5 rounded-xl text-sm active:bg-green-800"
             >
-              + Log a new complaint / కొత్త ఫిర్యాదు
+              {L('+ Log a new complaint', 'కొత్త ఫిర్యాదు')}
             </button>
 
             {error && (
@@ -110,7 +112,7 @@ export default function ConsumerComplaintsPage() {
                     tab === t ? 'border-green-700 text-green-800' : 'border-transparent text-gray-400'
                   }`}
                 >
-                  {t === 'active' ? `Active / ప్రస్తుత (${active.length})` : `Resolved / పరిష్కరించబడింది (${resolved.length})`}
+                  {t === 'active' ? `${L('Active', 'ప్రస్తుత')} (${active.length})` : `${L('Resolved', 'పరిష్కరించబడింది')} (${resolved.length})`}
                 </button>
               ))}
             </div>
@@ -119,7 +121,7 @@ export default function ConsumerComplaintsPage() {
               <div className="text-center py-12">
                 <div className="text-5xl mb-3">{tab === 'active' ? '✅' : '📭'}</div>
                 <p className="font-semibold text-gray-500 text-sm">
-                  {tab === 'active' ? 'No active complaints / ప్రస్తుత ఫిర్యాదులు లేవు' : 'No resolved complaints yet'}
+                  {tab === 'active' ? L('No active complaints', 'ప్రస్తుత ఫిర్యాదులు లేవు') : 'No resolved complaints yet'}
                 </p>
               </div>
             ) : (
@@ -129,7 +131,7 @@ export default function ConsumerComplaintsPage() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_STYLE[c.status]}`}>
-                          {STATUS_LABEL[c.status]}
+                          {STATUS_LABEL(L)[c.status]}
                         </span>
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
                           {TYPE_LABEL[c.type] ?? c.type}
@@ -150,7 +152,7 @@ export default function ConsumerComplaintsPage() {
 
                     {c.status === 'resolved' && c.resolution_notes && (
                       <div className="mt-2 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
-                        <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide">Resolution / పరిష్కారం</p>
+                        <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide">{L('Resolution', 'పరిష్కారం')}</p>
                         <p className="text-xs text-green-800 mt-0.5 leading-snug">{c.resolution_notes}</p>
                       </div>
                     )}

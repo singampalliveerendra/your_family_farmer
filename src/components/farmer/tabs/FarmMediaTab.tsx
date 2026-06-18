@@ -14,7 +14,7 @@ type Media = {
 const PHOTO_PLACEHOLDERS = ['🌾', '🥬', '🌱', '🍅', '🌿', '🥕', '🌽', '🍆', '🌻', '🫑', '🥦', '🌾']
 
 export default function FarmMediaTab({ media }: { media: Record<string, unknown>[] }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const list = media as Media[]
   const photos = list.filter((m) => m.type === 'photo')
   const videos = list.filter((m) => m.type === 'video')

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { reqLang, tr } from '@/lib/serverLang'
 import { verifyPassword } from '@/lib/password'
 import { normalizePhone } from '@/lib/phone'
 import { setFarmerSessionCookie } from '@/lib/farmer-session'
@@ -9,6 +10,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
+  const lang = reqLang(req)
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
@@ -58,7 +60,7 @@ export async function POST(req: NextRequest) {
 
   // Anti-enumeration: same generic error whether the phone exists or not.
   const wrongCreds = NextResponse.json(
-    { error: 'Wrong phone or password. / తప్పు ఫోన్ లేదా పాస్‌వర్డ్.' },
+    { error: tr(lang, 'Wrong phone or password.', 'తప్పు ఫోన్ లేదా పాస్‌వర్డ్.') },
     { status: 401 },
   )
 

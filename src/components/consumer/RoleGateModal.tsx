@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useLang } from '@/lib/LanguageContext'
 
 const ROLE_KEY = 'yff_role'
 
 export default function RoleGateModal() {
   const router = useRouter()
+  const { L } = useLang()
   const [open, setOpen] = useState(false)
 
   // Mount: open the modal if the visitor hasn't picked a role yet. Done in a
@@ -38,16 +40,12 @@ export default function RoleGateModal() {
         <div className="text-center space-y-1">
           <p className="text-3xl">🌿</p>
           <h2 className="text-lg font-extrabold text-gray-900 leading-tight">
-            Welcome to YourFamilyFarmer
+            {L('Welcome to YourFamilyFarmer', 'యువర్ ఫ్యామిలీ ఫార్మర్‌కి స్వాగతం')}
           </h2>
-          <p className="text-sm text-gray-500">
-            యువర్ ఫ్యామిలీ ఫార్మర్‌కి స్వాగతం
-          </p>
         </div>
 
         <p className="text-sm text-gray-700 text-center leading-snug">
-          Tell us how you&apos;d like to start.<br />
-          మీరు ఎలా ప్రారంభించాలనుకుంటున్నారు?
+          {L('Tell us how you\'d like to start.', 'మీరు ఎలా ప్రారంభించాలనుకుంటున్నారు?')}
         </p>
 
         <div className="space-y-3">
@@ -55,21 +53,18 @@ export default function RoleGateModal() {
             onClick={() => choose('consumer')}
             className="w-full bg-green-700 text-white font-extrabold py-4 rounded-2xl text-base active:bg-green-800 flex items-center justify-center gap-2 leading-tight"
           >
-            🛒 I&apos;m a Buyer<br />
-            <span className="font-semibold text-sm opacity-90">నేను కొనుగోలుదారుని</span>
+            {L("🛒 I'm a Buyer", '🛒 నేను కొనుగోలుదారుని')}
           </button>
           <button
             onClick={() => choose('farmer')}
             className="w-full bg-amber-600 text-white font-extrabold py-4 rounded-2xl text-base active:bg-amber-700 flex items-center justify-center gap-2 leading-tight"
           >
-            🧑‍🌾 I&apos;m a Farmer<br />
-            <span className="font-semibold text-sm opacity-90">నేను రైతుని</span>
+            {L("🧑‍🌾 I'm a Farmer", '🧑‍🌾 నేను రైతుని')}
           </button>
         </div>
 
         <p className="text-[11px] text-gray-400 text-center">
-          You can switch roles anytime from the top menu.<br />
-          ఎప్పుడైనా పైన ఉన్న మెనూ నుండి మార్చవచ్చు.
+          {L('You can switch roles anytime from the top menu.', 'ఎప్పుడైనా పైన ఉన్న మెనూ నుండి మార్చవచ్చు.')}
         </p>
       </div>
     </div>

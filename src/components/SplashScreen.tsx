@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useLang } from '@/lib/LanguageContext'
 
 // Phases: 'show' while visible, 'out' during the fade, 'done' = unmounted.
 // We start at 'show' so the overlay is part of the server-rendered HTML and
@@ -12,6 +13,7 @@ import { useEffect, useRef, useState } from 'react'
 type Phase = 'show' | 'out' | 'done'
 
 export default function SplashScreen() {
+  const { L } = useLang()
   const [phase, setPhase] = useState<Phase>('show')
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
 
@@ -63,13 +65,8 @@ export default function SplashScreen() {
 
       {/* Brand name */}
       <h1 className="splash-name font-bold text-white mt-5" style={{ fontSize: 22 }}>
-        YourFamilyFarmer
+        {L('YourFamilyFarmer', 'యువర్ ఫ్యామిలీ ఫార్మర్')}
       </h1>
-
-      {/* Telugu name */}
-      <p className="splash-te text-white mt-1" style={{ fontSize: 14 }}>
-        యువర్ ఫ్యామిలీ ఫార్మర్
-      </p>
 
       {/* Tagline */}
       <p className="splash-tagline italic text-white mt-4" style={{ fontSize: 16 }}>

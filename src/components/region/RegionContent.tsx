@@ -21,7 +21,7 @@ export default function RegionContent({
   farmers: Record<string, unknown>[]
   produce: Record<string, unknown>[]
 }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const [activeFilter, setActiveFilter] = useState('All')
   const [activeTab, setActiveTab] = useState(0)
   const [highlightedFarmerId, setHighlightedFarmerId] = useState<string | null>(null)

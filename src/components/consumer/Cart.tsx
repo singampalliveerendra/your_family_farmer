@@ -213,6 +213,7 @@ type UpiPaymentState = {
 /* ─── Cart FAB + Sheet ───────────────────────────────── */
 export function CartFab() {
   const { items, count } = useCart()
+  const { L } = useLang()
   const [open, setOpen] = useState(false)
 
   // Auto-open if a UPI payment was in progress (handles page refresh mid-payment)
@@ -242,7 +243,7 @@ export function CartFab() {
         >
           <CartIcon />
           <span className="font-extrabold text-sm">
-            {count} {count === 1 ? 'item' : 'items'} / బుట్ట
+            {count} {L(count === 1 ? 'item' : 'items', 'బుట్ట')}
           </span>
         </button>
       )}
@@ -264,7 +265,7 @@ function CartSheet({
   const { setQty, removeItem, clear, clearFarmer } = useCart()
   const { info, save: saveInfo } = useConsumerInfo()
   const { consumer, openAuth, requireAuth } = useConsumerAuth()
-  const { lang } = useLang()
+  const { lang, L } = useLang()
   // Guest checkout: when not logged in, the buyer also supplies an email and
   // (always) an address. `isGuest` flips the form into guest mode.
   const isGuest = !consumer
@@ -661,7 +662,7 @@ function CartSheet({
     e.target.value = '' // allow re-selecting the same file after error
     if (!raw) return
     if (!raw.type.startsWith('image/')) {
-      setProofError('Please pick an image (JPG/PNG/WEBP). / దయచేసి చిత్రం ఎంచుకోండి.')
+      setProofError(L('Please pick an image (JPG/PNG/WEBP).', 'దయచేసి చిత్రం ఎంచుకోండి.'))
       return
     }
     if (raw.size > 12 * 1024 * 1024) {
@@ -751,7 +752,7 @@ function CartSheet({
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      showToast('QR saved! / గ్యాలరీకి సేవ్ అయింది')
+      showToast(L('QR saved!', 'గ్యాలరీకి సేవ్ అయింది'))
     } catch {
       showToast('Could not save — please screenshot the QR')
     }
@@ -771,10 +772,10 @@ function CartSheet({
             </h2>
             <p className={`font-semibold mt-0.5 ${cashMode ? 'text-amber-700' : 'text-green-700'}`}>
               {cashMode
-                ? 'Cash on Pickup / నగదు పికప్'
+                ? L('Cash on Pickup', 'నగదు పికప్')
                 : onlinePaid
-                  ? 'Paid online / ఆన్‌లైన్ చెల్లింపు'
-                  : 'చెల్లింపు నమోదైంది!'}
+                  ? L('Paid online', 'ఆన్‌లైన్ చెల్లింపు')
+                  : L('Payment recorded!', 'చెల్లింపు నమోదైంది!')}
             </p>
           </div>
           <div className="bg-gray-50 rounded-2xl px-5 py-4 w-full text-left space-y-1">
@@ -790,7 +791,7 @@ function CartSheet({
           ) : onlinePaid ? (
             <>
               <p className="text-sm text-gray-600 leading-snug">
-                Payment confirmed / చెల్లింపు నిర్ధారించబడింది
+                {L('Payment confirmed', 'చెల్లింపు నిర్ధారించబడింది')}
               </p>
               <p className="text-xs text-gray-400 leading-snug">
                 The farmer has been notified and will prepare your order.
@@ -799,7 +800,7 @@ function CartSheet({
           ) : (
             <>
               <p className="text-sm text-gray-600 leading-snug">
-                Waiting for farmer confirmation / రైతు నిర్ధారణ కోసం వేచి ఉంది
+                {L('Waiting for farmer confirmation', 'రైతు నిర్ధారణ కోసం వేచి ఉంది')}
               </p>
               <p className="text-xs text-gray-400 leading-snug">
                 The farmer will check their UPI app and confirm your payment.
@@ -810,13 +811,13 @@ function CartSheet({
             href="/consumer/orders"
             className="w-full text-center text-sm font-semibold text-green-700 underline"
           >
-            Check order status / ఆర్డర్ స్థితి చూడండి
+            {L('Check order status', 'ఆర్డర్ స్థితి చూడండి')}
           </Link>
           <button
             onClick={onClose}
             className="w-full bg-green-700 text-white font-bold py-4 rounded-xl text-base active:bg-green-800"
           >
-            Done / మూసివేయి
+            {L('Done', 'మూసివేయి')}
           </button>
         </div>
       </div>
@@ -830,7 +831,7 @@ function CartSheet({
         <div className="bg-white w-full max-w-md rounded-t-3xl max-h-[92vh] flex flex-col">
           <div className="sticky top-0 bg-white flex items-center justify-between px-4 py-3 border-b border-gray-100 rounded-t-3xl">
             <div>
-              <h2 className="font-extrabold text-gray-900 text-lg">Pay Farmer / రైతుకు చెల్లించండి</h2>
+              <h2 className="font-extrabold text-gray-900 text-lg">{L('Pay Farmer', 'రైతుకు చెల్లించండి')}</h2>
               <p className="text-xs text-gray-500">Pay directly — no middleman</p>
             </div>
             <button onClick={onClose} className="text-gray-400 text-3xl leading-none p-1">×</button>
@@ -851,12 +852,12 @@ function CartSheet({
                 <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">Scan QR Code to Pay</p>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={upiScreen.qrCodeUrl} alt="UPI QR Code" className="w-48 h-48 object-contain rounded-xl" />
-                <p className="text-[11px] text-gray-500 text-center">Open any UPI app → Scan QR / QR స్కాన్ చేయండి</p>
+                <p className="text-[11px] text-gray-500 text-center">{L('Open any UPI app → Scan QR', 'QR స్కాన్ చేయండి')}</p>
                 <button
                   onClick={handleDownloadQR}
                   className="w-full border border-gray-300 text-gray-700 font-bold py-2.5 rounded-xl text-sm active:bg-gray-50 flex items-center justify-center gap-1.5 mt-1"
                 >
-                  <span>⬇️</span> Save QR to Gallery / గ్యాలరీకి సేవ్ చేయండి
+                  <span>⬇️</span> {L('Save QR to Gallery', 'గ్యాలరీకి సేవ్ చేయండి')}
                 </button>
               </div>
             )}
@@ -865,7 +866,7 @@ function CartSheet({
             {upiScreen.upiId && (
               <div className="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-4 space-y-3">
                 <p className="text-xs font-extrabold text-blue-800 uppercase tracking-wide">
-                  How to pay / చెల్లింపు విధానం
+                  {L('How to pay', 'చెల్లింపు విధానం')}
                 </p>
 
                 {/* Steps */}
@@ -873,29 +874,25 @@ function CartSheet({
                   <li className="flex gap-3 items-start">
                     <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">1</span>
                     <div>
-                      <p className="text-sm font-semibold text-gray-900">Copy the UPI ID below</p>
-                      <p className="text-xs text-gray-500">క్రింద ఉన్న UPI ID కాపీ చేయండి</p>
+                      <p className="text-sm font-semibold text-gray-900">{L('Copy the UPI ID below', 'క్రింద ఉన్న UPI ID కాపీ చేయండి')}</p>
                     </div>
                   </li>
                   <li className="flex gap-3 items-start">
                     <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">2</span>
                     <div>
-                      <p className="text-sm font-semibold text-gray-900">Open your UPI app (PhonePe / GPay / Paytm)</p>
-                      <p className="text-xs text-gray-500">మీ UPI యాప్ తెరవండి</p>
+                      <p className="text-sm font-semibold text-gray-900">{L('Open your UPI app (PhonePe / GPay / Paytm)', 'మీ UPI యాప్ తెరవండి')}</p>
                     </div>
                   </li>
                   <li className="flex gap-3 items-start">
                     <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">3</span>
                     <div>
-                      <p className="text-sm font-semibold text-gray-900">Tap &quot;Pay&quot; → &quot;Enter UPI ID&quot; → paste the ID</p>
-                      <p className="text-xs text-gray-500">&quot;Pay&quot; నొక్కి → &quot;UPI ID&quot; నమోదు చేసి → పేస్ట్ చేయండి</p>
+                      <p className="text-sm font-semibold text-gray-900">{L('Tap "Pay" → "Enter UPI ID" → paste the ID', '"Pay" నొక్కి → "UPI ID" నమోదు చేసి → పేస్ట్ చేయండి')}</p>
                     </div>
                   </li>
                   <li className="flex gap-3 items-start">
                     <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">4</span>
                     <div>
-                      <p className="text-sm font-semibold text-gray-900">Enter ₹{upiScreen.amount} and complete payment</p>
-                      <p className="text-xs text-gray-500">₹{upiScreen.amount} నమోదు చేసి చెల్లింపు పూర్తి చేయండి</p>
+                      <p className="text-sm font-semibold text-gray-900">{L(`Enter ₹${upiScreen.amount} and complete payment`, `₹${upiScreen.amount} నమోదు చేసి చెల్లింపు పూర్తి చేయండి`)}</p>
                     </div>
                   </li>
                 </ol>
@@ -909,11 +906,11 @@ function CartSheet({
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(upiScreen.upiId).catch(() => {})
-                      showToast('UPI ID copied! / కాపీ అయింది')
+                      showToast(L('UPI ID copied!', 'కాపీ అయింది'))
                     }}
                     className="flex-shrink-0 bg-blue-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs active:bg-blue-700"
                   >
-                    Copy / కాపీ
+                    {L('Copy', 'కాపీ')}
                   </button>
                 </div>
 
@@ -922,13 +919,12 @@ function CartSheet({
                   onClick={handleOpenUpiApp}
                   className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl text-base active:bg-blue-700 flex items-center justify-center gap-2"
                 >
-                  📲 Open UPI App / UPI యాప్ తెరవండి
+                  {L('📲 Open UPI App', 'UPI యాప్ తెరవండి')}
                 </button>
 
                 {showUpiAppFallback && (
                   <p className="text-xs text-blue-700 text-center">
-                    App didn&apos;t open? Copy the UPI ID and pay manually in PhonePe, GPay, or Paytm.<br />
-                    యాప్ తెరుచుకోలేదా? UPI ID కాపీ చేసి మాన్యువల్‌గా చెల్లించండి.
+                    {L('App didn\'t open? Copy the UPI ID and pay manually in PhonePe, GPay, or Paytm.', 'యాప్ తెరుచుకోలేదా? UPI ID కాపీ చేసి మాన్యువల్‌గా చెల్లించండి.')}
                   </p>
                 )}
               </div>
@@ -937,7 +933,7 @@ function CartSheet({
             {/* Optional transaction note */}
             <div>
               <label className="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1.5">
-                Transaction note (optional) / లావాదేవీ నోట్
+                {L('Transaction note (optional)', 'లావాదేవీ నోట్')}
               </label>
               <input
                 type="text"
@@ -952,11 +948,10 @@ function CartSheet({
             {/* Mandatory payment screenshot */}
             <div className={`rounded-2xl p-4 border-2 ${proofUploaded ? 'border-green-300 bg-green-50' : 'border-amber-300 bg-amber-50'}`}>
               <p className="text-xs font-extrabold uppercase tracking-wide mb-1.5 text-amber-800">
-                Payment screenshot (required) / చెల్లింపు స్క్రీన్‌షాట్ తప్పనిసరి
+                {L('Payment screenshot (required)', 'చెల్లింపు స్క్రీన్‌షాట్ తప్పనిసరి')}
               </p>
               <p className="text-[11px] text-gray-600 mb-3 leading-snug">
-                Attach the success screen from your UPI app so the farmer can verify.<br />
-                మీ UPI యాప్ నుండి సక్సెస్ స్క్రీన్‌షాట్ జతచేయండి.
+                {L('Attach the success screen from your UPI app so the farmer can verify.', 'మీ UPI యాప్ నుండి సక్సెస్ స్క్రీన్‌షాట్ జతచేయండి.')}
               </p>
 
               {proofPreview ? (
@@ -970,13 +965,13 @@ function CartSheet({
                   <div className="flex items-center justify-between gap-2">
                     <span className={`text-xs font-bold ${proofUploaded ? 'text-green-700' : 'text-amber-700'}`}>
                       {proofUploading
-                        ? 'Uploading... / అప్‌లోడ్ అవుతోంది...'
+                        ? L('Uploading...', 'అప్‌లోడ్ అవుతోంది...')
                         : proofUploaded
-                          ? '✓ Saved / సేవ్ అయింది'
+                          ? L('✓ Saved', 'సేవ్ అయింది')
                           : 'Not uploaded yet'}
                     </span>
                     <label className="text-xs font-bold text-blue-700 underline cursor-pointer">
-                      Change / మార్చండి
+                      {L('Change', 'మార్చండి')}
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/webp"
@@ -988,7 +983,7 @@ function CartSheet({
                 </div>
               ) : (
                 <label className="w-full bg-white border-2 border-dashed border-amber-400 text-amber-800 font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 cursor-pointer active:bg-amber-100">
-                  📎 Attach screenshot / స్క్రీన్‌షాట్ జతచేయండి
+                  {L('📎 Attach screenshot', 'స్క్రీన్‌షాట్ జతచేయండి')}
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
@@ -1014,8 +1009,8 @@ function CartSheet({
                 : proofUploading
                   ? 'Uploading screenshot...'
                   : !proofUploaded
-                    ? 'Attach screenshot first / మొదట స్క్రీన్‌షాట్ జతచేయండి'
-                    : '✓ I Have Paid / చెల్లించాను'}
+                    ? L('Attach screenshot first', 'మొదట స్క్రీన్‌షాట్ జతచేయండి')
+                    : L('✓ I Have Paid', 'చెల్లించాను')}
             </button>
           </div>
         </div>
@@ -1037,13 +1032,13 @@ function CartSheet({
         {/* Header */}
         <div className="sticky top-0 bg-white flex items-center justify-between px-4 py-3 border-b border-gray-100 rounded-t-3xl">
           <div>
-            <h2 className="font-extrabold text-gray-900 text-lg">Your cart / మీ బుట్ట</h2>
+            <h2 className="font-extrabold text-gray-900 text-lg">{L('Your cart', 'మీ బుట్ట')}</h2>
             <p className="text-xs text-gray-500">
               {deliveryType === 'home_delivery'
-                ? 'Home delivery / ఇంటికి డెలివరీ'
+                ? L('Home delivery', 'ఇంటికి డెలివరీ')
                 : deliveryType === 'courier'
-                ? 'Farmer couriers it / రైతు షిప్ చేస్తారు'
-                : 'Self pickup from farm / పొలం నుండి స్వీయ పికప్'}
+                ? L('Farmer couriers it', 'రైతు షిప్ చేస్తారు')
+                : L('Self pickup from farm', 'పొలం నుండి స్వీయ పికప్')}
             </p>
           </div>
           <button onClick={onClose} className="text-gray-400 text-3xl leading-none p-1">×</button>
@@ -1054,8 +1049,7 @@ function CartSheet({
           {items.length === 0 ? (
             <div className="text-center py-14 text-gray-400">
               <div className="text-5xl mb-3">🛒</div>
-              <p className="font-semibold">Your cart is empty</p>
-              <p className="text-sm mt-1">బుట్ట ఖాళీగా ఉంది</p>
+              <p className="font-semibold">{L('Your cart is empty', 'బుట్ట ఖాళీగా ఉంది')}</p>
             </div>
           ) : (
             <>
@@ -1063,7 +1057,7 @@ function CartSheet({
               <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
                 <div>
                   <label className="text-xs font-bold text-gray-700 uppercase tracking-wide block mb-1">
-                    Your name / మీ పేరు
+                    {L('Your name', 'మీ పేరు')}
                   </label>
                   <input
                     type="text"
@@ -1075,7 +1069,7 @@ function CartSheet({
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-700 uppercase tracking-wide block mb-1">
-                    Your WhatsApp number / వాట్సాప్ నంబర్
+                    {L('Your WhatsApp number', 'వాట్సాప్ నంబర్')}
                   </label>
                   <div className="flex gap-2">
                     <span className="flex items-center px-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 font-medium">
@@ -1093,8 +1087,7 @@ function CartSheet({
                   </div>
                 </div>
                 <p className="text-[11px] text-gray-500 leading-snug">
-                  The farmer needs this to confirm pickup time.<br />
-                  పికప్ సమయం కోసం రైతుకు ఇది అవసరం.
+                  {L('The farmer needs this to confirm pickup time.', 'పికప్ సమయం కోసం రైతుకు ఇది అవసరం.')}
                 </p>
               </div>
 
@@ -1103,7 +1096,7 @@ function CartSheet({
                   so we don't add a fee here. */}
               <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
                 <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
-                  How will you receive your order? / ఎలా అందుకుంటారు?
+                  {L('How will you receive your order?', 'ఎలా అందుకుంటారు?')}
                 </p>
                 <button
                   type="button"
@@ -1116,7 +1109,7 @@ function CartSheet({
                 >
                   <span className="flex items-center gap-2">
                     <span className="text-base">🚶</span>
-                    I will pick up / నేను తీసుకుంటాను
+                    {L('I will pick up', 'నేను తీసుకుంటాను')}
                   </span>
                   {deliveryType === 'self_pickup' && <span className="text-green-600 text-base">✓</span>}
                 </button>
@@ -1131,7 +1124,7 @@ function CartSheet({
                 >
                   <span className="flex items-center gap-2">
                     <span className="text-base">🛵</span>
-                    Home delivery / ఇంటికి డెలివరీ
+                    {L('Home delivery', 'ఇంటికి డెలివరీ')}
                   </span>
                   {deliveryType === 'home_delivery' && <span className="text-blue-600 text-base">✓</span>}
                 </button>
@@ -1146,7 +1139,7 @@ function CartSheet({
                 >
                   <span className="flex items-center gap-2">
                     <span className="text-base">📦</span>
-                    Farmer couriers it / రైతు షిప్ చేస్తారు
+                    {L('Farmer couriers it', 'రైతు షిప్ చేస్తారు')}
                   </span>
                   {deliveryType === 'courier' && <span className="text-amber-600 text-base">✓</span>}
                 </button>
@@ -1159,7 +1152,7 @@ function CartSheet({
                 {deliveryType === 'courier' && (
                   <p className="text-[11px] text-amber-700 bg-amber-50 rounded-xl px-3 py-2 leading-snug">
                     The farmer will courier the parcel to your address. You can confirm receipt
-                    on your order page once it arrives. / రైతు మీ చిరునామాకు పార్సెల్ పంపుతారు.
+                    {L('on your order page once it arrives.', 'రైతు మీ చిరునామాకు పార్సెల్ పంపుతారు.')}
                   </p>
                 )}
               </div>
@@ -1168,7 +1161,7 @@ function CartSheet({
               {needsAddress && (
                 <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
                   <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
-                    Delivery address / డెలివరీ చిరునామా
+                    {L('Delivery address', 'డెలివరీ చిరునామా')}
                   </p>
                   <div>
                     <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
@@ -1184,7 +1177,7 @@ function CartSheet({
                   </div>
                   <div>
                     <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                      Landmark (optional) / గుర్తు
+                      {L('Landmark (optional)', 'గుర్తు')}
                     </label>
                     <input
                       type="text"
@@ -1196,7 +1189,7 @@ function CartSheet({
                   </div>
                   <div>
                     <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                      PIN code / పిన్ కోడ్
+                      {L('PIN code', 'పిన్ కోడ్')}
                     </label>
                     <input
                       type="tel"
@@ -1245,7 +1238,7 @@ function CartSheet({
                 return (
                   <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
                     <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
-                      Payment method / చెల్లింపు విధానం
+                      {L('Payment method', 'చెల్లింపు విధానం')}
                     </p>
                     <button
                       onClick={() => setPaymentMethod('upi')}
@@ -1257,7 +1250,7 @@ function CartSheet({
                     >
                       <span className="flex items-center gap-2">
                         <span className="text-base">💳</span>
-                        Pay Online (UPI / Card) / ఆన్‌లైన్ చెల్లింపు
+                        {L('Pay Online (UPI / Card)', 'ఆన్‌లైన్ చెల్లింపు (UPI / కార్డ్)')}
                       </span>
                       {paymentMethod === 'upi' && (
                         <span className="text-blue-600 text-base">✓</span>
@@ -1275,7 +1268,7 @@ function CartSheet({
                         >
                           <span className="flex items-center gap-2">
                             <span className="text-base">💵</span>
-                            Cash on Delivery / నగదు చెల్లింపు
+                            {L('Cash on Delivery', 'నగదు చెల్లింపు')}
                           </span>
                           {paymentMethod === 'cod' && (
                             <span className="text-green-600 text-base">✓</span>
@@ -1286,7 +1279,7 @@ function CartSheet({
                           onClick={() => setShowMorePayment(true)}
                           className="w-full text-xs text-gray-400 py-1 text-center active:text-gray-600"
                         >
-                          + More options / మరిన్ని ఎంపికలు
+                          {L('+ More options', 'మరిన్ని ఎంపికలు')}
                         </button>
                       )
                     )}
@@ -1340,7 +1333,7 @@ function CartSheet({
                             )}
                             {getActiveTier(it.qty, it).isDiscount && (
                               <p className="text-[10px] font-semibold text-green-700 mt-0.5">
-                                Bulk price applied / బల్క్ ధర వర్తింపు
+                                {L('Bulk price applied', 'బల్క్ ధర వర్తింపు')}
                               </p>
                             )}
                           </div>
@@ -1350,7 +1343,7 @@ function CartSheet({
                             onDec={() => setQty(it.listingId, it.qty - 1)}
                             onInc={() => {
                               if (it.stockQty != null && it.qty >= it.stockQty) {
-                                showToast('No more stock available / స్టాక్ అయిపోయింది')
+                                showToast(L('No more stock available', 'స్టాక్ అయిపోయింది'))
                                 return
                               }
                               setQty(it.listingId, it.qty + 1)
@@ -1370,18 +1363,18 @@ function CartSheet({
                         deliveryType === 'home_delivery' && DELIVERY_FEE_RUPEES > 0 ? (
                           <div className="pt-2 border-t border-gray-100 mt-2 space-y-1">
                             <div className="flex items-center justify-between text-xs">
-                              <span className="text-gray-500">Subtotal / ఉత్పత్తి</span>
+                              <span className="text-gray-500">{L('Subtotal', 'ఉత్పత్తి')}</span>
                               <span className="font-semibold text-gray-800">₹{total}</span>
                             </div>
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-gray-500">
-                                Delivery fee / డెలివరీ ఛార్జ్
-                                <span className="block text-[10px] text-gray-400">cash to rider / రైడర్‌కి నగదు</span>
+                                {L('Delivery fee', 'డెలివరీ ఛార్జ్')}
+                                <span className="block text-[10px] text-gray-400">{L('cash to rider', 'రైడర్‌కి నగదు')}</span>
                               </span>
                               <span className="font-semibold text-gray-800">₹{DELIVERY_FEE_RUPEES}</span>
                             </div>
                             <div className="flex items-center justify-between pt-1 border-t border-gray-50">
-                              <span className="text-xs font-bold text-gray-700">Total / మొత్తం</span>
+                              <span className="text-xs font-bold text-gray-700">{L('Total', 'మొత్తం')}</span>
                               <span className="font-extrabold text-gray-900">
                                 ₹{total + DELIVERY_FEE_RUPEES}
                               </span>
@@ -1389,7 +1382,7 @@ function CartSheet({
                           </div>
                         ) : (
                           <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-2">
-                            <span className="text-xs text-gray-500">Estimated total / మొత్తం</span>
+                            <span className="text-xs text-gray-500">{L('Estimated total', 'మొత్తం')}</span>
                             <span className="font-extrabold text-gray-900">
                               ₹{total}
                             </span>
@@ -1400,7 +1393,7 @@ function CartSheet({
                       {f.farmerPickupLocations && f.farmerPickupLocations.length > 0 && (
                         <div className="pt-2">
                           <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                            Pickup location / పికప్ స్థలం
+                            {L('Pickup location', 'పికప్ స్థలం')}
                             {deliveryType === 'self_pickup' && <span className="text-red-500"> *</span>}
                           </label>
                           <select
@@ -1420,18 +1413,18 @@ function CartSheet({
                                   : 'border-gray-200 bg-white focus:border-green-500'
                             }`}
                           >
-                            <option value="">Select a pickup point / స్థలం ఎంచుకోండి</option>
+                            <option value="">{L('Select a pickup point', 'స్థలం ఎంచుకోండి')}</option>
                             {f.farmerPickupLocations.map((loc) => (
                               <option key={loc} value={loc}>{loc}</option>
                             ))}
                           </select>
                           {deliveryType !== 'self_pickup' ? (
                             <p className="text-[11px] text-gray-400 mt-1">
-                              Not needed for delivery / డెలివరీకి అవసరం లేదు
+                              {L('Not needed for delivery', 'డెలివరీకి అవసరం లేదు')}
                             </p>
                           ) : pickupMissing ? (
                             <p className="text-[11px] text-red-600 mt-1">
-                              Please choose a pickup point / పికప్ స్థలం ఎంచుకోండి
+                              {L('Please choose a pickup point', 'పికప్ స్థలం ఎంచుకోండి')}
                             </p>
                           ) : null}
                         </div>
@@ -1444,7 +1437,7 @@ function CartSheet({
                           onClick={onClose}
                           className="mt-1 px-4 py-3.5 rounded-xl text-sm font-bold border border-gray-300 text-gray-700 active:bg-gray-50 whitespace-nowrap"
                         >
-                          Cancel / రద్దు
+                          {L('Cancel', 'రద్దు')}
                         </button>
                         <div className="flex-1">
                       {(() => {
@@ -1475,8 +1468,7 @@ function CartSheet({
                         if (!farmerCodOk) {
                           return (
                             <p className="mt-1 text-[12px] text-amber-700 bg-amber-50 rounded-xl px-3 py-2.5 text-center">
-                              This farmer accepts UPI only. Switch above.<br />
-                              ఈ రైతు UPI మాత్రమే అంగీకరిస్తారు.
+                              {L('This farmer accepts UPI only. Switch above.', 'ఈ రైతు UPI మాత్రమే అంగీకరిస్తారు.')}
                             </p>
                           )
                         }
@@ -1511,8 +1503,7 @@ function CartSheet({
 
               {farmerGroups.length > 1 && (
                 <p className="text-xs text-gray-500 text-center px-4 leading-snug">
-                  Each farmer is notified separately, since each farm handles its own pickup.<br />
-                  ప్రతి రైతుకు విడివిడిగా తెలియజేస్తాము.
+                  {L('Each farmer is notified separately, since each farm handles its own pickup.', 'ప్రతి రైతుకు విడివిడిగా తెలియజేస్తాము.')}
                 </p>
               )}
 
@@ -1520,7 +1511,7 @@ function CartSheet({
                 onClick={clear}
                 className="w-full text-sm text-gray-500 underline pt-2"
               >
-                Clear cart / బుట్ట ఖాళీ చేయండి
+                {L('Clear cart', 'బుట్ట ఖాళీ చేయండి')}
               </button>
             </>
           )}

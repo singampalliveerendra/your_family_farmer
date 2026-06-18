@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import ForgotPasswordModal from '@/components/ForgotPasswordModal'
+import { useLang } from '@/lib/LanguageContext'
 
 type Mode = 'login' | 'register'
 
 export default function AuthModal() {
+  const { L } = useLang()
   const { closeAuth, login, register } = useConsumerAuth()
   const [mode, setMode] = useState<Mode>('login')
   const [name, setName] = useState('')
@@ -63,7 +65,7 @@ export default function AuthModal() {
       >
         <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between">
           <h2 className="text-base font-extrabold text-gray-900 leading-tight">
-            {mode === 'login' ? 'Log in / లాగిన్' : 'Create account / ఖాతా సృష్టించండి'}
+            {mode === 'login' ? L('Log in', 'లాగిన్') : L('Create account', 'ఖాతా సృష్టించండి')}
           </h2>
           <button
             type="button"
@@ -84,7 +86,7 @@ export default function AuthModal() {
                 mode === 'login' ? 'bg-white text-green-800 shadow-sm' : 'text-gray-500'
               }`}
             >
-              Log in / లాగిన్
+              {L('Log in', 'లాగిన్')}
             </button>
             <button
               type="button"
@@ -93,7 +95,7 @@ export default function AuthModal() {
                 mode === 'register' ? 'bg-white text-green-800 shadow-sm' : 'text-gray-500'
               }`}
             >
-              Sign up / సైన్ అప్
+              {L('Sign up', 'సైన్ అప్')}
             </button>
           </div>
         </div>
@@ -102,7 +104,7 @@ export default function AuthModal() {
           {mode === 'register' && (
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">
-                Your name / మీ పేరు
+                {L('Your name', 'మీ పేరు')}
               </label>
               <input
                 type="text"
@@ -118,7 +120,7 @@ export default function AuthModal() {
 
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Phone number / ఫోన్ నంబర్
+              {L('Phone number', 'ఫోన్ నంబర్')}
             </label>
             <div className="flex items-stretch gap-2">
               <span className="flex items-center px-3 bg-gray-100 rounded-xl text-sm text-gray-600 font-semibold">
@@ -138,7 +140,7 @@ export default function AuthModal() {
 
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Password / పాస్‌వర్డ్
+              {L('Password', 'పాస్‌వర్డ్')}
             </label>
             <div className="relative">
               <input
@@ -160,7 +162,7 @@ export default function AuthModal() {
             </div>
             {mode === 'register' && (
               <p className="text-[11px] text-gray-500 mt-1">
-                Minimum 6 characters / కనీసం 6 అక్షరాలు
+                {L('Minimum 6 characters', 'కనీసం 6 అక్షరాలు')}
               </p>
             )}
           </div>
@@ -170,13 +172,13 @@ export default function AuthModal() {
               <span className="text-lg leading-none mt-0.5" aria-hidden>🚫</span>
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-black uppercase tracking-wide leading-tight">
-                  Account suspended / ఖాతా నిలిపివేయబడింది
+                  {L('Account suspended', 'ఖాతా నిలిపివేయబడింది')}
                 </p>
                 {suspended.reason && (
                   <p className="text-sm font-medium leading-snug mt-1 break-words">{suspended.reason}</p>
                 )}
                 <p className="text-xs text-red-100 leading-snug mt-1.5">
-                  Please contact support. / దయచేసి సపోర్ట్‌ను సంప్రదించండి.
+                  {L('Please contact support.', 'దయచేసి సపోర్ట్‌ను సంప్రదించండి.')}
                 </p>
               </div>
             </div>
@@ -195,7 +197,7 @@ export default function AuthModal() {
           >
             {loading
               ? (mode === 'login' ? 'Logging in...' : 'Creating account...')
-              : (mode === 'login' ? 'Log in / లాగిన్' : 'Create account / ఖాతా సృష్టించండి')}
+              : (mode === 'login' ? L('Log in', 'లాగిన్') : L('Create account', 'ఖాతా సృష్టించండి'))}
           </button>
 
           {mode === 'login' && (
@@ -204,14 +206,14 @@ export default function AuthModal() {
               onClick={() => setShowForgot(true)}
               className="w-full text-center text-sm text-green-700 font-semibold underline"
             >
-              Forgot Password? / పాస్‌వర్డ్ మర్చిపోయారా?
+              {L('Forgot Password?', 'పాస్‌వర్డ్ మర్చిపోయారా?')}
             </button>
           )}
 
           <p className="text-[11px] text-gray-500 text-center pt-1 leading-relaxed">
             {mode === 'login'
-              ? 'New here? Tap Sign up. / కొత్తవారా? సైన్ అప్ నొక్కండి.'
-              : 'Already have an account? Tap Log in. / ఖాతా ఉందా? లాగిన్ నొక్కండి.'}
+              ? L('New here? Tap Sign up.', 'కొత్తవారా? సైన్ అప్ నొక్కండి.')
+              : L('Already have an account? Tap Log in.', 'ఖాతా ఉందా? లాగిన్ నొక్కండి.')}
           </p>
         </form>
       </div>

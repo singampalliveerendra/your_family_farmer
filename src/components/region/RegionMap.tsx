@@ -18,7 +18,7 @@ export default function RegionMap({
   highlightedFarmerId: string | null
   onPinClick: (id: string) => void
 }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const list = farmers as Farmer[]
 
   const PIN_POSITIONS = [

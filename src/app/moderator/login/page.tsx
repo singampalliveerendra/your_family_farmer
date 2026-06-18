@@ -2,8 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useLang } from '@/lib/LanguageContext'
 
 export default function ModeratorLoginPage() {
+  const { L } = useLang()
   const router = useRouter()
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
@@ -22,18 +24,17 @@ export default function ModeratorLoginPage() {
       body: JSON.stringify({ phone, password }),
     }).catch(() => null)
     setSubmitting(false)
-    if (!r) { setError('Network error. / నెట్‌వర్క్ లోపం'); return }
+    if (!r) { setError(L('Network error.', 'నెట్‌వర్క్ లోపం')); return }
     const json = await r.json().catch(() => ({}))
-    if (!r.ok || !json?.ok) { setError(json?.error ?? 'Login failed. / లాగిన్ విఫలమైంది'); return }
+    if (!r.ok || !json?.ok) { setError(json?.error ?? L('Login failed.', 'లాగిన్ విఫలమైంది')); return }
     router.replace('/moderator')
   }
 
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col">
       <div className="bg-green-950 px-4 pt-10 pb-14">
-        <h1 className="text-white text-2xl font-extrabold">GoGrameen Moderator</h1>
-        <p className="text-green-300 text-sm">జోన్ మోడరేటర్</p>
-        <p className="text-green-400/70 text-xs mt-1">Internal · phone + password / అంతర్గత · ఫోన్ + పాస్‌వర్డ్</p>
+        <h1 className="text-white text-2xl font-extrabold">{L('GoGrameen Moderator', 'జోన్ మోడరేటర్')}</h1>
+        <p className="text-green-400/70 text-xs mt-1">{L('Internal · phone + password', 'అంతర్గత · ఫోన్ + పాస్‌వర్డ్')}</p>
       </div>
       <form
         onSubmit={submit}
@@ -41,7 +42,7 @@ export default function ModeratorLoginPage() {
       >
         <div>
           <label className="text-xs font-bold text-gray-700 uppercase tracking-wide block mb-1">
-            Phone number / ఫోన్ నంబర్
+            {L('Phone number', 'ఫోన్ నంబర్')}
           </label>
           <input
             type="tel"
@@ -57,7 +58,7 @@ export default function ModeratorLoginPage() {
         </div>
         <div>
           <label className="text-xs font-bold text-gray-700 uppercase tracking-wide block mb-1">
-            Password / పాస్‌వర్డ్
+            {L('Password', 'పాస్‌వర్డ్')}
           </label>
           <input
             type="password"
@@ -78,7 +79,7 @@ export default function ModeratorLoginPage() {
           disabled={submitting}
           className="w-full bg-green-800 text-white font-bold py-4 rounded-xl text-base active:bg-green-900 disabled:opacity-50"
         >
-          {submitting ? 'Checking... / తనిఖీ చేస్తోంది...' : 'Log in / లాగిన్'}
+          {submitting ? L('Checking...', 'తనిఖీ చేస్తోంది...') : L('Log in', 'లాగిన్')}
         </button>
       </form>
     </main>

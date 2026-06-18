@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useLang } from '@/lib/LanguageContext'
 
 type Suggestion = {
   name: string
@@ -77,7 +78,7 @@ async function fetchSuggestions(q: string, signal: AbortSignal): Promise<Suggest
 }
 
 export default function LocationSearch({
-  placeholder = 'Search city, town or village... / పట్టణం వెతకండి',
+  placeholder,
   onSelect,
   initialValue = '',
 }: {
@@ -85,6 +86,8 @@ export default function LocationSearch({
   onSelect: (lat: number, lng: number, name: string) => void
   initialValue?: string
 }) {
+  const { L } = useLang()
+  const placeholderText = placeholder ?? L('Search city, town or village...', 'పట్టణం వెతకండి')
   const [query, setQuery]             = useState(initialValue)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [loading, setLoading]         = useState(false)
@@ -203,7 +206,7 @@ export default function LocationSearch({
           value={query}
           onChange={handleChange}
           onFocus={() => { if (suggestions.length > 0) setShowDrop(true) }}
-          placeholder={placeholder}
+          placeholder={placeholderText}
           autoComplete="off"
           spellCheck={false}
           className="w-full border-2 border-gray-200 rounded-xl pl-9 pr-9 py-3 text-base focus:border-green-500 focus:outline-none bg-white"
@@ -247,11 +250,10 @@ export default function LocationSearch({
       {showDrop && noResults && !loading && (
         <div className={`absolute z-30 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-xl px-4 py-4 text-center ${dropUp ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
           <p className="text-sm font-semibold text-gray-600">
-            No results / ఫలితాలు లేవు
+            {L('No results', 'ఫలితాలు లేవు')}
           </p>
           <p className="text-xs text-gray-400 mt-1 leading-snug">
-            Try the full name or a nearby larger town<br />
-            పూర్తి పేరు లేదా దగ్గరలోని పెద్ద పట్టణం వెతకండి
+            {L('Try the full name or a nearby larger town', 'పూర్తి పేరు లేదా దగ్గరలోని పెద్ద పట్టణం వెతకండి')}
           </p>
         </div>
       )}

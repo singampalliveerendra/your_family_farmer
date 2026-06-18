@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { reqLang, tr } from '@/lib/serverLang'
 import { verifyPassword } from '@/lib/password'
 import { normalizePhone } from '@/lib/phone'
 import { setSessionCookie } from '@/lib/session'
@@ -9,6 +10,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
+  const lang = reqLang(req)
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
@@ -66,7 +68,7 @@ export async function POST(req: NextRequest) {
 
   // Anti-enumeration: same generic error whether the phone exists or not.
   const wrongCreds = NextResponse.json(
-    { error: 'Wrong phone or password. / తప్పు ఫోన్ లేదా పాస్‌వర్డ్.' },
+    { error: tr(lang, 'Wrong phone or password.', 'తప్పు ఫోన్ లేదా పాస్‌వర్డ్.') },
     { status: 401 },
   )
 
@@ -80,8 +82,8 @@ export async function POST(req: NextRequest) {
   if (user.suspended === true) {
     const reason = (user.suspended_reason as string | null)?.trim() || null
     const error = reason
-      ? `Your account has been suspended.\nReason: ${reason}\nPlease contact support. / మీ ఖాతా నిలిపివేయబడింది.\nకారణం: ${reason}\nదయచేసి సపోర్ట్‌ను సంప్రదించండి.`
-      : 'Your account has been suspended. Please contact support. / మీ ఖాతా నిలిపివేయబడింది. దయచేసి సపోర్ట్‌ను సంప్రదించండి.'
+      ? tr(lang, `Your account has been suspended.\nReason: ${reason}\nPlease contact support.`, `మీ ఖాతా నిలిపివేయబడింది.\nకారణం: ${reason}\nదయచేసి సపోర్ట్‌ను సంప్రదించండి.`)
+      : tr(lang, 'Your account has been suspended. Please contact support.', 'మీ ఖాతా నిలిపివేయబడింది. దయచేసి సపోర్ట్‌ను సంప్రదించండి.')
     // `suspended` + `suspendedReason` let the login UI render the same highlighted
     // banner the in-app header uses, instead of a plain inline error line.
     return NextResponse.json({ error, suspended: true, suspendedReason: reason }, { status: 403 })

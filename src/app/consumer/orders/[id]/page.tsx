@@ -107,7 +107,7 @@ export default function OrderDetailsPage() {
 
   const handleCancel = async () => {
     if (!order) return
-    if (!window.confirm('Cancel this order? If you have already paid, you will be refunded automatically.\n\nఈ ఆర్డర్‌ను రద్దు చేయాలా? మీరు ఇప్పటికే చెల్లించి ఉంటే, డబ్బు ఆటోమేటిక్‌గా తిరిగి వస్తుంది.')) return
+    if (!window.confirm(L('Cancel this order? If you have already paid, you will be refunded automatically.', 'ఈ ఆర్డర్‌ను రద్దు చేయాలా? మీరు ఇప్పటికే చెల్లించి ఉంటే, డబ్బు ఆటోమేటిక్‌గా తిరిగి వస్తుంది.'))) return
     setCancelling(true)
     try {
       const res = await fetch(`/api/consumer/orders/${order.id}/cancel`, {
@@ -115,13 +115,13 @@ export default function OrderDetailsPage() {
         credentials: 'same-origin',
       })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok) { alert(json.error || 'Could not cancel the order. / ఆర్డర్ రద్దు చేయలేకపోయాం.'); return }
+      if (!res.ok) { alert(json.error || L('Could not cancel the order.', 'ఆర్డర్ రద్దు చేయలేకపోయాం.')); return }
       // Refresh the order so status + any refund show up.
       const r = await fetch(`/api/consumer/orders/${order.id}`, { credentials: 'same-origin' })
       const fresh = await r.json().catch(() => ({}))
       if (r.ok && fresh.order) setOrder(fresh.order as Order)
     } catch {
-      alert('Network error. Please try again. / నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.')
+      alert(L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.'))
     } finally {
       setCancelling(false)
     }
@@ -129,7 +129,7 @@ export default function OrderDetailsPage() {
 
   const handleConfirmReceipt = async () => {
     if (!order) return
-    if (!window.confirm('Confirm you received this order? / మీరు ఈ ఆర్డర్‌ను అందుకున్నారా?')) return
+    if (!window.confirm(L('Confirm you received this order?', 'మీరు ఈ ఆర్డర్‌ను అందుకున్నారా?'))) return
     setConfirmingReceipt(true)
     try {
       const res = await fetch(`/api/consumer/orders/${order.id}/received`, {
@@ -137,12 +137,12 @@ export default function OrderDetailsPage() {
         credentials: 'same-origin',
       })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok) { alert(json.error || 'Could not confirm receipt. / అందుకున్నట్టు ధృవీకరించలేకపోయాం.'); return }
+      if (!res.ok) { alert(json.error || L('Could not confirm receipt.', 'అందుకున్నట్టు ధృవీకరించలేకపోయాం.')); return }
       const r = await fetch(`/api/consumer/orders/${order.id}`, { credentials: 'same-origin' })
       const fresh = await r.json().catch(() => ({}))
       if (r.ok && fresh.order) setOrder(fresh.order as Order)
     } catch {
-      alert('Network error. Please try again. / నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.')
+      alert(L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.'))
     } finally {
       setConfirmingReceipt(false)
     }
@@ -199,8 +199,8 @@ export default function OrderDetailsPage() {
           setOrder((prev) => {
             if (prev && !prev.shipped_at && next.shipped_at) {
               fireConsumerNotification(
-                'Your order has shipped 📦 / ఆర్డర్ షిప్ చేయబడింది',
-                `${next.produce_name ?? 'Your order'} is on the way. Tap "Received" once it arrives. / మీ ఆర్డర్ వస్తోంది.`,
+                L('Your order has shipped 📦', 'ఆర్డర్ షిప్ చేయబడింది'),
+                L(`${next.produce_name ?? 'Your order'} is on the way. Tap "Received" once it arrives.`, `మీ ఆర్డర్ వస్తోంది. వచ్చాక "అందుకున్నాను" నొక్కండి.`),
               )
             }
             return next
@@ -240,7 +240,7 @@ export default function OrderDetailsPage() {
       : tx.statusPending
 
   const paymentLabel = (o: Order) => {
-    if (o.payment_method === 'cod') return 'Cash on Delivery / నగదు చెల్లింపు'
+    if (o.payment_method === 'cod') return L('Cash on Delivery', 'నగదు చెల్లింపు')
     if (isOnlinePayment(o.payment_method)) {
       // Show the real method (PhonePe / Google Pay / UPI…) once we know it,
       // instead of the gateway name. Falls back to "UPI" before it resolves.
@@ -360,7 +360,7 @@ export default function OrderDetailsPage() {
                   disabled={cancelling}
                   className="mt-2 w-full border border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
                 >
-                  {cancelling ? 'Cancelling... / రద్దు చేస్తోంది...' : '✕ Cancel order / ఆర్డర్ రద్దు (30 min లోపు)'}
+                  {cancelling ? L('Cancelling...', 'రద్దు చేస్తోంది...') : L('✕ Cancel order', 'ఆర్డర్ రద్దు (30 min లోపు)')}
                 </button>
               )}
 
@@ -370,7 +370,7 @@ export default function OrderDetailsPage() {
                   disabled={confirmingReceipt}
                   className="mt-3 w-full bg-green-600 text-white font-bold py-3 rounded-xl text-sm active:bg-green-700 disabled:opacity-50"
                 >
-                  {confirmingReceipt ? '…' : '✓ Received / అందుకున్నాను'}
+                  {confirmingReceipt ? '…' : L('✓ Received', 'అందుకున్నాను')}
                 </button>
               )}
             </div>
@@ -407,7 +407,7 @@ export default function OrderDetailsPage() {
             {/* Decline reason */}
             {order.status === 'declined' && order.decline_reason && (
               <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
-                <p className="text-xs font-bold text-red-700 uppercase tracking-wide">Decline reason / కారణం</p>
+                <p className="text-xs font-bold text-red-700 uppercase tracking-wide">{L('Decline reason', 'కారణం')}</p>
                 <p className="text-sm text-red-800 mt-1 leading-snug">{order.decline_reason}</p>
               </div>
             )}
@@ -419,7 +419,7 @@ export default function OrderDetailsPage() {
             {order.payment_method === 'upi' && (
               <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2">
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
-                  Payment screenshot / చెల్లింపు స్క్రీన్‌షాట్
+                  {L('Payment screenshot', 'చెల్లింపు స్క్రీన్‌షాట్')}
                 </p>
                 {!order.payment_proof_path ? (
                   <p className="text-xs text-gray-500">No screenshot uploaded yet.</p>
@@ -442,7 +442,7 @@ export default function OrderDetailsPage() {
             {order.farmer && (
               <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
-                  Farmer / రైతు
+                  {L('Farmer', 'రైతు')}
                 </p>
                 <div>
                   <p className="text-base font-extrabold text-gray-900 leading-tight">🧑‍🌾 {order.farmer.name}</p>
@@ -452,7 +452,7 @@ export default function OrderDetailsPage() {
                   href={`/farmer/${order.farmer.slug}`}
                   className="block text-center text-sm font-bold text-green-700 underline"
                 >
-                  View farm profile / రైతు ప్రొఫైల్ చూడండి ↗
+                  {L('View farm profile', 'రైతు ప్రొఫైల్ చూడండి ↗')}
                 </Link>
                 {whatsappHref && (
                   <a
@@ -497,7 +497,7 @@ export default function OrderDetailsPage() {
 // everything except .yff-receipt so "Print / Save as PDF" produces a clean
 // one-page receipt on both phones and laptops.
 function ReceiptOverlay({ order, onClose }: { order: Order; onClose: () => void }) {
-  const { lang } = useLang()
+  const { lang, L } = useLang()
   const placed = new Date(order.created_at).toLocaleString('en-IN', {
     day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
   })
@@ -515,16 +515,16 @@ function ReceiptOverlay({ order, onClose }: { order: Order; onClose: () => void 
       <div className="yff-receipt bg-white rounded-2xl w-full max-w-sm p-6 my-auto">
         <div className="text-center border-b border-dashed border-gray-300 pb-3">
           <p className="text-lg font-extrabold text-green-700">YourFamilyFarmer</p>
-          <p className="text-[11px] text-gray-500">Payment Receipt / చెల్లింపు రసీదు</p>
+          <p className="text-[11px] text-gray-500">{L('Payment Receipt', 'చెల్లింపు రసీదు')}</p>
         </div>
 
         <div className="py-3 space-y-1.5 text-xs">
-          <div className="flex justify-between"><span className="text-gray-500">Order ID / ఆర్డర్ ID</span><span className="font-mono font-bold text-gray-900">{order.order_code || order.id.slice(0, 8)}</span></div>
-          <div className="flex justify-between"><span className="text-gray-500">Date / తేదీ</span><span className="font-semibold text-gray-900">{placed}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">{L('Order ID', 'ఆర్డర్ ID')}</span><span className="font-mono font-bold text-gray-900">{order.order_code || order.id.slice(0, 8)}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">{L('Date', 'తేదీ')}</span><span className="font-semibold text-gray-900">{placed}</span></div>
           {order.farmer && (
-            <div className="flex justify-between"><span className="text-gray-500">Farmer / రైతు</span><span className="font-semibold text-gray-900 text-right">{order.farmer.name} · {order.farmer.village}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">{L('Farmer', 'రైతు')}</span><span className="font-semibold text-gray-900 text-right">{order.farmer.name} · {order.farmer.village}</span></div>
           )}
-          <div className="flex justify-between"><span className="text-gray-500">Payment / చెల్లింపు</span><span className="font-semibold text-gray-900">{order.payment_method_detail || (order.payment_method === 'cod' ? 'Cash on Delivery' : isOnlinePayment(order.payment_method) ? 'UPI' : order.payment_method || '—')}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">{L('Payment', 'చెల్లింపు')}</span><span className="font-semibold text-gray-900">{order.payment_method_detail || (order.payment_method === 'cod' ? 'Cash on Delivery' : isOnlinePayment(order.payment_method) ? 'UPI' : order.payment_method || '—')}</span></div>
         </div>
 
         <div className="border-t border-dashed border-gray-300 py-3">
@@ -535,21 +535,20 @@ function ReceiptOverlay({ order, onClose }: { order: Order; onClose: () => void 
         </div>
 
         <div className="border-t-2 border-gray-900 pt-2 flex justify-between items-center">
-          <span className="text-sm font-bold text-gray-900">Total Paid / మొత్తం చెల్లించారు</span>
+          <span className="text-sm font-bold text-gray-900">{L('Total Paid', 'మొత్తం చెల్లించారు')}</span>
           <span className="text-lg font-extrabold text-green-700">₹{order.total_price ?? 0}</span>
         </div>
 
         <div className="mt-3 text-center">
-          <span className="inline-block text-[10px] font-bold px-3 py-1 rounded-full bg-green-100 text-green-800">✓ PAID / చెల్లించారు</span>
+          <span className="inline-block text-[10px] font-bold px-3 py-1 rounded-full bg-green-100 text-green-800">{L('✓ PAID', 'చెల్లించారు')}</span>
         </div>
 
         <p className="text-[9px] text-gray-400 text-center mt-3 break-all">Ref: {paymentRef}</p>
-        <p className="text-[10px] font-semibold text-green-700 text-center mt-2">Thank you for supporting our farmers — GoGrameen Team 🌱</p>
-        <p className="text-[9px] text-gray-400 text-center mt-0.5">మా రైతులకు మద్దతు ఇచ్చినందుకు ధన్యవాదాలు — గోగ్రామీణ్ టీం</p>
+        <p className="text-[10px] font-semibold text-green-700 text-center mt-2">{L('Thank you for supporting our farmers — GoGrameen Team 🌱', 'మా రైతులకు మద్దతు ఇచ్చినందుకు ధన్యవాదాలు — గోగ్రామీణ్ టీం')}</p>
 
         <div className="yff-no-print mt-5 grid grid-cols-2 gap-2">
-          <button onClick={onClose} className="border border-gray-300 text-gray-700 font-bold py-2.5 rounded-xl text-sm active:bg-gray-50">Close / మూసివేయి</button>
-          <button onClick={() => window.print()} className="bg-green-700 text-white font-bold py-2.5 rounded-xl text-sm active:bg-green-800">Print / ప్రింట్</button>
+          <button onClick={onClose} className="border border-gray-300 text-gray-700 font-bold py-2.5 rounded-xl text-sm active:bg-gray-50">{L('Close', 'మూసివేయి')}</button>
+          <button onClick={() => window.print()} className="bg-green-700 text-white font-bold py-2.5 rounded-xl text-sm active:bg-green-800">{L('Print', 'ప్రింట్')}</button>
         </div>
       </div>
     </div>
@@ -557,6 +556,7 @@ function ReceiptOverlay({ order, onClose }: { order: Order; onClose: () => void 
 }
 
 function DeliveryPanel({ order }: { order: Order }) {
+  const { L } = useLang()
   const ds: DeliveryStatus = (order.delivery_status as DeliveryStatus) || 'unassigned'
 
   const steps: Array<{ key: DeliveryStatus; label: string; sub: string; at: string | null | undefined }> = [
@@ -581,7 +581,7 @@ function DeliveryPanel({ order }: { order: Order }) {
       <div className="flex items-center gap-2">
         <span className="text-base">🛵</span>
         <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
-          Home delivery / ఇంటికి డెలివరీ
+          {L('Home delivery', 'ఇంటికి డెలివరీ')}
         </p>
       </div>
 
@@ -591,10 +591,7 @@ function DeliveryPanel({ order }: { order: Order }) {
       {ds !== 'unassigned' && ds !== 'delivered' && order.handover_otp && (
         <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl px-4 py-3 text-center">
           <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wide">
-            Read this code to the delivery boy at your door
-          </p>
-          <p className="text-[10px] text-amber-700 mt-0.5">
-            డోర్ వద్ద డెలివరీ బాయ్‌కు ఈ కోడ్ చెప్పండి
+            {L('Read this code to the delivery boy at your door', 'డోర్ వద్ద డెలివరీ బాయ్‌కు ఈ కోడ్ చెప్పండి')}
           </p>
           <p className="text-4xl font-black tracking-widest text-amber-900 mt-2 font-mono">
             {order.handover_otp}
@@ -651,7 +648,7 @@ function DeliveryPanel({ order }: { order: Order }) {
       {/* Rider contact — only when assigned (and not yet delivered) */}
       {order.rider && ds !== 'delivered' && (
         <div className="border-t border-gray-100 pt-3">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Delivery boy / డెలివరీ బాయ్</p>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{L('Delivery boy', 'డెలివరీ బాయ్')}</p>
           <p className="text-sm font-bold text-gray-900 mt-1">{order.rider.name || 'Your delivery partner'}</p>
           <a
             href={`tel:${order.rider.phone}`}
@@ -670,6 +667,7 @@ function DeliveryPanel({ order }: { order: Order }) {
 // Courier diverges after "Confirmed": Shipped → Received instead of Ready →
 // Picked up, so a courier buyer sees the right milestones (and dates).
 function OrderStatusPanel({ order }: { order: Order }) {
+  const { L } = useLang()
   const approved = order.status === 'approved'
   const isCourier = order.delivery_type === 'courier'
   const collected = !!order.collected_at
@@ -684,19 +682,19 @@ function OrderStatusPanel({ order }: { order: Order }) {
 
   type Step = { label: string; sub: string; at: string; done: boolean }
   const steps: Step[] = [
-    { label: 'Order placed / ఆర్డర్ పెట్టారు', sub: 'We received your order / మీ ఆర్డర్ అందింది', at: fmt(order.created_at), done: true },
+    { label: L('Order placed', 'ఆర్డర్ పెట్టారు'), sub: L('We received your order', 'మీ ఆర్డర్ అందింది'), at: fmt(order.created_at), done: true },
     ...(paidOnline
-      ? [{ label: 'Payment received / చెల్లింపు అందింది', sub: `${order.payment_method_detail || 'UPI'} payment confirmed / చెల్లింపు ధృవీకరించబడింది`, at: fmt(order.paid_at), done: true }]
+      ? [{ label: L('Payment received', 'చెల్లింపు అందింది'), sub: `${order.payment_method_detail || 'UPI'} payment confirmed / చెల్లింపు ధృవీకరించబడింది`, at: fmt(order.paid_at), done: true }]
       : []),
-    { label: 'Confirmed by farmer / రైతు ధృవీకరించారు', sub: 'Farmer accepted your order / రైతు అంగీకరించారు', at: fmt(order.confirmed_at), done: approved },
+    { label: L('Confirmed by farmer', 'రైతు ధృవీకరించారు'), sub: L('Farmer accepted your order', 'రైతు అంగీకరించారు'), at: fmt(order.confirmed_at), done: approved },
     ...(isCourier
       ? [
-          { label: 'Shipped / షిప్ చేయబడింది', sub: 'Farmer handed the parcel to the courier / రైతు పార్సెల్ పంపారు', at: fmt(order.shipped_at), done: shipped },
-          { label: 'Received / అందుకున్నారు', sub: 'You confirmed you received it / మీరు అందుకున్నట్టు ధృవీకరించారు', at: fmt(order.received_at), done: received },
+          { label: L('Shipped', 'షిప్ చేయబడింది'), sub: L('Farmer handed the parcel to the courier', 'రైతు పార్సెల్ పంపారు'), at: fmt(order.shipped_at), done: shipped },
+          { label: L('Received', 'అందుకున్నారు'), sub: L('You confirmed you received it', 'మీరు అందుకున్నట్టు ధృవీకరించారు'), at: fmt(order.received_at), done: received },
         ]
       : [
-          { label: 'Ready for pickup / తీసుకెళ్లడానికి సిద్ధం', sub: order.pickup_location ? `Collect at ${order.pickup_location}` : 'Collect from the farmer / రైతు నుండి తీసుకోండి', at: '', done: approved },
-          { label: 'Picked up / తీసుకున్నారు', sub: 'Collection confirmed / తీసుకున్నట్టు ధృవీకరించారు', at: fmt(order.collected_at), done: collected },
+          { label: L('Ready for pickup', 'తీసుకెళ్లడానికి సిద్ధం'), sub: order.pickup_location ? `Collect at ${order.pickup_location}` : L('Collect from the farmer', 'రైతు నుండి తీసుకోండి'), at: '', done: approved },
+          { label: L('Picked up', 'తీసుకున్నారు'), sub: L('Collection confirmed', 'తీసుకున్నట్టు ధృవీకరించారు'), at: fmt(order.collected_at), done: collected },
         ]),
   ]
 
@@ -706,17 +704,14 @@ function OrderStatusPanel({ order }: { order: Order }) {
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
-      <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Order status / ఆర్డర్ స్థితి</p>
+      <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">{L('Order status', 'ఆర్డర్ స్థితి')}</p>
 
       {/* Handover code — shown once the order is ready and before it's
           collected. The customer reads it to the farmer at pickup. */}
       {approved && !collected && order.handover_otp && (
         <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl px-4 py-3 text-center">
           <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wide">
-            Show this code to the farmer when you collect
-          </p>
-          <p className="text-[10px] text-amber-700 mt-0.5">
-            తీసుకునేటప్పుడు ఈ కోడ్ రైతుకు చెప్పండి
+            {L('Show this code to the farmer when you collect', 'తీసుకునేటప్పుడు ఈ కోడ్ రైతుకు చెప్పండి')}
           </p>
           <p className="text-4xl font-black tracking-widest text-amber-900 mt-2 font-mono">
             {order.handover_otp}
@@ -753,6 +748,7 @@ function OrderStatusPanel({ order }: { order: Order }) {
 // a Razorpay status: 'pending' / 'processed' / 'failed') onto a simple
 // buyer-facing progression: Initiated → Processing → Credited.
 function RefundPanel({ order }: { order: Order }) {
+  const { L } = useLang()
   const rs = (order.refund_status || '').toLowerCase()
   const failed = rs === 'failed'
   const amount = order.refund_amount ?? order.total_price ?? 0
@@ -762,9 +758,9 @@ function RefundPanel({ order }: { order: Order }) {
   const current = rs === 'processed' ? 2 : rs === 'pending' ? 1 : 0
 
   const steps = [
-    { label: 'Refund initiated / రీఫండ్ మొదలైంది', sub: 'We started your refund / మీ రీఫండ్ ప్రారంభించాం' },
-    { label: 'Processing / ప్రాసెస్ అవుతోంది', sub: 'Sent to your bank/UPI / మీ బ్యాంక్/UPIకి పంపాం' },
-    { label: 'Credited / జమ అయింది', sub: 'Reflects in 3–5 business days / 3–5 పని రోజుల్లో కనిపిస్తుంది' },
+    { label: L('Refund initiated', 'రీఫండ్ మొదలైంది'), sub: L('We started your refund', 'మీ రీఫండ్ ప్రారంభించాం') },
+    { label: L('Processing', 'ప్రాసెస్ అవుతోంది'), sub: L('Sent to your bank/UPI', 'మీ బ్యాంక్/UPIకి పంపాం') },
+    { label: L('Credited', 'జమ అయింది'), sub: L('Reflects in 3–5 business days', '3–5 పని రోజుల్లో కనిపిస్తుంది') },
   ]
 
   const refundedAt = order.refunded_at
@@ -775,13 +771,10 @@ function RefundPanel({ order }: { order: Order }) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-2xl p-4 space-y-1.5">
         <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800">
-          ⚠️ Refund failed / రీఫండ్ విఫలమైంది
+          {L('⚠️ Refund failed', 'రీఫండ్ విఫలమైంది')}
         </span>
         <p className="text-sm text-red-800 leading-snug">
-          Your refund of ₹{amount} could not be processed. Please contact support and we&apos;ll fix it.
-        </p>
-        <p className="text-sm text-red-800 leading-snug">
-          మీ ₹{amount} రీఫండ్ ప్రాసెస్ కాలేదు. దయచేసి సపోర్ట్‌ను సంప్రదించండి, మేము సరి చేస్తాం.
+          {L(`Your refund of ₹${amount} could not be processed. Please contact support and we'll fix it.`, `మీ ₹${amount} రీఫండ్ ప్రాసెస్ కాలేదు. దయచేసి సపోర్ట్‌ను సంప్రదించండి, మేము సరి చేస్తాం.`)}
         </p>
       </div>
     )

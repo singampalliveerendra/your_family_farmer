@@ -2,8 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useLang } from '@/lib/LanguageContext'
 
 export default function AdminLoginPage() {
+  const { L } = useLang()
   const router = useRouter()
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -21,18 +23,17 @@ export default function AdminLoginPage() {
       body: JSON.stringify({ password }),
     }).catch(() => null)
     setSubmitting(false)
-    if (!r) { setError('Network error. / నెట్‌వర్క్ లోపం'); return }
+    if (!r) { setError(L('Network error.', 'నెట్‌వర్క్ లోపం')); return }
     const json = await r.json().catch(() => ({}))
-    if (!r.ok || !json?.ok) { setError(json?.error ?? 'Login failed. / లాగిన్ విఫలమైంది'); return }
+    if (!r.ok || !json?.ok) { setError(json?.error ?? L('Login failed.', 'లాగిన్ విఫలమైంది')); return }
     router.replace('/admin')
   }
 
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col">
       <div className="bg-gray-900 px-4 pt-10 pb-14">
-        <h1 className="text-white text-2xl font-extrabold">Owner panel</h1>
-        <p className="text-gray-300 text-sm">యజమాని ప్యానెల్</p>
-        <p className="text-gray-400 text-xs mt-1">Internal · password protected / అంతర్గత · పాస్‌వర్డ్ రక్షణ</p>
+        <h1 className="text-white text-2xl font-extrabold">{L('Owner panel', 'యజమాని ప్యానెల్')}</h1>
+        <p className="text-gray-400 text-xs mt-1">{L('Internal · password protected', 'అంతర్గత · పాస్‌వర్డ్ రక్షణ')}</p>
       </div>
       <form
         onSubmit={submit}
@@ -40,7 +41,7 @@ export default function AdminLoginPage() {
       >
         <div>
           <label className="text-xs font-bold text-gray-700 uppercase tracking-wide block mb-1">
-            Admin password / అడ్మిన్ పాస్‌వర్డ్
+            {L('Admin password', 'అడ్మిన్ పాస్‌వర్డ్')}
           </label>
           <input
             type="password"
@@ -61,7 +62,7 @@ export default function AdminLoginPage() {
           disabled={submitting}
           className="w-full bg-gray-900 text-white font-bold py-4 rounded-xl text-base active:bg-gray-800 disabled:opacity-50"
         >
-          {submitting ? 'Checking... / తనిఖీ చేస్తోంది...' : 'Log in / లాగిన్'}
+          {submitting ? L('Checking...', 'తనిఖీ చేస్తోంది...') : L('Log in', 'లాగిన్')}
         </button>
       </form>
     </main>

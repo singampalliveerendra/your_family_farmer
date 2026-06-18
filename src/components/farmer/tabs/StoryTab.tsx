@@ -18,7 +18,7 @@ type Farmer = {
 }
 
 export default function StoryTab({ farmer }: { farmer: Record<string, unknown> }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const f = farmer as Farmer
 
   const infoGrid = [

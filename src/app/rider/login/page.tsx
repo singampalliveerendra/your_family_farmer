@@ -4,8 +4,10 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import ForgotPasswordModal from '@/components/ForgotPasswordModal'
+import { useLang } from '@/lib/LanguageContext'
 
 export default function RiderLoginPage() {
+  const { L } = useLang()
   const router = useRouter()
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
@@ -34,8 +36,7 @@ export default function RiderLoginPage() {
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col">
       <div className="bg-green-900 px-4 pt-8 pb-12">
-        <h1 className="text-white text-2xl font-extrabold">Delivery partner login</h1>
-        <p className="text-green-300 text-sm mt-1">డెలివరీ పార్ట్నర్ లాగిన్</p>
+        <h1 className="text-white text-2xl font-extrabold">{L('Delivery partner login', 'డెలివరీ పార్ట్నర్ లాగిన్')}</h1>
       </div>
 
       <form
@@ -44,7 +45,7 @@ export default function RiderLoginPage() {
       >
         <div>
           <label className="text-xs font-bold text-gray-700 uppercase tracking-wide block mb-1">
-            Phone number / ఫోన్ నంబర్
+            {L('Phone number', 'ఫోన్ నంబర్')}
           </label>
           <div className="flex gap-2">
             <span className="flex items-center px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-600 font-medium">
@@ -64,7 +65,7 @@ export default function RiderLoginPage() {
         </div>
         <div>
           <label className="text-xs font-bold text-gray-700 uppercase tracking-wide block mb-1">
-            Password / పాస్‌వర్డ్
+            {L('Password', 'పాస్‌వర్డ్')}
           </label>
           <input
             type="password"
@@ -86,7 +87,7 @@ export default function RiderLoginPage() {
           disabled={submitting}
           className="w-full bg-green-700 text-white font-bold py-4 rounded-xl text-base active:bg-green-800 disabled:opacity-50"
         >
-          {submitting ? 'Logging in...' : 'Log in / లాగిన్'}
+          {submitting ? 'Logging in...' : L('Log in', 'లాగిన్')}
         </button>
 
         <button
@@ -94,7 +95,7 @@ export default function RiderLoginPage() {
           onClick={() => setShowForgot(true)}
           className="w-full text-center text-sm text-green-700 font-semibold underline"
         >
-          Forgot Password? / పాస్‌వర్డ్ మర్చిపోయారా?
+          {L('Forgot Password?', 'పాస్‌వర్డ్ మర్చిపోయారా?')}
         </button>
 
         <div className="text-xs text-gray-600 text-center pt-2">

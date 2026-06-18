@@ -14,7 +14,7 @@ type Farmer = {
 }
 
 export default function FarmCover({ farmer }: { farmer: Farmer }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
   const [followed, setFollowed] = useState(false)
   const [lightbox, setLightbox] = useState(false)
 
@@ -92,7 +92,7 @@ export default function FarmCover({ farmer }: { farmer: Farmer }) {
         )}
 
         <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1 text-xs font-semibold text-green-800">
-          Natural farm / సహజ పొలం · since {farmer.farming_since_year}
+          {L('Natural farm', 'సహజ పొలం')} · {L('since', 'నుండి')} {farmer.farming_since_year}
         </div>
       </div>
 
