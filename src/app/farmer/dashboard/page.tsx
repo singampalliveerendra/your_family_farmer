@@ -366,23 +366,18 @@ export default function FarmerDashboard() {
 
   // Quick suspend/resume from the dashboard's inline produce list. Mirrors the
   // Manage Listings modal: flips 'suspended_by_farmer' ⇄ 'available'.
-  // Status changes go through the service-role API (same as Edit): the anon
-  // client has no UPDATE policy on produce_listings, so a direct update would
-  // silently match 0 rows and never persist.
+  // Uses the anon client + RLS UPDATE policy, the same public-write model as the
+  // Add/Delete produce flows. .select('id') confirms a row actually changed —
+  // without an UPDATE policy the write would silently match 0 rows.
   const handleToggleListingSuspend = async (id: string, currentStatus: string) => {
     const next = currentStatus === 'suspended_by_farmer' ? 'available' : 'suspended_by_farmer'
     setListings((prev) => prev.map((l) => (l.id === id ? { ...l, status: next } : l)))
-    try {
-      const res = await fetch('/api/farmer/update-listing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ listingId: id, payload: { status: next } }),
-      })
-      if (!res.ok) { void loadDashboard() } // re-sync on failure
-    } catch {
-      void loadDashboard() // re-sync on failure
-    }
+    const { data, error } = await supabase
+      .from('produce_listings')
+      .update({ status: next })
+      .eq('id', id)
+      .select('id')
+    if (error || !data?.length) { void loadDashboard() } // re-sync on failure
   }
 
   // Approving requires the farmer to first set a pickup/delivery date — that
@@ -2629,25 +2624,21 @@ function ManageListingsModal({
 
   useEffect(() => { load() }, [load])
 
-  // Status changes go through the service-role API (same as Edit). The anon
-  // Supabase client has no UPDATE policy on produce_listings, so a direct
-  // .update() silently matches 0 rows and never persists — which is why Pause
-  // and Suspend appeared to do nothing.
+  // Pause/Suspend use the anon client + RLS UPDATE policy — the same public-write
+  // model as Add/Delete produce. .select('id') confirms a row actually changed;
+  // an empty result means the RLS UPDATE policy is missing (the write would
+  // otherwise silently match 0 rows and never persist).
   const setListingStatus = async (row: ListingRow, next: string) => {
     setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: next } : r)))
     setError('')
-    try {
-      const res = await fetch('/api/farmer/update-listing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ listingId: row.id, payload: { status: next } }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) { setError(json.error ?? 'Could not update listing'); load() } else { onChanged() }
-    } catch {
-      setError('Network error — is the server running?'); load()
-    }
+    const { data, error: err } = await supabase
+      .from('produce_listings')
+      .update({ status: next })
+      .eq('id', row.id)
+      .select('id')
+    if (err) { setError(err.message); load() }
+    else if (!data?.length) { setError('Could not update — please try again.'); load() }
+    else { onChanged() }
   }
 
   // Pause hides a listing from consumers without deleting it; Resume brings it
