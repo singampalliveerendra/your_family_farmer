@@ -1,0 +1,53 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "aee3654e6d07",
+  "session_id": "a0fe0fa6-9ddc-4569-a5c9-2a274622c948",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-18T06:05:04.329677233Z",
+  "branch": "fix/payment-method-label-phonepe-upi",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/app/consumer/orders/[id]/page.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "1bad867759ae",
+  "checkpoint_transcript_start": 646,
+  "transcript_lines_at_start": 646,
+  "token_usage": {
+    "input_tokens": 620,
+    "cache_creation_tokens": 228805,
+    "cache_read_tokens": 6461419,
+    "output_tokens": 27278,
+    "api_call_count": 30
+  },
+  "session_metrics": {
+    "turn_count": 11
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-18T06:05:04.253676338Z",
+    "agent_lines": 11,
+    "agent_removed": 3,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 11,
+    "total_lines_changed": 14,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 474,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs - Copy.html": 22,
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs.html": 22,
+        "mod.md": 430
+      }
+    }
+  ]
+}

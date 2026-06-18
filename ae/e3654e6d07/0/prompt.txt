@@ -1,0 +1,32 @@
+Change "I will pick from the farm" to "I will pick up" in the Cart.
+Set Pickup location as mandatory field when the consumer selects Pickup as an option during order.
+When the consumer selected "Home Delivery" option while ordering, Pickup location should be disabled.
+Change Farm Pickup Address to Farm Address in Farmer Profile page.
+Moderator should be able to edit farmer profile. Right now only add and deactivate is possible. Edit Profile should also be available.
+Show the titles in the language of the selection only. Right now it shows both the languages with a / in between.
+Add a Reason while suspending a consumer by a Moderator. That should be shown in the Consumer header highlighting the suspension.
+Payment is shown as Razorpay than PhonePay or UP.
+A Farmer should be able to suspend a produce and resume it.
+Farmer profile as pickup and schedule twice. I think we can remove one.
+Allow the farmer to mention a date for pickup or delivery.
+these are the testing failed that sent by clinet explain that 11 queries in details first
+
+---
+
+1st one not done iam clearly seeing 🚶
+I'll pick up from the farm / నేను తీసుకుంటాను
+✓
+
+🛵
+
+---
+
+[Image #1]
+
+---
+
+go ahead
+
+---
+
+go ahead and fix #8
