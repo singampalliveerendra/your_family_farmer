@@ -70,6 +70,14 @@ type Order = {
   rider?: { id: string; name: string | null; phone: string } | null
 }
 
+// Online payments go through Razorpay (stored as payment_method 'razorpay';
+// some legacy orders use 'upi'). The real instrument the buyer used — PhonePe /
+// Google Pay / UPI / Card — is resolved into payment_method_detail after the
+// payment is verified. Never surface the gateway name "razorpay" to the buyer.
+function isOnlinePayment(method: string | null | undefined): boolean {
+  return method === 'razorpay' || method === 'upi'
+}
+
 export default function OrderDetailsPage() {
   const params = useParams<{ id: string }>()
   const id = typeof params?.id === 'string' ? params.id : ''
@@ -233,7 +241,7 @@ export default function OrderDetailsPage() {
 
   const paymentLabel = (o: Order) => {
     if (o.payment_method === 'cod') return 'Cash on Delivery / నగదు చెల్లింపు'
-    if (o.payment_method === 'upi') {
+    if (isOnlinePayment(o.payment_method)) {
       // Show the real method (PhonePe / Google Pay / UPI…) once we know it,
       // instead of the gateway name. Falls back to "UPI" before it resolves.
       const m = o.payment_method_detail || 'UPI'
@@ -516,7 +524,7 @@ function ReceiptOverlay({ order, onClose }: { order: Order; onClose: () => void 
           {order.farmer && (
             <div className="flex justify-between"><span className="text-gray-500">Farmer / రైతు</span><span className="font-semibold text-gray-900 text-right">{order.farmer.name} · {order.farmer.village}</span></div>
           )}
-          <div className="flex justify-between"><span className="text-gray-500">Payment / చెల్లింపు</span><span className="font-semibold text-gray-900">{order.payment_method_detail || (order.payment_method === 'cod' ? 'Cash on Delivery' : order.payment_method === 'upi' ? 'UPI' : order.payment_method || '—')}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Payment / చెల్లింపు</span><span className="font-semibold text-gray-900">{order.payment_method_detail || (order.payment_method === 'cod' ? 'Cash on Delivery' : isOnlinePayment(order.payment_method) ? 'UPI' : order.payment_method || '—')}</span></div>
         </div>
 
         <div className="border-t border-dashed border-gray-300 py-3">
@@ -668,7 +676,7 @@ function OrderStatusPanel({ order }: { order: Order }) {
   const shipped = !!order.shipped_at
   const received = !!order.received_at
   // Online orders that have been paid show an extra "Payment received" step.
-  const paidOnline = order.payment_method === 'upi'
+  const paidOnline = isOnlinePayment(order.payment_method)
     && (order.payment_status === 'paid' || order.payment_status === 'completed')
 
   const fmt = (iso?: string | null) =>
