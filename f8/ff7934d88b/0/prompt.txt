@@ -1,0 +1,25 @@
+In my web app "YourFamilyFarmer", right now all the text is shown in both English 
+and Telugu together with a "/" in between (like "All / అన్నీ", "Vegetables / కూరగాయలు", 
+"Available now / ఇప్పుడు అందుబాటులో", "Fresh produce from farms nearby / తాజా పంట", 
+"1 item / బుట్ట", etc.).
+
+I want to change this in the whole application.
+
+There is already a language switch button at the top right with "EN" and a Telugu 
+option. Make it work properly like this:
+
+- When the user selects English, the whole app should show only English text 
+  (remove the Telugu part and the "/").
+- When the user selects Telugu, the whole app should show only Telugu text 
+  (remove the English part and the "/").
+
+Please go through every page and every screen in the app — the navbar, buttons, 
+tabs (Consumer, Farmer, Delivery, Moderator), filters, dropdowns, product cards, 
+cart, complaint section, profile, forms, error messages, popups, everything — and 
+separate the two languages so only one shows at a time based on what the user picks.
+
+Also remember the user's language choice so it stays the same when they refresh 
+the page or move between pages.
+
+Make sure no screen is left with the old "English / Telugu" combined format. 
+The change should apply everywhere in the application.
