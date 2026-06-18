@@ -1,0 +1,5 @@
+now the main issue The problem is that both languages are being displayed in the same line without enough spacing or separation, which makes the UI look crowded and merged in overall code or application that we are building so the client dont dont want that what the client exactly want is separation whole thing if the user click telugu it have to change to whole telugu and also same for english so will you do that i think it is more work and time taken
+
+---
+
+overall and everything
