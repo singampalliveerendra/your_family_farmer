@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "1baabd0845cf",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/app/consumer/orders/page.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/1b/aabd0845cf/0/metadata.json",
+      "transcript": "/1b/aabd0845cf/0/full.jsonl",
+      "content_hash": "/1b/aabd0845cf/0/content_hash.txt",
+      "prompt": "/1b/aabd0845cf/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 139,
+    "cache_creation_tokens": 5638,
+    "cache_read_tokens": 1203432,
+    "output_tokens": 5347,
+    "api_call_count": 6
+  }
+}
