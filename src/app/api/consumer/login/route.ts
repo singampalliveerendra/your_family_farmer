@@ -78,11 +78,13 @@ export async function POST(req: NextRequest) {
   // shown to the consumer (per client request) so they know why; legacy
   // suspensions with no recorded reason fall back to the generic message.
   if (user.suspended === true) {
-    const reason = (user.suspended_reason as string | null)?.trim()
+    const reason = (user.suspended_reason as string | null)?.trim() || null
     const error = reason
       ? `Your account has been suspended.\nReason: ${reason}\nPlease contact support. / మీ ఖాతా నిలిపివేయబడింది.\nకారణం: ${reason}\nదయచేసి సపోర్ట్‌ను సంప్రదించండి.`
       : 'Your account has been suspended. Please contact support. / మీ ఖాతా నిలిపివేయబడింది. దయచేసి సపోర్ట్‌ను సంప్రదించండి.'
-    return NextResponse.json({ error }, { status: 403 })
+    // `suspended` + `suspendedReason` let the login UI render the same highlighted
+    // banner the in-app header uses, instead of a plain inline error line.
+    return NextResponse.json({ error, suspended: true, suspendedReason: reason }, { status: 403 })
   }
 
   await supabase

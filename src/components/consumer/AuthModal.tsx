@@ -15,6 +15,9 @@ export default function AuthModal() {
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // Set when login is blocked because the account is suspended — rendered as a
+  // highlighted banner (the moderator's reason) instead of a plain error line.
+  const [suspended, setSuspended] = useState<{ reason: string | null } | null>(null)
   const [showForgot, setShowForgot] = useState(false)
 
   // Lock body scroll while modal is open
@@ -35,11 +38,15 @@ export default function AuthModal() {
     if (!canSubmit) return
     setLoading(true)
     setError('')
+    setSuspended(null)
     const result = mode === 'login'
       ? await login({ phone: phoneDigits, password })
       : await register({ name: name.trim(), phone: phoneDigits, password })
     setLoading(false)
-    if (!result.ok) setError(result.error)
+    if (!result.ok) {
+      if (result.suspended) setSuspended({ reason: result.suspendedReason ?? null })
+      else setError(result.error)
+    }
     // On success the provider closes the modal and re-runs the queued action
   }
 
@@ -72,7 +79,7 @@ export default function AuthModal() {
           <div className="grid grid-cols-2 bg-gray-100 rounded-xl p-1 text-sm font-bold">
             <button
               type="button"
-              onClick={() => { setMode('login'); setError('') }}
+              onClick={() => { setMode('login'); setError(''); setSuspended(null) }}
               className={`py-2 rounded-lg transition-colors ${
                 mode === 'login' ? 'bg-white text-green-800 shadow-sm' : 'text-gray-500'
               }`}
@@ -81,7 +88,7 @@ export default function AuthModal() {
             </button>
             <button
               type="button"
-              onClick={() => { setMode('register'); setError('') }}
+              onClick={() => { setMode('register'); setError(''); setSuspended(null) }}
               className={`py-2 rounded-lg transition-colors ${
                 mode === 'register' ? 'bg-white text-green-800 shadow-sm' : 'text-gray-500'
               }`}
@@ -158,11 +165,26 @@ export default function AuthModal() {
             )}
           </div>
 
-          {error && (
+          {suspended ? (
+            <div className="bg-red-600 text-white rounded-xl px-4 py-3 flex items-start gap-2.5">
+              <span className="text-lg leading-none mt-0.5" aria-hidden>🚫</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-black uppercase tracking-wide leading-tight">
+                  Account suspended / ఖాతా నిలిపివేయబడింది
+                </p>
+                {suspended.reason && (
+                  <p className="text-sm font-medium leading-snug mt-1 break-words">{suspended.reason}</p>
+                )}
+                <p className="text-xs text-red-100 leading-snug mt-1.5">
+                  Please contact support. / దయచేసి సపోర్ట్‌ను సంప్రదించండి.
+                </p>
+              </div>
+            </div>
+          ) : error ? (
             <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
               {error}
             </p>
-          )}
+          ) : null}
 
           <button
             type="submit"
