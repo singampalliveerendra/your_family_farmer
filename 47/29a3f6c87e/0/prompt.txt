@@ -1,0 +1,24 @@
+the clinet clarified tht this is the exact flow
+
+---
+
+Similar to Farmer, where there is an order history, consumer also needs an order history where the resolved orders should be moved there. Active orders should be kept separate to clear the clutter.
+For a Pickup order, show only "Picked up" in the farmer order list.
+After the farmer confirms a delivery date, he should be able to say "Shipped" from the Orders list as well as "Today's" schedule list.
+Add this "Picked up" button in the Today's schedule list. these are the 4 the client need exactly tell me what you underatand
+
+---
+
+okay and the delivery tracking and deatils have to look like simalr and live track like if farmer select picked up and the consumer have to see immediately did you underatand explain possibilities
+
+---
+
+no notifcation i there orders details page they have to see theeie order track
+
+---
+
+go tell me how many things we have to implement point by point in table
+
+---
+
+do one by one neatly every logic have to clear okay go ahead

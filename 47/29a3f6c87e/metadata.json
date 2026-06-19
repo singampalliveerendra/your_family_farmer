@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "4729a3f6c87e",
+  "strategy": "manual-commit",
+  "branch": "feat/order-tracking-history",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/app/api/consumer/orders/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/consumer/orders/page.tsx",
+    "src/app/farmer/dashboard/page.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/47/29a3f6c87e/0/metadata.json",
+      "transcript": "/47/29a3f6c87e/0/full.jsonl",
+      "content_hash": "/47/29a3f6c87e/0/content_hash.txt",
+      "prompt": "/47/29a3f6c87e/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 987,
+    "cache_creation_tokens": 105980,
+    "cache_read_tokens": 3354410,
+    "output_tokens": 44821,
+    "api_call_count": 42
+  }
+}
