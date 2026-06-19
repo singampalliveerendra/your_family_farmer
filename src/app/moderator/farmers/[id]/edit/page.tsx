@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import ModeratorShell, { useModeratorAuth } from '../../../ModeratorShell'
 import ModeratorFarmerForm, { type FarmerInitial } from '@/components/moderator/ModeratorFarmerForm'
-import { normalizePickupSlots } from '@/lib/pickup-slots'
+import { normalizePickupSchedule } from '@/lib/pickup-slots'
 
 // Raw farmer row from GET /api/moderator/farmers/[id].
 type FarmerRow = {
@@ -53,7 +53,10 @@ function toInitial(f: FarmerRow): FarmerInitial {
     bank_account_number: str(f.bank_account_number),
     bank_ifsc: str(f.bank_ifsc),
     pickup_locations: Array.isArray(f.pickup_locations) ? f.pickup_locations : [],
-    pickup_slots: normalizePickupSlots(f.pickup_slots),
+    pickup_slots: normalizePickupSchedule(
+      f.pickup_slots,
+      Array.isArray(f.pickup_locations) ? f.pickup_locations : [],
+    ),
     cod_enabled: f.cod_enabled === true,
     lat: typeof f.lat === 'number' ? f.lat : null,
     lng: typeof f.lng === 'number' ? f.lng : null,

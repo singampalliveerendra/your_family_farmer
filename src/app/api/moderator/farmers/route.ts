@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { randomInt } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { isModeratorRequest, getModeratorZone, getModeratorId } from '@/lib/moderator-session'
-import { normalizePickupSlots } from '@/lib/pickup-slots'
+import { normalizePickupSchedule } from '@/lib/pickup-slots'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -127,11 +127,14 @@ export async function POST(req: NextRequest) {
     ? Array.from(new Set(rawPickups.map((p) => String(p).trim()).filter(Boolean)))
     : []
 
-  // pickup_slots: an array of { days, time_from, time_to } windows. Normalized
-  // (drops empty-day windows) and stored as null when none — matching the
-  // farmer-side profile editor.
-  const cleanSlots = normalizePickupSlots((body as { pickup_slots?: unknown }).pickup_slots)
-  const pickup_slots = cleanSlots.length > 0 ? cleanSlots : null
+  // pickup_slots: a per-location map { [location]: PickupSlot[] }. Normalized
+  // (scoped to existing locations, drops empty-day windows) and stored as null
+  // when none — matching the farmer-side profile editor.
+  const cleanSchedule = normalizePickupSchedule(
+    (body as { pickup_slots?: unknown }).pickup_slots,
+    pickup_locations,
+  )
+  const pickup_slots = Object.keys(cleanSchedule).length > 0 ? cleanSchedule : null
 
   if (!name) return NextResponse.json({ error: 'Name is required.' }, { status: 400 })
   if (upi_id && !/^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$/.test(upi_id)) {

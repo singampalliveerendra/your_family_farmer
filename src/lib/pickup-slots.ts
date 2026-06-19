@@ -1,12 +1,17 @@
-// A farmer's pickup schedule is a list of windows, each its own set of weekdays
-// plus a from/to time — e.g. Mon/Wed/Fri 08:00–12:00 AND Sat/Sun 16:00–18:00.
-// Stored in the farmers.pickup_slots JSON column.
+// A farmer's pickup schedule is keyed BY pickup location: each location has its
+// own list of windows, each window its own set of weekdays plus a from/to time —
+// e.g. "Bus stand" → Mon/Wed/Fri 08:00–12:00 AND Sat/Sun 16:00–18:00, while
+// "Market road" → Sun 17:00–19:00. Stored in the farmers.pickup_slots JSON column
+// as { [locationName]: PickupSlot[] }.
 
 export type PickupSlot = {
   days: string[]
   time_from: string
   time_to: string
 }
+
+// Per-location pickup schedule: location name → its time windows.
+export type PickupSchedule = Record<string, PickupSlot[]>
 
 export const PICKUP_DEFAULT_FROM = '08:00'
 export const PICKUP_DEFAULT_TO = '12:00'
@@ -38,4 +43,36 @@ export function normalizePickupSlots(raw: unknown): PickupSlot[] {
 // A fresh, empty slot for the "+ Add" action.
 export function emptyPickupSlot(): PickupSlot {
   return { days: [], time_from: PICKUP_DEFAULT_FROM, time_to: PICKUP_DEFAULT_TO }
+}
+
+// Build a clean per-location schedule from a raw stored value, scoped to the
+// locations that currently exist. Accepts:
+//   • the new map shape { [location]: PickupSlot[] }
+//   • the LEGACY flat-array shape (a single global schedule) — attached to the
+//     first location, since old data had no per-location association
+//   • null/anything else → empty schedule
+// `locations` scopes the result: when provided, only those locations are kept
+// (so a schedule for a removed location is dropped). When omitted, the map's own
+// keys are used. Locations with no usable windows are omitted entirely.
+export function normalizePickupSchedule(raw: unknown, locations?: string[]): PickupSchedule {
+  const out: PickupSchedule = {}
+
+  if (Array.isArray(raw)) {
+    // Legacy global schedule — attach to the first known location, if any.
+    const slots = normalizePickupSlots(raw)
+    const first = locations?.[0]
+    if (slots.length > 0 && first) out[first] = slots
+    return out
+  }
+
+  if (raw && typeof raw === 'object') {
+    const map = raw as Record<string, unknown>
+    const keys = locations ?? Object.keys(map)
+    for (const loc of keys) {
+      const slots = normalizePickupSlots(map[loc])
+      if (slots.length > 0) out[loc] = slots
+    }
+  }
+
+  return out
 }

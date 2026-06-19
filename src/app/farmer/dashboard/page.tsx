@@ -8,7 +8,7 @@ import LanguageToggle from '@/components/LanguageToggle'
 import { useLang } from '@/lib/LanguageContext'
 import LocationSearch from '@/components/LocationSearch'
 import { FreshnessBadge } from '@/components/FreshnessBadge'
-import { normalizePickupSlots, emptyPickupSlot, type PickupSlot } from '@/lib/pickup-slots'
+import { normalizePickupSchedule, emptyPickupSlot, type PickupSchedule } from '@/lib/pickup-slots'
 
 type Farmer = {
   id: string
@@ -27,7 +27,7 @@ type Farmer = {
   cover_photo_url: string | null
   photo_url: string | null
   pesticide_cert_url: string | null
-  pickup_slots: PickupSlot[] | PickupSlot | null
+  pickup_slots: unknown
   lat: number | null
   lng: number | null
   location_name: string | null
@@ -1073,16 +1073,18 @@ function ProfileEditModal({
   const [sinceYear, setSinceYear] = useState(
     farmer.farming_since_year ? String(farmer.farming_since_year) : '',
   )
-  const [pickupLocations, setPickupLocations] = useState<string[]>(
-    Array.isArray(farmer.pickup_locations) ? farmer.pickup_locations : [],
-  )
+  const initialLocations = Array.isArray(farmer.pickup_locations) ? farmer.pickup_locations : []
+  const [pickupLocations, setPickupLocations] = useState<string[]>(initialLocations)
   const [newPickup, setNewPickup] = useState('')
   const [farmAddress, setFarmAddress] = useState(farmer.farm_address ?? '')
 
-  // Pickup schedule — one or more windows, each its own days + time range so a
-  // farmer can offer e.g. weekday mornings AND weekend evenings.
+  // Pickup schedule — keyed by location. Each location has its own one-or-more
+  // windows (days + time range), so a farmer can offer e.g. weekday mornings at
+  // one pickup point and weekend evenings at another.
   const ALL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-  const [slots, setSlots] = useState<PickupSlot[]>(() => normalizePickupSlots(farmer.pickup_slots))
+  const [schedule, setSchedule] = useState<PickupSchedule>(
+    () => normalizePickupSchedule(farmer.pickup_slots, initialLocations),
+  )
 
   // Cover photo
   const [coverFile, setCoverFile] = useState<File | null>(null)
@@ -1189,21 +1191,38 @@ function ProfileEditModal({
     if (!v) return
     if (pickupLocations.includes(v)) { setNewPickup(''); return }
     setPickupLocations((prev) => [...prev, v])
+    // Start the new location with one blank timing so the editor is ready.
+    setSchedule((prev) => ({ ...prev, [v]: [emptyPickupSlot()] }))
     setNewPickup('')
   }
-  const removePickup = (loc: string) =>
+  const removePickup = (loc: string) => {
     setPickupLocations((prev) => prev.filter((l) => l !== loc))
+    setSchedule((prev) => {
+      const next = { ...prev }
+      delete next[loc]
+      return next
+    })
+  }
 
-  const addSlot = () => setSlots((prev) => [...prev, emptyPickupSlot()])
-  const removeSlot = (idx: number) => setSlots((prev) => prev.filter((_, i) => i !== idx))
-  const toggleSlotDay = (idx: number, day: string) =>
-    setSlots((prev) => prev.map((s, i) =>
-      i === idx
-        ? { ...s, days: s.days.includes(day) ? s.days.filter((d) => d !== day) : [...s.days, day] }
-        : s,
-    ))
-  const setSlotTime = (idx: number, key: 'time_from' | 'time_to', val: string) =>
-    setSlots((prev) => prev.map((s, i) => (i === idx ? { ...s, [key]: val } : s)))
+  // Per-location timing editors. Each operates on schedule[loc].
+  const addTiming = (loc: string) =>
+    setSchedule((prev) => ({ ...prev, [loc]: [...(prev[loc] ?? []), emptyPickupSlot()] }))
+  const removeTiming = (loc: string, idx: number) =>
+    setSchedule((prev) => ({ ...prev, [loc]: (prev[loc] ?? []).filter((_, i) => i !== idx) }))
+  const toggleTimingDay = (loc: string, idx: number, day: string) =>
+    setSchedule((prev) => ({
+      ...prev,
+      [loc]: (prev[loc] ?? []).map((s, i) =>
+        i === idx
+          ? { ...s, days: s.days.includes(day) ? s.days.filter((d) => d !== day) : [...s.days, day] }
+          : s,
+      ),
+    }))
+  const setTimingTime = (loc: string, idx: number, key: 'time_from' | 'time_to', val: string) =>
+    setSchedule((prev) => ({
+      ...prev,
+      [loc]: (prev[loc] ?? []).map((s, i) => (i === idx ? { ...s, [key]: val } : s)),
+    }))
 
   const handleSave = async () => {
     if (!name.trim()) { setError(tx.nameRequired); return }
@@ -1254,8 +1273,8 @@ function ProfileEditModal({
       upi_qr_code_url:  (qrRes.url ?? existingQrUrl) || null,
       cod_enabled:      codEnabled,
       pickup_slots: (() => {
-        const clean = normalizePickupSlots(slots)
-        return clean.length > 0 ? clean : null
+        const clean = normalizePickupSchedule(schedule, pickupLocations)
+        return Object.keys(clean).length > 0 ? clean : null
       })(),
       lat: farmerLat,
       lng: farmerLng,
@@ -1534,99 +1553,104 @@ function ProfileEditModal({
                 {tx.addBtn}
               </button>
             </div>
-            {pickupLocations.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {pickupLocations.map((loc) => (
-                  <span
-                    key={loc}
-                    className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-800 rounded-full pl-3 pr-1 py-1 text-xs font-semibold"
-                  >
-                    📍 {loc}
-                    <button
-                      type="button"
-                      onClick={() => removePickup(loc)}
-                      className="w-5 h-5 rounded-full bg-green-200 text-green-800 text-sm leading-none flex items-center justify-center"
-                      aria-label={`Remove ${loc}`}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
+            {pickupLocations.length === 0 && (
+              <p className="text-[11px] text-gray-400 italic">
+                {L('Add a pickup location above to set its timings.', 'సమయాలు సెట్ చేయడానికి పైన పికప్ స్థలాన్ని జోడించండి.')}
+              </p>
             )}
-          </div>
 
-          {/* Pickup schedule — add one or more day + time-window entries */}
-          <div>
-            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
-              {tx.pickupScheduleLabel}
-            </label>
-            <p className="text-[11px] text-gray-500 mb-2 leading-snug">{tx.pickupScheduleHelp}</p>
-
-            <div className="space-y-3">
-              {slots.map((slot, idx) => (
-                <div key={idx} className="border border-gray-200 rounded-xl p-3 bg-gray-50">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-bold text-gray-500">
-                      {L('Timing', 'సమయం')} {idx + 1}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removeSlot(idx)}
-                      className="text-red-500 text-xs font-bold active:text-red-700"
-                    >
-                      {L('✕ Remove', 'తీసివేయి')}
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {ALL_DAYS.map((day) => (
+            {/* Each pickup location carries its own pickup timings. */}
+            <div className="space-y-4 mt-1">
+              {pickupLocations.map((loc) => {
+                const timings = schedule[loc] ?? []
+                return (
+                  <div key={loc} className="border border-green-200 rounded-2xl overflow-hidden">
+                    <div className="flex items-center justify-between bg-green-50 px-3 py-2.5 border-b border-green-100">
+                      <span className="text-sm font-bold text-green-900 truncate">📍 {loc}</span>
                       <button
-                        key={day}
                         type="button"
-                        onClick={() => toggleSlotDay(idx, day)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                          slot.days.includes(day)
-                            ? 'bg-green-700 text-white border-green-700'
-                            : 'bg-white text-gray-600 border-gray-200'
-                        }`}
+                        onClick={() => removePickup(loc)}
+                        className="text-red-500 text-xs font-bold active:text-red-700 whitespace-nowrap"
+                        aria-label={`Remove ${loc}`}
                       >
-                        {day.slice(0, 3)}
+                        {L('✕ Remove location', 'స్థలం తీసివేయి')}
                       </button>
-                    ))}
-                  </div>
-                  {slot.days.length > 0 && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <p className="text-[11px] text-gray-500 mb-1">{tx.pickupFrom}</p>
-                        <input
-                          type="time"
-                          value={slot.time_from}
-                          onChange={(e) => setSlotTime(idx, 'time_from', e.target.value)}
-                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <p className="text-[11px] text-gray-500 mb-1">{tx.pickupTo}</p>
-                        <input
-                          type="time"
-                          value={slot.time_to}
-                          onChange={(e) => setSlotTime(idx, 'time_to', e.target.value)}
-                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none"
-                        />
-                      </div>
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
 
-            <button
-              type="button"
-              onClick={addSlot}
-              className="mt-2 text-sm font-bold text-green-700 active:text-green-900"
-            >
-              {L('+ Add timing', 'సమయం జోడించు')}
-            </button>
+                    <div className="p-3">
+                      <p className="text-[11px] text-gray-500 mb-2 leading-snug">
+                        {L('Days & times buyers can pick up from here.', 'ఇక్కడ నుండి కొనుగోలుదారులు పికప్ చేసుకునే రోజులు & సమయాలు.')}
+                      </p>
+
+                      <div className="space-y-3">
+                        {timings.map((slot, idx) => (
+                          <div key={idx} className="border border-gray-200 rounded-xl p-3 bg-gray-50">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[11px] font-bold text-gray-500">
+                                {L('Timing', 'సమయం')} {idx + 1}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => removeTiming(loc, idx)}
+                                className="text-red-500 text-xs font-bold active:text-red-700"
+                              >
+                                {L('✕ Remove', 'తీసివేయి')}
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap gap-2 mb-3">
+                              {ALL_DAYS.map((day) => (
+                                <button
+                                  key={day}
+                                  type="button"
+                                  onClick={() => toggleTimingDay(loc, idx, day)}
+                                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                                    slot.days.includes(day)
+                                      ? 'bg-green-700 text-white border-green-700'
+                                      : 'bg-white text-gray-600 border-gray-200'
+                                  }`}
+                                >
+                                  {day.slice(0, 3)}
+                                </button>
+                              ))}
+                            </div>
+                            {slot.days.length > 0 && (
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <p className="text-[11px] text-gray-500 mb-1">{tx.pickupFrom}</p>
+                                  <input
+                                    type="time"
+                                    value={slot.time_from}
+                                    onChange={(e) => setTimingTime(loc, idx, 'time_from', e.target.value)}
+                                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none"
+                                  />
+                                </div>
+                                <div>
+                                  <p className="text-[11px] text-gray-500 mb-1">{tx.pickupTo}</p>
+                                  <input
+                                    type="time"
+                                    value={slot.time_to}
+                                    onChange={(e) => setTimingTime(loc, idx, 'time_to', e.target.value)}
+                                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => addTiming(loc)}
+                        className="mt-2 text-sm font-bold text-green-700 active:text-green-900"
+                      >
+                        {L('+ Add timing', 'సమయం జోడించు')}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
 
           {/* ── Section 3: Payment Details ── */}

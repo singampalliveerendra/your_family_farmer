@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
-import { normalizePickupSlots } from '@/lib/pickup-slots'
+import { normalizePickupSchedule } from '@/lib/pickup-slots'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -132,11 +132,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       : []
   }
 
-  // Pickup schedule — normalize to a clean array of {days,time_from,time_to};
-  // store null when empty so the column stays tidy.
+  // Pickup schedule — a per-location map { [location]: PickupSlot[] }. Scope to
+  // the locations sent alongside (falling back to the map's own keys), drop
+  // empty windows, and store null when empty so the column stays tidy.
   if ('pickup_slots' in b) {
-    const clean = normalizePickupSlots(b.pickup_slots)
-    update.pickup_slots = clean.length > 0 ? clean : null
+    const locs = Array.isArray(b.pickup_locations)
+      ? b.pickup_locations.map((p) => String(p).trim()).filter(Boolean)
+      : undefined
+    const clean = normalizePickupSchedule(b.pickup_slots, locs)
+    update.pickup_slots = Object.keys(clean).length > 0 ? clean : null
   }
 
   // Photos — the client sends the resolved URL (existing, newly uploaded, or
