@@ -1,0 +1,48 @@
+Pickup locations
+Where can buyers pick up? Add one at a time.
+
+e.g. Bus stand
++ Add
+📍 khb×
+Pickup schedule
+Set days & time buyers can pick up from your farm
+
+Timing 1
+✕ Remove
+Mon
+Tue
+Wed
+Thu
+Fri
+Sat
+Sun
+From
+
+
+08:00
+To
+
+
+12:00
+Timing 2
+✕ Remove
+Mon
+Tue
+Wed
+Thu
+Fri
+Sat
+Sun
++ Add timingin this what exactly need is the pickup timing in hae to edit like as per the pickup sceduley ifadd one picukp location the farmer able to set timing to that location only did you understand what iam saying just tell me before doing
+
+---
+
+yes goahead
+
+---
+
+commit and push
+
+---
+
+commit and push all the changes that we didi till now
