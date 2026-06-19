@@ -196,7 +196,7 @@ export default function ModeratorListingsPage() {
                     disabled={busyId === l.id}
                     className="bg-white border border-gray-200 text-gray-600 text-xs font-bold px-3 py-1.5 rounded-lg active:bg-gray-50 disabled:opacity-50"
                   >
-                    Suspend listing
+                    Suspend
                   </button>
                 )}
                 {(l.status === 'rejected' || l.status === 'suspended') && (
@@ -205,7 +205,7 @@ export default function ModeratorListingsPage() {
                     disabled={busyId === l.id}
                     className="bg-green-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg active:bg-green-800 disabled:opacity-50"
                   >
-                    {l.status === 'suspended' ? 'Re-activate listing' : 'Approve anyway'}
+                    {l.status === 'suspended' ? 'Re-activate' : 'Approve anyway'}
                   </button>
                 )}
               </div>
