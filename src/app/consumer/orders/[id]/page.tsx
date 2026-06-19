@@ -12,17 +12,6 @@ import ProduceReviewBox, { type MyReview } from '@/components/consumer/ProduceRe
 
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
 
-// Fire a browser notification for a buyer-facing status change (e.g. the farmer
-// shipped the parcel). Permission-gated: silently no-ops unless the buyer has
-// granted notifications, so it's safe to call unconditionally.
-function fireConsumerNotification(title: string, body: string) {
-  if (typeof window === 'undefined' || !('Notification' in window)) return
-  if (Notification.permission !== 'granted') return
-  try {
-    new Notification(title, { body, icon: '/icon-192.png', tag: 'yff-order-status' })
-  } catch { /* some browsers throw on background tabs — ignore */ }
-}
-
 type Order = {
   id: string
   order_code: string | null
@@ -179,8 +168,8 @@ export default function OrderDetailsPage() {
     return () => { cancelled = true }
   }, [id, state.status])
 
-  // Light polling so status changes the farmer/rider make (e.g. Shipped) show up
-  // here without a manual refresh. Stops once the order reaches a final state.
+  // The order is "done" once it reaches a terminal state — live polling stops
+  // there so we're not hitting the API for an order that can't change anymore.
   const orderDone = !!order && (
     order.status === 'declined'
     || order.status === 'cancelled'
@@ -189,29 +178,36 @@ export default function OrderDetailsPage() {
     || order.delivery_status === 'delivered'
   )
   const orderActive = !!order && !orderDone && (order.status === 'pending' || order.status === 'approved')
+
+  // Live tracking. While the order screen is open and the order is still active,
+  // re-fetch every 5s so a farmer/rider action (Shipped, Picked Up, Out for
+  // delivery…) advances the on-screen timeline almost immediately — and
+  // re-fetch the moment the buyer brings the tab back into focus. The fetch goes
+  // through the same secure, ownership-checked API route as the first load; no
+  // notifications, just the tracker updating itself on screen.
   useEffect(() => {
     if (!orderActive || !id || state.status !== 'authenticated') return
-    const timer = setInterval(() => {
+
+    const silentRefresh = () => {
       fetch(`/api/consumer/orders/${id}`, { credentials: 'same-origin' })
         .then(async (r) => {
           if (!r.ok) return
           const json = await r.json().catch(() => ({}))
-          if (!json.order) return
-          const next = json.order as Order
-          // Notify the buyer the moment a status they're waiting on flips.
-          setOrder((prev) => {
-            if (prev && !prev.shipped_at && next.shipped_at) {
-              fireConsumerNotification(
-                L('Your order has shipped 📦', 'ఆర్డర్ షిప్ చేయబడింది'),
-                L(`${next.produce_name ?? 'Your order'} is on the way. Tap "Received" once it arrives.`, `మీ ఆర్డర్ వస్తోంది. వచ్చాక "అందుకున్నాను" నొక్కండి.`),
-              )
-            }
-            return next
-          })
+          if (json.order) setOrder(json.order as Order)
         })
         .catch(() => {})
-    }, 25000)
-    return () => clearInterval(timer)
+    }
+
+    const timer = setInterval(silentRefresh, 5000)
+    const onVisible = () => { if (document.visibilityState === 'visible') silentRefresh() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', silentRefresh)
+
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', silentRefresh)
+    }
   }, [orderActive, id, state.status])
 
   // Resolve a fresh signed URL for the payment screenshot
@@ -718,8 +714,26 @@ function OrderStatusPanel({ order }: { order: Order }) {
   steps.forEach((s, i) => { if (s.done) current = i })
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
-      <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">{L('Order status', 'ఆర్డర్ స్థితి')}</p>
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-4">
+      {/* Header — mirrors the home-delivery panel so every order type's tracker
+          looks the same, just with the icon/label for this fulfilment type. */}
+      <div className="flex items-center gap-2">
+        <span className="text-base">{isCourier ? '📦' : '🧺'}</span>
+        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+          {isCourier ? L('Courier delivery', 'కొరియర్ డెలివరీ') : L('Farm pickup', 'ఫామ్ పికప్')}
+        </p>
+      </div>
+
+      {/* Prominent completion banner once the order is resolved — same style as
+          the "Delivered" banner on the home-delivery tracker. */}
+      {(received || collected) && (
+        <div className="bg-green-50 border border-green-200 rounded-2xl px-4 py-3 text-center">
+          <p className="text-sm font-extrabold text-green-800">
+            {isCourier ? `✓ ${L('Received', 'అందుకున్నారు')}` : `✓ ${L('Picked up', 'తీసుకున్నారు')}`}
+          </p>
+          <p className="text-xs text-green-700 mt-0.5">{fmt(isCourier ? order.received_at : order.collected_at)}</p>
+        </div>
+      )}
 
       {/* Handover code — shown once the order is ready and before it's
           collected. The customer reads it to the farmer at pickup. */}

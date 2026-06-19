@@ -33,8 +33,11 @@ type Order = {
     phone: string | null
     upi_id: string | null
   } | null
-  delivery_type?: 'self_pickup' | 'home_delivery' | null
+  delivery_type?: 'self_pickup' | 'home_delivery' | 'courier' | null
   delivery_status?: DeliveryStatus | null
+  shipped_at?: string | null
+  collected_at?: string | null
+  received_at?: string | null
 }
 
 export default function ConsumerOrdersPage() {
@@ -47,6 +50,8 @@ export default function ConsumerOrdersPage() {
   // Order code the complaint modal is pinned to ('' means a general complaint
   // with no preset). null means the modal is closed.
   const [complaintFor, setComplaintFor] = useState<string | null>(null)
+  // Active vs Completed view. Resolved orders move to Completed to de-clutter.
+  const [tab, setTab] = useState<'active' | 'completed'>('active')
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -123,6 +128,19 @@ export default function ConsumerOrdersPage() {
     return null
   }
 
+  // An order is "resolved" once it reaches a terminal state: declined,
+  // cancelled, delivered (home delivery), picked up (self-pickup) or received
+  // (courier). Everything else is still in progress.
+  const isResolved = (o: Order) =>
+    o.status === 'declined'
+    || o.status === 'cancelled'
+    || o.delivery_status === 'delivered'
+    || !!o.collected_at
+    || !!o.received_at
+  const activeOrders = orders.filter((o) => !isResolved(o))
+  const completedOrders = orders.filter(isResolved)
+  const shown = tab === 'active' ? activeOrders : completedOrders
+
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
       {/* Header */}
@@ -179,10 +197,34 @@ export default function ConsumerOrdersPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              {orders.length} {L(`order${orders.length !== 1 ? 's' : ''} found`, 'ఆర్డర్‌లు దొరికాయి')}
-            </p>
-            {orders.map((order) => {
+            {/* Active vs Completed tabs — keeps in-progress orders apart from
+                resolved ones (delivered / picked up / declined / cancelled). */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-1.5 flex gap-1.5">
+              {(['active', 'completed'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                    tab === t ? 'bg-green-700 text-white' : 'bg-gray-50 text-gray-600 active:bg-gray-100'
+                  }`}
+                >
+                  {t === 'active'
+                    ? `${L('Active', 'ప్రస్తుత')} (${activeOrders.length})`
+                    : `${L('Completed', 'పూర్తయినవి')} (${completedOrders.length})`}
+                </button>
+              ))}
+            </div>
+
+            {shown.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-4xl mb-2">{tab === 'active' ? '🧺' : '📦'}</div>
+                <p className="font-semibold text-gray-500 text-sm">
+                  {tab === 'active'
+                    ? L('No active orders', 'ప్రస్తుత ఆర్డర్‌లు లేవు')
+                    : L('No completed orders yet', 'పూర్తయిన ఆర్డర్‌లు లేవు')}
+                </p>
+              </div>
+            ) : shown.map((order) => {
               const badge = paymentBadge(order)
               // Manual UPI flow retired — no pay-via-UPI prompt or retry on legacy orders.
               const needsPayment = false

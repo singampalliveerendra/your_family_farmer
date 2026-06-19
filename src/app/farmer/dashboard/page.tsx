@@ -2817,7 +2817,9 @@ type ScheduleOrder = {
   quantity: number | null
   unit: string | null
   pickup_location: string | null
-  delivery_type: 'self_pickup' | 'home_delivery' | null
+  delivery_type: 'self_pickup' | 'home_delivery' | 'courier' | null
+  shipped_at: string | null
+  collected_at: string | null
   created_at: string
 }
 
@@ -2827,13 +2829,14 @@ function TodayScheduleSection({ farmerId }: { farmerId: string }) {
   const [date, setDate] = useState(todayStr)
   const [orders, setOrders] = useState<ScheduleOrder[]>([])
   const [loading, setLoading] = useState(true)
+  const [busyId, setBusyId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     supabase
       .from('orders')
-      .select('id, buyer_name, buyer_phone, produce_name, quantity, unit, pickup_location, delivery_type, created_at')
+      .select('id, buyer_name, buyer_phone, produce_name, quantity, unit, pickup_location, delivery_type, shipped_at, collected_at, created_at')
       .eq('farmer_id', farmerId)
       .eq('status', 'approved')
       .eq('fulfillment_date', date)
@@ -2846,25 +2849,82 @@ function TodayScheduleSection({ farmerId }: { farmerId: string }) {
     return () => { cancelled = true }
   }, [farmerId, date])
 
+  // Self-pickup: stamp collected_at (resolves the order). We keep the row in the
+  // schedule but flip it to a "Picked up" done-state so the farmer sees it's
+  // closed for the day. Uses the same API route as the orders list.
+  const markPickedUp = async (orderId: string) => {
+    setBusyId(orderId)
+    const res = await fetch(`/api/farmer/orders/${orderId}/picked-up`, { method: 'POST', credentials: 'same-origin' })
+    if (res.ok) {
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, collected_at: new Date().toISOString() } : o)))
+    }
+    setBusyId(null)
+  }
+
+  // Courier: stamp shipped_at (order stays open until the buyer confirms
+  // Received). Same API route as the orders list.
+  const markShipped = async (orderId: string) => {
+    setBusyId(orderId)
+    const res = await fetch(`/api/farmer/orders/${orderId}/ship`, { method: 'POST', credentials: 'same-origin' })
+    if (res.ok) {
+      const json = (await res.json().catch(() => ({}))) as { shipped_at?: string }
+      const shippedAt = json.shipped_at ?? new Date().toISOString()
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, shipped_at: shippedAt } : o)))
+    }
+    setBusyId(null)
+  }
+
   const pickups = orders.filter((o) => o.delivery_type !== 'home_delivery')
   const deliveries = orders.filter((o) => o.delivery_type === 'home_delivery')
 
-  const Row = ({ o }: { o: ScheduleOrder }) => (
-    <div className="border border-gray-100 rounded-xl px-3 py-2.5 bg-gray-50">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-sm font-bold text-gray-900 truncate">{o.produce_name} · {o.quantity} {o.unit || 'kg'}</p>
-          <p className="text-xs text-gray-600 truncate">🧑 {o.buyer_name || L('Buyer', 'కొనుగోలుదారు')}</p>
-          {o.pickup_location && <p className="text-[11px] text-gray-500 truncate">📍 {o.pickup_location}</p>}
+  const Row = ({ o }: { o: ScheduleOrder }) => {
+    const isCourier = o.delivery_type === 'courier'
+    const isHomeDelivery = o.delivery_type === 'home_delivery'
+    const isPickup = !isCourier && !isHomeDelivery // self_pickup (or legacy null)
+    const busy = busyId === o.id
+    return (
+      <div className="border border-gray-100 rounded-xl px-3 py-2.5 bg-gray-50 space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-gray-900 truncate">{o.produce_name} · {o.quantity} {o.unit || 'kg'}</p>
+            <p className="text-xs text-gray-600 truncate">🧑 {o.buyer_name || L('Buyer', 'కొనుగోలుదారు')}</p>
+            {o.pickup_location && <p className="text-[11px] text-gray-500 truncate">📍 {o.pickup_location}</p>}
+          </div>
+          {o.buyer_phone && (
+            <a href={`tel:+91${o.buyer_phone}`} className="text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5 whitespace-nowrap">
+              📞 {o.buyer_phone}
+            </a>
+          )}
         </div>
-        {o.buyer_phone && (
-          <a href={`tel:+91${o.buyer_phone}`} className="text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5 whitespace-nowrap">
-            📞 {o.buyer_phone}
-          </a>
-        )}
+
+        {/* Action: courier → Shipped, self-pickup → Picked Up. Home-delivery
+            orders are closed out by the rider, so they carry no button here.
+            Once acted on, the row shows a done badge instead of the button. */}
+        {isCourier && (o.shipped_at ? (
+          <p className="text-xs font-bold text-amber-700">📦 {L('Shipped', 'షిప్ చేయబడింది')}</p>
+        ) : (
+          <button
+            onClick={() => markShipped(o.id)}
+            disabled={busy}
+            className="w-full bg-amber-600 text-white font-bold py-2 rounded-lg text-xs active:bg-amber-700 disabled:opacity-50"
+          >
+            {busy ? '…' : `📦 ${L('Shipped', 'షిప్ చేయబడింది')}`}
+          </button>
+        ))}
+        {isPickup && (o.collected_at ? (
+          <p className="text-xs font-bold text-green-700">✓ {L('Picked up', 'తీసుకువెళ్ళారు')}</p>
+        ) : (
+          <button
+            onClick={() => markPickedUp(o.id)}
+            disabled={busy}
+            className="w-full bg-green-600 text-white font-bold py-2 rounded-lg text-xs active:bg-green-700 disabled:opacity-50"
+          >
+            {busy ? '…' : `✓ ${L('Picked Up', 'తీసుకువెళ్ళారు')}`}
+          </button>
+        ))}
       </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
@@ -3299,26 +3359,20 @@ function OrderCard({
           </div>
         ) : (
           // Approved farmer-fulfilled order, not yet shipped or collected. The
-          // farmer chooses how it leaves: Shipped (→ buyer confirms Received) or
-          // Picked Up (buyer collected at the farm — resolves immediately).
-          // Whichever they tap is the status the buyer then sees.
+          // action depends on how the order leaves the farm: a COURIER order is
+          // marked Shipped (→ buyer then confirms Received); a SELF-PICKUP order
+          // is marked Picked Up (buyer collected — resolves immediately). Only
+          // the one relevant button shows, never both.
           <>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={onMarkShipped}
-                disabled={processing}
-                className="bg-amber-600 text-white font-bold py-2.5 rounded-xl text-sm active:bg-amber-700 disabled:opacity-50"
-              >
-                {processing ? '…' : L('📦 Shipped', 'షిప్ చేయబడింది')}
-              </button>
-              <button
-                onClick={onMarkPickedUp}
-                disabled={processing}
-                className="bg-green-600 text-white font-bold py-2.5 rounded-xl text-sm active:bg-green-700 disabled:opacity-50"
-              >
-                {processing ? '…' : L('✓ Picked Up', 'తీసుకువెళ్ళారు')}
-              </button>
-            </div>
+            <button
+              onClick={isCourier ? onMarkShipped : onMarkPickedUp}
+              disabled={processing}
+              className={`w-full text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-50 ${
+                isCourier ? 'bg-amber-600 active:bg-amber-700' : 'bg-green-600 active:bg-green-700'
+              }`}
+            >
+              {processing ? '…' : isCourier ? L('📦 Shipped', 'షిప్ చేయబడింది') : L('✓ Picked Up', 'తీసుకువెళ్ళారు')}
+            </button>
             <button
               onClick={onDecline}
               disabled={processing}
