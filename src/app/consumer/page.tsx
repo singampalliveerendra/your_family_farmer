@@ -13,6 +13,7 @@ import LocationSearch from '@/components/LocationSearch'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
+import { normalizePickupSchedule } from '@/lib/pickup-slots'
 
 type Farmer = {
   id: string
@@ -22,6 +23,7 @@ type Farmer = {
   phone: string
   method: string
   pickup_locations?: string[] | null
+  pickup_slots?: unknown
   lat?: number | null
   lng?: number | null
 }
@@ -493,6 +495,7 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
       farmerVillage: farmer.village,
       farmerSlug: farmer.slug,
       farmerPickupLocations: farmer.pickup_locations ?? [],
+      farmerPickupSlots: normalizePickupSchedule(farmer.pickup_slots, farmer.pickup_locations ?? []),
     }, 1)
   }
 

@@ -6,6 +6,7 @@ import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
 import { useCart } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
+import { normalizePickupSchedule } from '@/lib/pickup-slots'
 
 type ProduceItem = {
   id: string
@@ -32,6 +33,7 @@ type Farmer = {
   village?: string
   phone?: string
   pickup_locations?: string[]
+  pickup_slots?: unknown
   rating_avg?: number
 }
 
@@ -92,6 +94,7 @@ export default function BrowseProduceTab({
       farmerVillage: farmer.village ?? '',
       farmerSlug: farmer.slug,
       farmerPickupLocations: farmer.pickup_locations,
+      farmerPickupSlots: normalizePickupSchedule(farmer.pickup_slots, farmer.pickup_locations ?? []),
     })
 
     setAddedIds((prev) => new Set(prev).add(item.id))

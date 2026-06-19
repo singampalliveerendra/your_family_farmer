@@ -45,6 +45,28 @@ export function emptyPickupSlot(): PickupSlot {
   return { days: [], time_from: PICKUP_DEFAULT_FROM, time_to: PICKUP_DEFAULT_TO }
 }
 
+// "08:00" → "8:00 AM". Leaves anything it can't parse untouched.
+function formatTime(t: string): string {
+  const [hStr, mStr] = (t ?? '').split(':')
+  let h = parseInt(hStr, 10)
+  if (Number.isNaN(h)) return t
+  const m = mStr ?? '00'
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  h = h % 12
+  if (h === 0) h = 12
+  return `${h}:${m} ${ampm}`
+}
+
+// Human-readable lines for a location's windows, e.g.
+// ["Mon, Wed, Fri · 8:00 AM–12:00 PM", "Sat, Sun · 4:00 PM–6:00 PM"].
+// Windows with no chosen days are skipped.
+export function formatPickupSlots(slots: PickupSlot[] | undefined): string[] {
+  if (!Array.isArray(slots)) return []
+  return slots
+    .filter((s) => s.days.length > 0)
+    .map((s) => `${s.days.map((d) => d.slice(0, 3)).join(', ')} · ${formatTime(s.time_from)}–${formatTime(s.time_to)}`)
+}
+
 // Build a clean per-location schedule from a raw stored value, scoped to the
 // locations that currently exist. Accepts:
 //   • the new map shape { [location]: PickupSlot[] }

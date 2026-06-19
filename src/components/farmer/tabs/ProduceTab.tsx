@@ -7,6 +7,7 @@ import { localizeName } from '@/lib/localizeName'
 import { FreshnessBadge } from '@/components/FreshnessBadge'
 import { useCart } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
+import { normalizePickupSchedule } from '@/lib/pickup-slots'
 
 type Produce = {
   id: string
@@ -41,6 +42,7 @@ type Farmer = {
   village?: string
   slug?: string
   pickup_locations?: string[] | null
+  pickup_slots?: unknown
   upi_id?: string | null
 }
 
@@ -85,6 +87,7 @@ export default function ProduceTab({
     farmerVillage: f.village ?? '',
     farmerSlug: f.slug ?? '',
     farmerPickupLocations: Array.isArray(f.pickup_locations) ? f.pickup_locations : [],
+    farmerPickupSlots: normalizePickupSchedule(f.pickup_slots, Array.isArray(f.pickup_locations) ? f.pickup_locations : []),
     farmerUpiId: f.upi_id ?? undefined,
   }
 

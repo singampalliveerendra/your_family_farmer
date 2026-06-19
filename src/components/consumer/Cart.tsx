@@ -8,6 +8,7 @@ import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
 import { compressImage } from '@/lib/imageCompress'
 import { DELIVERY_FEE_RUPEES } from '@/lib/delivery-fee'
+import { formatPickupSlots, type PickupSchedule } from '@/lib/pickup-slots'
 
 // Razorpay Checkout is loaded lazily — we only pull the script the first time
 // a buyer chooses to pay online, so the rest of the catalogue stays light on
@@ -70,6 +71,7 @@ export type CartItem = {
   farmerVillage: string
   farmerSlug: string
   farmerPickupLocations?: string[]
+  farmerPickupSlots?: PickupSchedule
   farmerUpiId?: string
   farmerQrCodeUrl?: string
 }
@@ -1427,6 +1429,24 @@ function CartSheet({
                               {L('Please choose a pickup point', 'పికప్ స్థలం ఎంచుకోండి')}
                             </p>
                           ) : null}
+
+                          {/* Timings for the chosen pickup point, if the farmer set any. */}
+                          {deliveryType === 'self_pickup' && pickupByFarmer[f.farmerId] && (() => {
+                            const lines = formatPickupSlots(f.farmerPickupSlots?.[pickupByFarmer[f.farmerId]])
+                            if (lines.length === 0) return null
+                            return (
+                              <div className="mt-2 bg-green-50 border border-green-100 rounded-xl px-3 py-2">
+                                <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-1">
+                                  🕒 {L('Pickup timings', 'పికప్ సమయాలు')}
+                                </p>
+                                <ul className="space-y-0.5">
+                                  {lines.map((line, i) => (
+                                    <li key={i} className="text-[11px] text-green-800 font-medium">{line}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )
+                          })()}
                         </div>
                       )}
 
