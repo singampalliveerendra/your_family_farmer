@@ -6,6 +6,7 @@ import GlobalNav from '@/components/consumer/GlobalNav'
 import { CartFab, useCart } from '@/components/consumer/Cart'
 import MyOrdersChip from '@/components/consumer/MyOrdersChip'
 import RoleGateModal from '@/components/consumer/RoleGateModal'
+import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import { supabase } from '@/lib/supabase'
 import { FreshnessBadge } from '@/components/FreshnessBadge'
 import { haversineKm, nearestTown, formatDistance, farmerCoords } from '@/lib/location'
@@ -46,6 +47,8 @@ type ProduceListing = {
   unit?: string
   available_to?: string
   harvest_date?: string | null
+  rating_avg?: number | null
+  review_count?: number | null
   farmer_id: string
   farmer?: Farmer
 }
@@ -434,6 +437,7 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
   const [liveStock, setLiveStock] = useState<number | null>(item.stock_qty ?? null)
   const [stockMsg, setStockMsg]   = useState('')
   const [adding, setAdding]       = useState(false)
+  const [showReviews, setShowReviews] = useState(false)
 
   useEffect(() => { setLiveStock(item.stock_qty ?? null) }, [item.stock_qty])
 
@@ -569,6 +573,22 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
           </p>
         )}
 
+        {/* Buyer rating — tap to read reviews. Only when at least one exists. */}
+        {(item.review_count ?? 0) > 0 && item.rating_avg != null && (
+          <button
+            type="button"
+            onClick={() => setShowReviews(true)}
+            className="flex items-center gap-1 mt-1 active:opacity-70"
+          >
+            <span className="inline-flex items-center gap-0.5 bg-green-700 text-white text-[11px] font-bold rounded px-1.5 py-0.5">
+              {item.rating_avg.toFixed(1)} ★
+            </span>
+            <span className="text-[11px] text-[#666] underline">
+              {item.review_count} {item.review_count === 1 ? L('review', 'సమీక్ష') : L('reviews', 'సమీక్షలు')}
+            </span>
+          </button>
+        )}
+
         {/* Price */}
         <div className="mt-1.5">
           <span className="font-extrabold text-[18px] text-[#1a5c2a]">
@@ -652,6 +672,14 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
           )}
         </div>
       </div>
+
+      {showReviews && (
+        <ProduceReviewsModal
+          listingId={item.id}
+          produceName={localizeName(item.name, lang)}
+          onClose={() => setShowReviews(false)}
+        />
+      )}
     </div>
   )
 }

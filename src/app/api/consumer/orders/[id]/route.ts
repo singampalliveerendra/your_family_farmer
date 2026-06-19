@@ -22,7 +22,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { data: order, error } = await supabase
     .from('orders')
     .select(
-      'id, order_code, consumer_id, produce_name, quantity, unit, total_price, pickup_location, status, payment_method, payment_method_detail, payment_status, paid_at, confirmed_at, razorpay_payment_id, refund_status, refund_id, refund_amount, refunded_at, decline_reason, payment_proof_path, created_at, farmer_id, delivery_type, delivery_status, delivery_address, delivery_landmark, delivery_pincode, delivery_alt_phone, delivery_boy_id, handover_otp, assigned_at, picked_up_at, out_for_delivery_at, delivered_at, collected_at, shipped_at, received_at, fulfillment_date',
+      'id, order_code, consumer_id, produce_name, produce_listing_id, quantity, unit, total_price, pickup_location, status, payment_method, payment_method_detail, payment_status, paid_at, confirmed_at, razorpay_payment_id, refund_status, refund_id, refund_amount, refunded_at, decline_reason, payment_proof_path, created_at, farmer_id, delivery_type, delivery_status, delivery_address, delivery_landmark, delivery_pincode, delivery_alt_phone, delivery_boy_id, handover_otp, assigned_at, picked_up_at, out_for_delivery_at, delivered_at, collected_at, shipped_at, received_at, fulfillment_date',
     )
     .eq('id', id)
     .maybeSingle()
@@ -65,5 +65,15 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     if (r) rider = { id: r.id, name: r.name ?? null, phone: r.phone }
   }
 
-  return NextResponse.json({ order: { ...order, farmer, rider } })
+  // The buyer's own produce review for this order, if they've left one. Drives
+  // the "Rate this produce" box on the order detail page.
+  let myReview: { id: string; star_rating: number; review_text: string | null; created_at: string } | null = null
+  const { data: rev } = await supabase
+    .from('produce_reviews')
+    .select('id, star_rating, review_text, created_at')
+    .eq('order_id', order.id)
+    .maybeSingle()
+  if (rev) myReview = rev
+
+  return NextResponse.json({ order: { ...order, farmer, rider, my_review: myReview } })
 }

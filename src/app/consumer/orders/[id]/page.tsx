@@ -8,6 +8,7 @@ import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import ComplaintModal from '@/components/consumer/ComplaintModal'
+import ProduceReviewBox, { type MyReview } from '@/components/consumer/ProduceReviewBox'
 
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
 
@@ -26,6 +27,8 @@ type Order = {
   id: string
   order_code: string | null
   produce_name: string | null
+  produce_listing_id?: string | null
+  my_review?: MyReview | null
   quantity: number | null
   unit: string | null
   total_price: number | null
@@ -402,6 +405,18 @@ export default function OrderDetailsPage() {
             {/* Simple status timeline for self-pickup orders */}
             {order.delivery_type !== 'home_delivery' && order.status !== 'declined' && (
               <OrderStatusPanel order={order} />
+            )}
+
+            {/* Rate the produce — only once the order is completed. */}
+            {order.produce_listing_id
+              && order.status !== 'declined'
+              && order.status !== 'cancelled'
+              && (!!order.received_at || !!order.collected_at || !!order.delivered_at || order.delivery_status === 'delivered') && (
+              <ProduceReviewBox
+                orderId={order.id}
+                produceName={order.produce_name ? localizeName(order.produce_name, lang) : L('this produce', 'ఈ ఉత్పత్తి')}
+                existing={order.my_review ?? null}
+              />
             )}
 
             {/* Decline reason */}
