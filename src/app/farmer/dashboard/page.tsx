@@ -189,9 +189,6 @@ export default function FarmerDashboard() {
   const [ordersFilter, setOrdersFilter] = useState<'today' | 'week' | 'month'>('week')
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null)
   const [processingPaidId, setProcessingPaidId] = useState<string | null>(null)
-  // Bumped after any order action so the OTHER list (Today's Schedule ↔ active
-  // orders) re-fetches and never shows a stale order. See F2.
-  const [orderActionTick, setOrderActionTick] = useState(0)
   const [decliningOrder, setDecliningOrder] = useState<Order | null>(null)
   const [declineResult, setDeclineResult] = useState<
     { buyerName: string | null; amount: number | null; refundInitiated: boolean } | null
@@ -403,7 +400,6 @@ export default function FarmerDashboard() {
       prev.map((o) => (o.id === orderId ? { ...o, status: 'approved', fulfillment_date: date } : o)),
     )
     setApprovedCount((c) => c + 1)
-    setOrderActionTick((t) => t + 1)
     setProcessingOrderId(null)
   }
 
@@ -415,7 +411,6 @@ export default function FarmerDashboard() {
     const res = await fetch(`/api/farmer/orders/${orderId}/picked-up`, { method: 'POST', credentials: 'same-origin' })
     if (res.ok) {
       setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
-      setOrderActionTick((t) => t + 1)
     } else {
       void loadDashboard() // re-sync on failure
     }
@@ -432,7 +427,6 @@ export default function FarmerDashboard() {
       const json = (await res.json().catch(() => ({}))) as { shipped_at?: string }
       const shippedAt = json.shipped_at ?? new Date().toISOString()
       setPendingOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, shipped_at: shippedAt } : o)))
-      setOrderActionTick((t) => t + 1)
     } else {
       void loadDashboard() // re-sync on failure
     }
@@ -446,7 +440,6 @@ export default function FarmerDashboard() {
     const res = await fetch(`/api/farmer/orders/${orderId}/delivered`, { method: 'POST', credentials: 'same-origin' })
     if (res.ok) {
       setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
-      setOrderActionTick((t) => t + 1)
     } else {
       void loadDashboard() // re-sync on failure
     }
@@ -462,9 +455,6 @@ export default function FarmerDashboard() {
       prev.map((o) => (o.id === orderId ? { ...o, fulfillment_date: value } : o)),
     )
     await supabase.from('orders').update({ fulfillment_date: value }).eq('id', orderId)
-    // The schedule list is keyed on fulfillment_date — refresh it so the order
-    // appears/disappears under the right day.
-    setOrderActionTick((t) => t + 1)
   }
 
   const handleConfirmDecline = async (orderId: string, reason: string) => {
@@ -668,9 +658,11 @@ export default function FarmerDashboard() {
         {/* Today's pickups & deliveries */}
         {farmer && (
           <TodayScheduleSection
-            farmerId={farmer.id}
-            refreshKey={orderActionTick}
-            onChanged={() => { setOrderActionTick((t) => t + 1); void loadDashboard() }}
+            orders={pendingOrders}
+            processingId={processingOrderId}
+            onMarkPickedUp={handleMarkPickedUp}
+            onMarkShipped={handleMarkShipped}
+            onMarkDelivered={handleMarkDelivered}
           />
         )}
 
@@ -2845,114 +2837,40 @@ function ManageListingsModal({
 }
 
 /* ─── Today's Schedule (pickups + deliveries on a chosen date) ──── */
-type ScheduleOrder = {
-  id: string
-  buyer_name: string | null
-  buyer_phone: string | null
-  produce_name: string | null
-  quantity: number | null
-  unit: string | null
-  pickup_location: string | null
-  delivery_type: 'self_pickup' | 'home_delivery' | 'courier' | null
-  delivery_status: DeliveryStatus | null
-  shipped_at: string | null
-  collected_at: string | null
-  received_at: string | null
-  created_at: string
-}
-
-// An order leaves Today's Schedule once it's resolved — same rule as the
-// dashboard's active list: self-pickup collected, courier received, home
-// delivery delivered. Shipped-but-unreceived courier orders stay (still active).
-function isScheduleResolved(o: ScheduleOrder): boolean {
-  if (o.delivery_type === 'home_delivery') return o.delivery_status === 'delivered' || !!o.received_at
-  if (o.delivery_type === 'courier') return !!o.received_at
-  return !!o.collected_at
-}
-
+// Today's Schedule is a *view* of the parent's active-orders list (`orders` =
+// pendingOrders), filtered to the picked date — it does NOT run its own query.
+// That's the whole fix for the "both lists must refresh together" bug: there is
+// one source of truth, so an action on either list (they call the same parent
+// handlers) updates both instantly. The parent's realtime subscription keeps
+// that source fresh, so consumer/rider changes flow in too.
 function TodayScheduleSection({
-  farmerId,
-  refreshKey = 0,
-  onChanged,
+  orders,
+  processingId,
+  onMarkPickedUp,
+  onMarkShipped,
+  onMarkDelivered,
 }: {
-  farmerId: string
-  // Bumped by the parent after an action on the active-orders list, so this
-  // schedule re-fetches and never shows an order that's already been handled.
-  refreshKey?: number
-  // Called after an action here, so the parent refreshes the active-orders list.
-  onChanged?: () => void
+  orders: Order[]
+  processingId: string | null
+  onMarkPickedUp: (orderId: string) => void
+  onMarkShipped: (orderId: string) => void
+  onMarkDelivered: (orderId: string) => void
 }) {
-  const { tx, L } = useLang()
+  const { L } = useLang()
   const todayStr = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD, local
   const [date, setDate] = useState(todayStr)
-  const [orders, setOrders] = useState<ScheduleOrder[]>([])
-  const [loading, setLoading] = useState(true)
-  const [busyId, setBusyId] = useState<string | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    supabase
-      .from('orders')
-      .select('id, buyer_name, buyer_phone, produce_name, quantity, unit, pickup_location, delivery_type, delivery_status, shipped_at, collected_at, received_at, created_at')
-      .eq('farmer_id', farmerId)
-      .eq('status', 'approved')
-      .eq('fulfillment_date', date)
-      .order('created_at', { ascending: true })
-      .then(({ data }) => {
-        if (cancelled) return
-        setOrders((data ?? []) as ScheduleOrder[])
-        setLoading(false)
-      })
-    return () => { cancelled = true }
-  }, [farmerId, date, refreshKey])
+  // Approved orders whose pickup/delivery date matches the picked day. The
+  // parent already drops resolved orders from `orders`, so a picked-up/received
+  // order disappears here the moment it's actioned anywhere. Compare on the
+  // date part only, so a date or timestamp column both match.
+  const forDate = orders.filter(
+    (o) => o.status === 'approved' && (o.fulfillment_date ?? '').slice(0, 10) === date,
+  )
+  const pickups = forDate.filter((o) => o.delivery_type !== 'home_delivery')
+  const deliveries = forDate.filter((o) => o.delivery_type === 'home_delivery')
 
-  // Self-pickup: stamp collected_at (resolves the order). We keep the row in the
-  // schedule but flip it to a "Picked up" done-state so the farmer sees it's
-  // closed for the day. Uses the same API route as the orders list.
-  const markPickedUp = async (orderId: string) => {
-    setBusyId(orderId)
-    const res = await fetch(`/api/farmer/orders/${orderId}/picked-up`, { method: 'POST', credentials: 'same-origin' })
-    if (res.ok) {
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, collected_at: new Date().toISOString() } : o)))
-      onChanged?.()
-    }
-    setBusyId(null)
-  }
-
-  // Courier / farmer-shipped home delivery: stamp shipped_at (order stays open
-  // until it's confirmed received). Same API route as the orders list.
-  const markShipped = async (orderId: string) => {
-    setBusyId(orderId)
-    const res = await fetch(`/api/farmer/orders/${orderId}/ship`, { method: 'POST', credentials: 'same-origin' })
-    if (res.ok) {
-      const json = (await res.json().catch(() => ({}))) as { shipped_at?: string }
-      const shippedAt = json.shipped_at ?? new Date().toISOString()
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, shipped_at: shippedAt } : o)))
-      onChanged?.()
-    }
-    setBusyId(null)
-  }
-
-  // Farmer closes a shipped order himself (self-delivered/handed over). Stamps
-  // received_at, which resolves the order so it drops from the schedule.
-  const markDelivered = async (orderId: string) => {
-    setBusyId(orderId)
-    const res = await fetch(`/api/farmer/orders/${orderId}/delivered`, { method: 'POST', credentials: 'same-origin' })
-    if (res.ok) {
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, received_at: new Date().toISOString() } : o)))
-      onChanged?.()
-    }
-    setBusyId(null)
-  }
-
-  // Today's Schedule shows only active orders — drop anything resolved (picked
-  // up / received / delivered) so a finished pickup disappears once it's done.
-  const active = orders.filter((o) => !isScheduleResolved(o))
-  const pickups = active.filter((o) => o.delivery_type !== 'home_delivery')
-  const deliveries = active.filter((o) => o.delivery_type === 'home_delivery')
-
-  const Row = ({ o }: { o: ScheduleOrder }) => {
+  const Row = ({ o }: { o: Order }) => {
     const isCourier = o.delivery_type === 'courier'
     const isHomeDelivery = o.delivery_type === 'home_delivery'
     const isPickup = !isCourier && !isHomeDelivery // self_pickup (or legacy null)
@@ -2963,7 +2881,7 @@ function TodayScheduleSection({
       && o.delivery_status != null
       && o.delivery_status !== 'unassigned'
     const shipFlow = isCourier || (isHomeDelivery && !riderAssigned)
-    const busy = busyId === o.id
+    const busy = processingId === o.id
     return (
       <div className="border border-gray-100 rounded-xl px-3 py-2.5 bg-gray-50 space-y-2">
         <div className="flex items-start justify-between gap-2">
@@ -2988,7 +2906,7 @@ function TodayScheduleSection({
           <div className="space-y-1.5">
             <p className="text-xs font-bold text-amber-700">🚚 {L('Shipped', 'షిప్ చేయబడింది')}</p>
             <button
-              onClick={() => markDelivered(o.id)}
+              onClick={() => onMarkDelivered(o.id)}
               disabled={busy}
               className="w-full bg-green-600 text-white font-bold py-2 rounded-lg text-xs active:bg-green-700 disabled:opacity-50"
             >
@@ -2997,7 +2915,7 @@ function TodayScheduleSection({
           </div>
         ) : (
           <button
-            onClick={() => markShipped(o.id)}
+            onClick={() => onMarkShipped(o.id)}
             disabled={busy}
             className="w-full bg-amber-600 text-white font-bold py-2 rounded-lg text-xs active:bg-amber-700 disabled:opacity-50"
           >
@@ -3008,7 +2926,7 @@ function TodayScheduleSection({
             the order, which drops the row from the schedule. */}
         {isPickup && (
           <button
-            onClick={() => markPickedUp(o.id)}
+            onClick={() => onMarkPickedUp(o.id)}
             disabled={busy}
             className="w-full bg-green-600 text-white font-bold py-2 rounded-lg text-xs active:bg-green-700 disabled:opacity-50"
           >
@@ -3034,9 +2952,7 @@ function TodayScheduleSection({
       </div>
 
       <div className="p-4 space-y-4">
-        {loading ? (
-          <p className="text-sm text-gray-400 text-center py-4">{tx.loadingLabel}</p>
-        ) : orders.length === 0 ? (
+        {forDate.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-4">{L('Nothing scheduled for this date', 'ఈ తేదీకి ఏమీ లేదు')}</p>
         ) : (
           <>
