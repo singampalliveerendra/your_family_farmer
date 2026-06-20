@@ -82,6 +82,7 @@ export default function OrderDetailsPage() {
   const [proofLoading, setProofLoading] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [showCancel, setShowCancel] = useState(false)
   const [showComplaint, setShowComplaint] = useState(false)
   const [confirmingReceipt, setConfirmingReceipt] = useState(false)
 
@@ -106,17 +107,19 @@ export default function OrderDetailsPage() {
     && !!order.shipped_at
     && !order.received_at
 
-  const handleCancel = async () => {
+  const handleCancel = async (reason: string) => {
     if (!order) return
-    if (!window.confirm(L('Cancel this order? If you have already paid, you will be refunded automatically.', 'ఈ ఆర్డర్‌ను రద్దు చేయాలా? మీరు ఇప్పటికే చెల్లించి ఉంటే, డబ్బు ఆటోమేటిక్‌గా తిరిగి వస్తుంది.'))) return
     setCancelling(true)
     try {
       const res = await fetch(`/api/consumer/orders/${order.id}/cancel`, {
         method: 'POST',
         credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) { alert(json.error || L('Could not cancel the order.', 'ఆర్డర్ రద్దు చేయలేకపోయాం.')); return }
+      setShowCancel(false)
       // Refresh the order so status + any refund show up.
       const r = await fetch(`/api/consumer/orders/${order.id}`, { credentials: 'same-origin' })
       const fresh = await r.json().catch(() => ({}))
@@ -364,7 +367,7 @@ export default function OrderDetailsPage() {
 
               {canCancel && (
                 <button
-                  onClick={handleCancel}
+                  onClick={() => setShowCancel(true)}
                   disabled={cancelling}
                   className="mt-2 w-full border border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
                 >
@@ -378,7 +381,9 @@ export default function OrderDetailsPage() {
                   disabled={confirmingReceipt}
                   className="mt-3 w-full bg-green-600 text-white font-bold py-3 rounded-xl text-sm active:bg-green-700 disabled:opacity-50"
                 >
-                  {confirmingReceipt ? '…' : L('✓ Received', 'అందుకున్నాను')}
+                  {confirmingReceipt ? '…' : order.delivery_type === 'home_delivery'
+                    ? L('✓ Mark as Delivered', '✓ డెలివరీ అయింది')
+                    : L('✓ Received', 'అందుకున్నాను')}
                 </button>
               )}
             </div>
@@ -403,14 +408,16 @@ export default function OrderDetailsPage() {
             )}
 
             {/* Rider tracking + handover OTP — only for rider-driven home
-                deliveries (a rider is assigned). */}
-            {riderAssigned && order.status !== 'declined' && (
+                deliveries (a rider is assigned). Hidden once the order is
+                declined or cancelled — there's no delivery to track. */}
+            {riderAssigned && order.status !== 'declined' && order.status !== 'cancelled' && (
               <DeliveryPanel order={order} />
             )}
 
             {/* Status timeline for everything else: self-pickup, courier, and
-                farmer-shipped home deliveries (Shipped → Received). */}
-            {!riderAssigned && order.status !== 'declined' && (
+                farmer-shipped home deliveries (Shipped → Received). Hidden for a
+                declined/cancelled order — that timeline never happened. */}
+            {!riderAssigned && order.status !== 'declined' && order.status !== 'cancelled' && (
               <OrderStatusPanel order={order} />
             )}
 
@@ -431,6 +438,19 @@ export default function OrderDetailsPage() {
               <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
                 <p className="text-xs font-bold text-red-700 uppercase tracking-wide">{L('Decline reason', 'కారణం')}</p>
                 <p className="text-sm text-red-800 mt-1 leading-snug">{order.decline_reason}</p>
+              </div>
+            )}
+
+            {/* Cancelled banner + reason */}
+            {order.status === 'cancelled' && (
+              <div className="bg-gray-100 border border-gray-200 rounded-2xl p-4">
+                <p className="text-sm font-extrabold text-gray-700">{L('✕ Order cancelled', '✕ ఆర్డర్ రద్దు అయింది')}</p>
+                {order.decline_reason && (
+                  <>
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mt-2">{L('Reason', 'కారణం')}</p>
+                    <p className="text-sm text-gray-700 mt-0.5 leading-snug">{order.decline_reason}</p>
+                  </>
+                )}
               </div>
             )}
 
@@ -511,7 +531,92 @@ export default function OrderDetailsPage() {
           onCreated={() => setShowComplaint(false)}
         />
       )}
+
+      {showCancel && order && (
+        <CancelModal
+          cancelling={cancelling}
+          onClose={() => setShowCancel(false)}
+          onConfirm={handleCancel}
+        />
+      )}
     </main>
+  )
+}
+
+// Lets the buyer pick / type a reason before cancelling. The reason is stored on
+// the order and shown to the farmer, so they understand why it fell through.
+function CancelModal({
+  cancelling,
+  onClose,
+  onConfirm,
+}: {
+  cancelling: boolean
+  onClose: () => void
+  onConfirm: (reason: string) => void
+}) {
+  const { L } = useLang()
+  const presets = [
+    L('Ordered by mistake', 'పొరపాటున ఆర్డర్ చేశాను'),
+    L('Found it cheaper elsewhere', 'వేరే చోట చౌకగా దొరికింది'),
+    L('No longer needed', 'ఇప్పుడు అవసరం లేదు'),
+    L('Delivery / pickup takes too long', 'డెలివరీ / పికప్ చాలా ఆలస్యం'),
+  ]
+  const [reason, setReason] = useState('')
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4">
+        <div>
+          <p className="text-base font-extrabold text-gray-900">{L('Cancel order', 'ఆర్డర్ రద్దు')}</p>
+          <p className="text-xs text-gray-500 mt-1 leading-snug">
+            {L('Please tell the farmer why. If you have already paid, you will be refunded automatically.', 'రైతుకు కారణం చెప్పండి. మీరు ఇప్పటికే చెల్లించి ఉంటే, డబ్బు ఆటోమేటిక్‌గా తిరిగి వస్తుంది.')}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {presets.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setReason(p)}
+              className={`text-[11px] font-semibold px-3 py-1.5 rounded-full border ${
+                reason === p
+                  ? 'bg-green-700 text-white border-green-700'
+                  : 'bg-gray-50 text-gray-700 border-gray-200 active:bg-gray-100'
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={3}
+          maxLength={300}
+          placeholder={L('Reason (optional)', 'కారణం (ఐచ్ఛికం)')}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:border-green-500 focus:outline-none resize-none"
+        />
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={onClose}
+            disabled={cancelling}
+            className="border border-gray-300 text-gray-700 font-bold py-3 rounded-xl text-sm active:bg-gray-50 disabled:opacity-50"
+          >
+            {L('Keep order', 'ఆర్డర్ ఉంచు')}
+          </button>
+          <button
+            onClick={() => onConfirm(reason.trim())}
+            disabled={cancelling}
+            className="bg-red-600 text-white font-bold py-3 rounded-xl text-sm active:bg-red-700 disabled:opacity-50"
+          >
+            {cancelling ? L('Cancelling...', 'రద్దు...') : L('Cancel order', 'రద్దు చేయి')}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 

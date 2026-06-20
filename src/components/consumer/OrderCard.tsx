@@ -37,6 +37,8 @@ export type ConsumerOrder = {
   collected_at?: string | null
   received_at?: string | null
   delivered_at?: string | null
+  // When the buyer acknowledged a declined/cancelled order (moves it to history).
+  acknowledged_at?: string | null
   // The buyer's own feedback for this order, if they've left any.
   my_review?: MyReview | null
 }
@@ -49,31 +51,60 @@ export const isCompleted = (o: ConsumerOrder) =>
   && o.status !== 'cancelled'
   && (o.delivery_status === 'delivered' || !!o.collected_at || !!o.received_at || !!o.delivered_at)
 
-// An order is "resolved" once it reaches a terminal state: declined, cancelled,
-// delivered (home delivery), picked up (self-pickup) or received (courier).
-// Active = everything else still in progress. Shared so the active list and the
-// history page agree on where each order belongs.
+// An order is "resolved" once it reaches a terminal state: delivered (home
+// delivery), picked up (self-pickup) or received (courier). A declined/cancelled
+// order is only resolved once the buyer has acknowledged it — until then it
+// stays in the Active list with an Acknowledge button so a farmer decline/cancel
+// never silently drops into history. Active = everything else still in progress.
+// Shared so the active list and the history page agree on where each order belongs.
 export const isResolved = (o: ConsumerOrder) =>
-  o.status === 'declined'
-  || o.status === 'cancelled'
+  ((o.status === 'declined' || o.status === 'cancelled') && !!o.acknowledged_at)
   || o.delivery_status === 'delivered'
   || !!o.collected_at
   || !!o.received_at
+
+// A declined/cancelled order still waiting on the buyer's acknowledgement.
+// Shown in the Active list with an Acknowledge button.
+export const needsAcknowledge = (o: ConsumerOrder) =>
+  (o.status === 'declined' || o.status === 'cancelled') && !o.acknowledged_at
 
 export default function OrderCard({
   order,
   onComplaint,
   onFeedback,
+  onAcknowledge,
+  onConfirmReceipt,
+  busy = false,
 }: {
   order: ConsumerOrder
   onComplaint: (orderCode: string) => void
   onFeedback?: (order: ConsumerOrder) => void
+  // Acknowledge a declined/cancelled order (moves it to history).
+  onAcknowledge?: (order: ConsumerOrder) => void
+  // Confirm a shipped order was delivered/received.
+  onConfirmReceipt?: (order: ConsumerOrder) => void
+  // The parent is mid-request for this card (disables the action buttons).
+  busy?: boolean
 }) {
   const { tx, lang, L } = useLang()
   const reviewed = Boolean(order.my_review)
   const completed = isCompleted(order)
-  // Feedback is offered on every order that maps to a produce listing.
-  const canFeedback = Boolean(onFeedback && order.produce_listing_id)
+  const awaitingAck = needsAcknowledge(order)
+  // A shipped order (courier or farmer-shipped home delivery) the buyer can
+  // confirm. Rider deliveries never set shipped_at, self-pickup is excluded.
+  const canConfirmReceipt = Boolean(
+    onConfirmReceipt
+      && order.delivery_type !== 'self_pickup'
+      && order.shipped_at
+      && !order.received_at
+      && order.status !== 'cancelled'
+      && order.status !== 'declined',
+  )
+  // Feedback is only offered once the order is completed (delivered / picked up
+  // / received). Showing it on a pending order is meaningless — the buyer hasn't
+  // received the produce yet. Already-reviewed orders keep the button so the
+  // buyer can see / edit what they left.
+  const canFeedback = Boolean(onFeedback && order.produce_listing_id && (completed || reviewed))
 
   const statusColor = (s: string) =>
     s === 'approved'
@@ -208,6 +239,42 @@ export default function OrderCard({
                 )}
               </p>
             </div>
+          )}
+
+          {/* Confirm receipt — a shipped order the buyer can mark delivered.
+              For home delivery we say "Delivered", for courier "Received". */}
+          {canConfirmReceipt && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onConfirmReceipt!(order)
+              }}
+              className="mt-1 w-full text-center text-xs font-bold text-white bg-green-600 rounded-xl py-2.5 active:bg-green-700 disabled:opacity-50"
+            >
+              {busy ? '…' : order.delivery_type === 'home_delivery'
+                ? `✓ ${L('Mark as Delivered', 'డెలివరీ అయింది')}`
+                : `✓ ${L('Received', 'అందుకున్నాను')}`}
+            </button>
+          )}
+
+          {/* Acknowledge — a declined/cancelled order the buyer hasn't seen yet.
+              Tapping it moves the order to history. */}
+          {awaitingAck && onAcknowledge && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onAcknowledge(order)
+              }}
+              className="mt-1 w-full text-center text-xs font-bold text-white bg-gray-700 rounded-xl py-2.5 active:bg-gray-800 disabled:opacity-50"
+            >
+              {busy ? '…' : `✓ ${L('Acknowledge — move to history', 'గుర్తించాను — చరిత్రకు తరలించు')}`}
+            </button>
           )}
 
           {/* Per-order actions — complaint + feedback. Both open shared modals

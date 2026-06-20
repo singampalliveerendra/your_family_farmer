@@ -20,6 +20,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { id } = await ctx.params
   if (!id || !UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid order id.' }, { status: 400 })
 
+  // Optional reason the buyer gave for cancelling.
+  const body = await req.json().catch(() => null)
+  const reason = String((body as { reason?: unknown } | null)?.reason ?? '').trim().slice(0, 300)
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -62,7 +66,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
   }
 
-  const update: Record<string, unknown> = { status: 'cancelled', decline_reason: 'Cancelled by buyer' }
+  const update: Record<string, unknown> = {
+    status: 'cancelled',
+    decline_reason: reason || 'Cancelled by buyer',
+  }
 
   const paidByRazorpay = order.payment_status === 'paid' && !!order.razorpay_payment_id
   const paidByOther =
