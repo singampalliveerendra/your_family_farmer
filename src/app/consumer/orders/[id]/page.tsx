@@ -91,9 +91,18 @@ export default function OrderDetailsPage() {
     && !!order.created_at
     && Date.now() - new Date(order.created_at).getTime() < 30 * 60 * 1000
 
-  // A shipped courier order awaits the buyer's "Received" confirmation.
+  // A home delivery is rider-driven once a rider is assigned (or its delivery
+  // status moved past 'unassigned'). Those keep the rider tracking panel;
+  // home deliveries with no rider are farmer-shipped (Shipped → Received).
+  const riderAssigned = !!order
+    && order.delivery_type === 'home_delivery'
+    && (!!order.rider || (order.delivery_status != null && order.delivery_status !== 'unassigned'))
+
+  // A shipped order (courier, or a farmer-shipped home delivery) awaits the
+  // buyer's "Received" confirmation. Rider deliveries never set shipped_at, so
+  // they're naturally excluded; self-pickup is gated out explicitly.
   const canConfirmReceipt = !!order
-    && order.delivery_type === 'courier'
+    && order.delivery_type !== 'self_pickup'
     && !!order.shipped_at
     && !order.received_at
 
@@ -393,13 +402,15 @@ export default function OrderDetailsPage() {
               </div>
             )}
 
-            {/* Delivery timeline + handover OTP — only for home delivery orders */}
-            {order.delivery_type === 'home_delivery' && order.status !== 'declined' && (
+            {/* Rider tracking + handover OTP — only for rider-driven home
+                deliveries (a rider is assigned). */}
+            {riderAssigned && order.status !== 'declined' && (
               <DeliveryPanel order={order} />
             )}
 
-            {/* Simple status timeline for self-pickup orders */}
-            {order.delivery_type !== 'home_delivery' && order.status !== 'declined' && (
+            {/* Status timeline for everything else: self-pickup, courier, and
+                farmer-shipped home deliveries (Shipped → Received). */}
+            {!riderAssigned && order.status !== 'declined' && (
               <OrderStatusPanel order={order} />
             )}
 
@@ -680,7 +691,11 @@ function DeliveryPanel({ order }: { order: Order }) {
 function OrderStatusPanel({ order }: { order: Order }) {
   const { L } = useLang()
   const approved = order.status === 'approved'
-  const isCourier = order.delivery_type === 'courier'
+  // Shipped lifecycle (Shipped → Received) covers courier AND farmer-shipped
+  // home deliveries. Rider home deliveries never reach this panel. Self-pickup
+  // keeps the Ready → Picked up lifecycle.
+  const isShippedFlow = order.delivery_type === 'courier' || order.delivery_type === 'home_delivery'
+  const isCourier = isShippedFlow
   const collected = !!order.collected_at
   const shipped = !!order.shipped_at
   const received = !!order.received_at
@@ -700,7 +715,7 @@ function OrderStatusPanel({ order }: { order: Order }) {
     { label: L('Confirmed by farmer', 'రైతు ధృవీకరించారు'), sub: L('Farmer accepted your order', 'రైతు అంగీకరించారు'), at: fmt(order.confirmed_at), done: approved },
     ...(isCourier
       ? [
-          { label: L('Shipped', 'షిప్ చేయబడింది'), sub: L('Farmer handed the parcel to the courier', 'రైతు పార్సెల్ పంపారు'), at: fmt(order.shipped_at), done: shipped },
+          { label: L('Shipped', 'షిప్ చేయబడింది'), sub: L('Farmer shipped your order to your address', 'రైతు మీ చిరునామాకు పంపారు'), at: fmt(order.shipped_at), done: shipped },
           { label: L('Received', 'అందుకున్నారు'), sub: L('You confirmed you received it', 'మీరు అందుకున్నట్టు ధృవీకరించారు'), at: fmt(order.received_at), done: received },
         ]
       : [
@@ -718,9 +733,11 @@ function OrderStatusPanel({ order }: { order: Order }) {
       {/* Header — mirrors the home-delivery panel so every order type's tracker
           looks the same, just with the icon/label for this fulfilment type. */}
       <div className="flex items-center gap-2">
-        <span className="text-base">{isCourier ? '📦' : '🧺'}</span>
+        <span className="text-base">{order.delivery_type === 'home_delivery' ? '🛵' : isShippedFlow ? '📦' : '🧺'}</span>
         <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
-          {isCourier ? L('Courier delivery', 'కొరియర్ డెలివరీ') : L('Farm pickup', 'ఫామ్ పికప్')}
+          {order.delivery_type === 'home_delivery'
+            ? L('Home delivery', 'ఇంటి డెలివరీ')
+            : isShippedFlow ? L('Courier delivery', 'కొరియర్ డెలివరీ') : L('Farm pickup', 'ఫామ్ పికప్')}
         </p>
       </div>
 

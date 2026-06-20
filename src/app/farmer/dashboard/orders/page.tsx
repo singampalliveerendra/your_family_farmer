@@ -169,15 +169,17 @@ function HistoryCard({ order, onSetDate }: { order: Order; onSetDate: (date: str
     iso ? new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
 
   // Completion line for an approved order: the final milestone + its date.
-  // Courier: Received (done) ▸ Shipped (in transit). Pickup: Picked up.
+  // Shipped flow (courier + farmer-shipped home delivery): Received (done) ▸
+  // Shipped (in transit). Pickup: Picked up.
+  const isShippedFlow = isCourier || isDelivery
   const completion = !isApproved ? null
-    : isCourier
+    : isShippedFlow
       ? order.received_at
         ? { text: `${L('✓ Received', '✓ అందుకున్నారు')} · ${stamp(order.received_at)}`, cls: 'text-green-700' }
         : order.shipped_at
-          ? { text: `${L('📦 Shipped', '📦 షిప్ చేయబడింది')} · ${stamp(order.shipped_at)}`, cls: 'text-amber-700' }
+          ? { text: `${L('🚚 Shipped', '🚚 షిప్ చేయబడింది')} · ${stamp(order.shipped_at)}`, cls: 'text-amber-700' }
           : null
-      : !isDelivery && order.collected_at
+      : order.collected_at
         ? { text: `${L('✓ Picked up', '✓ తీసుకువెళ్ళారు')} · ${stamp(order.collected_at)}`, cls: 'text-green-700' }
         : null
 

@@ -8,7 +8,7 @@ import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import ComplaintModal from '@/components/consumer/ComplaintModal'
 import OrderCard, { ConsumerOrder as Order, isResolved } from '@/components/consumer/OrderCard'
 
-export default function ConsumerOrdersPage() {
+export default function ConsumerOrderHistoryPage() {
   const { tx, L } = useLang()
   const { state, openAuth } = useConsumerAuth()
   const [orders, setOrders] = useState<Order[]>([])
@@ -37,41 +37,42 @@ export default function ConsumerOrdersPage() {
     }
   }, [state.status, refresh])
 
-  // Active orders only — resolved ones (delivered / picked up / received /
-  // declined / cancelled) live on the separate history page to cut clutter.
-  const activeOrders = orders.filter((o) => !isResolved(o))
-  const completedCount = orders.length - activeOrders.length
+  // Resolved orders only — delivered / picked up / received / declined /
+  // cancelled. Active ones stay on /consumer/orders.
+  const completedOrders = orders.filter(isResolved)
+  const activeCount = orders.length - completedOrders.length
 
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
       {/* Header */}
       <div className="bg-green-900 px-4 pt-6 pb-10">
         <div className="flex items-center justify-between mb-4">
-          <Link href="/consumer" className="text-green-300 text-sm flex items-center gap-1">
-            {L('← Back', '← వెనక్కు')}
+          <Link href="/consumer/orders" className="text-green-300 text-sm flex items-center gap-1">
+            {L('← Back to orders', '← ఆర్డర్‌లకు తిరిగి')}
           </Link>
           <LanguageToggle />
         </div>
-        <h1 className="text-white text-xl font-extrabold leading-tight">{tx.myOrders}</h1>
+        <h1 className="text-white text-xl font-extrabold leading-tight">
+          {L('Order history', 'ఆర్డర్ చరిత్ర')}
+        </h1>
         <p className="text-green-400 text-sm mt-1">
-          {L('Your orders in progress', 'మీ ప్రస్తుత ఆర్డర్‌లు')}
+          {L('Completed, picked up & cancelled orders', 'పూర్తయిన, తీసుకున్న & రద్దు చేసిన ఆర్డర్‌లు')}
         </p>
       </div>
 
       <div className="px-4 -mt-5 space-y-4 max-w-lg mx-auto">
-        {/* Active | History switcher — two separate pages, shown side by side
-            so finished orders are one tap away without cluttering this list. */}
+        {/* Active | History switcher — mirrors the active orders page. */}
         {state.status === 'authenticated' && !error && (
           <div className="bg-white rounded-2xl border border-gray-100 p-1.5 flex gap-1.5">
-            <span className="flex-1 py-2.5 rounded-xl text-xs font-bold text-center bg-green-700 text-white">
-              {L('Active', 'ప్రస్తుత')} ({activeOrders.length})
-            </span>
             <Link
-              href="/consumer/orders/history"
+              href="/consumer/orders"
               className="flex-1 py-2.5 rounded-xl text-xs font-bold text-center bg-gray-50 text-gray-600 active:bg-gray-100"
             >
-              {L('History', 'చరిత్ర')}{completedCount > 0 ? ` (${completedCount})` : ''}
+              {L('Active', 'ప్రస్తుత')}{activeCount > 0 ? ` (${activeCount})` : ''}
             </Link>
+            <span className="flex-1 py-2.5 rounded-xl text-xs font-bold text-center bg-green-700 text-white">
+              {L('History', 'చరిత్ర')} ({completedOrders.length})
+            </span>
           </div>
         )}
 
@@ -104,47 +105,23 @@ export default function ConsumerOrdersPage() {
               {L('Try again', 'మళ్లీ ప్రయత్నించండి')}
             </button>
           </div>
-        ) : orders.length === 0 ? (
+        ) : completedOrders.length === 0 ? (
           <div className="text-center py-14">
-            <div className="text-5xl mb-3">📭</div>
-            <p className="font-semibold text-gray-500 text-sm">{tx.noOrdersYet}</p>
-            <Link href="/consumer" className="mt-4 inline-block text-green-700 text-sm underline font-semibold">
-              {L('Browse produce →', 'పంట చూడండి →')}
+            <div className="text-5xl mb-3">📦</div>
+            <p className="font-semibold text-gray-500 text-sm">
+              {L('No completed orders yet', 'పూర్తయిన ఆర్డర్‌లు లేవు')}
+            </p>
+            <Link href="/consumer/orders" className="mt-4 inline-block text-green-700 text-sm underline font-semibold">
+              {L('← Active orders', '← ప్రస్తుత ఆర్డర్‌లు')}
             </Link>
           </div>
         ) : (
           <div className="space-y-3">
-            {activeOrders.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-4xl mb-2">🧺</div>
-                <p className="font-semibold text-gray-500 text-sm">
-                  {L('No active orders', 'ప్రస్తుత ఆర్డర్‌లు లేవు')}
-                </p>
-                <Link href="/consumer" className="mt-3 inline-block text-green-700 text-sm underline font-semibold">
-                  {L('Browse produce →', 'పంట చూడండి →')}
-                </Link>
-              </div>
-            ) : (
-              activeOrders.map((order) => (
-                <OrderCard key={order.id} order={order} onComplaint={setComplaintFor} />
-              ))
-            )}
+            {completedOrders.map((order) => (
+              <OrderCard key={order.id} order={order} onComplaint={setComplaintFor} />
+            ))}
           </div>
         )}
-
-        <Link
-          href="/consumer/complaints"
-          className="mt-6 block text-center text-xs font-semibold text-green-700 underline"
-        >
-          🛟 {L('My complaints', 'నా ఫిర్యాదులు')}
-        </Link>
-
-        <Link
-          href="/buyer-protection"
-          className="mt-3 block text-center text-xs font-semibold text-green-700 underline"
-        >
-          🔒 {L('Buyer protection & refund policy', 'కొనుగోలుదారు రక్షణ & రీఫండ్ విధానం')}
-        </Link>
       </div>
 
       {complaintFor !== null && (
