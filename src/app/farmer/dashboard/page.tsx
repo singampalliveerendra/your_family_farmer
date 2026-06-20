@@ -8,6 +8,7 @@ import LanguageToggle from '@/components/LanguageToggle'
 import { useLang } from '@/lib/LanguageContext'
 import LocationSearch from '@/components/LocationSearch'
 import { FreshnessBadge } from '@/components/FreshnessBadge'
+import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import { normalizePickupSchedule, emptyPickupSlot, type PickupSchedule } from '@/lib/pickup-slots'
 
 type Farmer = {
@@ -77,6 +78,8 @@ type DashboardListing = {
   price_tier_1_price: number | null
   unit: string | null
   stock_qty: number | null
+  rating_avg: number | null
+  review_count: number | null
 }
 
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
@@ -186,6 +189,9 @@ export default function FarmerDashboard() {
   const [ordersFilter, setOrdersFilter] = useState<'today' | 'week' | 'month'>('week')
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null)
   const [processingPaidId, setProcessingPaidId] = useState<string | null>(null)
+  // Bumped after any order action so the OTHER list (Today's Schedule ↔ active
+  // orders) re-fetches and never shows a stale order. See F2.
+  const [orderActionTick, setOrderActionTick] = useState(0)
   const [decliningOrder, setDecliningOrder] = useState<Order | null>(null)
   const [declineResult, setDeclineResult] = useState<
     { buyerName: string | null; amount: number | null; refundInitiated: boolean } | null
@@ -218,7 +224,7 @@ export default function FarmerDashboard() {
     const [listingsRes, pendingRes, approvedRes, intentsRes, monthlyRes] = await Promise.all([
       // Full (lightweight) listing rows so the dashboard can show them inline
       // with a quick suspend/resume; the active-listings count is derived below.
-      supabase.from('produce_listings').select('id, name, emoji, status, price_tier_1_price, unit, stock_qty').eq('farmer_id', farmerData.id).order('created_at', { ascending: false }),
+      supabase.from('produce_listings').select('id, name, emoji, status, price_tier_1_price, unit, stock_qty, rating_avg, review_count').eq('farmer_id', farmerData.id).order('created_at', { ascending: false }),
       // Active orders = still pending, OR approved but not yet picked up/delivered.
       // Approved orders stay here so the farmer keeps the scheduled date in view
       // until the buyer collects (or the rider delivers).
@@ -397,6 +403,7 @@ export default function FarmerDashboard() {
       prev.map((o) => (o.id === orderId ? { ...o, status: 'approved', fulfillment_date: date } : o)),
     )
     setApprovedCount((c) => c + 1)
+    setOrderActionTick((t) => t + 1)
     setProcessingOrderId(null)
   }
 
@@ -408,6 +415,7 @@ export default function FarmerDashboard() {
     const res = await fetch(`/api/farmer/orders/${orderId}/picked-up`, { method: 'POST', credentials: 'same-origin' })
     if (res.ok) {
       setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
+      setOrderActionTick((t) => t + 1)
     } else {
       void loadDashboard() // re-sync on failure
     }
@@ -424,6 +432,7 @@ export default function FarmerDashboard() {
       const json = (await res.json().catch(() => ({}))) as { shipped_at?: string }
       const shippedAt = json.shipped_at ?? new Date().toISOString()
       setPendingOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, shipped_at: shippedAt } : o)))
+      setOrderActionTick((t) => t + 1)
     } else {
       void loadDashboard() // re-sync on failure
     }
@@ -437,6 +446,7 @@ export default function FarmerDashboard() {
     const res = await fetch(`/api/farmer/orders/${orderId}/delivered`, { method: 'POST', credentials: 'same-origin' })
     if (res.ok) {
       setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
+      setOrderActionTick((t) => t + 1)
     } else {
       void loadDashboard() // re-sync on failure
     }
@@ -452,6 +462,9 @@ export default function FarmerDashboard() {
       prev.map((o) => (o.id === orderId ? { ...o, fulfillment_date: value } : o)),
     )
     await supabase.from('orders').update({ fulfillment_date: value }).eq('id', orderId)
+    // The schedule list is keyed on fulfillment_date — refresh it so the order
+    // appears/disappears under the right day.
+    setOrderActionTick((t) => t + 1)
   }
 
   const handleConfirmDecline = async (orderId: string, reason: string) => {
@@ -653,7 +666,13 @@ export default function FarmerDashboard() {
         />
 
         {/* Today's pickups & deliveries */}
-        {farmer && <TodayScheduleSection farmerId={farmer.id} />}
+        {farmer && (
+          <TodayScheduleSection
+            farmerId={farmer.id}
+            refreshKey={orderActionTick}
+            onChanged={() => { setOrderActionTick((t) => t + 1); void loadDashboard() }}
+          />
+        )}
 
         {/* Orders section */}
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
@@ -2851,7 +2870,18 @@ function isScheduleResolved(o: ScheduleOrder): boolean {
   return !!o.collected_at
 }
 
-function TodayScheduleSection({ farmerId }: { farmerId: string }) {
+function TodayScheduleSection({
+  farmerId,
+  refreshKey = 0,
+  onChanged,
+}: {
+  farmerId: string
+  // Bumped by the parent after an action on the active-orders list, so this
+  // schedule re-fetches and never shows an order that's already been handled.
+  refreshKey?: number
+  // Called after an action here, so the parent refreshes the active-orders list.
+  onChanged?: () => void
+}) {
   const { tx, L } = useLang()
   const todayStr = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD, local
   const [date, setDate] = useState(todayStr)
@@ -2875,7 +2905,7 @@ function TodayScheduleSection({ farmerId }: { farmerId: string }) {
         setLoading(false)
       })
     return () => { cancelled = true }
-  }, [farmerId, date])
+  }, [farmerId, date, refreshKey])
 
   // Self-pickup: stamp collected_at (resolves the order). We keep the row in the
   // schedule but flip it to a "Picked up" done-state so the farmer sees it's
@@ -2885,6 +2915,7 @@ function TodayScheduleSection({ farmerId }: { farmerId: string }) {
     const res = await fetch(`/api/farmer/orders/${orderId}/picked-up`, { method: 'POST', credentials: 'same-origin' })
     if (res.ok) {
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, collected_at: new Date().toISOString() } : o)))
+      onChanged?.()
     }
     setBusyId(null)
   }
@@ -2898,6 +2929,7 @@ function TodayScheduleSection({ farmerId }: { farmerId: string }) {
       const json = (await res.json().catch(() => ({}))) as { shipped_at?: string }
       const shippedAt = json.shipped_at ?? new Date().toISOString()
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, shipped_at: shippedAt } : o)))
+      onChanged?.()
     }
     setBusyId(null)
   }
@@ -2909,6 +2941,7 @@ function TodayScheduleSection({ farmerId }: { farmerId: string }) {
     const res = await fetch(`/api/farmer/orders/${orderId}/delivered`, { method: 'POST', credentials: 'same-origin' })
     if (res.ok) {
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, received_at: new Date().toISOString() } : o)))
+      onChanged?.()
     }
     setBusyId(null)
   }
@@ -3487,6 +3520,8 @@ function DashboardProduceSection({
   onToggleSuspend: (id: string, currentStatus: string) => void
 }) {
   const { L } = useLang()
+  // The listing whose buyer reviews are open in the bottom-sheet, if any.
+  const [reviewsFor, setReviewsFor] = useState<DashboardListing | null>(null)
   // Status chips mirror the Manage Listings card so the two stay consistent.
   const chip = (status: string): { label: string; color: string } => {
     switch (status) {
@@ -3545,6 +3580,22 @@ function DashboardProduceSection({
                       {c.label}
                     </span>
                   </div>
+                  {/* Buyer rating — tap to read the individual reviews. Shown
+                      only once at least one verified-buyer rating exists. */}
+                  {(l.review_count ?? 0) > 0 && l.rating_avg != null && (
+                    <button
+                      type="button"
+                      onClick={() => setReviewsFor(l)}
+                      className="flex items-center gap-1 mt-1 active:opacity-70"
+                    >
+                      <span className="inline-flex items-center gap-0.5 bg-green-700 text-white text-[11px] font-bold rounded px-1.5 py-0.5">
+                        {l.rating_avg.toFixed(1)} ★
+                      </span>
+                      <span className="text-[11px] text-gray-500 underline">
+                        {l.review_count} {l.review_count === 1 ? L('review', 'సమీక్ష') : L('reviews', 'సమీక్షలు')}
+                      </span>
+                    </button>
+                  )}
                 </div>
                 {canToggle ? (
                   <button
@@ -3566,6 +3617,14 @@ function DashboardProduceSection({
             )
           })}
         </div>
+      )}
+
+      {reviewsFor && (
+        <ProduceReviewsModal
+          listingId={reviewsFor.id}
+          produceName={reviewsFor.name}
+          onClose={() => setReviewsFor(null)}
+        />
       )}
     </div>
   )

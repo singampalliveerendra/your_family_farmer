@@ -7,11 +7,10 @@ export const dynamic = 'force-dynamic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-// Buyer confirms they received a shipped order — a courier order, or a
-// farmer-shipped home delivery (no rider). Only allowed once the farmer has
-// marked it shipped (shipped_at set). Rider-driven home deliveries never set
-// shipped_at (they use delivered_at), so they're naturally excluded. Stamps
-// received_at, which resolves the order and moves it to history on both sides.
+// Buyer acknowledges a declined or cancelled order. This stamps acknowledged_at,
+// which moves the order out of the buyer's Active list and into History. Until
+// they tap Acknowledge the order stays active, so a farmer decline / cancel
+// never silently vanishes into history.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const session = getConsumerSessionFromRequest(req)
   if (!session) return NextResponse.json({ error: 'Please log in.' }, { status: 401 })
@@ -26,7 +25,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: order, error: loadErr } = await supabase
     .from('orders')
-    .select('id, consumer_id, status, delivery_type, shipped_at, received_at')
+    .select('id, consumer_id, status, acknowledged_at')
     .eq('id', id)
     .maybeSingle()
 
@@ -35,32 +34,29 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (order.consumer_id !== session.consumerId) {
     return NextResponse.json({ error: 'Not your order.' }, { status: 403 })
   }
-  if (order.delivery_type !== 'courier' && order.delivery_type !== 'home_delivery') {
-    return NextResponse.json({ error: 'This order is not confirmed this way.' }, { status: 409 })
+  // Only declined/cancelled orders can be acknowledged — that's the only state
+  // where it's needed.
+  if (order.status !== 'declined' && order.status !== 'cancelled') {
+    return NextResponse.json({ error: 'This order does not need acknowledgement.' }, { status: 409 })
   }
-  if (!order.shipped_at) {
-    return NextResponse.json({ error: 'This order has not been shipped yet.' }, { status: 409 })
-  }
-  if (order.received_at) {
-    return NextResponse.json({ error: 'This order is already marked received.' }, { status: 409 })
-  }
+  // Idempotent: already acknowledged is a no-op success.
+  if (order.acknowledged_at) return NextResponse.json({ ok: true, acknowledged_at: order.acknowledged_at })
 
   const { data: updated, error: updErr } = await supabase
     .from('orders')
-    .update({ received_at: new Date().toISOString() })
+    .update({ acknowledged_at: new Date().toISOString() })
     .eq('id', id)
     .eq('consumer_id', session.consumerId)
-    .not('shipped_at', 'is', null)
-    .is('received_at', null)
-    .select('id, received_at')
+    .in('status', ['declined', 'cancelled'])
+    .select('id, acknowledged_at')
 
   if (updErr) {
-    console.error('[YFF consumer/received] update failed:', updErr.message)
-    return NextResponse.json({ error: 'Could not confirm receipt. Please try again.' }, { status: 500 })
+    console.error('[YFF consumer/acknowledge] update failed:', updErr.message)
+    return NextResponse.json({ error: 'Could not update. Please try again.' }, { status: 500 })
   }
   if (!updated || updated.length === 0) {
-    return NextResponse.json({ error: 'Could not confirm receipt. Refresh and try again.' }, { status: 409 })
+    return NextResponse.json({ error: 'Could not update. Refresh and try again.' }, { status: 409 })
   }
 
-  return NextResponse.json({ ok: true, received_at: updated[0].received_at })
+  return NextResponse.json({ ok: true, acknowledged_at: updated[0].acknowledged_at })
 }
