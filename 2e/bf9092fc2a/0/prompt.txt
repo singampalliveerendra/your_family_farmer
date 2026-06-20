@@ -1,0 +1,22 @@
+is everything in live
+
+---
+
+evrything done
+
+---
+
+once check did i adede every query in supabase
+
+---
+
+[Image #2] 1.After confirming the pickup date orderlist is refreshed but not today schedule. 2. [Image #3]Farmer before clicking on picked up. 3. [Image #4] same order . 4. [Image #5]Disappeared from today's schedule but not order list. It should refresh and show the next status. 5. [Image #6].
+
+---
+
+[Image #2] 1.After confirming the pickup date orderlist is refreshed but not today schedule. 2. [Image #3]Farmer before clicking on picked up. 3. [Image #4] same order . 4. [Image #5]Disappeared from today's schedule but not order list. It should refresh and show the next status. 5. [Image #6].  and this is quetsion i sent to him sir can you send me screenshot of this bug "When some action is taken on an order from Today's schedule list or Order list, both lists should refresh, otherwise a stale
+  order is shown in one of them".. and he sent that images and text so take deep think and explain me in detaail 9i little bit confused  explain in simple and easy way with more detail )first before doing
+
+---
+
+fix it properly

@@ -1,0 +1,53 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "2ebf9092fc2a",
+  "session_id": "661d1a8c-ea8f-4862-b9c7-300618acb215",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-20T14:29:02.132455072Z",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/app/farmer/dashboard/page.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "39813679f9c2",
+  "checkpoint_transcript_start": 371,
+  "transcript_lines_at_start": 371,
+  "token_usage": {
+    "input_tokens": 1525,
+    "cache_creation_tokens": 55120,
+    "cache_read_tokens": 6320739,
+    "output_tokens": 36086,
+    "api_call_count": 37
+  },
+  "session_metrics": {
+    "turn_count": 8
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-20T14:29:01.945176365Z",
+    "agent_lines": 37,
+    "agent_removed": 121,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 37,
+    "total_lines_changed": 158,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 474,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs - Copy.html": 22,
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs.html": 22,
+        "mod.md": 430
+      }
+    }
+  ]
+}
