@@ -1,0 +1,200 @@
+Similar to Farmer where there is a order history consumer also needs a order history where the resolved orders should be moved there. Active orders should be kept separate to clear the clutter... did  you underatnd tis explain
+
+---
+
+Back
+EN
+తె
+My Orders / నా ఆర్డర్లు
+Your orders in progress
+
+Green leaf
+
+YFF-20260617-0083
+
+1 kg · ₹1
+
+⏳ Pending
+🧑‍🌾 From veeru · gajuwaka
+
+🛵 Home delivery · Waiting for rider
+
+17 Jun 2026, 09:43 pm
+
+🛟 Log a Complaint
+Green leaf
+
+YFF-20260617-0082
+
+1 kg · ₹1
+
+⏳ Pending
+🧑‍🌾 From veeru · gajuwaka
+
+🛵 Home delivery · Waiting for rider
+
+17 Jun 2026, 09:43 pm
+
+🛟 Log a Complaint
+Green leaf
+
+YFF-20260613-0056
+
+1 kg · ₹1
+
+⏳ Pending
+🧑‍🌾 From veeru · gajuwaka
+
+13 Jun 2026, 06:36 pm
+
+🛟 Log a Complaint
+🛟 My complaints
+🔒 Buyer protection & refund policy. where is the active orders and history here
+
+---
+
+🧑‍🌾 From veeru · gajuwaka
+
+13 Jun 2026, 06:36 pm
+
+🛟 Log a Complaint
+📦 Order history
+View →
+🛟 My complaints
+🔒 Buyer protection & refund policy. keep the orders history in side of active orders not down
+
+---
+
+Mark “Suspend“ button background color as RED in Moderator listing screen
+
+---
+
+[Image #1] have you understand this
+
+---
+
+After the farmer confirms a delivery date, he should be able to say "Shipped" from Orders list as well as "Today's" schedule list.  and the consumer see the updates of there orders . explain this first before doiing
+
+---
+
+❯ After the farmer confirms a delivery date, he should be able to say "Shipped" from Orders list as well as "Today's" schedule list.
+   and the consumer see the updates of there orders . explain this first before doiing
+
+● Let me look at how "Shipped" currently works in the Orders list before I explain.
+
+● Bash(grep -n "onMarkShipped\|MarkShipped\|handleMarkShipped\|onMarkPickedUp\|fulfillment_date\|Shipped\|Picked\|delivery_type\|deli
+      veryDateLabel\|set.*[Dd]ate\|Order…)
+  ⎿  101:  delivery_type?: 'self_pickup' | 'home_delivery' | 'courier' | null
+     104:  fulfillment_date?: string | null
+     117:  if (o.delivery_type === 'home_delivery') return o.delivery_status === 'delivered'
+     … +47 lines (ctrl+o to expand)
+
+● Let me read the farmer-dashboard OrderCard (the Orders-list card) to see the current Shipped/date logic:
+
+  Read 1 file (ctrl+o to expand)
+
+● Let me check what the consumer currently sees for a shipped/courier order, so my explanation of "consumer sees updates" is
+  accurate.
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● I've now traced the full flow. Let me explain what exists today and where the ambiguity is, because "Shipped" already works for one
+  order type but not another — and which one you mean changes the work significantly.
+
+  How "Shipped" works today
+
+  There are three delivery types, and the farmer's fulfillment action differs per type. After the farmer confirms a date (which
+  approves the order):
+
+  ┌─────────────┬────────────────────────────────┬─────────────────┬────────────────────────────────────────────────────────────┐
+  │  Delivery   │    Orders list (OrderCard)     │    Today's      │                     Consumer sees it?                      │
+  │    type     │                                │    Schedule     │                                                            │
+  ├─────────────┼────────────────────────────────┼─────────────────┼────────────────────────────────────────────────────────────┤
+  │ Courier     │ ✅ Shows 📦 Shipped button →   │ ✅ Shows 📦     │ ✅ Yes — the consumer order page (/consumer/orders/[id])   │
+  │             │ then "awaiting buyer receipt"  │ Shipped button  │ live-polls every 5s and shows shipped/received state       │
+  ├─────────────┼────────────────────────────────┼─────────────────┼────────────────────────────────────────────────────────────┤
+  │ Self-pickup │ ✅ Shows ✓ Picked Up           │ ✅ Shows ✓      │ ✅ Yes                                                     │
+  │             │                                │ Picked Up       │                                                            │
+  ├─────────────┼────────────────────────────────┼─────────────────┼────────────────────────────────────────────────────────────┤
+  │ Home        │ ❌ Only a Cancel button —      │ ❌ No button at │ Sees rider delivery_status (assigned → out for delivery →  │
+  │ delivery    │ closed out by the rider flow   │  all            │ delivered)                                                 │
+  └─────────────┴────────────────────────────────┴─────────────────┴────────────────────────────────────────────────────────────┘
+
+  So for courier orders, "Shipped from both lists + consumer sees it" already exists and works. The only type where the farmer cannot
+  say "Shipped" after confirming a date is home delivery, which today is a rider-driven flow (the farmer never marks it shipped).
+
+  So my read of your ticket
+
+  You confirm a delivery date → you want a farmer "Shipped" action for home-delivery orders (the one type that lacks it), in both the
+  Orders list and Today's Schedule, and have the buyer see the update via the existing live tracking.
+
+  The catch: home delivery currently belongs to the rider (delivery_status states). Adding a farmer "Shipped" means deciding how it
+  coexists with riders. Before I build anything, I need to confirm which case you mean:
+
+● User answered Claude's questions:
+  ⎿  · Which orders should get the new farmer 'Shipped' action? (Courier already has it in both lists.) → Home-delivery orders
+     · For home delivery, how should the farmer 'Shipped' coexist with the rider flow? → Farmer self-delivers (no rider) have you done or you have to do
+
+---
+
+❯ After the farmer confirms a delivery date, he should be able to say "Shipped" from Orders list as well as "Today's" schedule list.
+   and the consumer see the updates of there orders . explain this first before doiing
+
+● Let me look at how "Shipped" currently works in the Orders list before I explain.
+
+● Bash(grep -n "onMarkShipped\|MarkShipped\|handleMarkShipped\|onMarkPickedUp\|fulfillment_date\|Shipped\|Picked\|delivery_type\|deli
+      veryDateLabel\|set.*[Dd]ate\|Order…)
+  ⎿  101:  delivery_type?: 'self_pickup' | 'home_delivery' | 'courier' | null
+     104:  fulfillment_date?: string | null
+     117:  if (o.delivery_type === 'home_delivery') return o.delivery_status === 'delivered'
+     … +47 lines (ctrl+o to expand)
+
+● Let me read the farmer-dashboard OrderCard (the Orders-list card) to see the current Shipped/date logic:
+
+  Read 1 file (ctrl+o to expand)
+
+● Let me check what the consumer currently sees for a shipped/courier order, so my explanation of "consumer sees updates" is
+  accurate.
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● I've now traced the full flow. Let me explain what exists today and where the ambiguity is, because "Shipped" already works for one
+  order type but not another — and which one you mean changes the work significantly.
+
+  How "Shipped" works today
+
+  There are three delivery types, and the farmer's fulfillment action differs per type. After the farmer confirms a date (which
+  approves the order):
+
+  ┌─────────────┬────────────────────────────────┬─────────────────┬────────────────────────────────────────────────────────────┐
+  │  Delivery   │    Orders list (OrderCard)     │    Today's      │                     Consumer sees it?                      │
+  │    type     │                                │    Schedule     │                                                            │
+  ├─────────────┼────────────────────────────────┼─────────────────┼────────────────────────────────────────────────────────────┤
+  │ Courier     │ ✅ Shows 📦 Shipped button →   │ ✅ Shows 📦     │ ✅ Yes — the consumer order page (/consumer/orders/[id])   │
+  │             │ then "awaiting buyer receipt"  │ Shipped button  │ live-polls every 5s and shows shipped/received state       │
+  ├─────────────┼────────────────────────────────┼─────────────────┼────────────────────────────────────────────────────────────┤
+  │ Self-pickup │ ✅ Shows ✓ Picked Up           │ ✅ Shows ✓      │ ✅ Yes                                                     │
+  │             │                                │ Picked Up       │                                                            │
+  ├─────────────┼────────────────────────────────┼─────────────────┼────────────────────────────────────────────────────────────┤
+  │ Home        │ ❌ Only a Cancel button —      │ ❌ No button at │ Sees rider delivery_status (assigned → out for delivery →  │
+  │ delivery    │ closed out by the rider flow   │  all            │ delivered)                                                 │
+  └─────────────┴────────────────────────────────┴─────────────────┴────────────────────────────────────────────────────────────┘
+
+  So for courier orders, "Shipped from both lists + consumer sees it" already exists and works. The only type where the farmer cannot
+  say "Shipped" after confirming a date is home delivery, which today is a rider-driven flow (the farmer never marks it shipped).
+
+  So my read of your ticket
+
+  You confirm a delivery date → you want a farmer "Shipped" action for home-delivery orders (the one type that lacks it), in both the
+  Orders list and Today's Schedule, and have the buyer see the update via the existing live tracking.
+
+  The catch: home delivery currently belongs to the rider (delivery_status states). Adding a farmer "Shipped" means deciding how it
+  coexists with riders. Before I build anything, I need to confirm which case you mean:
+
+● User answered Claude's questions:
+  ⎿  · Which orders should get the new farmer 'Shipped' action? (Courier already has it in both lists.) → Home-delivery orders
+     · For home delivery, how should the farmer 'Shipped' coexist with the rider flow? → Farmer self-delivers (no rider) have you done or you have to do if not please continue
+
+---
+
+Add this "Picked up" button in the Today's schedule as list

@@ -1,0 +1,107 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "34a71913f6ca",
+  "session_id": "0f400acc-7d71-4fbd-bc9d-0bd09a5e2d80",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-20T07:00:41.03584474Z",
+  "branch": "feat/order-tracking-history",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "src/app/moderator/listings/page.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "12038bd4d717",
+  "token_usage": {
+    "input_tokens": 9318,
+    "cache_creation_tokens": 160209,
+    "cache_read_tokens": 10786639,
+    "output_tokens": 87873,
+    "api_call_count": 105
+  },
+  "session_metrics": {
+    "turn_count": 8
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-20T07:00:40.999135287Z",
+    "agent_lines": 1,
+    "agent_removed": 1,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1,
+    "total_lines_changed": 2,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 474,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs - Copy.html": 22,
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs.html": 22,
+        "mod.md": 430
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 828,
+      "agent_lines_removed": 279
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 831,
+      "agent_lines_removed": 279
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 845,
+      "agent_lines_removed": 279
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 846,
+      "agent_lines_removed": 280
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 867,
+      "agent_lines_removed": 287
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 972,
+      "agent_lines_removed": 365
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 972,
+      "agent_lines_removed": 365
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1098,
+      "agent_lines_removed": 373
+    }
+  ]
+}
