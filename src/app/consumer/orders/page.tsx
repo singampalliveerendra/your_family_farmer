@@ -6,7 +6,8 @@ import { useLang } from '@/lib/LanguageContext'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import ComplaintModal from '@/components/consumer/ComplaintModal'
-import OrderCard, { ConsumerOrder as Order, isResolved } from '@/components/consumer/OrderCard'
+import OrderFeedbackModal from '@/components/consumer/OrderFeedbackModal'
+import OrderCard, { ConsumerOrder as Order, isResolved, isCompleted } from '@/components/consumer/OrderCard'
 
 export default function ConsumerOrdersPage() {
   const { tx, L } = useLang()
@@ -17,6 +18,8 @@ export default function ConsumerOrdersPage() {
   // Order code the complaint modal is pinned to ('' means a general complaint
   // with no preset). null means the modal is closed.
   const [complaintFor, setComplaintFor] = useState<string | null>(null)
+  // Order the feedback sheet is open for (null = closed).
+  const [feedbackFor, setFeedbackFor] = useState<Order | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -126,7 +129,7 @@ export default function ConsumerOrdersPage() {
               </div>
             ) : (
               activeOrders.map((order) => (
-                <OrderCard key={order.id} order={order} onComplaint={setComplaintFor} />
+                <OrderCard key={order.id} order={order} onComplaint={setComplaintFor} onFeedback={setFeedbackFor} />
               ))
             )}
           </div>
@@ -152,6 +155,17 @@ export default function ConsumerOrdersPage() {
           presetOrderCode={complaintFor || null}
           onClose={() => setComplaintFor(null)}
           onCreated={() => setComplaintFor(null)}
+        />
+      )}
+
+      {feedbackFor && (
+        <OrderFeedbackModal
+          orderId={feedbackFor.id}
+          produceName={feedbackFor.produce_name}
+          completed={isCompleted(feedbackFor)}
+          existing={feedbackFor.my_review ?? null}
+          onClose={() => setFeedbackFor(null)}
+          onSaved={() => { setFeedbackFor(null); void refresh() }}
         />
       )}
     </main>

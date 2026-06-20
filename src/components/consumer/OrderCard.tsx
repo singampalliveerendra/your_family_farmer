@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
+import type { MyReview } from '@/components/consumer/ProduceReviewBox'
 
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
 
@@ -10,6 +11,7 @@ export type ConsumerOrder = {
   id: string
   order_code: string | null
   produce_name: string | null
+  produce_listing_id?: string | null
   quantity: number | null
   unit: string | null
   total_price: number | null
@@ -34,7 +36,18 @@ export type ConsumerOrder = {
   shipped_at?: string | null
   collected_at?: string | null
   received_at?: string | null
+  delivered_at?: string | null
+  // The buyer's own feedback for this order, if they've left any.
+  my_review?: MyReview | null
 }
+
+// A completed order — delivered / picked up / received, and not declined or
+// cancelled. Feedback on these is published as a public produce rating; feedback
+// on any other order is kept private. Mirrors the gate in /api/produce-reviews.
+export const isCompleted = (o: ConsumerOrder) =>
+  o.status !== 'declined'
+  && o.status !== 'cancelled'
+  && (o.delivery_status === 'delivered' || !!o.collected_at || !!o.received_at || !!o.delivered_at)
 
 // An order is "resolved" once it reaches a terminal state: declined, cancelled,
 // delivered (home delivery), picked up (self-pickup) or received (courier).
@@ -50,11 +63,17 @@ export const isResolved = (o: ConsumerOrder) =>
 export default function OrderCard({
   order,
   onComplaint,
+  onFeedback,
 }: {
   order: ConsumerOrder
   onComplaint: (orderCode: string) => void
+  onFeedback?: (order: ConsumerOrder) => void
 }) {
   const { tx, lang, L } = useLang()
+  const reviewed = Boolean(order.my_review)
+  const completed = isCompleted(order)
+  // Feedback is offered on every order that maps to a produce listing.
+  const canFeedback = Boolean(onFeedback && order.produce_listing_id)
 
   const statusColor = (s: string) =>
     s === 'approved'
@@ -191,9 +210,9 @@ export default function OrderCard({
             </div>
           )}
 
-          {/* Per-order complaint — opens the shared modal pinned to this order's
-              code so the buyer needn't type it. */}
-          <div className="pt-1">
+          {/* Per-order actions — complaint + feedback. Both open shared modals
+              pinned to this order, and stop the card's link from navigating. */}
+          <div className="pt-1 flex gap-2">
             <button
               type="button"
               onClick={(e) => {
@@ -201,10 +220,29 @@ export default function OrderCard({
                 e.stopPropagation()
                 onComplaint(order.order_code ?? '')
               }}
-              className="w-full text-center text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl py-2.5 active:bg-amber-100"
+              className="flex-1 text-center text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl py-2.5 active:bg-amber-100"
             >
               🛟 {L('Log a Complaint', 'ఫిర్యాదు')}
             </button>
+            {canFeedback && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onFeedback!(order)
+                }}
+                className={`flex-1 text-center text-xs font-bold rounded-xl py-2.5 border ${
+                  reviewed
+                    ? 'text-green-700 bg-green-50 border-green-200 active:bg-green-100'
+                    : 'text-green-800 bg-white border-green-300 active:bg-green-50'
+                }`}
+              >
+                {reviewed
+                  ? `⭐ ${L('Feedback given', 'అభిప్రాయం ఇచ్చారు')}`
+                  : `⭐ ${completed ? L('Rate produce', 'రేటింగ్ ఇవ్వండి') : L('Give feedback', 'అభిప్రాయం')}`}
+              </button>
+            )}
           </div>
         </div>
       </div>

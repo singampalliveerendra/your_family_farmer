@@ -96,15 +96,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'This order cannot be reviewed.' }, { status: 400 })
   }
 
-  // Only completed orders may be reviewed — delivered, picked up, or buyer-
-  // confirmed received. Declined/cancelled orders never qualify.
+  // A buyer may give feedback on any of their own orders. Only feedback on a
+  // *completed* order (delivered / picked up / received) is published publicly
+  // and counts toward the produce's star average — that's a verified-buyer
+  // rating. Feedback on a declined / cancelled / still-pending order is private
+  // (approved = false): it's the buyer telling us about their experience, and is
+  // never shown on the produce card so it can't unfairly drag the rating down.
   const completed =
     order.status !== 'declined' &&
     order.status !== 'cancelled' &&
     (!!order.received_at || !!order.collected_at || !!order.delivered_at || order.delivery_status === 'delivered')
-  if (!completed) {
-    return NextResponse.json({ error: 'You can review after the order is delivered or picked up.' }, { status: 400 })
-  }
 
   // One review per order.
   const { data: existing } = await supabase
@@ -127,14 +128,16 @@ export async function POST(req: NextRequest) {
       reviewer_phone: order.buyer_phone ? String(order.buyer_phone).replace(/\D/g, '').slice(-10) : null,
       star_rating: rating,
       review_text: text || null,
-      approved: true,
+      approved: completed,
     })
     .select('id, reviewer_name, star_rating, review_text, created_at')
     .single()
 
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
 
-  await refreshAggregate(supabase, order.produce_listing_id)
+  // Private (non-completed) feedback never affects the public average, so only
+  // recompute the aggregate when a completed order added a public rating.
+  if (completed) await refreshAggregate(supabase, order.produce_listing_id)
 
   return NextResponse.json({ review })
 }

@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const { data: orders, error } = await supabase
     .from('orders')
     .select(
-      'id, order_code, produce_name, quantity, unit, total_price, pickup_location, status, payment_method, payment_status, refund_status, refund_id, refund_amount, refunded_at, decline_reason, payment_proof_path, created_at, farmer_id, delivery_type, delivery_status, delivery_address, delivery_landmark, delivery_pincode, delivery_alt_phone, delivery_boy_id, handover_otp, assigned_at, picked_up_at, out_for_delivery_at, delivered_at, shipped_at, collected_at, received_at',
+      'id, order_code, produce_name, produce_listing_id, quantity, unit, total_price, pickup_location, status, payment_method, payment_status, refund_status, refund_id, refund_amount, refunded_at, decline_reason, payment_proof_path, created_at, farmer_id, delivery_type, delivery_status, delivery_address, delivery_landmark, delivery_pincode, delivery_alt_phone, delivery_boy_id, handover_otp, assigned_at, picked_up_at, out_for_delivery_at, delivered_at, shipped_at, collected_at, received_at',
     )
     .eq('consumer_id', session.consumerId)
     .order('created_at', { ascending: false })
@@ -62,12 +62,34 @@ export async function GET(req: NextRequest) {
     )
   }
 
+  // The buyer's own produce feedback per order, so each card can show "Give
+  // feedback" vs the rating they already left. Guarded: if the produce_reviews
+  // table hasn't been created yet (migration not run), we just skip it rather
+  // than fail the whole orders list.
+  const orderIds = (orders ?? []).map((o) => o.id)
+  let reviewMap: Record<string, { id: string; star_rating: number; review_text: string | null; created_at: string }> = {}
+  if (orderIds.length > 0) {
+    const { data: reviews } = await supabase
+      .from('produce_reviews')
+      .select('id, order_id, star_rating, review_text, created_at')
+      .in('order_id', orderIds)
+    if (reviews) {
+      reviewMap = Object.fromEntries(
+        reviews.map((r) => [
+          r.order_id,
+          { id: r.id, star_rating: r.star_rating, review_text: r.review_text ?? null, created_at: r.created_at },
+        ]),
+      )
+    }
+  }
+
   const enriched = (orders ?? []).map((o) => {
     const riderId = (o as { delivery_boy_id?: string | null }).delivery_boy_id ?? null
     return {
       ...o,
       farmer: farmerMap[o.farmer_id] ?? null,
       rider: riderId ? riderMap[riderId] ?? null : null,
+      my_review: reviewMap[o.id] ?? null,
     }
   })
   return NextResponse.json({ orders: enriched })
