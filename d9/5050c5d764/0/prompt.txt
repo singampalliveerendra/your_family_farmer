@@ -1,0 +1,5 @@
+Rate Produce can be given by a “Consumer”. It should have  5 stars and a message.
+Rate Produce can only be given on a resolved order that is orders having statuses Delivered or Picakedup.
+Average Rating should be visible both on the Consumer produce list and farmer produce list.
+Consumer or Farmer should be able to launch Rating from the produce and see the individual ratings. 
+ this is exactly want
