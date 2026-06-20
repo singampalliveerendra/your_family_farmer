@@ -1,0 +1,45 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "df62447d088a",
+  "session_id": "0f400acc-7d71-4fbd-bc9d-0bd09a5e2d80",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-20T07:01:03.341381476Z",
+  "branch": "feat/order-tracking-history",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/app/api/farmer/orders/[id]/delivered/route.ts",
+    "src/app/api/farmer/orders/[id]/ship/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/consumer/orders/history/page.tsx",
+    "src/app/consumer/orders/page.tsx",
+    "src/app/farmer/dashboard/orders/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/components/consumer/OrderCard.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "12038bd4d717",
+  "token_usage": {
+    "input_tokens": 9449,
+    "cache_creation_tokens": 161867,
+    "cache_read_tokens": 10958746,
+    "output_tokens": 88498,
+    "api_call_count": 106
+  },
+  "session_metrics": {
+    "turn_count": 8
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-20T07:01:03.308041089Z",
+    "agent_lines": 623,
+    "agent_removed": 372,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 623,
+    "total_lines_changed": 995,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}

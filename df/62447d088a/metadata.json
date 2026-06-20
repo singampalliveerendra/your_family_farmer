@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "df62447d088a",
+  "strategy": "manual-commit",
+  "branch": "feat/order-tracking-history",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/app/api/farmer/orders/[id]/delivered/route.ts",
+    "src/app/api/farmer/orders/[id]/ship/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/consumer/orders/history/page.tsx",
+    "src/app/consumer/orders/page.tsx",
+    "src/app/farmer/dashboard/orders/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/components/consumer/OrderCard.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/df/62447d088a/0/metadata.json",
+      "transcript": "/df/62447d088a/0/full.jsonl",
+      "content_hash": "/df/62447d088a/0/content_hash.txt",
+      "prompt": "/df/62447d088a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 9449,
+    "cache_creation_tokens": 161867,
+    "cache_read_tokens": 10958746,
+    "output_tokens": 88498,
+    "api_call_count": 106
+  }
+}
