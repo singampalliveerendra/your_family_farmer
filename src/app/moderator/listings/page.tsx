@@ -194,7 +194,7 @@ export default function ModeratorListingsPage() {
                   <button
                     onClick={() => act(l, 'suspend')}
                     disabled={busyId === l.id}
-                    className="bg-white border border-gray-200 text-gray-600 text-xs font-bold px-3 py-1.5 rounded-lg active:bg-gray-50 disabled:opacity-50"
+                    className="bg-red-600 border border-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg active:bg-red-700 disabled:opacity-50"
                   >
                     Suspend
                   </button>
