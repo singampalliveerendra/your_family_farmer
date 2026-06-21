@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# WSL alternate-data-stream junk (Windows "mark of the web" metadata)
+*:Zone.Identifier
+
+# local scratch / spec docs (not part of the app)
+mod.md
+moderator.pdf
+GoGrameen_Moderator_Spec_v2*
