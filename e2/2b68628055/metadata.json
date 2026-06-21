@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "e22b68628055",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/app/farmer/dashboard/page.tsx",
+    "src/components/consumer/GlobalNav.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e2/2b68628055/0/metadata.json",
+      "transcript": "/e2/2b68628055/0/full.jsonl",
+      "content_hash": "/e2/2b68628055/0/content_hash.txt",
+      "prompt": "/e2/2b68628055/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 276,
+    "cache_creation_tokens": 11308,
+    "cache_read_tokens": 2465558,
+    "output_tokens": 7089,
+    "api_call_count": 9
+  }
+}
