@@ -4,7 +4,11 @@
   "strategy": "manual-commit",
   "branch": "recover/order-tracking-and-reviews",
   "checkpoints_count": 2,
-  "files_touched": null,
+  "files_touched": [
+    "src/app/consumer/orders/page.tsx",
+    "src/components/consumer/CancelOrderModal.tsx",
+    "src/components/farmer/DeclineSheets.tsx"
+  ],
   "sessions": [
     {
       "metadata": "/cc/f479a6a380/0/metadata.json",
@@ -17,6 +21,12 @@
       "transcript": "/cc/f479a6a380/1/full.jsonl",
       "content_hash": "/cc/f479a6a380/1/content_hash.txt",
       "prompt": "/cc/f479a6a380/1/prompt.txt"
+    },
+    {
+      "metadata": "/cc/f479a6a380/2/metadata.json",
+      "transcript": "/cc/f479a6a380/2/full.jsonl",
+      "content_hash": "/cc/f479a6a380/2/content_hash.txt",
+      "prompt": ""
     }
   ],
   "token_usage": {
