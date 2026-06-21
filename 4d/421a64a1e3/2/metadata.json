@@ -1,0 +1,125 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "4d421a64a1e3",
+  "session_id": "fb6ef3d4-be38-42d9-bf0b-fdfaa3e375db",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-21T14:17:41.555967045Z",
+  "branch": "recover/order-tracking-and-reviews",
+  "checkpoints_count": 7,
+  "files_touched": [
+    "scripts/order-acknowledge-migration.sql",
+    "src/app/api/consumer/orders/[id]/acknowledge/route.ts",
+    "src/app/api/farmer/orders/[id]/delivered/route.ts",
+    "src/app/consumer/orders/page.tsx",
+    "src/app/farmer/dashboard/orders/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/components/consumer/OrderCard.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "eac71baad994",
+  "token_usage": {
+    "input_tokens": 7449,
+    "cache_creation_tokens": 275681,
+    "cache_read_tokens": 8603216,
+    "output_tokens": 96296,
+    "api_call_count": 68
+  },
+  "session_metrics": {
+    "turn_count": 7
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-21T14:17:41.387371872Z",
+    "agent_lines": 120,
+    "agent_removed": 769,
+    "human_added": 634,
+    "human_modified": 145,
+    "human_removed": 0,
+    "total_committed": 899,
+    "total_lines_changed": 1670,
+    "agent_percentage": 53.23353293413173,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 796,
+      "user_lines_removed": 191,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs - Copy.html": 22,
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs.html": 22,
+        "mod.md": 430,
+        "scripts/order-acknowledge-migration.sql": 10,
+        "src/app/api/consumer/orders/[id]/acknowledge/route.ts": 8,
+        "src/app/api/farmer/orders/[id]/acknowledge/route.ts": 62,
+        "src/app/consumer/cart/page.tsx": 20,
+        "src/app/consumer/orders/page.tsx": 1,
+        "src/app/farmer/dashboard/orders/page.tsx": 14,
+        "src/app/farmer/dashboard/page.tsx": 127,
+        "src/components/consumer/Cart.tsx": 67,
+        "src/components/consumer/OrderCard.tsx": 13
+      },
+      "user_removed_per_file": {
+        "scripts/order-acknowledge-migration.sql": 6,
+        "src/app/api/consumer/orders/[id]/acknowledge/route.ts": 7,
+        "src/app/api/farmer/orders/[id]/delivered/route.ts": 69,
+        "src/app/consumer/orders/page.tsx": 1,
+        "src/app/farmer/dashboard/orders/page.tsx": 5,
+        "src/app/farmer/dashboard/page.tsx": 49,
+        "src/components/consumer/Cart.tsx": 46,
+        "src/components/consumer/OrderCard.tsx": 8
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 796,
+      "agent_lines_removed": 191
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 796,
+      "agent_lines_removed": 191
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 796,
+      "agent_lines_removed": 191
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 796,
+      "agent_lines_removed": 191
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 796,
+      "agent_lines_removed": 191
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 796,
+      "agent_lines_removed": 191
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 796,
+      "agent_lines_removed": 191
+    }
+  ]
+}

@@ -3,7 +3,7 @@
   "checkpoint_id": "4d421a64a1e3",
   "strategy": "manual-commit",
   "branch": "recover/order-tracking-and-reviews",
-  "checkpoints_count": 7,
+  "checkpoints_count": 14,
   "files_touched": [
     "scripts/order-acknowledge-migration.sql",
     "src/app/api/consumer/orders/[id]/acknowledge/route.ts",
@@ -26,13 +26,19 @@
       "transcript": "/4d/421a64a1e3/1/full.jsonl",
       "content_hash": "/4d/421a64a1e3/1/content_hash.txt",
       "prompt": "/4d/421a64a1e3/1/prompt.txt"
+    },
+    {
+      "metadata": "/4d/421a64a1e3/2/metadata.json",
+      "transcript": "/4d/421a64a1e3/2/full.jsonl",
+      "content_hash": "/4d/421a64a1e3/2/content_hash.txt",
+      "prompt": "/4d/421a64a1e3/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 16925,
-    "cache_creation_tokens": 292475,
-    "cache_read_tokens": 10430775,
-    "output_tokens": 81258,
-    "api_call_count": 111
+    "input_tokens": 24374,
+    "cache_creation_tokens": 568156,
+    "cache_read_tokens": 19033991,
+    "output_tokens": 177554,
+    "api_call_count": 179
   }
 }
