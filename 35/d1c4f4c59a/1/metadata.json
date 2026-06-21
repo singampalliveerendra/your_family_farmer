@@ -1,0 +1,75 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "35d1c4f4c59a",
+  "session_id": "b90e6b23-83d6-4293-8025-f517dece44d0",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-21T15:05:28.85708215Z",
+  "branch": "recover/order-tracking-and-reviews",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "src/app/farmer/dashboard/page.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "bc651e9b8de5",
+  "checkpoint_transcript_start": 121,
+  "transcript_lines_at_start": 121,
+  "token_usage": {
+    "input_tokens": 146,
+    "cache_creation_tokens": 6270,
+    "cache_read_tokens": 828938,
+    "output_tokens": 8235,
+    "api_call_count": 9
+  },
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-21T15:05:28.821695751Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 3,
+    "human_modified": 3,
+    "human_removed": 0,
+    "total_committed": 3,
+    "total_lines_changed": 6,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 6,
+      "user_lines_removed": 3,
+      "agent_lines_added": 560,
+      "agent_lines_removed": 3,
+      "user_added_per_file": {
+        "src/app/farmer/dashboard/page.tsx": 6
+      },
+      "user_removed_per_file": {
+        "src/app/farmer/dashboard/page.tsx": 3
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 535,
+      "agent_lines_removed": 5
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 535,
+      "agent_lines_removed": 5
+    }
+  ]
+}
