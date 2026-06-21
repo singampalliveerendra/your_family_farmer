@@ -367,10 +367,12 @@ export function CartSheet({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // intentionally runs once on mount only
 
-  // Persist upiScreen to localStorage whenever it changes
+  // Persist upiScreen to localStorage whenever it changes — but only for a real
+  // UPI payment. A COD success reuses upiScreen for its confirmation screen and
+  // has nothing to resume, so we never persist it.
   useEffect(() => {
-    if (upiScreen) localStorage.setItem(UPI_PENDING_KEY, JSON.stringify(upiScreen))
-  }, [upiScreen])
+    if (upiScreen && !cashMode) localStorage.setItem(UPI_PENDING_KEY, JSON.stringify(upiScreen))
+  }, [upiScreen, cashMode])
 
   // When user returns from UPI app (no page reload): auto-trigger WhatsApp
   useEffect(() => {
@@ -480,13 +482,41 @@ export function CartSheet({
     if (detailsMissing) return
     saveInfo({ name: name.trim(), phone: phone.trim() })
     const f = group[0]
+    const buyerPhone = phone.replace(/\D/g, '').slice(-10)
     const result = await placeOrderViaApi(group, 'cod')
     if (!result.ok) {
       showToast(result.error)
       return
     }
-    clearFarmer(f.farmerId)
     setSentFarmers((s) => ({ ...s, [f.farmerId]: true }))
+    // Show the "Order placed!" success screen (cash variant) — same screen the
+    // UPI / online flows use. Without this the cart just empties and the buyer
+    // never gets a confirmation. cashMode keeps the persist effect from leaving
+    // a stale UPI-pending entry (there's no payment to resume for COD).
+    setCashMode(true)
+    setUpiScreen({
+      farmerName: f.farmerName,
+      farmerVillage: f.farmerVillage,
+      farmerPhone: f.farmerPhone,
+      upiId: '',
+      qrCodeUrl: undefined,
+      amount: result.total,
+      orderIds: result.orderIds,
+      farmerId: f.farmerId,
+      buyerName: name.trim(),
+      buyerPhone,
+      items: group.map((it) => ({
+        name: it.name,
+        variety: it.variety,
+        emoji: it.emoji,
+        qty: it.qty,
+        unit: it.unit,
+        pricePerKg: it.pricePerKg,
+      })),
+      pickupLocation: deliveryType === 'self_pickup' ? (pickupByFarmer[f.farmerId] || undefined) : undefined,
+    })
+    setPaidDone(true)
+    clearFarmer(f.farmerId)
   }
 
   // UPI flow: save orders via server endpoint, then show the payment screen.
