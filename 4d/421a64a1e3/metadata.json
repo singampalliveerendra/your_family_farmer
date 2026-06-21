@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "4d421a64a1e3",
+  "strategy": "manual-commit",
+  "branch": "recover/order-tracking-and-reviews",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "scripts/order-acknowledge-migration.sql",
+    "src/app/api/consumer/orders/[id]/acknowledge/route.ts",
+    "src/app/api/farmer/orders/[id]/delivered/route.ts",
+    "src/app/consumer/orders/page.tsx",
+    "src/app/farmer/dashboard/orders/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/components/consumer/OrderCard.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/4d/421a64a1e3/0/metadata.json",
+      "transcript": "/4d/421a64a1e3/0/full.jsonl",
+      "content_hash": "/4d/421a64a1e3/0/content_hash.txt",
+      "prompt": "/4d/421a64a1e3/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 8341,
+    "cache_creation_tokens": 175575,
+    "cache_read_tokens": 4669212,
+    "output_tokens": 36466,
+    "api_call_count": 48
+  }
+}
