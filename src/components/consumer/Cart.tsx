@@ -1483,6 +1483,26 @@ export function CartSheet({
                         </div>
                       )}
 
+                      {/* Fallback when the farmer hasn't set named pickup points:
+                          self-pickup must still tell the buyer WHERE to go, so we
+                          show the farm's village and that the farmer will confirm
+                          the exact point + timing. */}
+                      {deliveryType === 'self_pickup' && (!f.farmerPickupLocations || f.farmerPickupLocations.length === 0) && (
+                        <div className="pt-2">
+                          <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                            {L('Pickup location', 'పికప్ స్థలం')}
+                          </label>
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                            <p className="text-sm font-semibold text-gray-800">
+                              📍 {f.farmerVillage || L('At the farm', 'పొలం వద్ద')}
+                            </p>
+                            <p className="text-[11px] text-gray-600 mt-1 leading-snug">
+                              {L('The farmer will confirm the exact pickup point and timing on WhatsApp.', 'ఖచ్చితమైన పికప్ స్థలం, సమయాన్ని రైతు WhatsApp లో నిర్ధారిస్తారు.')}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="flex gap-2 items-start">
                         {/* Cancel closes the cart without removing items. */}
                         <button
