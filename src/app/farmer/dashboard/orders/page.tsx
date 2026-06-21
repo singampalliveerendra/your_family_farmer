@@ -34,6 +34,7 @@ function OrdersPageInner() {
   const searchParams = useSearchParams()
   const { tx, L } = useLang()
   const [orders, setOrders] = useState<Order[]>([])
+  const [farmerId, setFarmerId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all')
@@ -44,12 +45,17 @@ function OrdersPageInner() {
     { buyerName: string | null; amount: number | null; refundInitiated: boolean } | null
   >(null)
 
-  // Honour ?status=<bucket> deep links from the dashboard (e.g. the pending
-  // banner / stat card open this page filtered to Pending).
+  // Honour ?status=<bucket> and ?time=<window> deep links from the dashboard
+  // (e.g. the pending banner opens ?status=pending; the "My order details" card
+  // opens ?time=today).
   useEffect(() => {
     const s = searchParams.get('status')
     if (s && ['pending', 'approved', 'completed', 'declined', 'cancelled'].includes(s)) {
       setStatusFilter(s as StatusFilter)
+    }
+    const t = searchParams.get('time')
+    if (t && ['today', 'week', 'month', 'all'].includes(t)) {
+      setTimeFilter(t as TimeFilter)
     }
   }, [searchParams])
 
@@ -57,6 +63,7 @@ function OrdersPageInner() {
   const load = useCallback(async (silent = false) => {
     const farmerId = localStorage.getItem('yff_farmer_id')
     if (!farmerId) { router.replace('/farmer/login'); return }
+    setFarmerId(farmerId)
 
     if (!silent) setLoading(true)
     // Explicit columns: handover_otp is deliberately NOT fetched — the pickup
@@ -74,6 +81,34 @@ function OrdersPageInner() {
 
   useEffect(() => { load() }, [load])
 
+  // Keep this page live: a buyer can cancel after it loaded. Without this the
+  // farmer would keep seeing the order as actionable — and could approve/ship a
+  // cancelled order — until a manual refresh. Refetch (silently) on any order
+  // change for this farmer, and whenever the tab regains focus as a safety net
+  // for dropped websockets on spotty 4G.
+  useEffect(() => {
+    if (!farmerId) return
+    const channel = supabase
+      .channel(`farmer_orders_page_${farmerId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders', filter: `farmer_id=eq.${farmerId}` },
+        () => { void load(true) },
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [farmerId, load])
+
+  useEffect(() => {
+    const refetch = () => { if (document.visibilityState === 'visible') void load(true) }
+    document.addEventListener('visibilitychange', refetch)
+    window.addEventListener('focus', refetch)
+    return () => {
+      document.removeEventListener('visibilitychange', refetch)
+      window.removeEventListener('focus', refetch)
+    }
+  }, [load])
+
   /* ─── Order actions (mirror the dashboard) ─────────────────── */
 
   // Farmer sets/updates the pickup-or-delivery date on an order.
@@ -88,10 +123,22 @@ function OrdersPageInner() {
   const handleApprove = async (orderId: string, date: string) => {
     if (!date) return
     setProcessingOrderId(orderId)
-    await supabase
+    // Guard on status='pending': if the buyer cancelled (or the order was
+    // declined) since this list loaded, the update matches 0 rows so we never
+    // resurrect a cancelled/declined order into 'approved'. Re-sync and tell the
+    // farmer instead of silently flipping it back to active.
+    const { data, error } = await supabase
       .from('orders')
       .update({ status: 'approved', fulfillment_date: date, confirmed_at: new Date().toISOString() })
       .eq('id', orderId)
+      .eq('status', 'pending')
+      .select('id')
+    if (error || !data?.length) {
+      await load(true)
+      setProcessingOrderId(null)
+      alert(L('This order can no longer be approved — the buyer may have cancelled it.', 'ఈ ఆర్డర్‌ను ఇప్పుడు ఆమోదించలేరు — కొనుగోలుదారు రద్దు చేసి ఉండవచ్చు.'))
+      return
+    }
     setOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, status: 'approved', fulfillment_date: date } : o)),
     )
@@ -199,7 +246,18 @@ function OrdersPageInner() {
       update.paid_at = new Date().toISOString()
       update.confirmed_at = new Date().toISOString()
     }
-    await supabase.from('orders').update(update).eq('id', orderId)
+    // "Received & Approve" flips status to 'approved'; guard it on the order
+    // still being pending so a buyer-cancelled order can't be resurrected. A
+    // plain payment_status change (failed/pending) is harmless to apply.
+    let query = supabase.from('orders').update(update).eq('id', orderId)
+    if (status === 'completed') query = query.eq('status', 'pending')
+    const { data, error } = await query.select('id')
+    if (status === 'completed' && (error || !data?.length)) {
+      await load(true)
+      setProcessingPaidId(null)
+      alert(L('This order can no longer be approved — the buyer may have cancelled it.', 'ఈ ఆర్డర్‌ను ఇప్పుడు ఆమోదించలేరు — కొనుగోలుదారు రద్దు చేసి ఉండవచ్చు.'))
+      return
+    }
     setOrders((prev) =>
       prev.map((o) =>
         o.id === orderId ? { ...o, payment_status: status, ...(status === 'completed' ? { status: 'approved' as const } : {}) } : o,

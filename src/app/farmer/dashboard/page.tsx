@@ -10,7 +10,8 @@ import LocationSearch from '@/components/LocationSearch'
 import { FreshnessBadge } from '@/components/FreshnessBadge'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import { normalizePickupSchedule, emptyPickupSlot, type PickupSchedule } from '@/lib/pickup-slots'
-import { type FarmerOrder as Order, isResolved } from '@/components/farmer/OrderCard'
+import OrderCard, { type FarmerOrder as Order, isResolved } from '@/components/farmer/OrderCard'
+import { DeclineReasonSheet, DeclineSuccessSheet } from '@/components/farmer/DeclineSheets'
 
 type Farmer = {
   id: string
@@ -149,6 +150,11 @@ export default function FarmerDashboard() {
   const [approvedCount, setApprovedCount] = useState(0)
   const [totalRevenue, setTotalRevenue] = useState(0)
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null)
+  const [processingPaidId, setProcessingPaidId] = useState<string | null>(null)
+  const [decliningOrder, setDecliningOrder] = useState<Order | null>(null)
+  const [declineResult, setDeclineResult] = useState<
+    { buyerName: string | null; amount: number | null; refundInitiated: boolean } | null
+  >(null)
   const [demandBars, setDemandBars] = useState<DemandBar[]>([])
   const [monthlyRevenue, setMonthlyRevenue] = useState(0)
   const [monthlyOrderCount, setMonthlyOrderCount] = useState(0)
@@ -357,6 +363,119 @@ export default function FarmerDashboard() {
     if (error || !data?.length) { void loadDashboard() } // re-sync on failure
   }
 
+  // Farmer sets/updates the pickup-or-delivery date on an order.
+  const handleSetFulfillmentDate = async (orderId: string, date: string) => {
+    const value = date || null
+    setPendingOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, fulfillment_date: value } : o)))
+    await supabase.from('orders').update({ fulfillment_date: value }).eq('id', orderId)
+  }
+
+  // Approving requires a pickup/delivery date. Guard on status='pending' so a
+  // buyer-cancelled (or declined) order can never be resurrected into 'approved'.
+  const handleApprove = async (orderId: string, date: string) => {
+    if (!date) return
+    setProcessingOrderId(orderId)
+    const { data, error } = await supabase
+      .from('orders')
+      .update({ status: 'approved', fulfillment_date: date, confirmed_at: new Date().toISOString() })
+      .eq('id', orderId)
+      .eq('status', 'pending')
+      .select('id')
+    if (error || !data?.length) {
+      await loadDashboard()
+      setProcessingOrderId(null)
+      alert(L('This order can no longer be approved — the buyer may have cancelled it.', 'ఈ ఆర్డర్‌ను ఇప్పుడు ఆమోదించలేరు — కొనుగోలుదారు రద్దు చేసి ఉండవచ్చు.'))
+      return
+    }
+    setPendingOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, status: 'approved', fulfillment_date: date } : o)),
+    )
+    setProcessingOrderId(null)
+  }
+
+  // Farmer acknowledges a buyer-cancelled order (stamps acknowledged_at) — it
+  // then leaves the active list.
+  const handleAcknowledgeCancel = async (orderId: string) => {
+    setProcessingOrderId(orderId)
+    try {
+      const res = await fetch(`/api/farmer/orders/${orderId}/acknowledge`, { method: 'POST', credentials: 'same-origin' })
+      if (res.ok) {
+        setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
+      } else {
+        const json = await res.json().catch(() => ({}))
+        alert(json.error || L('Could not update. Please try again.', 'నవీకరించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
+      }
+    } catch {
+      alert(L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.'))
+    } finally {
+      setProcessingOrderId(null)
+    }
+  }
+
+  const handleConfirmDecline = async (orderId: string, reason: string) => {
+    const declined = decliningOrder
+    setProcessingOrderId(orderId)
+    try {
+      const res = await fetch(`/api/farmer/orders/${orderId}/decline`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        alert(json.error || L('Could not decline the order. Please try again.', 'ఆర్డర్ తిరస్కరించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
+        return
+      }
+      const refundInitiated = !!json.refunded || !!json.refundStatus
+      setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
+      setDeclineResult({
+        buyerName: declined?.buyer_name ?? null,
+        amount: declined?.total_price ?? null,
+        refundInitiated,
+      })
+      setDecliningOrder(null)
+    } catch {
+      alert(L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.'))
+    } finally {
+      setProcessingOrderId(null)
+    }
+  }
+
+  const handleMarkPaid = async (orderId: string) => {
+    setProcessingPaidId(orderId)
+    await supabase.from('orders').update({ payment_status: 'completed', paid_at: new Date().toISOString() }).eq('id', orderId)
+    setPendingOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, payment_status: 'completed' } : o)))
+    setProcessingPaidId(null)
+  }
+
+  const handleUpdatePaymentStatus = async (orderId: string, status: 'completed' | 'failed' | 'pending') => {
+    setProcessingPaidId(orderId)
+    const update: Record<string, string> = { payment_status: status }
+    if (status === 'completed') {
+      update.status = 'approved'
+      update.paid_at = new Date().toISOString()
+      update.confirmed_at = new Date().toISOString()
+    }
+    // "Received & Approve" flips status to 'approved'; guard it on the order
+    // still being pending so a buyer-cancelled order can't be resurrected.
+    let query = supabase.from('orders').update(update).eq('id', orderId)
+    if (status === 'completed') query = query.eq('status', 'pending')
+    const { data, error } = await query.select('id')
+    if (status === 'completed' && (error || !data?.length)) {
+      await loadDashboard()
+      setProcessingPaidId(null)
+      alert(L('This order can no longer be approved — the buyer may have cancelled it.', 'ఈ ఆర్డర్‌ను ఇప్పుడు ఆమోదించలేరు — కొనుగోలుదారు రద్దు చేసి ఉండవచ్చు.'))
+      return
+    }
+    setPendingOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId ? { ...o, payment_status: status, ...(status === 'completed' ? { status: 'approved' as const } : {}) } : o,
+      ),
+    )
+    setProcessingPaidId(null)
+  }
+
   // Self-pickup: farmer taps "Picked Up" when the buyer collects. Stamps
   // collected_at server-side, which resolves the order — drop it from the
   // active list (it now appears in Order History).
@@ -510,20 +629,19 @@ export default function FarmerDashboard() {
               {tx.manage} <span aria-hidden>→</span>
             </div>
           </button>
-          {/* Pending count headline, but opens the FULL Orders page (where
-              Pending is the first filter chip). The urgent banner above is the
-              one-tap shortcut straight to pending; this card is the gateway to
-              every order in any state. */}
+          {/* "My order details" — pending count headline, opens the Orders page
+              showing TODAY's orders (?time=today). The urgent banner above is
+              the one-tap shortcut straight to pending. */}
           <Link
-            href="/farmer/dashboard/orders"
+            href="/farmer/dashboard/orders?time=today"
             className={`border rounded-2xl p-4 text-left active:opacity-80 ${
               pendingCount > 0 ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-gray-50'
             }`}
           >
             <div className={`text-3xl font-black ${pendingCount > 0 ? 'text-orange-700' : 'text-gray-500'}`}>{pendingCount}</div>
-            <div className="text-sm font-semibold text-gray-800 mt-1 leading-tight">{tx.pendingOrders}</div>
+            <div className="text-sm font-semibold text-gray-800 mt-1 leading-tight">{L('My order details', 'నా ఆర్డర్ వివరాలు')}</div>
             <div className="text-[11px] font-bold text-orange-700 mt-2 flex items-center gap-1">
-              {L('All orders', 'అన్ని ఆర్డర్లు')} <span aria-hidden>→</span>
+              {L("Today's orders", 'నేటి ఆర్డర్లు')} <span aria-hidden>→</span>
             </div>
           </Link>
           {[
@@ -551,11 +669,18 @@ export default function FarmerDashboard() {
           weekly={weeklyEarnings}
         />
 
-        {/* Today's pickups & deliveries */}
+        {/* Today's orders — placed today or due today, with full inline actions */}
         {farmer && (
           <TodayScheduleSection
             orders={pendingOrders}
             processingId={processingOrderId}
+            processingPaidId={processingPaidId}
+            onApprove={handleApprove}
+            onDecline={(o) => setDecliningOrder(o)}
+            onAcknowledge={handleAcknowledgeCancel}
+            onMarkPaid={handleMarkPaid}
+            onUpdatePaymentStatus={handleUpdatePaymentStatus}
+            onSetFulfillmentDate={handleSetFulfillmentDate}
             onMarkPickedUp={handleMarkPickedUp}
             onMarkShipped={handleMarkShipped}
           />
@@ -676,6 +801,21 @@ export default function FarmerDashboard() {
             setShowProfileEdit(false)
           }}
         />
+      )}
+
+      {/* Decline reason sheet (opened from a Today's Schedule order card) */}
+      {decliningOrder && (
+        <DeclineReasonSheet
+          order={decliningOrder}
+          processing={processingOrderId === decliningOrder.id}
+          onCancel={() => setDecliningOrder(null)}
+          onConfirm={(reason) => handleConfirmDecline(decliningOrder.id, reason)}
+        />
+      )}
+
+      {/* Refund confirmation after declining */}
+      {declineResult && (
+        <DeclineSuccessSheet result={declineResult} onClose={() => setDeclineResult(null)} />
       )}
 
     </main>
@@ -934,6 +1074,19 @@ function ProfileEditModal({
     if (!village.trim()) { setError(tx.villageRequired); return }
     if (upiId.trim() && !/^[a-zA-Z0-9._\-]{2,256}@[a-zA-Z]{2,64}$/.test(upiId.trim())) {
       setError('Invalid UPI ID format. Example: yourname@ybl or 9876543210@paytm')
+      return
+    }
+    // Pickup location + timing is mandatory: a buyer choosing self-pickup must
+    // always know WHERE and WHEN to collect, so every farmer needs at least one
+    // pickup point and a timing window for each.
+    if (pickupLocations.length === 0) {
+      setError(L('Add at least one pickup location so buyers know where to collect their order.', 'కొనుగోలుదారులు ఆర్డర్ ఎక్కడ తీసుకోవాలో తెలియడానికి కనీసం ఒక పికప్ స్థలాన్ని జోడించండి.'))
+      return
+    }
+    const cleanSlots = normalizePickupSchedule(schedule, pickupLocations)
+    const missingTiming = pickupLocations.filter((loc) => !(cleanSlots[loc]?.length))
+    if (missingTiming.length > 0) {
+      setError(L(`Add pickup timings for: ${missingTiming.join(', ')}`, `వీటికి పికప్ సమయాలను జోడించండి: ${missingTiming.join(', ')}`))
       return
     }
     setLoading(true)
@@ -2513,21 +2666,39 @@ function ManageListingsModal({
   )
 }
 
-/* ─── Today's Schedule (pickups + deliveries on a chosen date) ──── */
+/* ─── Today's Schedule (today's orders, with full inline actions) ──── */
 // Today's Schedule is a *view* of the parent's active-orders list (`orders` =
 // pendingOrders), filtered to the picked date — it does NOT run its own query.
-// That's the whole fix for the "both lists must refresh together" bug: there is
-// one source of truth, so an action on either list (they call the same parent
-// handlers) updates both instantly. The parent's realtime subscription keeps
-// that source fresh, so consumer/rider changes flow in too.
+// One source of truth means an action here updates everywhere instantly, and the
+// parent's realtime subscription keeps it fresh (so a just-placed order appears
+// the moment the buyer orders, and consumer/rider changes flow in too).
+//
+// "Today's" order = one placed on the picked day OR scheduled (pickup/delivery)
+// for it. Each renders the full OrderCard, so the farmer can approve, set a
+// date, decline, mark paid, mark shipped/picked-up, or acknowledge a buyer
+// cancellation — all inline, without leaving the dashboard.
 function TodayScheduleSection({
   orders,
   processingId,
+  processingPaidId,
+  onApprove,
+  onDecline,
+  onAcknowledge,
+  onMarkPaid,
+  onUpdatePaymentStatus,
+  onSetFulfillmentDate,
   onMarkPickedUp,
   onMarkShipped,
 }: {
   orders: Order[]
   processingId: string | null
+  processingPaidId: string | null
+  onApprove: (orderId: string, date: string) => void
+  onDecline: (order: Order) => void
+  onAcknowledge: (orderId: string) => void
+  onMarkPaid: (orderId: string) => void
+  onUpdatePaymentStatus: (orderId: string, status: 'completed' | 'failed' | 'pending') => void
+  onSetFulfillmentDate: (orderId: string, date: string) => void
   onMarkPickedUp: (orderId: string) => void
   onMarkShipped: (orderId: string) => void
 }) {
@@ -2535,76 +2706,16 @@ function TodayScheduleSection({
   const todayStr = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD, local
   const [date, setDate] = useState(todayStr)
 
-  // Approved orders whose pickup/delivery date matches the picked day. The
-  // parent already drops resolved orders from `orders`, so a picked-up/received
-  // order disappears here the moment it's actioned anywhere. Compare on the
-  // date part only, so a date or timestamp column both match.
-  const forDate = orders.filter(
-    (o) => o.status === 'approved' && (o.fulfillment_date ?? '').slice(0, 10) === date,
-  )
-  const pickups = forDate.filter((o) => o.delivery_type !== 'home_delivery')
-  const deliveries = forDate.filter((o) => o.delivery_type === 'home_delivery')
-
-  const Row = ({ o }: { o: Order }) => {
-    const isCourier = o.delivery_type === 'courier'
-    const isHomeDelivery = o.delivery_type === 'home_delivery'
-    const isPickup = !isCourier && !isHomeDelivery // self_pickup (or legacy null)
-    // Home delivery with a rider assigned is closed by the rider; with no rider
-    // it's farmer-shipped. Courier and farmer-shipped home delivery both use the
-    // "Shipped" action.
-    const riderAssigned = isHomeDelivery
-      && o.delivery_status != null
-      && o.delivery_status !== 'unassigned'
-    const shipFlow = isCourier || (isHomeDelivery && !riderAssigned)
-    const busy = processingId === o.id
-    return (
-      <div className="border border-gray-100 rounded-xl px-3 py-2.5 bg-gray-50 space-y-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-gray-900 truncate">{o.produce_name} · {o.quantity} {o.unit || 'kg'}</p>
-            <p className="text-xs text-gray-600 truncate">🧑 {o.buyer_name || L('Buyer', 'కొనుగోలుదారు')}</p>
-            {o.pickup_location && <p className="text-[11px] text-gray-500 truncate">📍 {o.pickup_location}</p>}
-          </div>
-          {o.buyer_phone && (
-            <a href={`tel:+91${o.buyer_phone}`} className="text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5 whitespace-nowrap">
-              📞 {o.buyer_phone}
-            </a>
-          )}
-        </div>
-
-        {/* Action: courier & farmer-shipped home delivery → Shipped; self-pickup
-            → Picked Up. Rider home-deliveries are closed by the rider, so they
-            carry no button here. Once acted on, the row shows a done badge. */}
-        {shipFlow && (o.shipped_at ? (
-          // Already shipped — the buyer confirms receipt on their order page,
-          // which stamps received_at and drops the row from the schedule.
-          <div className="space-y-0.5">
-            <p className="text-xs font-bold text-amber-700">🚚 {L('Shipped', 'షిప్ చేయబడింది')}</p>
-            <p className="text-[11px] text-amber-600">{L('Awaiting buyer confirmation', 'కొనుగోలుదారు ధృవీకరణ కోసం వేచి ఉంది')}</p>
-          </div>
-        ) : (
-          <button
-            onClick={() => onMarkShipped(o.id)}
-            disabled={busy}
-            className="w-full bg-amber-600 text-white font-bold py-2 rounded-lg text-xs active:bg-amber-700 disabled:opacity-50"
-          >
-            {busy ? '…' : `🚚 ${L('Shipped', 'షిప్ చేయబడింది')}`}
-          </button>
-        ))}
-        {/* Self-pickup: only ever the "Picked Up" action. Tapping it resolves
-            the order, which drops the row from the schedule. */}
-        {isPickup && (
-          <button
-            onClick={() => onMarkPickedUp(o.id)}
-            disabled={busy}
-            className="w-full bg-green-600 text-white font-bold py-2 rounded-lg text-xs active:bg-green-700 disabled:opacity-50"
-          >
-            {busy ? '…' : `✓ ${L('Picked Up', 'తీసుకువెళ్ళారు')}`}
-          </button>
-        )}
-      </div>
-    )
-  }
+  // An order belongs to the picked day if it was placed that day (so new orders
+  // show up immediately) OR is scheduled (pickup/delivery) for it. created_at is
+  // a UTC timestamp → compare in local time; fulfillment_date is already a
+  // YYYY-MM-DD date string. The parent only feeds active orders here (pending,
+  // approved-and-unresolved, or cancelled-but-unacknowledged), so resolved /
+  // declined ones never appear.
+  const placedOrDue = (o: Order) =>
+    new Date(o.created_at).toLocaleDateString('en-CA') === date
+    || (o.fulfillment_date ?? '').slice(0, 10) === date
+  const todays = orders.filter(placedOrDue)
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
@@ -2620,32 +2731,26 @@ function TodayScheduleSection({
         />
       </div>
 
-      <div className="p-4 space-y-4">
-        {forDate.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-4">{L('Nothing scheduled for this date', 'ఈ తేదీకి ఏమీ లేదు')}</p>
+      <div className="p-4 space-y-3">
+        {todays.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-4">{L('No orders for this date', 'ఈ తేదీకి ఆర్డర్‌లు లేవు')}</p>
         ) : (
-          <>
-            <div>
-              <p className="text-xs font-bold text-green-800 uppercase tracking-wide mb-2">
-                🧺 {L('Pickups', 'పికప్‌లు')} ({pickups.length})
-              </p>
-              {pickups.length === 0 ? (
-                <p className="text-xs text-gray-400">{L('No pickups', 'పికప్‌లు లేవు')}</p>
-              ) : (
-                <div className="space-y-2">{pickups.map((o) => <Row key={o.id} o={o} />)}</div>
-              )}
-            </div>
-            <div>
-              <p className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-2">
-                🛵 {L('Deliveries', 'డెలివరీలు')} ({deliveries.length})
-              </p>
-              {deliveries.length === 0 ? (
-                <p className="text-xs text-gray-400">{L('No deliveries', 'డెలివరీలు లేవు')}</p>
-              ) : (
-                <div className="space-y-2">{deliveries.map((o) => <Row key={o.id} o={o} />)}</div>
-              )}
-            </div>
-          </>
+          todays.map((o) => (
+            <OrderCard
+              key={o.id}
+              order={o}
+              processing={processingId === o.id}
+              processingPaid={processingPaidId === o.id}
+              onApprove={(d) => onApprove(o.id, d)}
+              onDecline={() => onDecline(o)}
+              onAcknowledge={() => onAcknowledge(o.id)}
+              onMarkPaid={() => onMarkPaid(o.id)}
+              onUpdatePaymentStatus={(s) => onUpdatePaymentStatus(o.id, s)}
+              onSetFulfillmentDate={(d) => onSetFulfillmentDate(o.id, d)}
+              onMarkPickedUp={() => onMarkPickedUp(o.id)}
+              onMarkShipped={() => onMarkShipped(o.id)}
+            />
+          ))
         )}
       </div>
     </div>
