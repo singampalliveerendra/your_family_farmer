@@ -1,19 +1,19 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { getConsumerSessionFromRequest } from '@/lib/session'
+import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-// Buyer acknowledges a farmer-DECLINED order. This stamps acknowledged_at,
-// which moves the order out of the buyer's Active list and into History. Until
-// they tap Acknowledge the order stays active, so a farmer decline never
-// silently vanishes into history. (A buyer's own cancellation needs no buyer
-// acknowledgement — that's acknowledged by the farmer on their dashboard.)
+// Farmer acknowledges a buyer-cancelled order. When a consumer cancels, the
+// order would otherwise drop straight into history and the farmer would never
+// notice. Instead it stays in the farmer's active list with an "Acknowledge"
+// button; tapping it stamps acknowledged_at, which resolves the order and moves
+// it to Order History. Mirror of the consumer-side acknowledge for declines.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const session = getConsumerSessionFromRequest(req)
+  const session = getFarmerSessionFromRequest(req)
   if (!session) return NextResponse.json({ error: 'Please log in.' }, { status: 401 })
 
   const { id } = await ctx.params
@@ -26,18 +26,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: order, error: loadErr } = await supabase
     .from('orders')
-    .select('id, consumer_id, status, acknowledged_at')
+    .select('id, farmer_id, status, acknowledged_at')
     .eq('id', id)
     .maybeSingle()
 
   if (loadErr) return NextResponse.json({ error: loadErr.message }, { status: 500 })
   if (!order) return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
-  if (order.consumer_id !== session.consumerId) {
+  if (order.farmer_id !== session.farmerId) {
     return NextResponse.json({ error: 'Not your order.' }, { status: 403 })
   }
-  // Only a farmer-declined order is acknowledged by the buyer. A buyer-cancelled
-  // order is acknowledged by the farmer instead, so it's rejected here.
-  if (order.status !== 'declined') {
+  // Only a buyer-cancelled order needs the farmer's acknowledgement.
+  if (order.status !== 'cancelled') {
     return NextResponse.json({ error: 'This order does not need acknowledgement.' }, { status: 409 })
   }
   // Idempotent: already acknowledged is a no-op success.
@@ -47,12 +46,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     .from('orders')
     .update({ acknowledged_at: new Date().toISOString() })
     .eq('id', id)
-    .eq('consumer_id', session.consumerId)
-    .eq('status', 'declined')
+    .eq('farmer_id', session.farmerId)
+    .eq('status', 'cancelled')
     .select('id, acknowledged_at')
 
   if (updErr) {
-    console.error('[YFF consumer/acknowledge] update failed:', updErr.message)
+    console.error('[YFF farmer/acknowledge] update failed:', updErr.message)
     return NextResponse.json({ error: 'Could not update. Please try again.' }, { status: 500 })
   }
   if (!updated || updated.length === 0) {

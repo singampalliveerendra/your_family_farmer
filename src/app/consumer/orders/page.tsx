@@ -8,6 +8,7 @@ import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import ComplaintModal from '@/components/consumer/ComplaintModal'
 import OrderFeedbackModal from '@/components/consumer/OrderFeedbackModal'
 import OrderCard, { ConsumerOrder as Order, isResolved, isCompleted } from '@/components/consumer/OrderCard'
+import CancelOrderModal from '@/components/consumer/CancelOrderModal'
 
 export default function ConsumerOrdersPage() {
   const { tx, L } = useLang()
@@ -22,6 +23,9 @@ export default function ConsumerOrdersPage() {
   const [feedbackFor, setFeedbackFor] = useState<Order | null>(null)
   // Order id currently mid-request (acknowledge / confirm receipt).
   const [busyId, setBusyId] = useState<string | null>(null)
+  // Order the cancel-reason modal is open for (null = closed) + its busy flag.
+  const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null)
+  const [cancelBusy, setCancelBusy] = useState(false)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -42,7 +46,7 @@ export default function ConsumerOrdersPage() {
     }
   }, [state.status, refresh])
 
-  // Buyer acknowledges a declined/cancelled order — moves it to history.
+  // Buyer acknowledges a farmer-declined order — moves it to history.
   const acknowledge = useCallback(async (order: Order) => {
     setBusyId(order.id)
     const r = await fetch(`/api/consumer/orders/${order.id}/acknowledge`, {
@@ -66,6 +70,28 @@ export default function ConsumerOrdersPage() {
     else alert(L('Could not confirm. Please try again.', 'ధృవీకరించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
     setBusyId(null)
   }, [refresh, L])
+
+  // Buyer cancels a still-pending order with an optional reason. On success the
+  // order becomes 'cancelled' (and any paid amount is refunded by the backend),
+  // then it surfaces on the farmer's dashboard for them to acknowledge.
+  const cancelOrder = useCallback(async (reason: string) => {
+    if (!cancellingOrder) return
+    setCancelBusy(true)
+    const r = await fetch(`/api/consumer/orders/${cancellingOrder.id}/cancel`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    }).catch(() => null)
+    const json = r ? await r.json().catch(() => ({})) : null
+    if (r && r.ok) {
+      setCancellingOrder(null)
+      await refresh()
+    } else {
+      alert(json?.error ?? L('Could not cancel. Please try again.', 'రద్దు చేయలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
+    }
+    setCancelBusy(false)
+  }, [cancellingOrder, refresh, L])
 
   // Active orders only — resolved ones (delivered / picked up / received, or an
   // acknowledged decline / cancel) live on the separate history page. A declined
@@ -164,6 +190,7 @@ export default function ConsumerOrdersPage() {
                   onFeedback={setFeedbackFor}
                   onAcknowledge={acknowledge}
                   onConfirmReceipt={confirmReceipt}
+                  onCancel={setCancellingOrder}
                   busy={busyId === order.id}
                 />
               ))
@@ -202,6 +229,14 @@ export default function ConsumerOrdersPage() {
           existing={feedbackFor.my_review ?? null}
           onClose={() => setFeedbackFor(null)}
           onSaved={() => { setFeedbackFor(null); void refresh() }}
+        />
+      )}
+
+      {cancellingOrder && (
+        <CancelOrderModal
+          cancelling={cancelBusy}
+          onClose={() => setCancellingOrder(null)}
+          onConfirm={cancelOrder}
         />
       )}
     </main>

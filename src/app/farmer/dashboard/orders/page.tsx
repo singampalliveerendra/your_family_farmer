@@ -1,58 +1,71 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState, useEffect, useCallback } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
+import OrderCard, { type FarmerOrder as Order, isResolved } from '@/components/farmer/OrderCard'
+import { DeclineReasonSheet, DeclineSuccessSheet } from '@/components/farmer/DeclineSheets'
 
-type Order = {
-  id: string
-  farmer_id: string
-  order_code: string | null
-  produce_listing_id: string | null
-  produce_name: string | null
-  quantity: number | null
-  unit: string | null
-  total_price: number | null
-  buyer_name: string | null
-  buyer_phone: string | null
-  pickup_location: string | null
-  status: 'pending' | 'approved' | 'declined'
-  payment_status: string | null
-  decline_reason: string | null
-  refund_status: string | null
-  refund_amount: number | null
-  refunded_at: string | null
-  delivery_type: 'self_pickup' | 'home_delivery' | 'courier' | null
-  collected_at: string | null
-  shipped_at: string | null
-  received_at: string | null
-  fulfillment_date: string | null
-  created_at: string
+type StatusFilter = 'all' | 'pending' | 'approved' | 'completed' | 'declined' | 'cancelled'
+type TimeFilter = 'today' | 'week' | 'month' | 'all'
+
+// An order the farmer can still act on (approve/decline, mark picked-up/shipped,
+// or acknowledge a buyer cancellation). Everything else is terminal history.
+function isActionable(o: Order): boolean {
+  if (o.status === 'pending') return true
+  if (o.status === 'approved') return !isResolved(o)
+  if (o.status === 'cancelled') return !o.acknowledged_at
+  return false // declined is always terminal
 }
 
-type Filter = 'today' | 'week' | 'month'
+// Which status bucket an order belongs to (drives the status filter chips).
+function bucketOf(o: Order): Exclude<StatusFilter, 'all'> {
+  if (o.status === 'pending') return 'pending'
+  if (o.status === 'declined') return 'declined'
+  if (o.status === 'cancelled') return 'cancelled'
+  // approved: resolved (collected / received / delivered) → completed, else awaiting
+  return isResolved(o) ? 'completed' : 'approved'
+}
 
-export default function OrderHistoryPage() {
+function OrdersPageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { tx, L } = useLang()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<Filter>('week')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all')
+  const [processingOrderId, setProcessingOrderId] = useState<string | null>(null)
+  const [processingPaidId, setProcessingPaidId] = useState<string | null>(null)
+  const [decliningOrder, setDecliningOrder] = useState<Order | null>(null)
+  const [declineResult, setDeclineResult] = useState<
+    { buyerName: string | null; amount: number | null; refundInitiated: boolean } | null
+  >(null)
 
-  const load = useCallback(async () => {
+  // Honour ?status=<bucket> deep links from the dashboard (e.g. the pending
+  // banner / stat card open this page filtered to Pending).
+  useEffect(() => {
+    const s = searchParams.get('status')
+    if (s && ['pending', 'approved', 'completed', 'declined', 'cancelled'].includes(s)) {
+      setStatusFilter(s as StatusFilter)
+    }
+  }, [searchParams])
+
+  // Silent refresh keeps the spinner only for the very first load.
+  const load = useCallback(async (silent = false) => {
     const farmerId = localStorage.getItem('yff_farmer_id')
     if (!farmerId) { router.replace('/farmer/login'); return }
 
-    setLoading(true)
+    if (!silent) setLoading(true)
     // Explicit columns: handover_otp is deliberately NOT fetched — the pickup
     // code must come from the customer, so the farmer's browser never sees it.
+    // Every status is fetched (this page is the full orders hub).
     const { data } = await supabase
       .from('orders')
-      .select('id, farmer_id, order_code, produce_listing_id, produce_name, quantity, unit, total_price, buyer_name, buyer_phone, pickup_location, status, payment_status, decline_reason, refund_status, refund_amount, refunded_at, delivery_type, collected_at, shipped_at, received_at, fulfillment_date, created_at')
+      .select('id, farmer_id, order_code, produce_listing_id, produce_name, quantity, unit, total_price, buyer_name, buyer_phone, pickup_location, status, payment_method, payment_status, utr_number, decline_reason, refund_status, refund_amount, refunded_at, delivery_type, delivery_status, delivery_boy_id, collected_at, shipped_at, received_at, fulfillment_date, created_at, acknowledged_at')
       .eq('farmer_id', farmerId)
-      .in('status', ['approved', 'declined'])
       .order('created_at', { ascending: false })
 
     setOrders((data ?? []) as Order[])
@@ -61,27 +74,183 @@ export default function OrderHistoryPage() {
 
   useEffect(() => { load() }, [load])
 
-  // Farmer sets/updates the pickup-or-delivery date on an approved order.
-  const setFulfillmentDate = async (orderId: string, date: string) => {
+  /* ─── Order actions (mirror the dashboard) ─────────────────── */
+
+  // Farmer sets/updates the pickup-or-delivery date on an order.
+  const handleSetFulfillmentDate = async (orderId: string, date: string) => {
     const value = date || null
     setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, fulfillment_date: value } : o)))
     await supabase.from('orders').update({ fulfillment_date: value }).eq('id', orderId)
   }
 
-  const filterStart = () => {
-    if (filter === 'today') {
+  // Approving requires a pickup/delivery date; the order then stays as approved
+  // until it's picked up / delivered.
+  const handleApprove = async (orderId: string, date: string) => {
+    if (!date) return
+    setProcessingOrderId(orderId)
+    await supabase
+      .from('orders')
+      .update({ status: 'approved', fulfillment_date: date, confirmed_at: new Date().toISOString() })
+      .eq('id', orderId)
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, status: 'approved', fulfillment_date: date } : o)),
+    )
+    setProcessingOrderId(null)
+  }
+
+  // Self-pickup: buyer collected — stamp collected_at (resolves the order).
+  const handleMarkPickedUp = async (orderId: string) => {
+    setProcessingOrderId(orderId)
+    const res = await fetch(`/api/farmer/orders/${orderId}/picked-up`, { method: 'POST', credentials: 'same-origin' })
+    if (res.ok) {
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, collected_at: new Date().toISOString() } : o)))
+    } else {
+      void load(true)
+    }
+    setProcessingOrderId(null)
+  }
+
+  // Courier / farmer-shipped home delivery: farmer hands over the parcel.
+  const handleMarkShipped = async (orderId: string) => {
+    setProcessingOrderId(orderId)
+    const res = await fetch(`/api/farmer/orders/${orderId}/ship`, { method: 'POST', credentials: 'same-origin' })
+    if (res.ok) {
+      const json = (await res.json().catch(() => ({}))) as { shipped_at?: string }
+      const shippedAt = json.shipped_at ?? new Date().toISOString()
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, shipped_at: shippedAt } : o)))
+    } else {
+      void load(true)
+    }
+    setProcessingOrderId(null)
+  }
+
+  // Farmer acknowledges a buyer-cancelled order (stamps acknowledged_at).
+  const handleAcknowledgeCancel = async (orderId: string) => {
+    setProcessingOrderId(orderId)
+    try {
+      const res = await fetch(`/api/farmer/orders/${orderId}/acknowledge`, { method: 'POST', credentials: 'same-origin' })
+      if (res.ok) {
+        setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, acknowledged_at: new Date().toISOString() } : o)))
+      } else {
+        const json = await res.json().catch(() => ({}))
+        alert(json.error || L('Could not update. Please try again.', 'నవీకరించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
+      }
+    } catch {
+      alert(L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.'))
+    } finally {
+      setProcessingOrderId(null)
+    }
+  }
+
+  const handleConfirmDecline = async (orderId: string, reason: string) => {
+    const declined = decliningOrder
+    setProcessingOrderId(orderId)
+    try {
+      const res = await fetch(`/api/farmer/orders/${orderId}/decline`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        alert(json.error || L('Could not decline the order. Please try again.', 'ఆర్డర్ తిరస్కరించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
+        return
+      }
+      const refundInitiated = !!json.refunded || !!json.refundStatus
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId
+            ? {
+                ...o,
+                status: 'declined',
+                decline_reason: reason,
+                refund_status: refundInitiated ? (o.refund_status ?? 'initiated') : o.refund_status,
+                refund_amount: refundInitiated ? (o.refund_amount ?? o.total_price ?? null) : o.refund_amount,
+              }
+            : o,
+        ),
+      )
+      setDeclineResult({
+        buyerName: declined?.buyer_name ?? null,
+        amount: declined?.total_price ?? null,
+        refundInitiated,
+      })
+      setDecliningOrder(null)
+    } catch {
+      alert(L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.'))
+    } finally {
+      setProcessingOrderId(null)
+    }
+  }
+
+  const handleMarkPaid = async (orderId: string) => {
+    setProcessingPaidId(orderId)
+    await supabase.from('orders').update({ payment_status: 'completed', paid_at: new Date().toISOString() }).eq('id', orderId)
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, payment_status: 'completed' } : o)))
+    setProcessingPaidId(null)
+  }
+
+  const handleUpdatePaymentStatus = async (orderId: string, status: 'completed' | 'failed' | 'pending') => {
+    setProcessingPaidId(orderId)
+    const update: Record<string, string> = { payment_status: status }
+    if (status === 'completed') {
+      update.status = 'approved'
+      update.paid_at = new Date().toISOString()
+      update.confirmed_at = new Date().toISOString()
+    }
+    await supabase.from('orders').update(update).eq('id', orderId)
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId ? { ...o, payment_status: status, ...(status === 'completed' ? { status: 'approved' as const } : {}) } : o,
+      ),
+    )
+    setProcessingPaidId(null)
+  }
+
+  /* ─── Filtering ────────────────────────────────────────────── */
+  const timeStart = () => {
+    if (timeFilter === 'today') {
       const d = new Date()
       d.setHours(0, 0, 0, 0)
       return d.getTime()
     }
-    if (filter === 'week') return Date.now() - 7 * 86400000
-    return Date.now() - 30 * 86400000
+    if (timeFilter === 'week') return Date.now() - 7 * 86400000
+    if (timeFilter === 'month') return Date.now() - 30 * 86400000
+    return 0 // all time
   }
 
-  const filtered = orders.filter((o) => new Date(o.created_at).getTime() >= filterStart())
+  const start = timeStart()
+  const filtered = orders.filter((o) => {
+    if (new Date(o.created_at).getTime() < start) return false
+    if (statusFilter === 'all') return true
+    return bucketOf(o) === statusFilter
+  })
+
   const revenue = filtered
     .filter((o) => o.status === 'approved')
     .reduce((sum, o) => sum + (o.total_price ?? 0), 0)
+
+  // Per-bucket counts for the chips (respect the active time window).
+  const inWindow = orders.filter((o) => new Date(o.created_at).getTime() >= start)
+  const countFor = (s: StatusFilter) =>
+    s === 'all' ? inWindow.length : inWindow.filter((o) => bucketOf(o) === s).length
+
+  const STATUS_CHIPS: { key: StatusFilter; label: string }[] = [
+    { key: 'all', label: L('All', 'అన్నీ') },
+    { key: 'pending', label: L('Pending', 'పెండింగ్') },
+    { key: 'approved', label: L('Approved', 'ఆమోదించారు') },
+    { key: 'completed', label: L('Picked up', 'తీసుకున్నారు') },
+    { key: 'declined', label: L('Declined', 'తిరస్కరించారు') },
+    { key: 'cancelled', label: L('Cancelled', 'రద్దు చేశారు') },
+  ]
+
+  const TIME_CHIPS: { key: TimeFilter; label: string }[] = [
+    { key: 'today', label: tx.filterToday },
+    { key: 'week', label: tx.filterWeek },
+    { key: 'month', label: tx.filterMonth },
+    { key: 'all', label: L('All time', 'మొత్తం') },
+  ]
 
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
@@ -91,23 +260,42 @@ export default function OrderHistoryPage() {
           ← {tx.back}
         </Link>
         <h1 className="text-white text-xl font-extrabold leading-tight">
-          {tx.orderHistory}
+          {L('Orders', 'ఆర్డర్లు')}
         </h1>
-        <p className="text-green-400 text-sm mt-1">Approved &amp; declined orders</p>
+        <p className="text-green-400 text-sm mt-1">
+          {L('All your orders in one place', 'మీ అన్ని ఆర్డర్లు ఒకే చోట')}
+        </p>
       </div>
 
       <div className="px-4 -mt-5 space-y-4">
-        {/* Filter pills */}
+        {/* Status filter — scrollable chips with live counts */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-3">
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+            {STATUS_CHIPS.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setStatusFilter(key)}
+                className={`flex-shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${
+                  statusFilter === key ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 active:bg-gray-200'
+                }`}
+              >
+                {label} <span className={statusFilter === key ? 'text-green-200' : 'text-gray-400'}>({countFor(key)})</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Time filter */}
         <div className="bg-white rounded-2xl border border-gray-100 p-3 flex gap-2">
-          {(['today', 'week', 'month'] as const).map((f) => (
+          {TIME_CHIPS.map(({ key, label }) => (
             <button
-              key={f}
-              onClick={() => setFilter(f)}
+              key={key}
+              onClick={() => setTimeFilter(key)}
               className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors ${
-                filter === f ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 active:bg-gray-200'
+                timeFilter === key ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 active:bg-gray-200'
               }`}
             >
-              {f === 'today' ? tx.filterToday : f === 'week' ? tx.filterWeek : tx.filterMonth}
+              {label}
             </button>
           ))}
         </div>
@@ -134,27 +322,69 @@ export default function OrderHistoryPage() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-5xl mb-3">📭</div>
-            <p className="font-semibold text-gray-500 text-sm">{tx.noPendingOrders}</p>
+            <p className="font-semibold text-gray-500 text-sm">{L('No orders here', 'ఇక్కడ ఆర్డర్లు లేవు')}</p>
           </div>
         ) : (
           <div className="space-y-3">
-            {filtered.map((order) => (
-              <HistoryCard
-                key={order.id}
-                order={order}
-                onSetDate={(d) => setFulfillmentDate(order.id, d)}
-              />
-            ))}
+            {filtered.map((order) =>
+              isActionable(order) ? (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  processing={processingOrderId === order.id}
+                  processingPaid={processingPaidId === order.id}
+                  onApprove={(date) => handleApprove(order.id, date)}
+                  onDecline={() => setDecliningOrder(order)}
+                  onAcknowledge={() => handleAcknowledgeCancel(order.id)}
+                  onMarkPaid={() => handleMarkPaid(order.id)}
+                  onUpdatePaymentStatus={(s) => handleUpdatePaymentStatus(order.id, s)}
+                  onSetFulfillmentDate={(d) => handleSetFulfillmentDate(order.id, d)}
+                  onMarkPickedUp={() => handleMarkPickedUp(order.id)}
+                  onMarkShipped={() => handleMarkShipped(order.id)}
+                />
+              ) : (
+                <HistoryCard
+                  key={order.id}
+                  order={order}
+                  onSetDate={(d) => handleSetFulfillmentDate(order.id, d)}
+                />
+              ),
+            )}
           </div>
         )}
       </div>
+
+      {/* Decline reason sheet */}
+      {decliningOrder && (
+        <DeclineReasonSheet
+          order={decliningOrder}
+          processing={processingOrderId === decliningOrder.id}
+          onCancel={() => setDecliningOrder(null)}
+          onConfirm={(reason) => handleConfirmDecline(decliningOrder.id, reason)}
+        />
+      )}
+
+      {/* Refund confirmation after declining */}
+      {declineResult && (
+        <DeclineSuccessSheet result={declineResult} onClose={() => setDeclineResult(null)} />
+      )}
     </main>
   )
 }
 
+export default function OrdersPage() {
+  return (
+    <Suspense fallback={null}>
+      <OrdersPageInner />
+    </Suspense>
+  )
+}
+
+/* ─── Read-only history card (terminal orders) ─────────────────── */
 function HistoryCard({ order, onSetDate }: { order: Order; onSetDate: (date: string) => void }) {
   const { tx, L } = useLang()
   const isApproved = order.status === 'approved'
+  const isCancelled = order.status === 'cancelled'
   const isDelivery = order.delivery_type === 'home_delivery'
   const isCourier = order.delivery_type === 'courier'
 
@@ -165,12 +395,10 @@ function HistoryCard({ order, onSetDate }: { order: Order; onSetDate: (date: str
     minute: '2-digit',
   })
 
-  const stamp = (iso: string | null) =>
+  const stamp = (iso: string | null | undefined) =>
     iso ? new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
 
   // Completion line for an approved order: the final milestone + its date.
-  // Shipped flow (courier + farmer-shipped home delivery): Received (done) ▸
-  // Shipped (in transit). Pickup: Picked up.
   const isShippedFlow = isCourier || isDelivery
   const completion = !isApproved ? null
     : isShippedFlow
@@ -193,9 +421,13 @@ function HistoryCard({ order, onSetDate }: { order: Order; onSetDate: (date: str
                 {order.buyer_name || '—'}
               </p>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                isApproved ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'
+                isApproved ? 'bg-green-100 text-green-800'
+                  : isCancelled ? 'bg-gray-200 text-gray-700'
+                  : 'bg-red-100 text-red-700'
               }`}>
-                {isApproved ? tx.statusApproved : tx.statusDeclined}
+                {isApproved ? tx.statusApproved
+                  : isCancelled ? L('Cancelled by buyer', 'కొనుగోలుదారు రద్దు చేశారు')
+                  : tx.statusDeclined}
               </span>
             </div>
             {order.buyer_phone && (

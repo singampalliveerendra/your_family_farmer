@@ -10,6 +10,7 @@ import LocationSearch from '@/components/LocationSearch'
 import { FreshnessBadge } from '@/components/FreshnessBadge'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import { normalizePickupSchedule, emptyPickupSlot, type PickupSchedule } from '@/lib/pickup-slots'
+import { type FarmerOrder as Order, isResolved } from '@/components/farmer/OrderCard'
 
 type Farmer = {
   id: string
@@ -82,47 +83,8 @@ type DashboardListing = {
   review_count: number | null
 }
 
-type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
-
-type Order = {
-  id: string
-  farmer_id: string
-  produce_listing_id: string | null
-  produce_name: string | null
-  quantity: number | null
-  unit: string | null
-  total_price: number | null
-  buyer_name: string | null
-  buyer_phone: string | null
-  pickup_location: string | null
-  status: 'pending' | 'approved' | 'declined'
-  payment_method: string | null
-  payment_status: string | null
-  utr_number: string | null
-  decline_reason: string | null
-  created_at: string
-  delivery_type?: 'self_pickup' | 'home_delivery' | 'courier' | null
-  delivery_status?: DeliveryStatus | null
-  delivery_boy_id?: string | null
-  fulfillment_date?: string | null
-  collected_at?: string | null
-  shipped_at?: string | null
-  received_at?: string | null
-}
-
-// An approved order is "resolved" (and so leaves the farmer's active list) once:
-//   self_pickup   → the buyer collected it (collected_at set)
-//   courier       → the buyer confirmed receipt (received_at set); note a
-//                   shipped-but-unreceived courier order stays active
-//   home_delivery → rider flow: the rider delivered it (delivery_status
-//                   'delivered'); farmer-ships flow: the buyer confirmed
-//                   receipt (received_at set)
-function isResolved(o: Order): boolean {
-  if (o.status !== 'approved') return false
-  if (o.delivery_type === 'home_delivery') return o.delivery_status === 'delivered' || !!o.received_at
-  if (o.delivery_type === 'courier') return !!o.received_at
-  return !!o.collected_at
-}
+// The Order shape, DeliveryStatus and isResolved() now live in the shared
+// farmer OrderCard component and are imported above.
 
 const UNIT_OPTIONS = (L: (en: string, te: string) => string) => [
   { value: 'kg', label: 'kg' },
@@ -186,13 +148,7 @@ export default function FarmerDashboard() {
   const [pendingOrders, setPendingOrders] = useState<Order[]>([])
   const [approvedCount, setApprovedCount] = useState(0)
   const [totalRevenue, setTotalRevenue] = useState(0)
-  const [ordersFilter, setOrdersFilter] = useState<'today' | 'week' | 'month'>('week')
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null)
-  const [processingPaidId, setProcessingPaidId] = useState<string | null>(null)
-  const [decliningOrder, setDecliningOrder] = useState<Order | null>(null)
-  const [declineResult, setDeclineResult] = useState<
-    { buyerName: string | null; amount: number | null; refundInitiated: boolean } | null
-  >(null)
   const [demandBars, setDemandBars] = useState<DemandBar[]>([])
   const [monthlyRevenue, setMonthlyRevenue] = useState(0)
   const [monthlyOrderCount, setMonthlyOrderCount] = useState(0)
@@ -222,10 +178,12 @@ export default function FarmerDashboard() {
       // Full (lightweight) listing rows so the dashboard can show them inline
       // with a quick suspend/resume; the active-listings count is derived below.
       supabase.from('produce_listings').select('id, name, emoji, status, price_tier_1_price, unit, stock_qty, rating_avg, review_count').eq('farmer_id', farmerData.id).order('created_at', { ascending: false }),
-      // Active orders = still pending, OR approved but not yet picked up/delivered.
-      // Approved orders stay here so the farmer keeps the scheduled date in view
-      // until the buyer collects (or the rider delivers).
-      supabase.from('orders').select('*').eq('farmer_id', farmerData.id).in('status', ['pending', 'approved']).order('created_at', { ascending: false }),
+      // Active orders = still pending, OR approved but not yet picked up/delivered,
+      // OR buyer-cancelled but not yet acknowledged by the farmer. Approved orders
+      // stay here so the farmer keeps the scheduled date in view until the buyer
+      // collects (or the rider delivers); a buyer-cancelled order stays until the
+      // farmer taps Acknowledge so the cancellation never goes unnoticed.
+      supabase.from('orders').select('*').eq('farmer_id', farmerData.id).or('status.eq.pending,status.eq.approved,and(status.eq.cancelled,acknowledged_at.is.null)').order('created_at', { ascending: false }),
       supabase.from('orders').select('id, total_price').eq('farmer_id', farmerData.id).eq('status', 'approved').gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString()),
       supabase.from('demand_intents').select('crop_name, quantity_kg').eq('region_slug', farmerData.region_slug).eq('fulfilled', false),
       supabase.from('orders').select('id, total_price, created_at').eq('farmer_id', farmerData.id).eq('status', 'approved').gte('created_at', monthStart.toISOString()),
@@ -314,9 +272,14 @@ export default function FarmerDashboard() {
         (payload) => {
           const row = payload.new as Order
           const prev = payload.old as Partial<Order>
-          // Declined/cancelled, or an approved order that's now picked up /
-          // delivered — it's resolved, so drop it from the active list.
-          if ((row.status !== 'pending' && row.status !== 'approved') || isResolved(row)) {
+          // An order stays in the active list while it's pending, approved-and-
+          // awaiting fulfillment, or buyer-cancelled-but-not-yet-acknowledged.
+          // Anything else (declined, resolved, acknowledged cancel) drops out.
+          const stillActive =
+            row.status === 'pending'
+            || (row.status === 'approved' && !isResolved(row))
+            || (row.status === 'cancelled' && !row.acknowledged_at)
+          if (!stillActive) {
             // Buyer just confirmed receipt of a courier order — tell the farmer
             // before it drops out of the active list and into history.
             if (row.received_at && !prev.received_at) {
@@ -328,11 +291,20 @@ export default function FarmerDashboard() {
             setPendingOrders((cur) => cur.filter((o) => o.id !== row.id))
             return
           }
-          // Still active (pending, or approved-and-awaiting): update or insert.
+          // Still active (pending, approved-and-awaiting, or a fresh buyer
+          // cancellation): update or insert.
           setPendingOrders((cur) => {
             const exists = cur.some((o) => o.id === row.id)
             return exists ? cur.map((o) => o.id === row.id ? row : o) : [row, ...cur]
           })
+          // Buyer just cancelled — surface it so the farmer notices instead of
+          // the order quietly slipping away.
+          if (row.status === 'cancelled' && prev.status !== 'cancelled') {
+            fireNotification(
+              L('Order cancelled by buyer', 'కొనుగోలుదారు ఆర్డర్ రద్దు చేశారు'),
+              `${row.buyer_name ?? 'Buyer'} cancelled ${row.produce_name ?? 'an order'}`,
+            )
+          }
           // Fire notification when buyer claims payment (covers initial pay AND retry)
           const becameClaimed =
             (row.payment_status === 'payment_claimed' || row.payment_status === 'pending_confirmation')
@@ -385,24 +357,6 @@ export default function FarmerDashboard() {
     if (error || !data?.length) { void loadDashboard() } // re-sync on failure
   }
 
-  // Approving requires the farmer to first set a pickup/delivery date — that
-  // date is saved alongside the approval and shown to the buyer. The order then
-  // stays in the active list (now marked approved) until it's picked up or
-  // delivered, so the farmer keeps the schedule in view.
-  const handleApprove = async (orderId: string, date: string) => {
-    if (!date) return
-    setProcessingOrderId(orderId)
-    await supabase
-      .from('orders')
-      .update({ status: 'approved', fulfillment_date: date, confirmed_at: new Date().toISOString() })
-      .eq('id', orderId)
-    setPendingOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status: 'approved', fulfillment_date: date } : o)),
-    )
-    setApprovedCount((c) => c + 1)
-    setProcessingOrderId(null)
-  }
-
   // Self-pickup: farmer taps "Picked Up" when the buyer collects. Stamps
   // collected_at server-side, which resolves the order — drop it from the
   // active list (it now appears in Order History).
@@ -432,101 +386,6 @@ export default function FarmerDashboard() {
     }
     setProcessingOrderId(null)
   }
-
-  // Farmer closes a shipped order himself once it's handed to the buyer. Stamps
-  // received_at, which resolves the order — drop it from the active list.
-  const handleMarkDelivered = async (orderId: string) => {
-    setProcessingOrderId(orderId)
-    const res = await fetch(`/api/farmer/orders/${orderId}/delivered`, { method: 'POST', credentials: 'same-origin' })
-    if (res.ok) {
-      setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
-    } else {
-      void loadDashboard() // re-sync on failure
-    }
-    setProcessingOrderId(null)
-  }
-
-  // Farmer sets/clears the pickup-or-delivery date for an order. Saved
-  // immediately so the consumer sees the exact date the farmer chose. An empty
-  // string clears it back to null.
-  const handleSetFulfillmentDate = async (orderId: string, date: string) => {
-    const value = date || null
-    setPendingOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, fulfillment_date: value } : o)),
-    )
-    await supabase.from('orders').update({ fulfillment_date: value }).eq('id', orderId)
-  }
-
-  const handleConfirmDecline = async (orderId: string, reason: string) => {
-    const declined = decliningOrder
-    setProcessingOrderId(orderId)
-    // Declining runs server-side: it returns the reserved stock and, for a
-    // paid order, issues a REAL Razorpay refund (the secret can't live in the
-    // browser). If the refund fails the order stays pending so we can retry.
-    try {
-      const res = await fetch(`/api/farmer/orders/${orderId}/decline`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        alert(json.error || L('Could not decline the order. Please try again.', 'ఆర్డర్ తిరస్కరించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
-        return
-      }
-      // Whether a refund went out (real Razorpay refund, or 'initiated' for
-      // other paid methods) so we can confirm it to the farmer in plain terms.
-      const refundInitiated = !!json.refunded || !!json.refundStatus
-      setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
-      setDeclineResult({
-        buyerName: declined?.buyer_name ?? null,
-        amount: declined?.total_price ?? null,
-        refundInitiated,
-      })
-      setDecliningOrder(null)
-    } catch {
-      alert(L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.'))
-    } finally {
-      setProcessingOrderId(null)
-    }
-  }
-
-  const handleMarkPaid = async (orderId: string) => {
-    setProcessingPaidId(orderId)
-    await supabase.from('orders').update({ payment_status: 'completed', paid_at: new Date().toISOString() }).eq('id', orderId)
-    setPendingOrders((prev) =>
-      prev.map((o) => o.id === orderId ? { ...o, payment_status: 'completed' } : o)
-    )
-    setProcessingPaidId(null)
-  }
-
-  const handleUpdatePaymentStatus = async (orderId: string, status: 'completed' | 'failed' | 'pending') => {
-    setProcessingPaidId(orderId)
-    const update: Record<string, string> = { payment_status: status }
-    if (status === 'completed') {
-      update.status = 'approved'
-      update.paid_at = new Date().toISOString()
-      update.confirmed_at = new Date().toISOString()
-    }
-    await supabase.from('orders').update(update).eq('id', orderId)
-    setPendingOrders((prev) =>
-      prev.map((o) => o.id === orderId ? { ...o, payment_status: status, ...(status === 'completed' ? { status: 'approved' } : {}) } : o)
-    )
-    setProcessingPaidId(null)
-  }
-
-  const filteredPendingOrders = pendingOrders.filter((o) => {
-    const t = new Date(o.created_at).getTime()
-    const now = Date.now()
-    if (ordersFilter === 'today') {
-      const todayStart = new Date()
-      todayStart.setHours(0, 0, 0, 0)
-      return t >= todayStart.getTime()
-    }
-    if (ordersFilter === 'week') return t >= now - 7 * 86400000
-    return t >= now - 30 * 86400000
-  })
 
   if (loading) return <LoadingScreen />
   if (notFound) return <FarmerNotFound onLogout={handleLogout} />
@@ -617,6 +476,28 @@ export default function FarmerDashboard() {
           </div>
         )}
 
+        {/* Pending orders need your response — slim, urgent, links to the
+            Orders page pre-filtered to Pending. Only shown when there are any. */}
+        {pendingCount > 0 && (
+          <Link
+            href="/farmer/dashboard/orders?status=pending"
+            className="flex items-center justify-between gap-3 bg-orange-50 border-2 border-orange-300 rounded-2xl px-4 py-3 active:bg-orange-100"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-2xl flex-shrink-0">⚠️</span>
+              <div className="min-w-0">
+                <p className="font-extrabold text-orange-900 text-sm leading-tight">
+                  {pendingCount} {pendingCount === 1
+                    ? L('order needs your response', 'ఆర్డర్‌కు మీ స్పందన కావాలి')
+                    : L('orders need your response', 'ఆర్డర్‌లకు మీ స్పందన కావాలి')}
+                </p>
+                <p className="text-[11px] text-orange-700 mt-0.5">{L('Tap to approve or decline', 'ఆమోదించడానికి/తిరస్కరించడానికి నొక్కండి')}</p>
+              </div>
+            </div>
+            <span className="text-orange-700 font-bold text-lg flex-shrink-0">→</span>
+          </Link>
+        )}
+
         {/* Stat cards */}
         <div className="grid grid-cols-2 gap-3">
           <button
@@ -629,8 +510,20 @@ export default function FarmerDashboard() {
               {tx.manage} <span aria-hidden>→</span>
             </div>
           </button>
+          {/* Pending — tappable, opens the Orders page filtered to Pending */}
+          <Link
+            href="/farmer/dashboard/orders?status=pending"
+            className={`border rounded-2xl p-4 text-left active:opacity-80 ${
+              pendingCount > 0 ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-gray-50'
+            }`}
+          >
+            <div className={`text-3xl font-black ${pendingCount > 0 ? 'text-orange-700' : 'text-gray-500'}`}>{pendingCount}</div>
+            <div className="text-sm font-semibold text-gray-800 mt-1 leading-tight">{tx.pendingOrders}</div>
+            <div className="text-[11px] font-bold text-orange-700 mt-2 flex items-center gap-1">
+              {L('View', 'చూడండి')} <span aria-hidden>→</span>
+            </div>
+          </Link>
           {[
-            { label: tx.pendingOrders, value: pendingCount, color: pendingCount > 0 ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-gray-50', vcolor: pendingCount > 0 ? 'text-orange-700' : 'text-gray-500' },
             { label: tx.approvedThisWeek, value: approvedCount, color: 'border-green-200 bg-green-50', vcolor: 'text-green-800' },
             { label: tx.totalRevenue, value: totalRevenue > 0 ? `₹${totalRevenue}` : '—', color: 'border-purple-200 bg-purple-50', vcolor: 'text-purple-800' },
           ].map((s) => (
@@ -662,67 +555,27 @@ export default function FarmerDashboard() {
             processingId={processingOrderId}
             onMarkPickedUp={handleMarkPickedUp}
             onMarkShipped={handleMarkShipped}
-            onMarkDelivered={handleMarkDelivered}
           />
         )}
 
-        {/* Orders section */}
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <div className="px-4 pt-4 pb-3 flex items-center justify-between border-b border-gray-100">
-            <div>
-              <h2 className="font-extrabold text-gray-900 text-base leading-tight">
-                {tx.ordersTab}
-              </h2>
-              <p className="text-xs text-gray-500 mt-0.5">Pending orders need your response</p>
-            </div>
-            <Link href="/farmer/dashboard/orders" className="text-xs font-bold text-green-700">
-              {tx.viewOrderHistory}
-            </Link>
+        {/* Orders hub — the full orders list (all statuses + filters) lives on
+            its own page now, keeping the dashboard clean. */}
+        <Link
+          href="/farmer/dashboard/orders"
+          className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center justify-between gap-3 active:bg-gray-50"
+        >
+          <div className="min-w-0">
+            <h2 className="font-extrabold text-gray-900 text-base leading-tight">
+              {tx.ordersTab}
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {L('View, filter & manage all your orders', 'మీ అన్ని ఆర్డర్‌లను చూడండి & నిర్వహించండి')}
+            </p>
           </div>
-
-          <div className="px-4 pt-3 pb-2 flex gap-2">
-            {(['today', 'week', 'month'] as const).map((period) => (
-              <button
-                key={period}
-                onClick={() => setOrdersFilter(period)}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
-                  ordersFilter === period
-                    ? 'bg-green-700 text-white'
-                    : 'bg-gray-100 text-gray-600 active:bg-gray-200'
-                }`}
-              >
-                {period === 'today' ? tx.filterToday : period === 'week' ? tx.filterWeek : tx.filterMonth}
-              </button>
-            ))}
-          </div>
-
-          <div className="px-4 pb-4 space-y-3">
-            {filteredPendingOrders.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-4xl mb-2">📭</div>
-                <p className="font-semibold text-gray-500 text-sm">{tx.noPendingOrders}</p>
-                <p className="text-xs text-gray-400 mt-1">{tx.noPendingHelp}</p>
-              </div>
-            ) : (
-              filteredPendingOrders.map((order) => (
-                <OrderCard
-                  key={order.id}
-                  order={order}
-                  processing={processingOrderId === order.id}
-                  processingPaid={processingPaidId === order.id}
-                  onApprove={(date) => handleApprove(order.id, date)}
-                  onDecline={() => setDecliningOrder(order)}
-                  onMarkPaid={() => handleMarkPaid(order.id)}
-                  onUpdatePaymentStatus={(s) => handleUpdatePaymentStatus(order.id, s)}
-                  onSetFulfillmentDate={(d) => handleSetFulfillmentDate(order.id, d)}
-                  onMarkPickedUp={() => handleMarkPickedUp(order.id)}
-                  onMarkShipped={() => handleMarkShipped(order.id)}
-                  onMarkDelivered={() => handleMarkDelivered(order.id)}
-                />
-              ))
-            )}
-          </div>
-        </div>
+          <span className="text-green-700 font-bold text-sm whitespace-nowrap flex-shrink-0">
+            {L('Open', 'తెరవండి')} →
+          </span>
+        </Link>
 
         {/* Demand chart */}
         <div className="bg-white rounded-2xl border border-gray-100 p-4">
@@ -822,186 +675,7 @@ export default function FarmerDashboard() {
         />
       )}
 
-      {/* Decline reason sheet — mandatory reason capture */}
-      {decliningOrder && (
-        <DeclineReasonSheet
-          order={decliningOrder}
-          processing={processingOrderId === decliningOrder.id}
-          onCancel={() => setDecliningOrder(null)}
-          onConfirm={(reason) => handleConfirmDecline(decliningOrder.id, reason)}
-        />
-      )}
-
-      {/* Refund confirmation shown to the farmer right after declining */}
-      {declineResult && (
-        <DeclineSuccessSheet
-          result={declineResult}
-          onClose={() => setDeclineResult(null)}
-        />
-      )}
     </main>
-  )
-}
-
-/* ─── Decline success / refund confirmation sheet ──────────── */
-function DeclineSuccessSheet({
-  result,
-  onClose,
-}: {
-  result: { buyerName: string | null; amount: number | null; refundInitiated: boolean }
-  onClose: () => void
-}) {
-  const { L } = useLang()
-  const buyer = result.buyerName || 'the customer'
-  return (
-    <div className="fixed inset-0 z-[130] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 text-center space-y-3">
-        <div className="text-4xl">✅</div>
-        <h2 className="font-extrabold text-gray-900 text-lg leading-tight">
-          {L('Order declined', 'ఆర్డర్ తిరస్కరించబడింది')}
-        </h2>
-
-        {result.refundInitiated ? (
-          <div className="bg-green-50 border border-green-200 rounded-2xl p-4 text-left space-y-1.5">
-            <p className="font-bold text-green-800 text-sm flex items-center gap-1.5">
-              <span>💸</span> {L('Refund initiated', 'రీఫండ్ ప్రారంభమైంది')}
-            </p>
-            <p className="text-sm text-gray-700 leading-snug">
-              {result.amount != null && result.amount > 0 ? (
-                <>A refund of <span className="font-extrabold text-green-800">₹{result.amount}</span> has been started to {buyer}.</>
-              ) : (
-                <>A refund has been started to {buyer}.</>
-              )}
-            </p>
-            <p className="text-xs text-gray-500 leading-snug">
-              {L('It will reach their account in 3–5 business days. The customer has been told this automatically.', 'కొనుగోలుదారు ఖాతాకు 3–5 పని దినాలలో జమ అవుతుంది. కస్టమర్‌కు ఇది తెలియజేయబడింది.')}
-            </p>
-          </div>
-        ) : (
-          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 text-left">
-            <p className="text-sm text-gray-700 leading-snug">
-              {L(`${buyer} hadn't paid yet, so no refund is needed.`, `${buyer} ఇంకా చెల్లించలేదు, కాబట్టి రీఫండ్ అవసరం లేదు.`)}
-            </p>
-          </div>
-        )}
-
-        <button
-          onClick={onClose}
-          className="w-full bg-green-700 text-white font-bold py-3 rounded-xl text-sm active:bg-green-800"
-        >
-          {L('Done', 'సరే')}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-/* ─── Decline reason bottom sheet ──────────────────────────── */
-const DECLINE_PRESETS = [
-  'Stock finished',
-  'Not available this week',
-  'Price changed',
-  'Incorrect order details',
-]
-
-function DeclineReasonSheet({
-  order,
-  processing,
-  onCancel,
-  onConfirm,
-}: {
-  order: Order
-  processing: boolean
-  onCancel: () => void
-  onConfirm: (reason: string) => void
-}) {
-  const { L } = useLang()
-  const [selected, setSelected] = useState<string | null>(null)
-  const [custom, setCustom] = useState('')
-
-  const finalReason = selected ?? custom.trim()
-  const canSubmit = finalReason.length >= 3 && !processing
-
-  return (
-    <div className="fixed inset-0 z-[120] bg-black/50 flex items-end justify-center">
-      <div className="bg-white w-full max-w-md rounded-t-3xl p-5 space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="font-extrabold text-gray-900 text-lg leading-tight">
-              {L('Why decline this order?', 'ఎందుకు తిరస్కరిస్తున్నారు?')}
-            </h2>
-            <p className="text-xs text-gray-500 mt-0.5 leading-snug">
-              {L('The reason will be shown to the buyer', 'కారణం కొనుగోలుదారుకు చూపబడుతుంది')}
-            </p>
-          </div>
-          <button
-            onClick={onCancel}
-            disabled={processing}
-            className="text-gray-400 text-3xl leading-none p-1 disabled:opacity-50"
-          >
-            ×
-          </button>
-        </div>
-
-        <div className="bg-gray-50 rounded-xl px-3 py-2 text-xs text-gray-700">
-          <span className="font-semibold">{order.buyer_name || 'Buyer'}</span>
-          {order.produce_name && <> · {order.produce_name}</>}
-          {order.quantity != null && <> · {order.quantity} {order.unit || 'kg'}</>}
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
-            {L('Pick a reason', 'కారణం ఎంచుకోండి')}
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {DECLINE_PRESETS.map((preset) => (
-              <button
-                key={preset}
-                type="button"
-                onClick={() => { setSelected(preset); setCustom('') }}
-                className={`px-3 py-2.5 rounded-xl text-xs font-bold border-2 transition-colors text-left leading-snug ${
-                  selected === preset
-                    ? 'border-red-500 bg-red-50 text-red-800'
-                    : 'border-gray-200 bg-white text-gray-700 active:bg-gray-50'
-                }`}
-              >
-                {preset}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="text-xs font-bold text-gray-700 uppercase tracking-wide block mb-1.5">
-            {L('Or type your reason', 'లేదా టైప్ చేయండి')}
-          </label>
-          <textarea
-            value={custom}
-            onChange={(e) => { setCustom(e.target.value); if (e.target.value.trim()) setSelected(null) }}
-            placeholder="e.g. Heavy rain damaged the harvest"
-            rows={2}
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none resize-none"
-          />
-        </div>
-
-        <div className="flex gap-2 pt-1">
-          <button
-            onClick={onCancel}
-            disabled={processing}
-            className="flex-1 border-2 border-gray-300 text-gray-700 font-bold py-3 rounded-xl text-sm disabled:opacity-50"
-          >
-            {L('Cancel', 'రద్దు')}
-          </button>
-          <button
-            onClick={() => onConfirm(finalReason)}
-            disabled={!canSubmit}
-            className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl text-sm disabled:opacity-50 active:bg-red-700"
-          >
-            {processing ? 'Declining...' : 'Confirm decline'}
-          </button>
-        </div>
-      </div>
-    </div>
   )
 }
 
@@ -2848,13 +2522,11 @@ function TodayScheduleSection({
   processingId,
   onMarkPickedUp,
   onMarkShipped,
-  onMarkDelivered,
 }: {
   orders: Order[]
   processingId: string | null
   onMarkPickedUp: (orderId: string) => void
   onMarkShipped: (orderId: string) => void
-  onMarkDelivered: (orderId: string) => void
 }) {
   const { L } = useLang()
   const todayStr = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD, local
@@ -2901,17 +2573,11 @@ function TodayScheduleSection({
             → Picked Up. Rider home-deliveries are closed by the rider, so they
             carry no button here. Once acted on, the row shows a done badge. */}
         {shipFlow && (o.shipped_at ? (
-          // Already shipped — farmer can close it out himself once handed over,
+          // Already shipped — the buyer confirms receipt on their order page,
           // which stamps received_at and drops the row from the schedule.
-          <div className="space-y-1.5">
+          <div className="space-y-0.5">
             <p className="text-xs font-bold text-amber-700">🚚 {L('Shipped', 'షిప్ చేయబడింది')}</p>
-            <button
-              onClick={() => onMarkDelivered(o.id)}
-              disabled={busy}
-              className="w-full bg-green-600 text-white font-bold py-2 rounded-lg text-xs active:bg-green-700 disabled:opacity-50"
-            >
-              {busy ? '…' : `✓ ${L('Delivered', 'డెలివరీ అయింది')}`}
-            </button>
+            <p className="text-[11px] text-amber-600">{L('Awaiting buyer confirmation', 'కొనుగోలుదారు ధృవీకరణ కోసం వేచి ఉంది')}</p>
           </div>
         ) : (
           <button
@@ -3129,295 +2795,6 @@ function ListingRowCard({
             {deleting ? tx.deleting : `🗑 ${tx.deleteProduce}`}
           </button>
         </div>
-      </div>
-    </div>
-  )
-}
-
-/* ─── Order card ─────────────────────────────────────────────── */
-function OrderCard({
-  order,
-  processing,
-  processingPaid,
-  onApprove,
-  onDecline,
-  onMarkPaid,
-  onUpdatePaymentStatus,
-  onSetFulfillmentDate,
-  onMarkPickedUp,
-  onMarkShipped,
-  onMarkDelivered,
-}: {
-  order: Order
-  processing: boolean
-  processingPaid: boolean
-  onApprove: (date: string) => void
-  onDecline: () => void
-  onMarkPaid: () => void
-  onUpdatePaymentStatus: (status: 'completed' | 'failed' | 'pending') => void
-  onSetFulfillmentDate: (date: string) => void
-  onMarkPickedUp: () => void
-  onMarkShipped: () => void
-  onMarkDelivered: () => void
-}) {
-  const { tx, L } = useLang()
-  const isDelivery = order.delivery_type === 'home_delivery'
-  const isCourier = order.delivery_type === 'courier'
-  const isPickup = !isDelivery && !isCourier
-  const isShipped = !!order.shipped_at
-  // A home delivery is in the rider flow once a rider is assigned (delivery
-  // status moved past 'unassigned'). Those stay rider-closed; home deliveries
-  // with no rider are farmer-shipped, so the farmer marks them Shipped.
-  const riderAssigned = isDelivery
-    && order.delivery_status != null
-    && order.delivery_status !== 'unassigned'
-  const isApproved = order.status === 'approved'
-  const fulfillmentDate = order.fulfillment_date ?? ''
-  // Local (not UTC) "today" so the picker still allows today's date in IST
-  // evenings. Used as the minimum selectable pickup/delivery date. Computed
-  // once on mount via the lazy initializer.
-  const [todayStr] = useState(() => {
-    const d = new Date()
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  })
-
-  const timeAgo = (ts: string) => {
-    const diff = Date.now() - new Date(ts).getTime()
-    const mins = Math.floor(diff / 60000)
-    if (mins < 1) return 'just now'
-    if (mins < 60) return `${mins}m ago`
-    const hrs = Math.floor(mins / 60)
-    if (hrs < 24) return `${hrs}h ago`
-    return `${Math.floor(hrs / 24)}d ago`
-  }
-
-  const isCod = !order.payment_method || order.payment_method === 'cod'
-  const isUpi = order.payment_method === 'upi'
-  const isPaid = order.payment_status === 'completed'
-  const isPaymentClaimed = order.payment_status === 'payment_claimed' || order.payment_status === 'pending_confirmation'
-
-  return (
-    <div className={`border rounded-2xl overflow-hidden ${isApproved ? 'border-green-200 bg-green-50/30' : 'border-gray-200'}`}>
-      <div className="p-3 space-y-1.5">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <p className="font-extrabold text-gray-900 text-sm leading-tight">
-                {order.buyer_name || '—'}
-              </p>
-              {isApproved && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800 whitespace-nowrap">
-                  {tx.statusApproved}
-                </span>
-              )}
-            </div>
-            {order.buyer_phone && (
-              <a href={`tel:+91${order.buyer_phone}`} className="text-xs font-semibold text-green-700">
-                📞 +91 {order.buyer_phone}
-              </a>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
-            {isCod && (
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
-                isPaid ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
-              }`}>
-                {isPaid ? `✓ ${tx.paymentReceived}` : tx.codBadge}
-              </span>
-            )}
-            {isUpi && (
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
-                isPaid ? 'bg-green-100 text-green-800'
-                : isPaymentClaimed ? 'bg-orange-100 text-orange-800'
-                : 'bg-blue-100 text-blue-700'
-              }`}>
-                {isPaid ? '✓ UPI Paid' : isPaymentClaimed ? '⏳ Buyer Paid — Verify' : '📲 UPI'}
-              </span>
-            )}
-            <span className="text-[11px] text-gray-400 whitespace-nowrap">
-              {timeAgo(order.created_at)}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-1.5 text-sm">
-          <span className="font-semibold text-gray-800">{order.produce_name || '—'}</span>
-          <span className="text-gray-300">·</span>
-          <span className="text-gray-600">{order.quantity} {order.unit || 'kg'}</span>
-          {order.total_price != null && order.total_price > 0 && (
-            <>
-              <span className="text-gray-300">·</span>
-              <span className="font-bold text-green-700">₹{order.total_price}</span>
-            </>
-          )}
-        </div>
-
-        {order.pickup_location && (
-          <p className="text-xs text-gray-500">📍 {order.pickup_location}</p>
-        )}
-
-        {order.delivery_type === 'home_delivery' && (
-          <DeliveryTagForFarmer order={order} />
-        )}
-
-        {/* Pickup / delivery date. For a pending order this is the gate to
-            approval — the farmer chooses a date, then confirms below. For an
-            approved order it shows the scheduled date and can still be changed.
-            Either way the buyer sees it on their order page. */}
-        <div className="pt-1">
-          <label className="text-[11px] font-bold text-gray-600 block mb-1">
-            📅 {isPickup ? tx.pickupDateLabel : tx.deliveryDateLabel}
-          </label>
-          <input
-            type="date"
-            value={fulfillmentDate}
-            min={todayStr}
-            onChange={(e) => onSetFulfillmentDate(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none"
-          />
-          {isApproved && fulfillmentDate && !(isCourier && isShipped) && (
-            <p className="text-[11px] font-semibold text-green-700 mt-1">
-              ⏳ {isPickup ? tx.awaitingPickup : tx.awaitingDelivery}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {isUpi && isPaymentClaimed && (
-        <div className="mx-3 mb-2 bg-orange-50 border border-orange-200 rounded-xl px-3 py-3 space-y-2.5">
-          <div>
-            <p className="text-xs font-bold text-orange-800">
-              📲 Buyer says they paid via UPI
-            </p>
-            <p className="text-[11px] text-orange-700 mt-0.5">
-              Open your UPI app and confirm you received ₹{order.total_price ?? '?'} from {order.buyer_name || 'buyer'}.
-            </p>
-            {order.utr_number && (
-              <p className="text-[11px] text-orange-700 mt-0.5">
-                UTR: <span className="font-mono font-semibold">{order.utr_number}</span>
-              </p>
-            )}
-          </div>
-          <p className="text-xs font-bold text-gray-700">
-            {L('Update Payment Status', 'చెల్లింపు స్థితి నవీకరించండి')}
-          </p>
-          <p className="text-[11px] text-gray-500 -mt-1">{tx.receivedApprovesOrderHint}</p>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              onClick={() => onUpdatePaymentStatus('completed')}
-              disabled={processingPaid}
-              className="bg-green-700 text-white font-bold py-2.5 rounded-xl text-[11px] leading-tight disabled:opacity-50 active:bg-green-800 px-1"
-            >
-              {L('✓ Received & Approve', 'అందింది & ఆమోదం')}
-            </button>
-            <button
-              onClick={() => onUpdatePaymentStatus('failed')}
-              disabled={processingPaid}
-              className="border-2 border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-xs disabled:opacity-50 active:bg-red-50"
-            >
-              {L('✕ Not Received', 'రాలేదు')}
-            </button>
-            <button
-              onClick={() => onUpdatePaymentStatus('pending')}
-              disabled={processingPaid}
-              className="border-2 border-amber-300 text-amber-700 font-bold py-2.5 rounded-xl text-xs disabled:opacity-50 active:bg-amber-50"
-            >
-              {L('⏳ Pending', 'పెండింగ్')}
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="px-3 pb-3 space-y-2">
-        {!isApproved ? (
-          <>
-            {/* Pending: confirming the chosen pickup/delivery date approves the
-                order. The confirm button stays disabled until a date is set. */}
-            <div className={`grid gap-2 ${isUpi && isPaymentClaimed ? 'grid-cols-1' : 'grid-cols-2'}`}>
-              {!(isUpi && isPaymentClaimed) && (
-                <button
-                  onClick={() => onApprove(fulfillmentDate)}
-                  disabled={processing || !fulfillmentDate}
-                  className="bg-green-600 text-white font-bold py-3 rounded-xl text-sm active:bg-green-700 disabled:opacity-50"
-                >
-                  {processing ? tx.approving : (isPickup ? tx.confirmPickupDate : tx.confirmDeliveryDate)}
-                </button>
-              )}
-              <button
-                onClick={onDecline}
-                disabled={processing}
-                className="border-2 border-red-300 text-red-600 font-bold py-3 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
-              >
-                {processing ? tx.declining : `✕ ${tx.decline}`}
-              </button>
-            </div>
-            {!fulfillmentDate && !(isUpi && isPaymentClaimed) && (
-              <p className="text-[11px] text-gray-500 text-center">{tx.chooseDateToApprove}</p>
-            )}
-          </>
-        ) : isDelivery && riderAssigned ? (
-          // Approved home-delivery in the rider flow: the farmer can still
-          // cancel; the rider closes it out at the door.
-          <button
-            onClick={onDecline}
-            disabled={processing}
-            className="w-full border-2 border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
-          >
-            {processing ? tx.declining : `✕ ${tx.decline}`}
-          </button>
-        ) : isShipped ? (
-          // Already shipped (courier / farmer-ships home delivery). The buyer can
-          // confirm receipt, or the farmer can close it himself once handed over
-          // — either stamps received_at and resolves the order.
-          <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 space-y-2">
-            <div className="text-center">
-              <p className="text-xs font-bold text-amber-800">{L('🚚 Shipped', 'షిప్ చేయబడింది')}</p>
-              <p className="text-[11px] text-amber-700 mt-0.5">
-                {L('Awaiting receipt confirmation', 'అందుకున్నట్టు ధృవీకరణ కోసం వేచి ఉంది')}
-              </p>
-            </div>
-            <button
-              onClick={onMarkDelivered}
-              disabled={processing}
-              className="w-full bg-green-600 text-white font-bold py-2.5 rounded-xl text-sm active:bg-green-700 disabled:opacity-50"
-            >
-              {processing ? '…' : L('✓ Delivered', '✓ డెలివరీ అయింది')}
-            </button>
-          </div>
-        ) : (
-          // Approved farmer-fulfilled order, not yet shipped or collected. The
-          // action depends on how it leaves the farm: a SELF-PICKUP order is
-          // marked Picked Up (buyer collected — resolves immediately); a COURIER
-          // or farmer-ships HOME-DELIVERY order is marked Shipped (→ buyer then
-          // confirms Received). Only the one relevant button shows, never both.
-          <>
-            <button
-              onClick={isPickup ? onMarkPickedUp : onMarkShipped}
-              disabled={processing}
-              className={`w-full text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-50 ${
-                isPickup ? 'bg-green-600 active:bg-green-700' : 'bg-amber-600 active:bg-amber-700'
-              }`}
-            >
-              {processing ? '…' : isPickup ? L('✓ Picked Up', 'తీసుకువెళ్ళారు') : L('🚚 Shipped', 'షిప్ చేయబడింది')}
-            </button>
-            <button
-              onClick={onDecline}
-              disabled={processing}
-              className="w-full border-2 border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
-            >
-              {processing ? tx.declining : `✕ ${tx.decline}`}
-            </button>
-          </>
-        )}
-        {isCod && !isPaid && (
-          <button
-            onClick={onMarkPaid}
-            disabled={processingPaid}
-            className="w-full bg-amber-500 text-white font-bold py-3 rounded-xl text-sm active:bg-amber-600 disabled:opacity-50 flex items-center justify-center gap-1.5"
-          >
-            💵 {processingPaid ? tx.markingPaid : tx.markPaid}
-          </button>
-        )}
       </div>
     </div>
   )
@@ -3725,63 +3102,6 @@ function LoadingScreen() {
         <p className="text-gray-500 text-sm">{tx.loadingLabel}</p>
       </div>
     </main>
-  )
-}
-
-/* ─── Home-delivery tag with assigned rider contact ─────────── */
-function DeliveryTagForFarmer({ order }: { order: Order }) {
-  const [rider, setRider] = useState<{ name: string | null; phone: string } | null>(null)
-  const riderId = order.delivery_boy_id ?? null
-
-  useEffect(() => {
-    if (!riderId) { setRider(null); return }
-    let cancelled = false
-    supabase
-      .from('delivery_boys')
-      .select('name, phone')
-      .eq('id', riderId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (cancelled || !data) return
-        setRider({ name: data.name ?? null, phone: data.phone as string })
-      })
-    return () => { cancelled = true }
-  }, [riderId])
-
-  const statusText = (() => {
-    switch (order.delivery_status) {
-      case 'assigned': return 'Rider assigned'
-      case 'picked_up': return 'Picked up'
-      case 'out_for_delivery': return 'Out for delivery'
-      case 'delivered': return 'Delivered'
-      default: return 'Waiting for rider'
-    }
-  })()
-
-  return (
-    <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 mt-1 space-y-1.5">
-      <p className="text-[10px] font-bold text-blue-800 uppercase tracking-wide">
-        🛵 Home delivery · {statusText}
-      </p>
-      {rider ? (
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-xs font-bold text-gray-900 truncate">{rider.name || 'Rider'}</p>
-            <p className="text-[11px] text-gray-500">For pickup coordination</p>
-          </div>
-          <a
-            href={`tel:${rider.phone}`}
-            className="bg-blue-600 text-white font-bold text-xs px-3 py-2 rounded-xl whitespace-nowrap active:bg-blue-700"
-          >
-            📞 Call · {rider.phone}
-          </a>
-        </div>
-      ) : (
-        <p className="text-[11px] text-blue-700">
-          A delivery boy will pick up the order. You&apos;ll see their contact here when assigned.
-        </p>
-      )}
-    </div>
   )
 }
 
