@@ -510,9 +510,12 @@ export default function FarmerDashboard() {
               {tx.manage} <span aria-hidden>→</span>
             </div>
           </button>
-          {/* Pending — tappable, opens the Orders page filtered to Pending */}
+          {/* Pending count headline, but opens the FULL Orders page (where
+              Pending is the first filter chip). The urgent banner above is the
+              one-tap shortcut straight to pending; this card is the gateway to
+              every order in any state. */}
           <Link
-            href="/farmer/dashboard/orders?status=pending"
+            href="/farmer/dashboard/orders"
             className={`border rounded-2xl p-4 text-left active:opacity-80 ${
               pendingCount > 0 ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-gray-50'
             }`}
@@ -520,7 +523,7 @@ export default function FarmerDashboard() {
             <div className={`text-3xl font-black ${pendingCount > 0 ? 'text-orange-700' : 'text-gray-500'}`}>{pendingCount}</div>
             <div className="text-sm font-semibold text-gray-800 mt-1 leading-tight">{tx.pendingOrders}</div>
             <div className="text-[11px] font-bold text-orange-700 mt-2 flex items-center gap-1">
-              {L('View', 'చూడండి')} <span aria-hidden>→</span>
+              {L('All orders', 'అన్ని ఆర్డర్లు')} <span aria-hidden>→</span>
             </div>
           </Link>
           {[
