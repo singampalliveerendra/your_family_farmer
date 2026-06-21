@@ -55,3 +55,26 @@ ok change it to my order details from pending orders badge
 ---
 
 ok change it to my order details from pending orders badge and after clicking it have to show todays okay
+
+---
+
+←
+Your cart
+Self pickup from farm
+
+Your name
+vijay
+Your WhatsApp number
++91
+7601059161
+The farmer needs this to confirm pickup time.
+
+How will you receive your order?
+
+
+🚶
+I will pick up
+✓
+
+🛵
+Home delivery when use click i will pickup . the where the user will pickup the order the its not showing anything . [ so for consumer pickup the faarmer must and should keep the pickup location and timing is make  that mandoratory ]
