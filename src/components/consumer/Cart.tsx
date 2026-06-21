@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
@@ -212,57 +213,51 @@ type UpiPaymentState = {
   pickupLocation?: string
 }
 
-/* ─── Cart FAB + Sheet ───────────────────────────────── */
+/* ─── Cart FAB ───────────────────────────────────────── */
+// The cart now lives on its own full-screen route (/consumer/cart) instead of a
+// bottom-sheet overlay, so it reads like a proper checkout page (Flipkart /
+// Blinkit style). The FAB just navigates there.
 export function CartFab() {
-  const { items, count } = useCart()
+  const { count } = useCart()
   const { L } = useLang()
-  const [open, setOpen] = useState(false)
+  const router = useRouter()
 
-  // Auto-open if a UPI payment was in progress (handles page refresh mid-payment)
+  // If a UPI payment was in progress (page refreshed mid-payment), send the
+  // buyer straight to the cart page so they can finish / record it.
   useEffect(() => {
     const pending = localStorage.getItem(UPI_PENDING_KEY)
     const launched = localStorage.getItem(UPI_LAUNCHED_KEY)
-    if (pending && launched) setOpen(true)
-  }, [])
+    if (pending && launched) router.push('/consumer/cart')
+  }, [router])
 
-  const handleClose = () => {
-    // Wipe both UPI keys — user is explicitly closing, whatever the payment state
-    localStorage.removeItem(UPI_LAUNCHED_KEY)
-    localStorage.removeItem(UPI_PENDING_KEY)
-    setOpen(false)
-  }
-
-  if (count === 0 && !open) return null
+  if (count === 0) return null
 
   return (
-    <>
-      {!open && (
-        <button
-          onClick={() => setOpen(true)}
-          className="fixed bottom-6 right-4 z-[60] bg-green-700 active:bg-green-800 text-white rounded-full shadow-2xl flex items-center gap-2 pl-4 pr-5 py-3.5"
-          style={{ bottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}
-          aria-label="View cart"
-        >
-          <CartIcon />
-          <span className="font-extrabold text-sm">
-            {count} {L(count === 1 ? 'item' : 'items', 'బుట్ట')}
-          </span>
-        </button>
-      )}
-      {open && (
-        <CartSheet items={items} onClose={handleClose} />
-      )}
-    </>
+    <button
+      onClick={() => router.push('/consumer/cart')}
+      className="fixed bottom-6 right-4 z-[60] bg-green-700 active:bg-green-800 text-white rounded-full shadow-2xl flex items-center gap-2 pl-4 pr-5 py-3.5"
+      style={{ bottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}
+      aria-label="View cart"
+    >
+      <CartIcon />
+      <span className="font-extrabold text-sm">
+        {count} {L(count === 1 ? 'item' : 'items', 'బుట్ట')}
+      </span>
+    </button>
   )
 }
 
-/* ─── Cart sheet ─────────────────────────────────────── */
-function CartSheet({
+/* ─── Cart view (full-page route, or legacy bottom-sheet) ─ */
+export function CartSheet({
   items,
   onClose,
+  fullPage = false,
 }: {
   items: CartItem[]
   onClose: () => void
+  // When true, render as a full-screen page (the /consumer/cart route) with a
+  // back arrow instead of a dimmed bottom-sheet overlay.
+  fullPage?: boolean
 }) {
   const { setQty, removeItem, clear, clearFarmer } = useCart()
   const { info, save: saveInfo } = useConsumerInfo()
@@ -760,11 +755,24 @@ function CartSheet({
     }
   }
 
+  // Shell chrome — full-page route (/consumer/cart) vs the legacy dimmed
+  // bottom-sheet overlay. The route version reads like a proper checkout page.
+  const shellOuter = fullPage
+    ? 'min-h-screen bg-gray-50'
+    : 'fixed inset-0 z-[200] bg-black/50 flex items-end justify-center'
+  const shellInner = fullPage
+    ? 'bg-white w-full max-w-md mx-auto min-h-screen flex flex-col'
+    : 'bg-white w-full max-w-md rounded-t-3xl max-h-[92vh] flex flex-col'
+  const shellInnerCentered = fullPage
+    ? 'bg-white w-full max-w-md mx-auto min-h-screen px-6 py-10 flex flex-col items-center justify-center text-center gap-4'
+    : 'bg-white w-full max-w-md rounded-t-3xl px-6 py-10 flex flex-col items-center text-center gap-4'
+  const headerRound = fullPage ? '' : 'rounded-t-3xl'
+
   // Success screen — shown after I Have Paid or Cash on Pickup
   if (upiScreen && paidDone) {
     return (
-      <div className="fixed inset-0 z-[200] bg-black/50 flex items-end justify-center">
-        <div className="bg-white w-full max-w-md rounded-t-3xl px-6 py-10 flex flex-col items-center text-center gap-4">
+      <div className={shellOuter}>
+        <div className={shellInnerCentered}>
           <div className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl ${cashMode ? 'bg-amber-100' : 'bg-green-100'}`}>
             {cashMode ? '💵' : '✓'}
           </div>
@@ -829,14 +837,19 @@ function CartSheet({
   // Payment screen shown after placing an order
   if (upiScreen) {
     return (
-      <div className="fixed inset-0 z-[200] bg-black/50 flex items-end justify-center">
-        <div className="bg-white w-full max-w-md rounded-t-3xl max-h-[92vh] flex flex-col">
-          <div className="sticky top-0 bg-white flex items-center justify-between px-4 py-3 border-b border-gray-100 rounded-t-3xl">
-            <div>
+      <div className={shellOuter}>
+        <div className={shellInner}>
+          <div className={`sticky top-0 z-10 bg-white flex items-center gap-2 px-4 py-3 border-b border-gray-100 ${headerRound}`}>
+            {fullPage && (
+              <button onClick={onClose} className="text-gray-600 text-2xl leading-none p-1 -ml-1" aria-label="Back">←</button>
+            )}
+            <div className="flex-1 min-w-0">
               <h2 className="font-extrabold text-gray-900 text-lg">{L('Pay Farmer', 'రైతుకు చెల్లించండి')}</h2>
               <p className="text-xs text-gray-500">Pay directly — no middleman</p>
             </div>
-            <button onClick={onClose} className="text-gray-400 text-3xl leading-none p-1">×</button>
+            {!fullPage && (
+              <button onClick={onClose} className="text-gray-400 text-3xl leading-none p-1">×</button>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 py-5 space-y-4">
@@ -1021,7 +1034,7 @@ function CartSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-[200] bg-black/50 flex items-end justify-center">
+    <div className={shellOuter}>
       {/* Toast */}
       {toast && (
         <div className="fixed top-5 left-0 right-0 flex justify-center z-[210] pointer-events-none px-4">
@@ -1030,10 +1043,13 @@ function CartSheet({
           </div>
         </div>
       )}
-      <div className="bg-white w-full max-w-md rounded-t-3xl max-h-[92vh] flex flex-col">
+      <div className={shellInner}>
         {/* Header */}
-        <div className="sticky top-0 bg-white flex items-center justify-between px-4 py-3 border-b border-gray-100 rounded-t-3xl">
-          <div>
+        <div className={`sticky top-0 z-10 bg-white flex items-center gap-2 px-4 py-3 border-b border-gray-100 ${headerRound}`}>
+          {fullPage && (
+            <button onClick={onClose} className="text-gray-600 text-2xl leading-none p-1 -ml-1" aria-label="Back">←</button>
+          )}
+          <div className="flex-1 min-w-0">
             <h2 className="font-extrabold text-gray-900 text-lg">{L('Your cart', 'మీ బుట్ట')}</h2>
             <p className="text-xs text-gray-500">
               {deliveryType === 'home_delivery'
@@ -1041,7 +1057,9 @@ function CartSheet({
                 : L('Self pickup from farm', 'పొలం నుండి స్వీయ పికప్')}
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 text-3xl leading-none p-1">×</button>
+          {!fullPage && (
+            <button onClick={onClose} className="text-gray-400 text-3xl leading-none p-1">×</button>
+          )}
         </div>
 
         {/* Body */}
@@ -1050,6 +1068,9 @@ function CartSheet({
             <div className="text-center py-14 text-gray-400">
               <div className="text-5xl mb-3">🛒</div>
               <p className="font-semibold">{L('Your cart is empty', 'బుట్ట ఖాళీగా ఉంది')}</p>
+              <Link href="/consumer" className="mt-4 inline-block text-green-700 text-sm font-bold underline">
+                {L('Browse produce →', 'పంట చూడండి →')}
+              </Link>
             </div>
           ) : (
             <>
