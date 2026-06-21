@@ -33,14 +33,6 @@ export default function GlobalNav({ activeTab = 'consumer' }: { activeTab?: Acti
         </Link>
 
         <div className="flex items-center gap-2.5 flex-shrink-0">
-          <Link
-            href="/consumer/complaints"
-            aria-label="Log a Complaint"
-            title={L('Log a Complaint', 'ఫిర్యాదు')}
-            className="text-[11px] font-bold text-green-950 bg-amber-400 active:bg-amber-500 rounded-full px-3 py-1.5 leading-tight whitespace-nowrap"
-          >
-            🛟 Complaint
-          </Link>
           {state.status === 'loading' ? null : consumer ? (
             <ConsumerMenu name={consumer.name} onLogout={logout} />
           ) : (
@@ -160,6 +152,13 @@ function ConsumerMenu({ name, onLogout }: { name: string | null; onLogout: () =>
             className="block px-4 py-2.5 text-gray-800 active:bg-gray-100"
           >
             {L('🛒 Browse', 'కొనుగోలు')}
+          </Link>
+          <Link
+            href="/consumer/complaints"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-2.5 text-gray-800 active:bg-gray-100"
+          >
+            {L('🛟 My complaints', 'నా ఫిర్యాదులు')}
           </Link>
           <button
             onClick={() => { setOpen(false); void onLogout() }}

@@ -558,9 +558,6 @@ export default function FarmerDashboard() {
             >
               {tx.editProfile}
             </button>
-            <Link href="/farmer/complaints" className="inline-flex items-center gap-1 bg-amber-400 text-green-950 text-xs font-bold px-3 py-1.5 rounded-full shadow-md active:bg-amber-500">
-              🛟 {tx.complaints}
-            </Link>
             <button onClick={handleLogout} className="text-green-500 text-xs underline">
               {tx.logout}
             </button>
