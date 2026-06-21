@@ -1,0 +1,53 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "244da2f2a34c",
+  "session_id": "5d1e9b6f-4809-40d6-b8f9-353c28d24d6d",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-21T14:44:24.162018868Z",
+  "branch": "recover/order-tracking-and-reviews",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/components/consumer/Cart.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "89988f522148",
+  "checkpoint_transcript_start": 418,
+  "transcript_lines_at_start": 418,
+  "token_usage": {
+    "input_tokens": 147,
+    "cache_creation_tokens": 16709,
+    "cache_read_tokens": 1747938,
+    "output_tokens": 9017,
+    "api_call_count": 9
+  },
+  "session_metrics": {
+    "turn_count": 6
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-21T14:44:24.115595644Z",
+    "agent_lines": 34,
+    "agent_removed": 4,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 34,
+    "total_lines_changed": 38,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 474,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs - Copy.html": 22,
+        "GoGrameen_Moderator_Spec_v2.docx - Google Docs.html": 22,
+        "mod.md": 430
+      }
+    }
+  ]
+}

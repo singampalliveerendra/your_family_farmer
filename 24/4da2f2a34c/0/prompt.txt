@@ -1,0 +1,1 @@
+[Image #2] [Image #3] when i click place order immediatle it showing this so fix this when i click place order it have to show your order has been placed with animation

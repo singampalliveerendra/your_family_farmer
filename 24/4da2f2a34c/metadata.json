@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "244da2f2a34c",
+  "strategy": "manual-commit",
+  "branch": "recover/order-tracking-and-reviews",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/components/consumer/Cart.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/24/4da2f2a34c/0/metadata.json",
+      "transcript": "/24/4da2f2a34c/0/full.jsonl",
+      "content_hash": "/24/4da2f2a34c/0/content_hash.txt",
+      "prompt": "/24/4da2f2a34c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 147,
+    "cache_creation_tokens": 16709,
+    "cache_read_tokens": 1747938,
+    "output_tokens": 9017,
+    "api_call_count": 9
+  }
+}
