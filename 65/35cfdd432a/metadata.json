@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "6535cfdd432a",
+  "strategy": "manual-commit",
+  "branch": "recover/order-tracking-and-reviews",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/app/api/farmer/orders/[id]/decline/route.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/65/35cfdd432a/0/metadata.json",
+      "transcript": "/65/35cfdd432a/0/full.jsonl",
+      "content_hash": "/65/35cfdd432a/0/content_hash.txt",
+      "prompt": "/65/35cfdd432a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 210,
+    "cache_creation_tokens": 13235,
+    "cache_read_tokens": 1014141,
+    "output_tokens": 4864,
+    "api_call_count": 6
+  }
+}
