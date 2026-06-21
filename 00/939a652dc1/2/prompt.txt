@@ -1,0 +1,13 @@
+[Image #1] explain what you understand in this
+
+---
+
+if the consumer cancle the order the ackndmnt have to shown to the farmer rigth so fix that everything
+
+---
+
+Consumer should having the option of saying "Delivered". Now we have it in Farmer and consumer both. remove the delivered option for farmer
+
+---
+
+[Image #2] the clients says that this page from farmers page  (todays schdule , orders and history ) lookin clumsy and mergy feel its not looking professional so make i more profesiional like make a separate page for this orders like consumer siide order . so in that also add filter option (in that filter it have to show all 5 options like canclled , picked up items and all that you knoe )   for farmers in and also show today scheudled orders and this  week and this month add all options . so tell me what you understand before doing and best of best plan
