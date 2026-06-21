@@ -1,0 +1,40 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "4a28e80432a3",
+  "session_id": "5d1e9b6f-4809-40d6-b8f9-353c28d24d6d",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-21T14:38:48.101065692Z",
+  "branch": "recover/order-tracking-and-reviews",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/app/globals.css",
+    "src/components/consumer/Cart.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "e3ce0b6a45f4",
+  "checkpoint_transcript_start": 375,
+  "transcript_lines_at_start": 375,
+  "token_usage": {
+    "input_tokens": 274,
+    "cache_creation_tokens": 9280,
+    "cache_read_tokens": 1440261,
+    "output_tokens": 5144,
+    "api_call_count": 8
+  },
+  "session_metrics": {
+    "turn_count": 5
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-21T14:38:48.06262811Z",
+    "agent_lines": 37,
+    "agent_removed": 3,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 37,
+    "total_lines_changed": 40,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
