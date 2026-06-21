@@ -1,0 +1,80 @@
+so add this when user and farmer cancle and declined orders tooo
+
+---
+
+ected Turbopack error occurred. A panic log has been written to /tmp/next-panic-b48b5892efe96835a90f1f4220205479.log.
+
+To help make Turbopack better, report this error by clicking here.
+-----
+
+Error: ENOENT: no such file or directory, open '/home/veerendra/farmer/yourfamilyfarmer/.next/dev/server/app/farmer/dashboard/page/build-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/home/veerendra/farmer/yourfamilyfarmer/.next/dev/server/app/farmer/dashboard/page/build-manifest.json'
+}
+⨯ Error [TurbopackInternalError]: Failed to restore task data (corrupted database or bug): Meta for TaskId 1188)
+
+Debug info:
+- Execution of get_written_endpoint_with_issues_operation failed
+- Failed to restore task data (corrupted database or bug): Meta for TaskId 1188)
+
+  Caused by:
+      0: Looking up task storage for TaskId 1188 from database failed
+      1: Unable to open static sorted file referenced from 00001536.meta
+      2: Unable to open static sorted file 00001535.sst
+      3: Failed to open SST file /home/veerendra/farmer/yourfamilyfarmer/.next/dev/cache/turbopack/ee6e79b1/00001535.sst
+      4: No such file or directory (os error 2)
+    at <unknown> (TurbopackInternalError: Failed to restore task data (corrupted database or bug): Meta for TaskId 1188)) {
+  location: 'turbopack/crates/turbo-tasks-backend/src/backend/operation/mod.rs:197:17'
+}
+Error [TurbopackInternalError]: Failed to restore task data (corrupted database or bug): Meta for TaskId 1188)
+
+Debug info:
+- Execution of get_written_endpoint_with_issues_operation failed
+- Failed to restore task data (corrupted database or bug): Meta for TaskId 1188)
+
+  Caused by:
+      0: Looking up task storage for TaskId 1188 from database failed
+      1: Unable to open static sorted file referenced from 00001536.meta
+      2: Unable to open static sorted file 00001535.sst
+      3: Failed to open SST file /home/veerendra/farmer/yourfamilyfarmer/.next/dev/cache/turbopack/ee6e79b1/00001535.sst
+      4: No such file or directory (os error 2)
+    at <unknown> (TurbopackInternalError: Failed to restore task data (corrupted database or bug): Meta for TaskId 1188)) {
+  location: 'turbopack/crates/turbo-tasks-backend/src/backend/operation/mod.rs:197:17'
+}
+ Persisting failed: Another write batch or compaction is already active (Only a single write operations is allowed at a time)
+Compaction failed: Another write batch or compaction is already active (Only a single write operations is allowed at a time)
+ whats this i started a server 10 min ago and now i got this
+
+---
+
+ok change it to my order details from pending orders badge
+
+---
+
+ok change it to my order details from pending orders badge and after clicking it have to show todays okay
+
+---
+
+←
+Your cart
+Self pickup from farm
+
+Your name
+vijay
+Your WhatsApp number
++91
+7601059161
+The farmer needs this to confirm pickup time.
+
+How will you receive your order?
+
+
+🚶
+I will pick up
+✓
+
+🛵
+Home delivery when use click i will pickup . the where the user will pickup the order the its not showing anything . [ so for consumer pickup the faarmer must and should keep the pickup location and timing is make  that mandoratory ]
