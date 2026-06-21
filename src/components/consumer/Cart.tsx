@@ -773,10 +773,13 @@ export function CartSheet({
     return (
       <div className={shellOuter}>
         <div className={shellInnerCentered}>
-          <div className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl ${cashMode ? 'bg-amber-100' : 'bg-green-100'}`}>
-            {cashMode ? '💵' : '✓'}
+          <div className="relative w-16 h-16">
+            <span className={`order-success-ring ${cashMode ? 'bg-amber-300' : 'bg-green-300'}`} aria-hidden />
+            <div className={`order-success-icon relative w-16 h-16 rounded-full flex items-center justify-center text-3xl font-black ${cashMode ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+              {cashMode ? '💵' : '✓'}
+            </div>
           </div>
-          <div>
+          <div className="order-success-rise">
             <h2 className="font-extrabold text-gray-900 text-xl">
               {cashMode ? 'Order placed!' : onlinePaid ? 'Payment successful!' : 'Payment recorded!'}
             </h2>
