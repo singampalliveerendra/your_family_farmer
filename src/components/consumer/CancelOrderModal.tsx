@@ -1,7 +1,59 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
+
+// Animated "Order cancelled" confirmation, shown after a buyer cancels — mirrors
+// the order-placed and farmer-decline success screens. `wasPaid` adds a refund
+// note since a paid order is refunded automatically on cancel.
+export function CancelSuccessSheet({
+  wasPaid,
+  onClose,
+}: {
+  wasPaid: boolean
+  onClose: () => void
+}) {
+  const { L } = useLang()
+  return (
+    <div className="fixed inset-0 z-[130] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 text-center space-y-3">
+        <div className="relative w-16 h-16 mx-auto">
+          <span className="order-success-ring bg-gray-300" aria-hidden />
+          <div className="order-success-icon relative w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-3xl font-black text-gray-600">
+            ✓
+          </div>
+        </div>
+        <div className="order-success-rise space-y-2">
+          <h2 className="font-extrabold text-gray-900 text-lg leading-tight">
+            {L('Order cancelled', 'ఆర్డర్ రద్దు చేయబడింది')}
+          </h2>
+          {wasPaid ? (
+            <p className="text-sm text-gray-600 leading-snug">
+              {L('A refund has been started — it will reach your account in 3–5 business days.', 'రీఫండ్ ప్రారంభమైంది — 3–5 పని దినాలలో మీ ఖాతాకు జమ అవుతుంది.')}
+            </p>
+          ) : (
+            <p className="text-sm text-gray-600 leading-snug">
+              {L('Your order has been cancelled. The farmer has been notified.', 'మీ ఆర్డర్ రద్దు చేయబడింది. రైతుకు తెలియజేయబడింది.')}
+            </p>
+          )}
+        </div>
+        <Link
+          href="/consumer/orders/history"
+          className="block w-full text-center text-sm font-semibold text-green-700 underline"
+        >
+          {L('View order history', 'ఆర్డర్ చరిత్ర చూడండి')}
+        </Link>
+        <button
+          onClick={onClose}
+          className="w-full bg-green-700 text-white font-bold py-3 rounded-xl text-sm active:bg-green-800"
+        >
+          {L('Done', 'సరే')}
+        </button>
+      </div>
+    </div>
+  )
+}
 
 // Lets the buyer pick / type a reason before cancelling. The reason is stored on
 // the order and shown to the farmer, so they understand why it fell through.

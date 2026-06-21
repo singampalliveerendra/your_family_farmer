@@ -8,7 +8,7 @@ import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import ComplaintModal from '@/components/consumer/ComplaintModal'
 import OrderFeedbackModal from '@/components/consumer/OrderFeedbackModal'
 import OrderCard, { ConsumerOrder as Order, isResolved, isCompleted } from '@/components/consumer/OrderCard'
-import CancelOrderModal from '@/components/consumer/CancelOrderModal'
+import CancelOrderModal, { CancelSuccessSheet } from '@/components/consumer/CancelOrderModal'
 
 export default function ConsumerOrdersPage() {
   const { tx, L } = useLang()
@@ -26,6 +26,8 @@ export default function ConsumerOrdersPage() {
   // Order the cancel-reason modal is open for (null = closed) + its busy flag.
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null)
   const [cancelBusy, setCancelBusy] = useState(false)
+  // After a successful cancel, show the animated confirmation ({ wasPaid }).
+  const [cancelledInfo, setCancelledInfo] = useState<{ wasPaid: boolean } | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -85,7 +87,12 @@ export default function ConsumerOrdersPage() {
     }).catch(() => null)
     const json = r ? await r.json().catch(() => ({})) : null
     if (r && r.ok) {
+      // A paid order is refunded automatically — drives the refund note.
+      const wasPaid = ['paid', 'completed', 'payment_claimed', 'pending_confirmation'].includes(
+        cancellingOrder.payment_status ?? '',
+      )
       setCancellingOrder(null)
+      setCancelledInfo({ wasPaid })
       await refresh()
     } else {
       alert(json?.error ?? L('Could not cancel. Please try again.', 'రద్దు చేయలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
@@ -237,6 +244,13 @@ export default function ConsumerOrdersPage() {
           cancelling={cancelBusy}
           onClose={() => setCancellingOrder(null)}
           onConfirm={cancelOrder}
+        />
+      )}
+
+      {cancelledInfo && (
+        <CancelSuccessSheet
+          wasPaid={cancelledInfo.wasPaid}
+          onClose={() => setCancelledInfo(null)}
         />
       )}
     </main>

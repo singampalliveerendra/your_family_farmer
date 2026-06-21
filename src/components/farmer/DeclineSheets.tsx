@@ -17,8 +17,13 @@ export function DeclineSuccessSheet({
   return (
     <div className="fixed inset-0 z-[130] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 text-center space-y-3">
-        <div className="text-4xl">✅</div>
-        <h2 className="font-extrabold text-gray-900 text-lg leading-tight">
+        <div className="relative w-16 h-16 mx-auto">
+          <span className="order-success-ring bg-green-300" aria-hidden />
+          <div className="order-success-icon relative w-16 h-16 rounded-full bg-green-100 flex items-center justify-center text-3xl">
+            ✅
+          </div>
+        </div>
+        <h2 className="order-success-rise font-extrabold text-gray-900 text-lg leading-tight">
           {L('Order declined', 'ఆర్డర్ తిరస్కరించబడింది')}
         </h2>
 
