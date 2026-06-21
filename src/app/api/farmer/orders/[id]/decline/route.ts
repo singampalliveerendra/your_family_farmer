@@ -33,7 +33,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: order, error: loadErr } = await supabase
     .from('orders')
-    .select('id, farmer_id, status, quantity, total_price, produce_listing_id, payment_method, payment_status, razorpay_payment_id, order_code')
+    .select('id, farmer_id, status, quantity, total_price, produce_listing_id, payment_method, payment_status, razorpay_payment_id, order_code, shipped_at, collected_at, received_at')
     .eq('id', id)
     .maybeSingle()
 
@@ -42,10 +42,19 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (order.farmer_id !== session.farmerId) {
     return NextResponse.json({ error: 'Not your order.' }, { status: 403 })
   }
-  // Only a pending order can be declined. This also makes the call idempotent:
-  // a double-tap finds the order already declined and refunds nothing twice.
-  if (order.status !== 'pending') {
+  // A farmer can decline/cancel an order while it is still pending OR approved
+  // but not yet fulfilled — the OrderCard offers Decline in both states (e.g.
+  // the crop is damaged after the farmer already approved). Once it has been
+  // shipped, picked up or received it's too late. Rejecting anything already
+  // declined/cancelled also keeps a double-tap from refunding twice.
+  if (order.status !== 'pending' && order.status !== 'approved') {
     return NextResponse.json({ error: 'This order can no longer be declined.' }, { status: 409 })
+  }
+  if (order.shipped_at || order.collected_at || order.received_at) {
+    return NextResponse.json(
+      { error: 'This order has already been fulfilled and can no longer be declined.' },
+      { status: 409 },
+    )
   }
 
   // 1. Return the reserved stock.
