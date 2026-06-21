@@ -1,0 +1,17 @@
+push in versel merge
+
+---
+
+done what messegeshoudld i send to client
+
+---
+
+[Image #8] have we done evrything perfectly without bugs and deployed in vercel ?
+
+---
+
+verify that 1, 4, and 6
+
+---
+
+when user clicks cart its showng cart details in that page only its not looking professional how about when user clic cart items it have to open separate proper section and evry detail like professional aps like flipkart blinkit
