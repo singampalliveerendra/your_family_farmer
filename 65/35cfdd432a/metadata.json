@@ -19,6 +19,12 @@
       "transcript": "/65/35cfdd432a/1/full.jsonl",
       "content_hash": "/65/35cfdd432a/1/content_hash.txt",
       "prompt": ""
+    },
+    {
+      "metadata": "/65/35cfdd432a/2/metadata.json",
+      "transcript": "/65/35cfdd432a/2/full.jsonl",
+      "content_hash": "/65/35cfdd432a/2/content_hash.txt",
+      "prompt": ""
     }
   ],
   "token_usage": {
