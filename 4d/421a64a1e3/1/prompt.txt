@@ -1,0 +1,9 @@
+[Image #1] explain what you understand in this
+
+---
+
+if the consumer cancle the order the ackndmnt have to shown to the farmer rigth so fix that everything
+
+---
+
+Consumer should having the option of saying "Delivered". Now we have it in Farmer and consumer both. remove the delivered option for farmer
