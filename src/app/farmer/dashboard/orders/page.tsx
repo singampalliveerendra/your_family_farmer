@@ -7,6 +7,8 @@ import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
 import OrderCard, { type FarmerOrder as Order, isResolved } from '@/components/farmer/OrderCard'
 import { DeclineReasonSheet, DeclineSuccessSheet } from '@/components/farmer/DeclineSheets'
+import { ordersInReportWindow } from '@/lib/orderReport'
+import OrderReportSheet from '@/components/farmer/OrderReportSheet'
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'completed' | 'declined' | 'cancelled'
 type TimeFilter = 'today' | 'week' | 'month' | 'all'
@@ -35,6 +37,8 @@ function OrdersPageInner() {
   const { tx, L } = useLang()
   const [orders, setOrders] = useState<Order[]>([])
   const [farmerId, setFarmerId] = useState<string | null>(null)
+  const [farmerName, setFarmerName] = useState<string>('')
+  const [showReport, setShowReport] = useState(false)
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all')
@@ -80,6 +84,20 @@ function OrdersPageInner() {
   }, [router])
 
   useEffect(() => { load() }, [load])
+
+  // Farmer name for the PDF report header (fetched once when we know the id).
+  useEffect(() => {
+    if (!farmerId) return
+    let active = true
+    void supabase
+      .from('farmers')
+      .select('name')
+      .eq('id', farmerId)
+      .single()
+      .then(({ data }) => { if (active && data?.name) setFarmerName(data.name) })
+    return () => { active = false }
+  }, [farmerId])
+
 
   // Keep this page live: a buyer can cancel after it loaded. Without this the
   // farmer would keep seeing the order as actionable — and could approve/ship a
@@ -314,6 +332,8 @@ function OrdersPageInner() {
     return 0 // all time
   }
 
+  const reportCount = ordersInReportWindow(orders).length
+
   const start = timeStart()
   const filtered = orders.filter((o) => {
     if (new Date(o.created_at).getTime() < start) return false
@@ -350,9 +370,20 @@ function OrdersPageInner() {
     <main className="min-h-screen bg-gray-50 pb-16">
       {/* Header */}
       <div className="bg-green-900 px-4 pt-6 pb-10">
-        <Link href="/farmer/dashboard" className="text-green-300 text-sm flex items-center gap-1 mb-4">
-          ← {tx.back}
-        </Link>
+        <div className="flex items-start justify-between gap-3">
+          <Link href="/farmer/dashboard" className="text-green-300 text-sm flex items-center gap-1 mb-4">
+            ← {tx.back}
+          </Link>
+          {/* View report → opens the on-screen report, where the farmer can
+              then download the PDF. */}
+          <button
+            onClick={() => setShowReport(true)}
+            disabled={reportCount === 0}
+            className="flex items-center gap-1.5 bg-green-800 text-white text-xs font-bold px-3 py-2 rounded-xl active:bg-green-700 disabled:opacity-50"
+          >
+            📄 {L('View report', 'రిపోర్ట్ చూడండి')}
+          </button>
+        </div>
         <h1 className="text-white text-xl font-extrabold leading-tight">
           {L('Orders', 'ఆర్డర్లు')}
         </h1>
@@ -460,6 +491,15 @@ function OrdersPageInner() {
       {/* Refund confirmation after declining */}
       {declineResult && (
         <DeclineSuccessSheet result={declineResult} onClose={() => setDeclineResult(null)} />
+      )}
+
+      {/* Orders report (view → download PDF) */}
+      {showReport && (
+        <OrderReportSheet
+          orders={orders}
+          farmerName={farmerName}
+          onClose={() => setShowReport(false)}
+        />
       )}
     </main>
   )
