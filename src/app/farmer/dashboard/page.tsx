@@ -2170,9 +2170,9 @@ function ProduceListingForm({
           </label>
           <div className="grid grid-cols-3 gap-2">
             {([
-              { key: 'pickup', label: 'Pickup only', te: 'పికప్ మాత్రమే', icon: '🧺' },
-              { key: 'courier', label: 'I will courier', te: 'నేను డెలివరీ చేస్తా', icon: '🛵' },
-              { key: 'both', label: 'Both', te: 'రెండూ', icon: '🔁' },
+              { key: 'pickup', en: 'Pickup only', te: 'పికప్ మాత్రమే', icon: '🧺' },
+              { key: 'courier', en: 'I will courier', te: 'నేను డెలివరీ చేస్తా', icon: '🛵' },
+              { key: 'both', en: 'Both', te: 'రెండూ', icon: '🔁' },
             ] as const).map((opt) => {
               const active = deliveryMode === opt.key
               return (
@@ -2186,10 +2186,7 @@ function ProduceListingForm({
                 >
                   <span className="block text-lg leading-none">{opt.icon}</span>
                   <span className={`block text-[11px] font-bold mt-1 leading-tight ${active ? 'text-green-800' : 'text-gray-600'}`}>
-                    {opt.label}
-                  </span>
-                  <span className={`block text-[10px] leading-tight ${active ? 'text-green-700' : 'text-gray-400'}`}>
-                    {opt.te}
+                    {L(opt.en, opt.te)}
                   </span>
                 </button>
               )

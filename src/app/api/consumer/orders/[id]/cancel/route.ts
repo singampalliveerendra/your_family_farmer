@@ -7,12 +7,12 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const CANCEL_WINDOW_MS = 30 * 60 * 1000 // 30 minutes
 
-// Buyer cancels their own order. Allowed only while it is still pending (the
-// farmer hasn't confirmed) AND within 30 minutes of placing it. Returns the
-// stock and, for a paid order, issues a real Razorpay refund — same machinery
-// as a farmer decline, but initiated by the buyer.
+// Buyer cancels their own order. Allowed any time UP TO the point the order is
+// shipped or handed over — i.e. while still pending OR approved-and-awaiting.
+// There is no time window; only the order's progress decides. Returns the stock
+// and, for a paid order, issues a real Razorpay refund — same machinery as a
+// farmer decline, but initiated by the buyer.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const session = getConsumerSessionFromRequest(req)
   if (!session) return NextResponse.json({ error: 'Please log in.' }, { status: 401 })
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: order, error: loadErr } = await supabase
     .from('orders')
-    .select('id, consumer_id, status, quantity, total_price, produce_listing_id, payment_status, razorpay_payment_id, created_at, order_code')
+    .select('id, consumer_id, status, quantity, total_price, produce_listing_id, payment_status, razorpay_payment_id, created_at, order_code, shipped_at, collected_at, received_at, delivery_status')
     .eq('id', id)
     .maybeSingle()
 
@@ -40,16 +40,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (order.consumer_id !== session.consumerId) {
     return NextResponse.json({ error: 'Not your order.' }, { status: 403 })
   }
-  if (order.status !== 'pending') {
+  // Cancellable while still pending or approved-and-awaiting. Blocked once the
+  // order is shipped (farmer shipped it, or a rider has picked it up and is in
+  // transit) or resolved (picked up / delivered / received), and of course once
+  // it's already declined / cancelled.
+  const cancellable =
+    (order.status === 'pending' || order.status === 'approved')
+    && !order.shipped_at
+    && !order.collected_at
+    && !order.received_at
+    && order.delivery_status !== 'picked_up'
+    && order.delivery_status !== 'out_for_delivery'
+    && order.delivery_status !== 'delivered'
+  if (!cancellable) {
     return NextResponse.json(
-      { error: 'This order can no longer be cancelled — the farmer has already responded.' },
-      { status: 409 },
-    )
-  }
-  const placedMs = order.created_at ? new Date(order.created_at).getTime() : 0
-  if (!placedMs || Date.now() - placedMs > CANCEL_WINDOW_MS) {
-    return NextResponse.json(
-      { error: 'The 30-minute cancellation window has passed. Please contact the farmer.' },
+      { error: 'This order can no longer be cancelled — it has already been shipped or completed.' },
       { status: 409 },
     )
   }
