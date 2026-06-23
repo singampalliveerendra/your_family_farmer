@@ -9,6 +9,7 @@ import { localizeName } from '@/lib/localizeName'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import ComplaintModal from '@/components/consumer/ComplaintModal'
 import ProduceReviewBox, { type MyReview } from '@/components/consumer/ProduceReviewBox'
+import { canBuyerCancel } from '@/components/consumer/OrderCard'
 
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
 
@@ -90,11 +91,9 @@ export default function OrderDetailsPage() {
   const [showComplaint, setShowComplaint] = useState(false)
   const [confirmingReceipt, setConfirmingReceipt] = useState(false)
 
-  // Buyer may cancel only while still pending and within 30 min of placing.
-  const canCancel = !!order
-    && order.status === 'pending'
-    && !!order.created_at
-    && Date.now() - new Date(order.created_at).getTime() < 30 * 60 * 1000
+  // Buyer may cancel any time before the order is shipped or handed over
+  // (pending or approved-and-awaiting). Shared rule with the card + cancel API.
+  const canCancel = !!order && canBuyerCancel(order)
 
   // A home delivery is rider-driven once a rider is assigned (or its delivery
   // status moved past 'unassigned'). Those keep the rider tracking panel;
@@ -375,7 +374,7 @@ export default function OrderDetailsPage() {
                   disabled={cancelling}
                   className="mt-2 w-full border border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
                 >
-                  {cancelling ? L('Cancelling...', 'రద్దు చేస్తోంది...') : L('✕ Cancel order', 'ఆర్డర్ రద్దు (30 min లోపు)')}
+                  {cancelling ? L('Cancelling...', 'రద్దు చేస్తోంది...') : L('✕ Cancel order', 'ఆర్డర్ రద్దు')}
                 </button>
               )}
 
@@ -824,7 +823,7 @@ function OrderStatusPanel({ order }: { order: Order }) {
   const steps: Step[] = [
     { label: L('Order placed', 'ఆర్డర్ పెట్టారు'), sub: L('We received your order', 'మీ ఆర్డర్ అందింది'), at: fmt(order.created_at), done: true },
     ...(paidOnline
-      ? [{ label: L('Payment received', 'చెల్లింపు అందింది'), sub: `${order.payment_method_detail || 'UPI'} payment confirmed / చెల్లింపు ధృవీకరించబడింది`, at: fmt(order.paid_at), done: true }]
+      ? [{ label: L('Payment received', 'చెల్లింపు అందింది'), sub: L(`${order.payment_method_detail || 'UPI'} payment confirmed`, `${order.payment_method_detail || 'UPI'} చెల్లింపు ధృవీకరించబడింది`), at: fmt(order.paid_at), done: true }]
       : []),
     { label: L('Confirmed by farmer', 'రైతు ధృవీకరించారు'), sub: L('Farmer accepted your order', 'రైతు అంగీకరించారు'), at: fmt(order.confirmed_at), done: approved },
     ...(isCourier

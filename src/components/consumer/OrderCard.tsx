@@ -73,6 +73,27 @@ export const isResolved = (o: ConsumerOrder) =>
 export const needsAcknowledge = (o: ConsumerOrder) =>
   o.status === 'declined' && !o.acknowledged_at
 
+// The buyer may cancel any time UP TO the point the order is shipped or handed
+// over — i.e. while it is still pending OR approved-and-awaiting. Cancel is
+// blocked once it has been shipped (farmer shipped it, or a rider has picked it
+// up and is in transit) or resolved (picked up / delivered / received). There is
+// no time limit — only the order's progress decides. Shared so the card, the
+// order detail page and the cancel API all agree.
+export const canBuyerCancel = (o: {
+  status: 'pending' | 'approved' | 'declined' | 'cancelled'
+  shipped_at?: string | null
+  collected_at?: string | null
+  received_at?: string | null
+  delivery_status?: DeliveryStatus | null
+}) =>
+  (o.status === 'pending' || o.status === 'approved')
+  && !o.shipped_at
+  && !o.collected_at
+  && !o.received_at
+  && o.delivery_status !== 'picked_up'
+  && o.delivery_status !== 'out_for_delivery'
+  && o.delivery_status !== 'delivered'
+
 export default function OrderCard({
   order,
   onComplaint,
@@ -113,13 +134,9 @@ export default function OrderCard({
   // received the produce yet. Already-reviewed orders keep the button so the
   // buyer can see / edit what they left.
   const canFeedback = Boolean(onFeedback && order.produce_listing_id && (completed || reviewed))
-  // Buyer may cancel only while still pending and within 30 min of placing —
-  // mirrors the rule on the order detail page.
-  const canCancel = Boolean(
-    onCancel
-      && order.status === 'pending'
-      && Date.now() - new Date(order.created_at).getTime() < 30 * 60 * 1000,
-  )
+  // Buyer may cancel any time before the order is shipped or handed over
+  // (pending or approved-and-awaiting). Shared rule with the detail page + API.
+  const canCancel = Boolean(onCancel && canBuyerCancel(order))
 
   const statusColor = (s: string) =>
     s === 'approved'
