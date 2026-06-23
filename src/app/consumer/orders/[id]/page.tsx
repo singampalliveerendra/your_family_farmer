@@ -59,6 +59,10 @@ type Order = {
   shipped_at?: string | null
   received_at?: string | null
   fulfillment_date?: string | null
+  // Reason the farmer gave when they moved the pickup/delivery date after
+  // approving — shown to the buyer so a date change is never silent.
+  reschedule_reason?: string | null
+  rescheduled_at?: string | null
   rider?: { id: string; name: string | null; phone: string } | null
 }
 
@@ -403,6 +407,11 @@ export default function OrderDetailsPage() {
                       weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
                     })}
                   </p>
+                  {order.reschedule_reason && (
+                    <p className="text-[11px] text-amber-700 mt-1 leading-snug">
+                      ⚠️ {L('Date changed by farmer', 'రైతు తేదీ మార్చారు')}: {order.reschedule_reason}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -857,12 +866,15 @@ function OrderStatusPanel({ order }: { order: Order }) {
         </div>
       )}
 
-      {/* Handover code — shown once the order is ready and before it's
-          collected. The customer reads it to the farmer at pickup. */}
-      {approved && !collected && order.handover_otp && (
+      {/* Handover code — shown once the order is approved and until it's handed
+          over. The customer reads it to the farmer at pickup, or to the farmer
+          when they deliver. It is the proof the order reached the right person. */}
+      {approved && !collected && !received && order.handover_otp && (
         <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl px-4 py-3 text-center">
           <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wide">
-            {L('Show this code to the farmer when you collect', 'తీసుకునేటప్పుడు ఈ కోడ్ రైతుకు చెప్పండి')}
+            {isShippedFlow
+              ? L('Show this code to the farmer when they deliver', 'డెలివరీ సమయంలో ఈ కోడ్ రైతుకు చెప్పండి')
+              : L('Show this code to the farmer when you collect', 'తీసుకునేటప్పుడు ఈ కోడ్ రైతుకు చెప్పండి')}
           </p>
           <p className="text-4xl font-black tracking-widest text-amber-900 mt-2 font-mono">
             {order.handover_otp}

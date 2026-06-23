@@ -363,11 +363,23 @@ export default function FarmerDashboard() {
     if (error || !data?.length) { void loadDashboard() } // re-sync on failure
   }
 
-  // Farmer sets/updates the pickup-or-delivery date on an order.
-  const handleSetFulfillmentDate = async (orderId: string, date: string) => {
+  // Farmer sets/updates the pickup-or-delivery date on an order. A change to an
+  // already-approved order carries a reason, stored so the buyer sees why it moved.
+  const handleSetFulfillmentDate = async (orderId: string, date: string, reason?: string) => {
     const value = date || null
-    setPendingOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, fulfillment_date: value } : o)))
+    setPendingOrders((prev) => prev.map((o) => (o.id === orderId
+      ? { ...o, fulfillment_date: value, ...(reason ? { reschedule_reason: reason } : {}) }
+      : o)))
+    // Date first — always succeeds.
     await supabase.from('orders').update({ fulfillment_date: value }).eq('id', orderId)
+    // Reason is best-effort: the reschedule_reason / rescheduled_at columns may
+    // not exist until scripts/reschedule-reason-migration.sql is applied, so a
+    // missing column must never block the date change itself.
+    if (reason) {
+      await supabase.from('orders')
+        .update({ reschedule_reason: reason, rescheduled_at: new Date().toISOString() })
+        .eq('id', orderId)
+    }
   }
 
   // Approving requires a pickup/delivery date. Guard on status='pending' so a
@@ -479,31 +491,50 @@ export default function FarmerDashboard() {
   // Self-pickup: farmer taps "Picked Up" when the buyer collects. Stamps
   // collected_at server-side, which resolves the order — drop it from the
   // active list (it now appears in Order History).
-  const handleMarkPickedUp = async (orderId: string) => {
+  // Self-pickup: the buyer reads their 4-digit code, the farmer enters it. A
+  // correct code stamps collected_at server-side and resolves the order. Returns
+  // the result so the card can show a "wrong code" message.
+  const handleMarkPickedUp = async (orderId: string, code: string): Promise<{ ok: boolean; error?: string }> => {
     setProcessingOrderId(orderId)
-    const res = await fetch(`/api/farmer/orders/${orderId}/picked-up`, { method: 'POST', credentials: 'same-origin' })
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/farmer/orders/${orderId}/confirm-pickup`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp: code }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) return { ok: false, error: json.error }
       setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
-    } else {
-      void loadDashboard() // re-sync on failure
+      return { ok: true }
+    } catch {
+      return { ok: false, error: L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.') }
+    } finally {
+      setProcessingOrderId(null)
     }
-    setProcessingOrderId(null)
   }
 
-  // Courier / farmer-shipped home delivery: farmer taps "Shipped" when they hand
-  // the parcel over. Stamps shipped_at but the order stays active (awaiting the
-  // buyer's — or the farmer's own — "Received"/"Delivered" confirmation).
-  const handleMarkShipped = async (orderId: string) => {
+  // Farmer-delivered home delivery: same 4-digit code handshake at the door. A
+  // correct code stamps received_at and resolves the order immediately (no
+  // separate buyer "Received" needed).
+  const handleMarkDelivered = async (orderId: string, code: string): Promise<{ ok: boolean; error?: string }> => {
     setProcessingOrderId(orderId)
-    const res = await fetch(`/api/farmer/orders/${orderId}/ship`, { method: 'POST', credentials: 'same-origin' })
-    if (res.ok) {
-      const json = (await res.json().catch(() => ({}))) as { shipped_at?: string }
-      const shippedAt = json.shipped_at ?? new Date().toISOString()
-      setPendingOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, shipped_at: shippedAt } : o)))
-    } else {
-      void loadDashboard() // re-sync on failure
+    try {
+      const res = await fetch(`/api/farmer/orders/${orderId}/deliver`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp: code }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) return { ok: false, error: json.error }
+      setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
+      return { ok: true }
+    } catch {
+      return { ok: false, error: L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.') }
+    } finally {
+      setProcessingOrderId(null)
     }
-    setProcessingOrderId(null)
   }
 
   if (loading) return <LoadingScreen />
@@ -679,7 +710,7 @@ export default function FarmerDashboard() {
             onUpdatePaymentStatus={handleUpdatePaymentStatus}
             onSetFulfillmentDate={handleSetFulfillmentDate}
             onMarkPickedUp={handleMarkPickedUp}
-            onMarkShipped={handleMarkShipped}
+            onMarkDelivered={handleMarkDelivered}
           />
         )}
 
@@ -2685,7 +2716,7 @@ function TodayScheduleSection({
   onUpdatePaymentStatus,
   onSetFulfillmentDate,
   onMarkPickedUp,
-  onMarkShipped,
+  onMarkDelivered,
 }: {
   orders: Order[]
   processingId: string | null
@@ -2695,9 +2726,9 @@ function TodayScheduleSection({
   onAcknowledge: (orderId: string) => void
   onMarkPaid: (orderId: string) => void
   onUpdatePaymentStatus: (orderId: string, status: 'completed' | 'failed' | 'pending') => void
-  onSetFulfillmentDate: (orderId: string, date: string) => void
-  onMarkPickedUp: (orderId: string) => void
-  onMarkShipped: (orderId: string) => void
+  onSetFulfillmentDate: (orderId: string, date: string, reason?: string) => void
+  onMarkPickedUp: (orderId: string, code: string) => Promise<{ ok: boolean; error?: string }>
+  onMarkDelivered: (orderId: string, code: string) => Promise<{ ok: boolean; error?: string }>
 }) {
   const { L } = useLang()
   const todayStr = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD, local
@@ -2743,9 +2774,9 @@ function TodayScheduleSection({
               onAcknowledge={() => onAcknowledge(o.id)}
               onMarkPaid={() => onMarkPaid(o.id)}
               onUpdatePaymentStatus={(s) => onUpdatePaymentStatus(o.id, s)}
-              onSetFulfillmentDate={(d) => onSetFulfillmentDate(o.id, d)}
-              onMarkPickedUp={() => onMarkPickedUp(o.id)}
-              onMarkShipped={() => onMarkShipped(o.id)}
+              onSetFulfillmentDate={(d, reason) => onSetFulfillmentDate(o.id, d, reason)}
+              onMarkPickedUp={(code) => onMarkPickedUp(o.id, code)}
+              onMarkDelivered={(code) => onMarkDelivered(o.id, code)}
             />
           ))
         )}

@@ -84,22 +84,33 @@ export default async function FarmerPage({ params }: { params: Promise<{ slug: s
   // here, and fold it into the same Reviews tab + star average as written reviews.
   const { data: produceReviews } = await supabase
     .from('produce_reviews')
-    .select('id, reviewer_name, star_rating, review_text, created_at, produce_listings(name)')
+    .select('id, reviewer_name, star_rating, review_text, created_at, produce_listing_id')
     .eq('farmer_id', farmer.id)
     .eq('approved', true)
     .order('created_at', { ascending: false })
 
-  const mappedProduceReviews = (produceReviews ?? []).map((r) => {
-    const pl = Array.isArray(r.produce_listings) ? r.produce_listings[0] : r.produce_listings
-    return {
-      id: r.id,
-      reviewer_name: r.reviewer_name,
-      star_rating: r.star_rating,
-      review_text: r.review_text,
-      produce_ordered: (pl as { name?: string } | null)?.name ?? null,
-      created_at: r.created_at,
-    }
-  })
+  // Resolve the produce names with a separate query rather than a PostgREST
+  // embedded join (produce_reviews → produce_listings). That relationship isn't
+  // in the schema cache, so embedding it made the whole produce_reviews query
+  // error out and return null — which silently hid ALL verified buyer feedback
+  // from the profile (showing "No reviews yet" and a 0 rating even when approved
+  // reviews existed).
+  const listingIds = [
+    ...new Set((produceReviews ?? []).map((r) => r.produce_listing_id).filter(Boolean) as string[]),
+  ]
+  const { data: listingNames } = listingIds.length
+    ? await supabase.from('produce_listings').select('id, name').in('id', listingIds)
+    : { data: [] as { id: string; name: string }[] }
+  const nameById = new Map((listingNames ?? []).map((l) => [l.id, l.name]))
+
+  const mappedProduceReviews = (produceReviews ?? []).map((r) => ({
+    id: r.id,
+    reviewer_name: r.reviewer_name,
+    star_rating: r.star_rating,
+    review_text: r.review_text,
+    produce_ordered: r.produce_listing_id ? nameById.get(r.produce_listing_id) ?? null : null,
+    created_at: r.created_at,
+  }))
 
   // Both sources, newest first — one combined list for the Reviews tab.
   const allReviews = [...(reviews ?? []), ...mappedProduceReviews].sort(
