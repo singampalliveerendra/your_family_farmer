@@ -1,0 +1,140 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "7e7aa4aea797",
+  "session_id": "e305a8b2-1a24-4f55-9c78-13138b2370b7",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-23T06:36:48.753086886Z",
+  "branch": "feat/handover-code-order-ux",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "scripts/reschedule-reason-migration.sql",
+    "src/app/api/consumer/orders/[id]/route.ts",
+    "src/app/api/farmer/orders/[id]/deliver/route.ts",
+    "src/app/api/farmer/orders/[id]/picked-up/route.ts",
+    "src/app/api/farmer/orders/[id]/ship/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/farmer/[slug]/page.tsx",
+    "src/app/farmer/dashboard/orders/[id]/page.tsx",
+    "src/app/farmer/dashboard/orders/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/components/farmer/OrderCard.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "580be5295103",
+  "token_usage": {
+    "input_tokens": 12107,
+    "cache_creation_tokens": 452141,
+    "cache_read_tokens": 21983747,
+    "output_tokens": 124002,
+    "api_call_count": 141
+  },
+  "session_metrics": {
+    "turn_count": 12
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-23T06:36:48.672665941Z",
+    "agent_lines": 999,
+    "agent_removed": 369,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 999,
+    "total_lines_changed": 1368,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 20,
+      "agent_lines_removed": 6
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 503,
+      "agent_lines_removed": 119
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 506,
+      "agent_lines_removed": 119
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 529,
+      "agent_lines_removed": 131
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 715,
+      "agent_lines_removed": 172
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 715,
+      "agent_lines_removed": 172
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 715,
+      "agent_lines_removed": 172
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 715,
+      "agent_lines_removed": 172
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 715,
+      "agent_lines_removed": 172
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 715,
+      "agent_lines_removed": 172
+    },
+    {
+      "checkpoint_number": 12,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 999,
+      "agent_lines_removed": 369
+    },
+    {
+      "checkpoint_number": 13,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 999,
+      "agent_lines_removed": 369
+    }
+  ]
+}

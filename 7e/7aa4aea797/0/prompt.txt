@@ -1,0 +1,283 @@
+On the farmer orders page, the order ID (like "YFF-20260621-0122") shows up on the top-right corner of each order card — but only for some orders.
+Right now it shows correctly on the All, Picked up, Declined, and Cancelled tabs.
+But on the Pending and Approved tabs, the order ID is missing — instead it only shows the time (like "4d ago") with no ID below it.
+Please make the order ID show on every order card across all tabs, including Pending and Approved, so it always appears under the date/time in the same place and same style as it does on the other tabs.
+Don't change anything else on the cards — just make sure the order ID is always visible.
+
+---
+
+← Back
+Orders
+All your orders in one place
+
+All (21)
+Pending (0)
+Approved (4)
+Picked up (6)
+Declined (5)
+Cancelled (6)
+Today
+This week
+This month
+All time
+Revenue (₹)
+
+₹1407
+
+💰
+vijay
+
+✕ Declined
+📞 +91 7601059161
+21 Jun, 08:54 pm
+YFF-20260621-0122
+strawberry
+·
+1 kg
+·
+₹200
+📍 gajuwaka bus stop
+
+Reason Not available this week
+
+vijay
+
+Cancelled by buyer
+📞 +91 7601059161
+21 Jun, 08:48 pm
+YFF-20260621-0121
+strawberry
+·
+1 kg
+·
+₹200
+Reason No longer needed
+
+vijay
+
+Cancelled by buyer
+📞 +91 7601059161
+21 Jun, 08:44 pm
+YFF-20260621-0120
+strawberry
+·
+1 kg
+·
+₹200
+Reason Delivery / pickup takes too long
+
+vijay
+
+✓ Approved
+📞 +91 7601059161
+21 Jun, 08:29 pm
+YFF-20260621-0119
+strawberry
+·
+1 kg
+·
+₹200
+✓ Picked up · 21 Jun, 08:30 pm
+
+📅 Pickup available date
+
+22-06-2026
+vijay
+
+✓ Approved
+📞 +91 7601059161
+21 Jun, 08:19 pm
+YFF-20260621-0118
+strawberry
+·
+1 kg
+·
+₹200
+✓ Picked up · 21 Jun, 08:19 pm
+
+📅 Pickup available date
+
+22-06-2026
+vijay
+
+Cancelled by buyer. when i click any order it hae to show that specific order details of everything .
+
+---
+
+remove 
+Green leaf
+
+1 kg · ₹1
+
+✕ Declined
+Placed
+
+17 Jun 2026, 09:43 pm
+
+Payment
+
+razorpay
+
+Buyer
+
+vijay
+
+📞 Call · +91 7601059161 razor pay here aadd upi i said it before
+
+---
+
+veeru
+veeru
+gajuwaka, vishakapatnam, Andhra Pradesh
+
++ Follow
+26
+Years farming
+0 ★
+Star rating
+0
+Buyers
+0
+Chemicals
+2
+Produce now
+Story
+Produce
+Quality
+Reviews
+Farm
+✏️ Write a review
+No reviews yet. Be the first buyer! in here still the revvoew not visible that review or feedback gieen by consumer and rating also also fix this bug
+
+---
+
+Remove the Date(Pickup available, Delivery date) after the order is resolved.  ⚠️
+15 orders need your response
+
+Tap to approve or decline
+
+→
+
+2
+Active listings
+Manage
+→
+15
+My order details
+Today's orders
+→
+10
+Approved this week
+₹1407
+Revenue (₹)
+Your produce
+Suspend or resume any item
+
+Manage →
+🌿
+Green leaf
+
+₹1/kg
+Live
+
+5.0 ★
+1 review
+⛔ Suspend
+🍓
+strawberry
+
+₹200/kg
+Live
+
+5.0 ★
+1 review
+⛔ Suspend
+Earnings this month
+₹1610 earned
+from 14 orders
+
+Wk 1
+₹203
+Wk 2
+Wk 3
+₹1407
+Wk 4
+📅 Today's Schedule
+
+23-06-2026
+vijay
+
+📞 +91 7601059161
+just now
+YFF-20260623-0125
+Green leaf
+·
+1 kg
+·
+₹1
+📍 gajuwaka bus stop
+
+View full details →
+
+📅 Pickup available date
+
+dd-mm-yyyy
+✓ Confirm pickup date
+✕ Decline
+Choose a date above to approve this order IN HERE IF I SELECT ONE PICKUP DATE and again showing date why vijay
+
+✓ Approved
+📞 +91 7601059161
+1m ago
+YFF-20260623-0125
+Green leaf
+·
+1 kg
+·
+₹1
+📍 gajuwaka bus stop
+
+View full details →
+
+📅 Pickup available date
+
+24-06-2026
+⏳ Awaiting pickup
+
+✓ Picked Up✕ Decline
+Orders / ఆర్డర్లు
+View, filter & manage all your orders
+
+ please fix that . if really farmer whants to change the date need a reason from farmer to show the consumer ritght the consumer have to see thatreason to change thet date to
+
+---
+
+how the consumer and farmer will confirm the pickedup before giving delivery where the given delivery is real consumer or not where is the verification before giving the order sugggest best idea
+
+---
+
+for now we implemented the 4 digit code confirmation for riders right . so what if home delivery that deliver by farmer ships the order so need code confirmation right so Allow the code to be entered by farmer when saying "Picked up" and generate code consumer if he order produce immediately in there order detail the 4 digits code have to be shown or when farmer giving delivery they selct pickeup then get the code to consumer and farmer will enter . did you underatnd what iam saying just explain and i will confirm
+
+---
+
+no courier company the farmer will deliver by his own  . aand 2nd if consumer got any issue with code then the code will be given by moderator how's the  idea . becouse soe consumers dont know hot to use phone right  thats why we initated the moderatoor right so suggest me
+
+---
+
+no courier company the farmer will deliver by his own  . aand 2nd if consumer got any issue with code then the code will be given by moderator how's the  idea . becouse soe consumers dont know hot to use phone right  thats why we initated the moderatoor right so suggest me in very detail so i will send it to my clinet
+
+---
+
+we use delivery riders in future . for now the farmer will delivery by his own way . but we use rider like e commerce for sure but now now keep that okay
+
+---
+
+dont give any code to moderator the consumer have to say code for sure and farmer have to enter did you underatnd
+
+---
+
+go ahead
+
+---
+
+what query i have to add in supabase
