@@ -1,0 +1,62 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "0cb1f6500d0a",
+  "session_id": "0b004281-2785-4400-8b88-834329f3a8b7",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-23T09:30:27.997738369Z",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "src/app/farmer/dashboard/orders/page.tsx",
+    "src/components/farmer/OrderReportSheet.tsx",
+    "src/lib/orderReport.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "3de8394718e0",
+  "token_usage": {
+    "input_tokens": 7785,
+    "cache_creation_tokens": 52934,
+    "cache_read_tokens": 1592668,
+    "output_tokens": 22348,
+    "api_call_count": 33
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-23T09:30:27.979178634Z",
+    "agent_lines": 418,
+    "agent_removed": 3,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 418,
+    "total_lines_changed": 421,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 219,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 418,
+      "agent_lines_removed": 3
+    }
+  ]
+}
