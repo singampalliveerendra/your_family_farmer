@@ -111,11 +111,24 @@ function OrdersPageInner() {
 
   /* ─── Order actions (mirror the dashboard) ─────────────────── */
 
-  // Farmer sets/updates the pickup-or-delivery date on an order.
-  const handleSetFulfillmentDate = async (orderId: string, date: string) => {
+  // Farmer sets/updates the pickup-or-delivery date on an order. When the date
+  // is changed on an already-approved order, a reason is passed and stored so
+  // the buyer can see why it moved.
+  const handleSetFulfillmentDate = async (orderId: string, date: string, reason?: string) => {
     const value = date || null
-    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, fulfillment_date: value } : o)))
+    setOrders((prev) => prev.map((o) => (o.id === orderId
+      ? { ...o, fulfillment_date: value, ...(reason ? { reschedule_reason: reason } : {}) }
+      : o)))
+    // Date first — this always succeeds.
     await supabase.from('orders').update({ fulfillment_date: value }).eq('id', orderId)
+    // Reason is best-effort: the reschedule_reason / rescheduled_at columns may
+    // not exist until scripts/reschedule-reason-migration.sql is applied, so a
+    // missing column must never block the date change itself.
+    if (reason) {
+      await supabase.from('orders')
+        .update({ reschedule_reason: reason, rescheduled_at: new Date().toISOString() })
+        .eq('id', orderId)
+    }
   }
 
   // Approving requires a pickup/delivery date; the order then stays as approved
@@ -145,30 +158,53 @@ function OrdersPageInner() {
     setProcessingOrderId(null)
   }
 
-  // Self-pickup: buyer collected — stamp collected_at (resolves the order).
-  const handleMarkPickedUp = async (orderId: string) => {
+  // Self-pickup: the buyer reads their 4-digit code, the farmer enters it. A
+  // correct code stamps collected_at (resolves the order). Returns the result
+  // so the card can show a "wrong code" message.
+  const handleMarkPickedUp = async (orderId: string, code: string): Promise<{ ok: boolean; error?: string }> => {
     setProcessingOrderId(orderId)
-    const res = await fetch(`/api/farmer/orders/${orderId}/picked-up`, { method: 'POST', credentials: 'same-origin' })
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/farmer/orders/${orderId}/confirm-pickup`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp: code }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) return { ok: false, error: json.error }
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, collected_at: new Date().toISOString() } : o)))
-    } else {
-      void load(true)
+      return { ok: true }
+    } catch {
+      return { ok: false, error: L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.') }
+    } finally {
+      setProcessingOrderId(null)
     }
-    setProcessingOrderId(null)
   }
 
-  // Courier / farmer-shipped home delivery: farmer hands over the parcel.
-  const handleMarkShipped = async (orderId: string) => {
+  // Farmer-delivered home delivery: same 4-digit code handshake at the door. A
+  // correct code stamps received_at (resolves the order immediately — the buyer
+  // does not separately confirm receipt).
+  const handleMarkDelivered = async (orderId: string, code: string): Promise<{ ok: boolean; error?: string }> => {
     setProcessingOrderId(orderId)
-    const res = await fetch(`/api/farmer/orders/${orderId}/ship`, { method: 'POST', credentials: 'same-origin' })
-    if (res.ok) {
-      const json = (await res.json().catch(() => ({}))) as { shipped_at?: string }
-      const shippedAt = json.shipped_at ?? new Date().toISOString()
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, shipped_at: shippedAt } : o)))
-    } else {
-      void load(true)
+    try {
+      const res = await fetch(`/api/farmer/orders/${orderId}/deliver`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp: code }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) return { ok: false, error: json.error }
+      const now = new Date().toISOString()
+      setOrders((prev) => prev.map((o) => (o.id === orderId
+        ? { ...o, received_at: now, shipped_at: o.shipped_at ?? now }
+        : o)))
+      return { ok: true }
+    } catch {
+      return { ok: false, error: L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.') }
+    } finally {
+      setProcessingOrderId(null)
     }
-    setProcessingOrderId(null)
   }
 
   // Farmer acknowledges a buyer-cancelled order (stamps acknowledged_at).
@@ -396,15 +432,14 @@ function OrdersPageInner() {
                   onAcknowledge={() => handleAcknowledgeCancel(order.id)}
                   onMarkPaid={() => handleMarkPaid(order.id)}
                   onUpdatePaymentStatus={(s) => handleUpdatePaymentStatus(order.id, s)}
-                  onSetFulfillmentDate={(d) => handleSetFulfillmentDate(order.id, d)}
-                  onMarkPickedUp={() => handleMarkPickedUp(order.id)}
-                  onMarkShipped={() => handleMarkShipped(order.id)}
+                  onSetFulfillmentDate={(d, reason) => handleSetFulfillmentDate(order.id, d, reason)}
+                  onMarkPickedUp={(code) => handleMarkPickedUp(order.id, code)}
+                  onMarkDelivered={(code) => handleMarkDelivered(order.id, code)}
                 />
               ) : (
                 <HistoryCard
                   key={order.id}
                   order={order}
-                  onSetDate={(d) => handleSetFulfillmentDate(order.id, d)}
                 />
               ),
             )}
@@ -439,8 +474,10 @@ export default function OrdersPage() {
 }
 
 /* ─── Read-only history card (terminal orders) ─────────────────── */
-function HistoryCard({ order, onSetDate }: { order: Order; onSetDate: (date: string) => void }) {
+function HistoryCard({ order }: { order: Order }) {
   const { tx, L } = useLang()
+  const router = useRouter()
+  const openDetails = () => router.push(`/farmer/dashboard/orders/${order.id}`)
   const isApproved = order.status === 'approved'
   const isCancelled = order.status === 'cancelled'
   const isDelivery = order.delivery_type === 'home_delivery'
@@ -472,74 +509,84 @@ function HistoryCard({ order, onSetDate }: { order: Order; onSetDate: (date: str
   return (
     <div className={`rounded-2xl border overflow-hidden ${isApproved ? 'border-green-200 bg-white' : 'border-gray-200 bg-gray-50'}`}>
       <div className="p-3 space-y-1.5">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="font-extrabold text-gray-900 text-sm leading-tight">
-                {order.buyer_name || '—'}
-              </p>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                isApproved ? 'bg-green-100 text-green-800'
-                  : isCancelled ? 'bg-gray-200 text-gray-700'
-                  : 'bg-red-100 text-red-700'
-              }`}>
-                {isApproved ? tx.statusApproved
-                  : isCancelled ? L('Cancelled by buyer', 'కొనుగోలుదారు రద్దు చేశారు')
-                  : tx.statusDeclined}
-              </span>
+        {/* Tapping the order summary opens the full order details page. */}
+        <div onClick={openDetails} role="button" className="cursor-pointer space-y-1.5 active:opacity-70">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-extrabold text-gray-900 text-sm leading-tight">
+                  {order.buyer_name || '—'}
+                </p>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  isApproved ? 'bg-green-100 text-green-800'
+                    : isCancelled ? 'bg-gray-200 text-gray-700'
+                    : 'bg-red-100 text-red-700'
+                }`}>
+                  {isApproved ? tx.statusApproved
+                    : isCancelled ? L('Cancelled by buyer', 'కొనుగోలుదారు రద్దు చేశారు')
+                    : tx.statusDeclined}
+                </span>
+              </div>
+              {order.buyer_phone && (
+                <a
+                  href={`tel:+91${order.buyer_phone}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-xs font-semibold text-green-700"
+                >
+                  📞 +91 {order.buyer_phone}
+                </a>
+              )}
             </div>
-            {order.buyer_phone && (
-              <a href={`tel:+91${order.buyer_phone}`} className="text-xs font-semibold text-green-700">
-                📞 +91 {order.buyer_phone}
-              </a>
-            )}
-          </div>
-          <div className="flex flex-col items-end flex-shrink-0 mt-0.5">
-            <span className="text-[11px] text-gray-400 whitespace-nowrap">
-              {timeStr}
-            </span>
-            {order.order_code && (
-              <span className="text-[10px] font-mono font-semibold text-gray-400 whitespace-nowrap">
-                {order.order_code}
+            <div className="flex flex-col items-end flex-shrink-0 mt-0.5">
+              <span className="text-[11px] text-gray-400 whitespace-nowrap">
+                {timeStr}
               </span>
+              {order.order_code && (
+                <span className="text-[10px] font-mono font-semibold text-gray-400 whitespace-nowrap">
+                  {order.order_code}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 text-sm">
+            <span className="font-semibold text-gray-800">{order.produce_name || '—'}</span>
+            <span className="text-gray-300">·</span>
+            <span className="text-gray-600">{order.quantity} {order.unit || 'kg'}</span>
+            {order.total_price != null && order.total_price > 0 && (
+              <>
+                <span className="text-gray-300">·</span>
+                <span className="font-bold text-green-700">₹{order.total_price}</span>
+              </>
             )}
           </div>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 text-sm">
-          <span className="font-semibold text-gray-800">{order.produce_name || '—'}</span>
-          <span className="text-gray-300">·</span>
-          <span className="text-gray-600">{order.quantity} {order.unit || 'kg'}</span>
-          {order.total_price != null && order.total_price > 0 && (
-            <>
-              <span className="text-gray-300">·</span>
-              <span className="font-bold text-green-700">₹{order.total_price}</span>
-            </>
+          {order.pickup_location && (
+            <p className="text-xs text-gray-500">📍 {order.pickup_location}</p>
           )}
+
+          {/* Completion status + date (picked up / shipped / received). */}
+          {completion && (
+            <p className={`text-xs font-bold ${completion.cls}`}>{completion.text}</p>
+          )}
+
+          <p className="text-[11px] font-semibold text-green-700 pt-0.5">
+            {L('View full details', 'పూర్తి వివరాలు చూడండి')} →
+          </p>
         </div>
 
-        {order.pickup_location && (
-          <p className="text-xs text-gray-500">📍 {order.pickup_location}</p>
-        )}
-
-        {/* Completion status + date (picked up / shipped / received). */}
-        {completion && (
-          <p className={`text-xs font-bold ${completion.cls}`}>{completion.text}</p>
-        )}
-
-        {/* Approved orders: farmer sets/edits the pickup-or-delivery date. */}
-        {isApproved && (
-          <div className="pt-1">
-            <label className="text-[11px] font-bold text-gray-600 block mb-1">
-              📅 {isDelivery ? tx.deliveryDateLabel : tx.pickupDateLabel}
-            </label>
-            <input
-              type="date"
-              value={order.fulfillment_date ?? ''}
-              onChange={(e) => onSetDate(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:border-green-500 focus:outline-none"
-            />
-          </div>
+        {/* Approved (resolved) orders: the pickup/delivery date is shown
+            read-only. The order is done, so there's nothing left to reschedule —
+            the editable picker is intentionally gone here. */}
+        {isApproved && order.fulfillment_date && (
+          <p className="text-[11px] text-gray-500">
+            📅 {isDelivery ? tx.deliveryDateLabel : tx.pickupDateLabel}:{' '}
+            <span className="font-semibold text-gray-700">
+              {new Date(`${order.fulfillment_date}T00:00:00`).toLocaleDateString('en-IN', {
+                day: 'numeric', month: 'short', year: 'numeric',
+              })}
+            </span>
+          </p>
         )}
 
         {/* Declined orders: show the reason and the refund status to the farmer */}

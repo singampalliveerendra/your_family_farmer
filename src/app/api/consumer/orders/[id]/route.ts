@@ -75,5 +75,19 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     .maybeSingle()
   if (rev) myReview = rev
 
-  return NextResponse.json({ order: { ...order, farmer, rider, my_review: myReview } })
+  // Reschedule note (the reason the farmer gave when moving the pickup/delivery
+  // date after approval). Fetched separately and tolerantly: the columns may not
+  // exist until scripts/reschedule-reason-migration.sql is applied, and a
+  // missing column must never break the order page.
+  let reschedule: { reschedule_reason: string | null; rescheduled_at: string | null } = {
+    reschedule_reason: null, rescheduled_at: null,
+  }
+  const { data: rs } = await supabase
+    .from('orders')
+    .select('reschedule_reason, rescheduled_at')
+    .eq('id', order.id)
+    .maybeSingle()
+  if (rs) reschedule = rs as typeof reschedule
+
+  return NextResponse.json({ order: { ...order, ...reschedule, farmer, rider, my_review: myReview } })
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
 
@@ -38,6 +39,10 @@ export type FarmerOrder = {
   received_at?: string | null
   // When the farmer acknowledged a buyer-cancelled order (moves it to history).
   acknowledged_at?: string | null
+  // Reason the farmer gave when changing the pickup/delivery date after approval
+  // (shown to the buyer). Optional — column may not exist before its migration.
+  reschedule_reason?: string | null
+  rescheduled_at?: string | null
 }
 
 // An approved order is "resolved" (and so leaves the farmer's active list) once:
@@ -69,7 +74,7 @@ export default function OrderCard({
   onUpdatePaymentStatus,
   onSetFulfillmentDate,
   onMarkPickedUp,
-  onMarkShipped,
+  onMarkDelivered,
 }: {
   order: FarmerOrder
   processing: boolean
@@ -79,11 +84,20 @@ export default function OrderCard({
   onAcknowledge: () => void
   onMarkPaid: () => void
   onUpdatePaymentStatus: (status: 'completed' | 'failed' | 'pending') => void
-  onSetFulfillmentDate: (date: string) => void
-  onMarkPickedUp: () => void
-  onMarkShipped: () => void
+  // For a pending order, called with just the date (the gate to approval). For
+  // an already-approved order, a reason is required and passed too — the buyer
+  // sees it, so a date change is never silent.
+  onSetFulfillmentDate: (date: string, reason?: string) => void
+  // Handover confirmation: the buyer reads their 4-digit code, the farmer enters
+  // it. A self-pickup closes via onMarkPickedUp; a farmer-delivered order via
+  // onMarkDelivered. Both verify the code server-side and report back so the
+  // card can show a "wrong code" message.
+  onMarkPickedUp: (code: string) => Promise<{ ok: boolean; error?: string }>
+  onMarkDelivered: (code: string) => Promise<{ ok: boolean; error?: string }>
 }) {
   const { tx, L } = useLang()
+  const router = useRouter()
+  const openDetails = () => router.push(`/farmer/dashboard/orders/${order.id}`)
   const isDelivery = order.delivery_type === 'home_delivery'
   const isCourier = order.delivery_type === 'courier'
   const isPickup = !isDelivery && !isCourier
@@ -103,6 +117,33 @@ export default function OrderCard({
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   })
+
+  // Reschedule editor state for an APPROVED order: the date is read-only until
+  // the farmer taps "Change date", which reveals a date picker + a required
+  // reason that the buyer will see.
+  const [editingDate, setEditingDate] = useState(false)
+  const [newDate, setNewDate] = useState(fulfillmentDate)
+  const [rescheduleReason, setRescheduleReason] = useState('')
+
+  // Handover code entry. Tapping "Picked Up" / "Delivered" reveals a 4-digit
+  // box; the farmer types the code the buyer reads out. The farmer never sees
+  // the code — it must come from the customer.
+  const [enteringCode, setEnteringCode] = useState(false)
+  const [handoverCode, setHandoverCode] = useState('')
+  const [codeError, setCodeError] = useState('')
+
+  const submitHandoverCode = async () => {
+    if (!/^\d{4}$/.test(handoverCode)) {
+      setCodeError(L('Enter the 4-digit code from the customer.', 'కస్టమర్ నుండి 4-అంకెల కోడ్ నమోదు చేయండి.'))
+      return
+    }
+    setCodeError('')
+    const res = isPickup ? await onMarkPickedUp(handoverCode) : await onMarkDelivered(handoverCode)
+    if (!res.ok) {
+      setCodeError(res.error || L('Wrong code. Ask the customer to read it again.', 'తప్పు కోడ్. కస్టమర్‌ను మళ్ళీ చదవమని అడగండి.'))
+    }
+    // On success the parent resolves the order and this card re-renders away.
+  }
 
   const timeAgo = (ts: string) => {
     const diff = Date.now() - new Date(ts).getTime()
@@ -126,37 +167,50 @@ export default function OrderCard({
     return (
       <div className="border border-red-200 bg-red-50/40 rounded-2xl overflow-hidden">
         <div className="p-3 space-y-2">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <p className="font-extrabold text-gray-900 text-sm leading-tight">
-                  {order.buyer_name || '—'}
-                </p>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 whitespace-nowrap">
-                  {L('Cancelled by buyer', 'కొనుగోలుదారు రద్దు చేశారు')}
-                </span>
+          <div onClick={openDetails} role="button" className="cursor-pointer space-y-2 active:opacity-70">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className="font-extrabold text-gray-900 text-sm leading-tight">
+                    {order.buyer_name || '—'}
+                  </p>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 whitespace-nowrap">
+                    {L('Cancelled by buyer', 'కొనుగోలుదారు రద్దు చేశారు')}
+                  </span>
+                </div>
+                {order.buyer_phone && (
+                  <a
+                    href={`tel:+91${order.buyer_phone}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-xs font-semibold text-green-700"
+                  >
+                    📞 +91 {order.buyer_phone}
+                  </a>
+                )}
               </div>
-              {order.buyer_phone && (
-                <a href={`tel:+91${order.buyer_phone}`} className="text-xs font-semibold text-green-700">
-                  📞 +91 {order.buyer_phone}
-                </a>
+              <div className="flex flex-col items-end flex-shrink-0 mt-0.5">
+                <span className="text-[11px] text-gray-400 whitespace-nowrap">
+                  {timeAgo(order.created_at)}
+                </span>
+                {order.order_code && (
+                  <span className="text-[10px] font-mono font-semibold text-gray-400 whitespace-nowrap">
+                    {order.order_code}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 text-sm">
+              <span className="font-semibold text-gray-800">{order.produce_name || '—'}</span>
+              <span className="text-gray-300">·</span>
+              <span className="text-gray-600">{order.quantity} {order.unit || 'kg'}</span>
+              {order.total_price != null && order.total_price > 0 && (
+                <>
+                  <span className="text-gray-300">·</span>
+                  <span className="font-bold text-gray-500 line-through">₹{order.total_price}</span>
+                </>
               )}
             </div>
-            <span className="text-[11px] text-gray-400 whitespace-nowrap mt-0.5">
-              {timeAgo(order.created_at)}
-            </span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1.5 text-sm">
-            <span className="font-semibold text-gray-800">{order.produce_name || '—'}</span>
-            <span className="text-gray-300">·</span>
-            <span className="text-gray-600">{order.quantity} {order.unit || 'kg'}</span>
-            {order.total_price != null && order.total_price > 0 && (
-              <>
-                <span className="text-gray-300">·</span>
-                <span className="font-bold text-gray-500 line-through">₹{order.total_price}</span>
-              </>
-            )}
           </div>
 
           {order.decline_reason && (
@@ -183,86 +237,165 @@ export default function OrderCard({
   return (
     <div className={`border rounded-2xl overflow-hidden ${isApproved ? 'border-green-200 bg-green-50/30' : 'border-gray-200'}`}>
       <div className="p-3 space-y-1.5">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <p className="font-extrabold text-gray-900 text-sm leading-tight">
-                {order.buyer_name || '—'}
-              </p>
-              {isApproved && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800 whitespace-nowrap">
-                  {tx.statusApproved}
-                </span>
+        {/* Tapping the order summary opens the full order details page. The
+            phone link below stops propagation so calling never navigates. */}
+        <div onClick={openDetails} role="button" className="cursor-pointer space-y-1.5 active:opacity-70">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="font-extrabold text-gray-900 text-sm leading-tight">
+                  {order.buyer_name || '—'}
+                </p>
+                {isApproved && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800 whitespace-nowrap">
+                    {tx.statusApproved}
+                  </span>
+                )}
+              </div>
+              {order.buyer_phone && (
+                <a
+                  href={`tel:+91${order.buyer_phone}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-xs font-semibold text-green-700"
+                >
+                  📞 +91 {order.buyer_phone}
+                </a>
               )}
             </div>
-            {order.buyer_phone && (
-              <a href={`tel:+91${order.buyer_phone}`} className="text-xs font-semibold text-green-700">
-                📞 +91 {order.buyer_phone}
-              </a>
-            )}
+            <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
+              {isCod && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
+                  isPaid ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {isPaid ? `✓ ${tx.paymentReceived}` : tx.codBadge}
+                </span>
+              )}
+              {isUpi && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
+                  isPaid ? 'bg-green-100 text-green-800'
+                  : isPaymentClaimed ? 'bg-orange-100 text-orange-800'
+                  : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {isPaid ? '✓ UPI Paid' : isPaymentClaimed ? '⏳ Buyer Paid — Verify' : '📲 UPI'}
+                </span>
+              )}
+              <div className="flex flex-col items-end">
+                <span className="text-[11px] text-gray-400 whitespace-nowrap">
+                  {timeAgo(order.created_at)}
+                </span>
+                {order.order_code && (
+                  <span className="text-[10px] font-mono font-semibold text-gray-400 whitespace-nowrap">
+                    {order.order_code}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
-            {isCod && (
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
-                isPaid ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
-              }`}>
-                {isPaid ? `✓ ${tx.paymentReceived}` : tx.codBadge}
-              </span>
-            )}
-            {isUpi && (
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
-                isPaid ? 'bg-green-100 text-green-800'
-                : isPaymentClaimed ? 'bg-orange-100 text-orange-800'
-                : 'bg-blue-100 text-blue-700'
-              }`}>
-                {isPaid ? '✓ UPI Paid' : isPaymentClaimed ? '⏳ Buyer Paid — Verify' : '📲 UPI'}
-              </span>
-            )}
-            <span className="text-[11px] text-gray-400 whitespace-nowrap">
-              {timeAgo(order.created_at)}
-            </span>
-          </div>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 text-sm">
-          <span className="font-semibold text-gray-800">{order.produce_name || '—'}</span>
-          <span className="text-gray-300">·</span>
-          <span className="text-gray-600">{order.quantity} {order.unit || 'kg'}</span>
-          {order.total_price != null && order.total_price > 0 && (
-            <>
-              <span className="text-gray-300">·</span>
-              <span className="font-bold text-green-700">₹{order.total_price}</span>
-            </>
+          <div className="flex flex-wrap items-center gap-1.5 text-sm">
+            <span className="font-semibold text-gray-800">{order.produce_name || '—'}</span>
+            <span className="text-gray-300">·</span>
+            <span className="text-gray-600">{order.quantity} {order.unit || 'kg'}</span>
+            {order.total_price != null && order.total_price > 0 && (
+              <>
+                <span className="text-gray-300">·</span>
+                <span className="font-bold text-green-700">₹{order.total_price}</span>
+              </>
+            )}
+          </div>
+
+          {order.pickup_location && (
+            <p className="text-xs text-gray-500">📍 {order.pickup_location}</p>
           )}
-        </div>
 
-        {order.pickup_location && (
-          <p className="text-xs text-gray-500">📍 {order.pickup_location}</p>
-        )}
+          <p className="text-[11px] font-semibold text-green-700 pt-0.5">
+            {L('View full details', 'పూర్తి వివరాలు చూడండి')} →
+          </p>
+        </div>
 
         {order.delivery_type === 'home_delivery' && (
           <DeliveryTagForFarmer order={order} />
         )}
 
-        {/* Pickup / delivery date. For a pending order this is the gate to
-            approval — the farmer chooses a date, then confirms below. For an
-            approved order it shows the scheduled date and can still be changed.
-            Either way the buyer sees it on their order page. */}
+        {/* Pickup / delivery date. */}
         <div className="pt-1">
           <label className="text-[11px] font-bold text-gray-600 block mb-1">
             📅 {isPickup ? tx.pickupDateLabel : tx.deliveryDateLabel}
           </label>
-          <input
-            type="date"
-            value={fulfillmentDate}
-            min={todayStr}
-            onChange={(e) => onSetFulfillmentDate(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none"
-          />
-          {isApproved && fulfillmentDate && !(isCourier && isShipped) && (
-            <p className="text-[11px] font-semibold text-green-700 mt-1">
-              ⏳ {isPickup ? tx.awaitingPickup : tx.awaitingDelivery}
-            </p>
+
+          {!isApproved ? (
+            // Pending: the date is the gate to approval — the farmer picks it,
+            // then confirms below. No reason needed for the first choice.
+            <input
+              type="date"
+              value={fulfillmentDate}
+              min={todayStr}
+              onChange={(e) => onSetFulfillmentDate(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none"
+            />
+          ) : !editingDate ? (
+            // Approved: the date is locked (read-only). Changing it is a
+            // deliberate action that requires a reason the buyer will see.
+            <>
+              <p className="text-sm font-bold text-gray-900">
+                {fulfillmentDate
+                  ? new Date(`${fulfillmentDate}T00:00:00`).toLocaleDateString('en-IN', {
+                      weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+                    })
+                  : '—'}
+              </p>
+              {fulfillmentDate && !(isCourier && isShipped) && (
+                <p className="text-[11px] font-semibold text-green-700 mt-1">
+                  ⏳ {isPickup ? tx.awaitingPickup : tx.awaitingDelivery}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => { setNewDate(fulfillmentDate); setRescheduleReason(''); setEditingDate(true) }}
+                disabled={processing}
+                className="mt-2 text-[11px] font-bold text-green-700 underline disabled:opacity-50"
+              >
+                {L('Change date', 'తేదీ మార్చండి')}
+              </button>
+            </>
+          ) : (
+            // Reschedule editor: new date + a required reason for the buyer.
+            <div className="space-y-2 bg-amber-50 border border-amber-200 rounded-xl p-2.5">
+              <input
+                type="date"
+                value={newDate}
+                min={todayStr}
+                onChange={(e) => setNewDate(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none"
+              />
+              <textarea
+                value={rescheduleReason}
+                onChange={(e) => setRescheduleReason(e.target.value.slice(0, 200))}
+                rows={2}
+                placeholder={L('Reason for the new date (the buyer will see this)', 'కొత్త తేదీకి కారణం (కొనుగోలుదారు చూస్తారు)')}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:border-green-500 focus:outline-none"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingDate(false)}
+                  className="border border-gray-300 text-gray-600 font-bold py-2 rounded-xl text-xs active:bg-gray-50"
+                >
+                  {tx.cancelBtn}
+                </button>
+                <button
+                  type="button"
+                  disabled={processing || !newDate || !rescheduleReason.trim() || newDate === fulfillmentDate}
+                  onClick={() => { onSetFulfillmentDate(newDate, rescheduleReason.trim()); setEditingDate(false) }}
+                  className="bg-green-600 text-white font-bold py-2 rounded-xl text-xs active:bg-green-700 disabled:opacity-50"
+                >
+                  {L('Save new date', 'కొత్త తేదీ సేవ్')}
+                </button>
+              </div>
+              {newDate && newDate !== fulfillmentDate && !rescheduleReason.trim() && (
+                <p className="text-[11px] text-amber-700">{L('Add a reason so the buyer knows why.', 'కొనుగోలుదారుకు కారణం తెలియజేయండి.')}</p>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -362,21 +495,20 @@ export default function OrderCard({
               </p>
             </div>
           </div>
-        ) : (
-          // Approved farmer-fulfilled order, not yet shipped or collected. The
-          // action depends on how it leaves the farm: a SELF-PICKUP order is
-          // marked Picked Up (buyer collected — resolves immediately); a COURIER
-          // or farmer-ships HOME-DELIVERY order is marked Shipped (→ buyer then
-          // confirms Received). Only the one relevant button shows, never both.
+        ) : !enteringCode ? (
+          // Approved farmer-fulfilled order, not yet handed over. Closing it
+          // requires the buyer's 4-digit code: a SELF-PICKUP is marked Picked Up,
+          // a farmer-DELIVERED order is marked Delivered. Tapping the button
+          // reveals the code box below — the farmer can't close it on trust.
           <>
             <button
-              onClick={isPickup ? onMarkPickedUp : onMarkShipped}
+              onClick={() => { setHandoverCode(''); setCodeError(''); setEnteringCode(true) }}
               disabled={processing}
               className={`w-full text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-50 ${
                 isPickup ? 'bg-green-600 active:bg-green-700' : 'bg-amber-600 active:bg-amber-700'
               }`}
             >
-              {processing ? '…' : isPickup ? L('✓ Picked Up', 'తీసుకువెళ్ళారు') : L('🚚 Shipped', 'షిప్ చేయబడింది')}
+              {isPickup ? L('✓ Picked Up', 'తీసుకువెళ్ళారు') : L('✓ Delivered', 'డెలివరీ అయింది')}
             </button>
             <button
               onClick={onDecline}
@@ -386,6 +518,43 @@ export default function OrderCard({
               {processing ? tx.declining : `✕ ${tx.decline}`}
             </button>
           </>
+        ) : (
+          // Code entry: the buyer reads out their 4-digit code, the farmer types
+          // it. Only a correct code closes the order.
+          <div className="bg-green-50 border border-green-200 rounded-xl p-3 space-y-2">
+            <p className="text-xs font-bold text-gray-800">
+              {isPickup
+                ? L('Ask the buyer for their 4-digit pickup code', 'కొనుగోలుదారు 4-అంకెల పికప్ కోడ్ అడగండి')
+                : L('Ask the buyer for their 4-digit delivery code', 'కొనుగోలుదారు 4-అంకెల డెలివరీ కోడ్ అడగండి')}
+            </p>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoFocus
+              value={handoverCode}
+              onChange={(e) => { setHandoverCode(e.target.value.replace(/\D/g, '').slice(0, 4)); setCodeError('') }}
+              placeholder="••••"
+              maxLength={4}
+              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-center text-2xl font-black tracking-[0.5em] bg-white focus:border-green-500 focus:outline-none"
+            />
+            {codeError && <p className="text-xs text-red-600">{codeError}</p>}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => { setEnteringCode(false); setCodeError('') }}
+                disabled={processing}
+                className="border border-gray-300 text-gray-600 font-bold py-2.5 rounded-xl text-sm active:bg-gray-50 disabled:opacity-50"
+              >
+                {tx.cancelBtn}
+              </button>
+              <button
+                onClick={submitHandoverCode}
+                disabled={processing || handoverCode.length !== 4}
+                className="bg-green-600 text-white font-bold py-2.5 rounded-xl text-sm active:bg-green-700 disabled:opacity-50"
+              >
+                {processing ? '…' : (isPickup ? L('Confirm pickup', 'పికప్ నిర్ధారించు') : L('Confirm delivery', 'డెలివరీ నిర్ధారించు'))}
+              </button>
+            </div>
+          </div>
         )}
         {isCod && !isPaid && (
           <button
