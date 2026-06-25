@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "3e3a6a11cdb5",
+  "session_id": "c3124449-167f-48b7-bfa0-8a2db08be6ef",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-25T04:31:54.796079804Z",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/components/farmer/tabs/ProduceTab.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "31651f53cb7f",
+  "checkpoint_transcript_start": 115,
+  "transcript_lines_at_start": 115,
+  "token_usage": {
+    "input_tokens": 272,
+    "cache_creation_tokens": 89578,
+    "cache_read_tokens": 588978,
+    "output_tokens": 7043,
+    "api_call_count": 7
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-25T04:31:54.757389388Z",
+    "agent_lines": 18,
+    "agent_removed": 9,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 18,
+    "total_lines_changed": 27,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
