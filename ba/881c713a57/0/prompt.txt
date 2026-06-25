@@ -1,0 +1,75 @@
+14
+Today's orders
+View
+→
+
+2
+Active listings
+Manage
+→
+18
+Approved this week
+View all
+→
+₹2211
+Revenue (₹)
+Your produce
+Suspend or resume any item
+
+Manage in today orders why it shwoing 14
+
+---
+
+fix that bug 1
+
+---
+
+Add Spices and Other Category for the produces
+
+---
+
+[Image #1] [Image #2] the status have to shown for farmer have show same as consumer . remove that rider and that
+
+---
+
+[Image #1] [Image #2] the status have to shown for farmer have show same as consumer . remove that rider and that . tell me what you underatnd
+
+---
+
+Add Farm Photo does not work on Farmer dashboard. Added photo is not seen in Farmer dashboard as well as Farmer Profile .
+
+---
+
+Water Source is missing in the Farmer Edit Profile
+
+---
+
+Add all the farmer profile data into Moderator as well. Some of them are missing like Soil PH
+
+---
+
+Add City/Town in the Delivery Location.
+
+---
+
+Farmer profile in the farmer module is missing some of the details like Phone(Whatsapp)
+
+---
+
+[Image #3]
+
+---
+
+[Image #4] hightlight for specific item also
+
+---
+
+[Image #5] in turmeric powder down also it have to show price did u underatand
+
+---
+
+Change the Story text to About Farm in the Farmer Profile.
+
+---
+
+[Image #6] in this i have seen three bugs 1. the baground photo now showing full 2.the eng/tel translation badge not visible clearley and 3. remove the chemical opton that tell me what you understand

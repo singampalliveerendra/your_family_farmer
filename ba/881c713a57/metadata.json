@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "ba881c713a57",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 14,
+  "files_touched": [
+    "src/app/api/orders/razorpay/create/route.ts",
+    "src/app/moderator/page.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ba/881c713a57/0/metadata.json",
+      "transcript": "/ba/881c713a57/0/full.jsonl",
+      "content_hash": "/ba/881c713a57/0/content_hash.txt",
+      "prompt": "/ba/881c713a57/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 8006,
+    "cache_creation_tokens": 243443,
+    "cache_read_tokens": 20978902,
+    "output_tokens": 106564,
+    "api_call_count": 201
+  }
+}
