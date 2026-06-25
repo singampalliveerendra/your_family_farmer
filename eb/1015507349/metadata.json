@@ -13,6 +13,12 @@
       "transcript": "/eb/1015507349/0/full.jsonl",
       "content_hash": "/eb/1015507349/0/content_hash.txt",
       "prompt": "/eb/1015507349/0/prompt.txt"
+    },
+    {
+      "metadata": "/eb/1015507349/1/metadata.json",
+      "transcript": "/eb/1015507349/1/full.jsonl",
+      "content_hash": "/eb/1015507349/1/content_hash.txt",
+      "prompt": ""
     }
   ],
   "token_usage": {
