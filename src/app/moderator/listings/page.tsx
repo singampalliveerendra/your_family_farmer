@@ -29,7 +29,7 @@ const TABS: { key: Tab; label: string }[] = [
 ]
 
 const METHOD_LABEL: Record<string, string> = {
-  natural: 'Natural', low_chemical: 'Low chem', chemical: 'Chemical',
+  natural: 'Natural', low_chemical: 'Semi Organic', chemical: 'Chemical',
 }
 
 function timeAgo(iso: string): string {

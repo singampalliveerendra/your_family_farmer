@@ -21,7 +21,7 @@ type Farmer = {
 const METHOD_LABEL: Record<string, string> = {
   natural: 'Natural',
   organic: 'Organic',
-  low_chemical: 'Low chem',
+  low_chemical: 'Semi Organic',
   chemical: 'Chemical',
 }
 

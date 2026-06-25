@@ -11,6 +11,7 @@ type Farmer = {
   farming_since_year: number
   cover_photo_url?: string | null
   photo_url?: string | null
+  phone?: string | null
 }
 
 export default function FarmCover({ farmer }: { farmer: Farmer }) {
@@ -39,6 +40,14 @@ export default function FarmCover({ farmer }: { farmer: Farmer }) {
     .join('')
     .toUpperCase()
     .slice(0, 2)
+
+  // Quick "Schedule a Visit" — opens WhatsApp to the farmer (same intent as the
+  // detailed visit card in the Story tab), surfaced right next to the name.
+  const whatsappVisitLink = farmer.phone
+    ? `https://wa.me/${farmer.phone.replace(/\D/g, '')}?text=${encodeURIComponent(
+        tx.visitWhatsApp.replace('{name}', farmer.name ?? ''),
+      )}`
+    : null
 
   return (
     <div className="relative">
@@ -130,16 +139,28 @@ export default function FarmCover({ farmer }: { farmer: Farmer }) {
             </div>
           </div>
 
-          <button
-            onClick={toggleFollow}
-            className={`flex-shrink-0 mt-1 px-4 py-1.5 rounded-full text-sm font-semibold border transition-all ${
-              followed
-                ? 'bg-green-700 text-white border-green-700'
-                : 'bg-white text-green-700 border-green-700'
-            }`}
-          >
-            {followed ? tx.following : tx.follow}
-          </button>
+          <div className="flex-shrink-0 flex flex-col items-end gap-2 mt-1">
+            {whatsappVisitLink && (
+              <a
+                href={whatsappVisitLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-1.5 rounded-full text-sm font-semibold bg-amber-500 text-white whitespace-nowrap active:bg-amber-600"
+              >
+                📅 {tx.scheduleVisit}
+              </a>
+            )}
+            <button
+              onClick={toggleFollow}
+              className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-all ${
+                followed
+                  ? 'bg-green-700 text-white border-green-700'
+                  : 'bg-white text-green-700 border-green-700'
+              }`}
+            >
+              {followed ? tx.following : tx.follow}
+            </button>
+          </div>
         </div>
       </div>
 

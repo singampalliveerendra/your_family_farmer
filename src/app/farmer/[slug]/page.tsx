@@ -117,6 +117,24 @@ export default async function FarmerPage({ params }: { params: Promise<{ slug: s
     (a, b) => new Date(b.created_at as string).getTime() - new Date(a.created_at as string).getTime(),
   )
 
+  // Per-listing rating summary so the Produce tab can show each produce's own
+  // verified buyer feedback (avg stars, count, latest snippet) on its card —
+  // produceReviews is already ordered newest-first, so the first hit per listing
+  // is the latest review.
+  const reviewAcc = new Map<string, { sum: number; count: number; latest: { name: string; text: string | null; stars: number } | null }>()
+  for (const r of produceReviews ?? []) {
+    if (!r.produce_listing_id) continue
+    const cur = reviewAcc.get(r.produce_listing_id) ?? { sum: 0, count: 0, latest: null }
+    cur.sum += (r.star_rating as number) ?? 0
+    cur.count += 1
+    if (!cur.latest) cur.latest = { name: r.reviewer_name, text: r.review_text, stars: (r.star_rating as number) ?? 0 }
+    reviewAcc.set(r.produce_listing_id, cur)
+  }
+  const produceReviewSummary: Record<string, { avg: number; count: number; latest: { name: string; text: string | null; stars: number } | null }> = {}
+  reviewAcc.forEach((v, k) => {
+    produceReviewSummary[k] = { avg: Math.round((v.sum / v.count) * 10) / 10, count: v.count, latest: v.latest }
+  })
+
   // Star rating shown in the trust strip reflects all real feedback (written
   // reviews + verified order feedback). Falls back to the stored value if there
   // are no reviews yet.
@@ -148,6 +166,7 @@ export default async function FarmerPage({ params }: { params: Promise<{ slug: s
           farmer={farmer}
           produce={produce ?? []}
           reviews={allReviews}
+          produceReviews={produceReviewSummary}
           media={media ?? []}
         />
       </Suspense>

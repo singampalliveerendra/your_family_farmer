@@ -25,10 +25,13 @@ type Produce = {
   stock_qty?: number
   brix?: number
   pesticide_result?: string
+  soil_ph?: number
+  how_we_grow?: string
   shelf_life_days?: number
   available_to?: string
   description?: string
   image_url?: string
+  image_urls?: string[] | null
   harvest_date?: string | null
   delivery_mode?: string | null
   delivery_charge?: number | null
@@ -49,13 +52,17 @@ type Farmer = {
 const EMOJI_OPTIONS = ['🍅', '🍌', '🥭', '🫑', '🥬', '🍆', '🥕', '🌽', '🧅', '🧄', '🥦', '🌿', '🍓', '🫒', '🌾']
 const STATUS_OPTIONS = ['available', 'coming_soon']
 
+type ReviewSummary = { avg: number; count: number; latest: { name: string; text: string | null; stars: number } | null }
+
 export default function ProduceTab({
   farmer,
   produce,
+  produceReviews,
   isEditMode = false,
 }: {
   farmer: Record<string, unknown>
   produce: Record<string, unknown>[]
+  produceReviews?: Record<string, ReviewSummary>
   isEditMode?: boolean
 }) {
   const { tx, L } = useLang()
@@ -105,6 +112,7 @@ export default function ProduceTab({
               <ProduceCard
                 key={item.id}
                 item={item}
+                review={produceReviews?.[item.id]}
                 farmerInfo={farmerCartInfo}
                 onAddToCart={(qty) => requireAuth(() => addItem({
                   listingId: item.id,
@@ -324,17 +332,23 @@ type FarmerCartInfo = {
 
 function ProduceCard({
   item,
+  review,
   farmerInfo,
   onAddToCart,
   onDelete,
 }: {
   item: Produce
+  review?: ReviewSummary
   farmerInfo: FarmerCartInfo
   onAddToCart: (qty: number) => void
   onDelete?: () => void
 }) {
   const { tx, lang, L } = useLang()
   const [added, setAdded] = useState(false)
+  // #12 — all photos for this produce (cover first). Tapping opens a lightbox.
+  const gallery = (item.image_urls && item.image_urls.length ? item.image_urls : (item.image_url ? [item.image_url] : []))
+    .filter(Boolean) as string[]
+  const [lightbox, setLightbox] = useState(false)
 
   const bgColors: Record<string, string> = {
     '🍅': 'bg-red-100', '🥬': 'bg-green-100', '🥭': 'bg-orange-100',
@@ -353,13 +367,20 @@ function ProduceCard({
   return (
     <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
       <div className="flex gap-3 p-3">
-        {item.image_url ? (
-          <img
-            src={item.image_url}
-            alt={item.name}
-            loading="lazy"
-            className="rounded-xl w-14 h-14 object-cover flex-shrink-0 bg-gray-100"
-          />
+        {gallery.length ? (
+          <button
+            type="button"
+            onClick={() => setLightbox(true)}
+            className="relative w-14 h-14 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100"
+            aria-label={L('View photos', 'ఫోటోలు చూడండి')}
+          >
+            <img src={gallery[0]} alt={item.name} loading="lazy" className="w-14 h-14 object-cover" />
+            {gallery.length > 1 && (
+              <span className="absolute bottom-0.5 right-0.5 bg-black/60 text-white text-[9px] font-bold px-1 rounded">
+                📷 {gallery.length}
+              </span>
+            )}
+          </button>
         ) : (
           <div className={`${bg} rounded-xl w-14 h-14 flex items-center justify-center text-3xl flex-shrink-0`}>
             {emoji}
@@ -376,11 +397,19 @@ function ProduceCard({
             )}
           </div>
           <div className="flex flex-wrap gap-1 mt-1.5">
+            {review && review.count > 0 && (
+              <span className="bg-yellow-100 text-yellow-800 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                ⭐ {review.avg} ({review.count})
+              </span>
+            )}
             {item.method && (
               <span className="bg-green-100 text-green-800 text-[10px] font-semibold px-2 py-0.5 rounded-full">{item.method}</span>
             )}
             {item.pesticide_result && (
               <span className="bg-blue-100 text-blue-800 text-[10px] font-semibold px-2 py-0.5 rounded-full">{item.pesticide_result}</span>
+            )}
+            {item.soil_ph != null && (
+              <span className="bg-purple-100 text-purple-800 text-[10px] font-semibold px-2 py-0.5 rounded-full">pH {item.soil_ph}</span>
             )}
             {item.brix && (
               <span className="bg-amber-100 text-amber-800 text-[10px] font-semibold px-2 py-0.5 rounded-full">BRIX {item.brix}</span>
@@ -397,6 +426,21 @@ function ProduceCard({
             <p className="text-xs text-gray-600 mt-2 leading-snug whitespace-pre-line">
               {item.description}
             </p>
+          )}
+          {item.how_we_grow && (
+            <div className="mt-2">
+              <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide">🌱 {L('How we grow', 'మేము ఎలా పండిస్తాము')}</p>
+              <p className="text-xs text-gray-600 leading-snug whitespace-pre-line">{item.how_we_grow}</p>
+            </div>
+          )}
+          {review?.latest?.text && (
+            <div className="mt-2 bg-gray-50 rounded-lg px-2.5 py-1.5">
+              <p className="text-[11px] text-gray-700 leading-snug">
+                <span className="text-yellow-500">{'★'.repeat(Math.max(0, Math.min(5, review.latest.stars)))}</span>{' '}
+                “{review.latest.text}”
+              </p>
+              <p className="text-[10px] text-gray-400 mt-0.5">— {review.latest.name}</p>
+            </div>
           )}
         </div>
       </div>
@@ -444,6 +488,33 @@ function ProduceCard({
           </button>
         )}
       </div>
+
+      {/* #12 — photo lightbox: all images in a horizontal swipe, tap to close */}
+      {lightbox && gallery.length > 0 && (
+        <div
+          onClick={() => setLightbox(false)}
+          className="fixed inset-0 z-[200] bg-black/90 flex items-center"
+          role="dialog"
+        >
+          <div className="w-full flex gap-3 overflow-x-auto snap-x snap-mandatory px-4">
+            {gallery.map((url) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={url}
+                src={url}
+                alt={item.name}
+                className="snap-center w-[88vw] max-h-[80vh] object-contain flex-shrink-0 rounded-2xl mx-auto"
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setLightbox(false)}
+            className="absolute top-4 right-4 bg-white/90 text-gray-800 rounded-full w-9 h-9 flex items-center justify-center text-lg font-bold"
+            aria-label="Close"
+          >×</button>
+        </div>
+      )}
     </div>
   )
 }

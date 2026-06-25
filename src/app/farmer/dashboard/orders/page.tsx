@@ -176,50 +176,21 @@ function OrdersPageInner() {
     setProcessingOrderId(null)
   }
 
-  // Self-pickup: the buyer reads their 4-digit code, the farmer enters it. A
-  // correct code stamps collected_at (resolves the order). Returns the result
-  // so the card can show a "wrong code" message.
-  const handleMarkPickedUp = async (orderId: string, code: string): Promise<{ ok: boolean; error?: string }> => {
+  // Courier / farmer-driven home delivery: the farmer marks it Shipped (trust-
+  // based dispatch, no code). Stamps shipped_at; the order stays active until the
+  // buyer confirms delivery from their own order page.
+  const handleMarkShipped = async (orderId: string) => {
     setProcessingOrderId(orderId)
     try {
-      const res = await fetch(`/api/farmer/orders/${orderId}/confirm-pickup`, {
+      const res = await fetch(`/api/farmer/orders/${orderId}/ship`, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ otp: code }),
       })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok) return { ok: false, error: json.error }
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, collected_at: new Date().toISOString() } : o)))
-      return { ok: true }
+      if (!res.ok) { alert(json.error || L('Could not mark shipped. Please try again.', 'షిప్ చేయడం సాధ్యం కాలేదు. మళ్ళీ ప్రయత్నించండి.')); return }
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, shipped_at: json.shipped_at ?? new Date().toISOString() } : o)))
     } catch {
-      return { ok: false, error: L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.') }
-    } finally {
-      setProcessingOrderId(null)
-    }
-  }
-
-  // Farmer-delivered home delivery: same 4-digit code handshake at the door. A
-  // correct code stamps received_at (resolves the order immediately — the buyer
-  // does not separately confirm receipt).
-  const handleMarkDelivered = async (orderId: string, code: string): Promise<{ ok: boolean; error?: string }> => {
-    setProcessingOrderId(orderId)
-    try {
-      const res = await fetch(`/api/farmer/orders/${orderId}/deliver`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ otp: code }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) return { ok: false, error: json.error }
-      const now = new Date().toISOString()
-      setOrders((prev) => prev.map((o) => (o.id === orderId
-        ? { ...o, received_at: now, shipped_at: o.shipped_at ?? now }
-        : o)))
-      return { ok: true }
-    } catch {
-      return { ok: false, error: L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.') }
+      alert(L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.'))
     } finally {
       setProcessingOrderId(null)
     }
@@ -464,8 +435,7 @@ function OrdersPageInner() {
                   onMarkPaid={() => handleMarkPaid(order.id)}
                   onUpdatePaymentStatus={(s) => handleUpdatePaymentStatus(order.id, s)}
                   onSetFulfillmentDate={(d, reason) => handleSetFulfillmentDate(order.id, d, reason)}
-                  onMarkPickedUp={(code) => handleMarkPickedUp(order.id, code)}
-                  onMarkDelivered={(code) => handleMarkDelivered(order.id, code)}
+                  onMarkShipped={() => handleMarkShipped(order.id)}
                 />
               ) : (
                 <HistoryCard

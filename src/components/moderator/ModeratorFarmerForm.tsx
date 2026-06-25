@@ -291,7 +291,7 @@ export default function ModeratorFarmerForm({
           <select value={form.method} onChange={set('method')} className={inputCls}>
             <option value="natural">Natural (no chemicals)</option>
             <option value="organic">Organic (certified)</option>
-            <option value="low_chemical">Low chemical</option>
+            <option value="low_chemical">Semi Organic</option>
             <option value="chemical">Chemical</option>
           </select>
         </Field>

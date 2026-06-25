@@ -119,15 +119,17 @@ export default function OrderCard({
   const reviewed = Boolean(order.my_review)
   const completed = isCompleted(order)
   const awaitingAck = needsAcknowledge(order)
-  // A shipped order (courier or farmer-shipped home delivery) the buyer can
-  // confirm. Rider deliveries never set shipped_at, self-pickup is excluded.
+  // The buyer confirms delivery themselves, once the farmer has marked the order
+  // shipped — for every farmer-fulfilled type (self-pickup, courier, farmer-
+  // shipped home delivery). Rider home deliveries never set shipped_at (the rider
+  // closes them at the door), so they're naturally excluded here.
   const canConfirmReceipt = Boolean(
     onConfirmReceipt
-      && order.delivery_type !== 'self_pickup'
-      && order.shipped_at
-      && !order.received_at
       && order.status !== 'cancelled'
-      && order.status !== 'declined',
+      && order.status !== 'declined'
+      && !!order.shipped_at
+      && !order.collected_at
+      && !order.received_at,
   )
   // Feedback is only offered once the order is completed (delivered / picked up
   // / received). Showing it on a pending order is meaningless — the buyer hasn't
@@ -273,8 +275,8 @@ export default function OrderCard({
             </div>
           )}
 
-          {/* Confirm receipt — a shipped order the buyer can mark delivered.
-              For home delivery we say "Delivered", for courier "Received". */}
+          {/* Confirm delivery — once the farmer marked it shipped, the buyer
+              taps this to close the order. */}
           {canConfirmReceipt && (
             <button
               type="button"
@@ -286,9 +288,7 @@ export default function OrderCard({
               }}
               className="mt-1 w-full text-center text-xs font-bold text-white bg-green-600 rounded-xl py-2.5 active:bg-green-700 disabled:opacity-50"
             >
-              {busy ? '…' : order.delivery_type === 'home_delivery'
-                ? `✓ ${L('Mark as Delivered', 'డెలివరీ అయింది')}`
-                : `✓ ${L('Received', 'అందుకున్నాను')}`}
+              {busy ? '…' : `✓ ${L('Mark as Delivered', 'డెలివరీ అయింది')}`}
             </button>
           )}
 

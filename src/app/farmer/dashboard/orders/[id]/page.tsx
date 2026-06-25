@@ -139,7 +139,7 @@ export default function FarmerOrderDetailPage() {
 
   const paymentText = (o: Order) => {
     if (!o.payment_method || o.payment_method === 'cod')
-      return isPaid ? L('Cash — Received', 'నగదు — అందింది') : L('Cash on pickup/delivery', 'నగదు చెల్లింపు')
+      return isPaid ? L('Cash — Received', 'నగదు — అందింది') : 'Payment Pending (COD)'
     // Online payments come through the Razorpay gateway (stored as 'razorpay';
     // some legacy orders use 'upi'). Never surface the gateway name "razorpay"
     // to the farmer — show "UPI".
@@ -147,7 +147,7 @@ export default function FarmerOrderDetailPage() {
       return isPaid ? L('UPI — Paid', 'UPI — చెల్లించారు')
         : (o.payment_status === 'payment_claimed' || o.payment_status === 'pending_confirmation')
           ? L('UPI — Buyer paid, verify', 'UPI — ధృవీకరించండి')
-          : L('UPI — Pending', 'UPI — పెండింగ్')
+          : L('Payment Pending', 'చెల్లింపు పెండింగ్')
     return o.payment_method
   }
 
@@ -177,6 +177,7 @@ export default function FarmerOrderDetailPage() {
         }
         return [
           ...base,
+          { label: L('Shipped', 'షిప్ చేశారు'), at: order.shipped_at, done: !!order.shipped_at },
           { label: L('Picked up by buyer', 'కొనుగోలుదారు తీసుకున్నారు'), at: order.collected_at, done: !!order.collected_at },
         ]
       })()
@@ -243,6 +244,16 @@ export default function FarmerOrderDetailPage() {
                     <p className="text-[11px] text-gray-500 font-mono">UTR: {order.utr_number}</p>
                   )}
                 </div>
+                {order.status !== 'declined' && order.status !== 'cancelled' && (
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase">
+                      {isDelivery ? tx.deliveryDateLabel : tx.pickupDateLabel}
+                    </p>
+                    <p className="text-xs font-semibold text-gray-700">
+                      {order.fulfillment_date ? fmtDate(order.fulfillment_date) : L('Not set', 'సెట్ చేయలేదు')}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 

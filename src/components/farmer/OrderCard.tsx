@@ -73,8 +73,7 @@ export default function OrderCard({
   onMarkPaid,
   onUpdatePaymentStatus,
   onSetFulfillmentDate,
-  onMarkPickedUp,
-  onMarkDelivered,
+  onMarkShipped,
 }: {
   order: FarmerOrder
   processing: boolean
@@ -88,12 +87,11 @@ export default function OrderCard({
   // an already-approved order, a reason is required and passed too — the buyer
   // sees it, so a date change is never silent.
   onSetFulfillmentDate: (date: string, reason?: string) => void
-  // Handover confirmation: the buyer reads their 4-digit code, the farmer enters
-  // it. A self-pickup closes via onMarkPickedUp; a farmer-delivered order via
-  // onMarkDelivered. Both verify the code server-side and report back so the
-  // card can show a "wrong code" message.
-  onMarkPickedUp: (code: string) => Promise<{ ok: boolean; error?: string }>
-  onMarkDelivered: (code: string) => Promise<{ ok: boolean; error?: string }>
+  // No farmer handover step closes an order: a courier / farmer-driven home
+  // delivery is marked Shipped (trust-based dispatch), and the BUYER confirms
+  // receipt; a self-pickup is confirmed by the buyer too. The farmer never
+  // confirms a handover with a code.
+  onMarkShipped: () => void
 }) {
   const { tx, L } = useLang()
   const router = useRouter()
@@ -124,26 +122,6 @@ export default function OrderCard({
   const [editingDate, setEditingDate] = useState(false)
   const [newDate, setNewDate] = useState(fulfillmentDate)
   const [rescheduleReason, setRescheduleReason] = useState('')
-
-  // Handover code entry. Tapping "Picked Up" / "Delivered" reveals a 4-digit
-  // box; the farmer types the code the buyer reads out. The farmer never sees
-  // the code — it must come from the customer.
-  const [enteringCode, setEnteringCode] = useState(false)
-  const [handoverCode, setHandoverCode] = useState('')
-  const [codeError, setCodeError] = useState('')
-
-  const submitHandoverCode = async () => {
-    if (!/^\d{4}$/.test(handoverCode)) {
-      setCodeError(L('Enter the 4-digit code from the customer.', 'కస్టమర్ నుండి 4-అంకెల కోడ్ నమోదు చేయండి.'))
-      return
-    }
-    setCodeError('')
-    const res = isPickup ? await onMarkPickedUp(handoverCode) : await onMarkDelivered(handoverCode)
-    if (!res.ok) {
-      setCodeError(res.error || L('Wrong code. Ask the customer to read it again.', 'తప్పు కోడ్. కస్టమర్‌ను మళ్ళీ చదవమని అడగండి.'))
-    }
-    // On success the parent resolves the order and this card re-renders away.
-  }
 
   const timeAgo = (ts: string) => {
     const diff = Date.now() - new Date(ts).getTime()
@@ -344,7 +322,7 @@ export default function OrderCard({
                     })
                   : '—'}
               </p>
-              {fulfillmentDate && !(isCourier && isShipped) && (
+              {fulfillmentDate && !isShipped && (
                 <p className="text-[11px] font-semibold text-green-700 mt-1">
                   ⏳ {isPickup ? tx.awaitingPickup : tx.awaitingDelivery}
                 </p>
@@ -495,20 +473,19 @@ export default function OrderCard({
               </p>
             </div>
           </div>
-        ) : !enteringCode ? (
-          // Approved farmer-fulfilled order, not yet handed over. Closing it
-          // requires the buyer's 4-digit code: a SELF-PICKUP is marked Picked Up,
-          // a farmer-DELIVERED order is marked Delivered. Tapping the button
-          // reveals the code box below — the farmer can't close it on trust.
+        ) : (
+          // Approved order not yet shipped (self-pickup, courier, or a farmer-
+          // driven home delivery — rider deliveries were handled above). The
+          // farmer marks it Shipped himself (trust-based dispatch — no code). The
+          // order stays active; the BUYER then confirms it from their own order
+          // page ("Delivered"), which closes it.
           <>
             <button
-              onClick={() => { setHandoverCode(''); setCodeError(''); setEnteringCode(true) }}
+              onClick={onMarkShipped}
               disabled={processing}
-              className={`w-full text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-50 ${
-                isPickup ? 'bg-green-600 active:bg-green-700' : 'bg-amber-600 active:bg-amber-700'
-              }`}
+              className="w-full bg-amber-600 text-white font-bold py-2.5 rounded-xl text-sm active:bg-amber-700 disabled:opacity-50"
             >
-              {isPickup ? L('✓ Picked Up', 'తీసుకువెళ్ళారు') : L('✓ Delivered', 'డెలివరీ అయింది')}
+              {processing ? '…' : L('🚚 Mark Shipped', '🚚 షిప్ చేయబడింది')}
             </button>
             <button
               onClick={onDecline}
@@ -518,43 +495,6 @@ export default function OrderCard({
               {processing ? tx.declining : `✕ ${tx.decline}`}
             </button>
           </>
-        ) : (
-          // Code entry: the buyer reads out their 4-digit code, the farmer types
-          // it. Only a correct code closes the order.
-          <div className="bg-green-50 border border-green-200 rounded-xl p-3 space-y-2">
-            <p className="text-xs font-bold text-gray-800">
-              {isPickup
-                ? L('Ask the buyer for their 4-digit pickup code', 'కొనుగోలుదారు 4-అంకెల పికప్ కోడ్ అడగండి')
-                : L('Ask the buyer for their 4-digit delivery code', 'కొనుగోలుదారు 4-అంకెల డెలివరీ కోడ్ అడగండి')}
-            </p>
-            <input
-              type="text"
-              inputMode="numeric"
-              autoFocus
-              value={handoverCode}
-              onChange={(e) => { setHandoverCode(e.target.value.replace(/\D/g, '').slice(0, 4)); setCodeError('') }}
-              placeholder="••••"
-              maxLength={4}
-              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-center text-2xl font-black tracking-[0.5em] bg-white focus:border-green-500 focus:outline-none"
-            />
-            {codeError && <p className="text-xs text-red-600">{codeError}</p>}
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => { setEnteringCode(false); setCodeError('') }}
-                disabled={processing}
-                className="border border-gray-300 text-gray-600 font-bold py-2.5 rounded-xl text-sm active:bg-gray-50 disabled:opacity-50"
-              >
-                {tx.cancelBtn}
-              </button>
-              <button
-                onClick={submitHandoverCode}
-                disabled={processing || handoverCode.length !== 4}
-                className="bg-green-600 text-white font-bold py-2.5 rounded-xl text-sm active:bg-green-700 disabled:opacity-50"
-              >
-                {processing ? '…' : (isPickup ? L('Confirm pickup', 'పికప్ నిర్ధారించు') : L('Confirm delivery', 'డెలివరీ నిర్ధారించు'))}
-              </button>
-            </div>
-          </div>
         )}
         {isCod && !isPaid && (
           <button

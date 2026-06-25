@@ -10,8 +10,7 @@ import LocationSearch from '@/components/LocationSearch'
 import { FreshnessBadge } from '@/components/FreshnessBadge'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import { normalizePickupSchedule, emptyPickupSlot, type PickupSchedule } from '@/lib/pickup-slots'
-import OrderCard, { type FarmerOrder as Order, isResolved } from '@/components/farmer/OrderCard'
-import { DeclineReasonSheet, DeclineSuccessSheet } from '@/components/farmer/DeclineSheets'
+import { type FarmerOrder as Order, isResolved } from '@/components/farmer/OrderCard'
 
 type Farmer = {
   id: string
@@ -25,6 +24,10 @@ type Farmer = {
   rating_avg: number | null
   buyer_count: number
   farming_since_year: number | null
+  farm_size_acres: number | null
+  soil_organic_carbon: number | null
+  soil_ph: number | null
+  story_quote: string | null
   pickup_locations: string[] | null
   farm_address: string | null
   cover_photo_url: string | null
@@ -59,8 +62,13 @@ type ListingRow = {
   price_tier_3_price: number | null
   description: string | null
   image_url: string | null
+  image_urls: string[] | null
+  category: string | null
   brix: number | null
   soil_organic_carbon: number | null
+  soil_ph: number | null
+  pesticide_result: string | null
+  how_we_grow: string | null
   unit: string | null
   harvest_date: string | null
   availability_period: string | null
@@ -149,12 +157,6 @@ export default function FarmerDashboard() {
   const [pendingOrders, setPendingOrders] = useState<Order[]>([])
   const [approvedCount, setApprovedCount] = useState(0)
   const [totalRevenue, setTotalRevenue] = useState(0)
-  const [processingOrderId, setProcessingOrderId] = useState<string | null>(null)
-  const [processingPaidId, setProcessingPaidId] = useState<string | null>(null)
-  const [decliningOrder, setDecliningOrder] = useState<Order | null>(null)
-  const [declineResult, setDeclineResult] = useState<
-    { buyerName: string | null; amount: number | null; refundInitiated: boolean } | null
-  >(null)
   const [demandBars, setDemandBars] = useState<DemandBar[]>([])
   const [monthlyRevenue, setMonthlyRevenue] = useState(0)
   const [monthlyOrderCount, setMonthlyOrderCount] = useState(0)
@@ -363,180 +365,6 @@ export default function FarmerDashboard() {
     if (error || !data?.length) { void loadDashboard() } // re-sync on failure
   }
 
-  // Farmer sets/updates the pickup-or-delivery date on an order. A change to an
-  // already-approved order carries a reason, stored so the buyer sees why it moved.
-  const handleSetFulfillmentDate = async (orderId: string, date: string, reason?: string) => {
-    const value = date || null
-    setPendingOrders((prev) => prev.map((o) => (o.id === orderId
-      ? { ...o, fulfillment_date: value, ...(reason ? { reschedule_reason: reason } : {}) }
-      : o)))
-    // Date first — always succeeds.
-    await supabase.from('orders').update({ fulfillment_date: value }).eq('id', orderId)
-    // Reason is best-effort: the reschedule_reason / rescheduled_at columns may
-    // not exist until scripts/reschedule-reason-migration.sql is applied, so a
-    // missing column must never block the date change itself.
-    if (reason) {
-      await supabase.from('orders')
-        .update({ reschedule_reason: reason, rescheduled_at: new Date().toISOString() })
-        .eq('id', orderId)
-    }
-  }
-
-  // Approving requires a pickup/delivery date. Guard on status='pending' so a
-  // buyer-cancelled (or declined) order can never be resurrected into 'approved'.
-  const handleApprove = async (orderId: string, date: string) => {
-    if (!date) return
-    setProcessingOrderId(orderId)
-    const { data, error } = await supabase
-      .from('orders')
-      .update({ status: 'approved', fulfillment_date: date, confirmed_at: new Date().toISOString() })
-      .eq('id', orderId)
-      .eq('status', 'pending')
-      .select('id')
-    if (error || !data?.length) {
-      await loadDashboard()
-      setProcessingOrderId(null)
-      alert(L('This order can no longer be approved — the buyer may have cancelled it.', 'ఈ ఆర్డర్‌ను ఇప్పుడు ఆమోదించలేరు — కొనుగోలుదారు రద్దు చేసి ఉండవచ్చు.'))
-      return
-    }
-    setPendingOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status: 'approved', fulfillment_date: date } : o)),
-    )
-    setProcessingOrderId(null)
-  }
-
-  // Farmer acknowledges a buyer-cancelled order (stamps acknowledged_at) — it
-  // then leaves the active list.
-  const handleAcknowledgeCancel = async (orderId: string) => {
-    setProcessingOrderId(orderId)
-    try {
-      const res = await fetch(`/api/farmer/orders/${orderId}/acknowledge`, { method: 'POST', credentials: 'same-origin' })
-      if (res.ok) {
-        setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
-      } else {
-        const json = await res.json().catch(() => ({}))
-        alert(json.error || L('Could not update. Please try again.', 'నవీకరించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
-      }
-    } catch {
-      alert(L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.'))
-    } finally {
-      setProcessingOrderId(null)
-    }
-  }
-
-  const handleConfirmDecline = async (orderId: string, reason: string) => {
-    const declined = decliningOrder
-    setProcessingOrderId(orderId)
-    try {
-      const res = await fetch(`/api/farmer/orders/${orderId}/decline`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        alert(json.error || L('Could not decline the order. Please try again.', 'ఆర్డర్ తిరస్కరించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
-        return
-      }
-      const refundInitiated = !!json.refunded || !!json.refundStatus
-      setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
-      setDeclineResult({
-        buyerName: declined?.buyer_name ?? null,
-        amount: declined?.total_price ?? null,
-        refundInitiated,
-      })
-      setDecliningOrder(null)
-    } catch {
-      alert(L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.'))
-    } finally {
-      setProcessingOrderId(null)
-    }
-  }
-
-  const handleMarkPaid = async (orderId: string) => {
-    setProcessingPaidId(orderId)
-    await supabase.from('orders').update({ payment_status: 'completed', paid_at: new Date().toISOString() }).eq('id', orderId)
-    setPendingOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, payment_status: 'completed' } : o)))
-    setProcessingPaidId(null)
-  }
-
-  const handleUpdatePaymentStatus = async (orderId: string, status: 'completed' | 'failed' | 'pending') => {
-    setProcessingPaidId(orderId)
-    const update: Record<string, string> = { payment_status: status }
-    if (status === 'completed') {
-      update.status = 'approved'
-      update.paid_at = new Date().toISOString()
-      update.confirmed_at = new Date().toISOString()
-    }
-    // "Received & Approve" flips status to 'approved'; guard it on the order
-    // still being pending so a buyer-cancelled order can't be resurrected.
-    let query = supabase.from('orders').update(update).eq('id', orderId)
-    if (status === 'completed') query = query.eq('status', 'pending')
-    const { data, error } = await query.select('id')
-    if (status === 'completed' && (error || !data?.length)) {
-      await loadDashboard()
-      setProcessingPaidId(null)
-      alert(L('This order can no longer be approved — the buyer may have cancelled it.', 'ఈ ఆర్డర్‌ను ఇప్పుడు ఆమోదించలేరు — కొనుగోలుదారు రద్దు చేసి ఉండవచ్చు.'))
-      return
-    }
-    setPendingOrders((prev) =>
-      prev.map((o) =>
-        o.id === orderId ? { ...o, payment_status: status, ...(status === 'completed' ? { status: 'approved' as const } : {}) } : o,
-      ),
-    )
-    setProcessingPaidId(null)
-  }
-
-  // Self-pickup: farmer taps "Picked Up" when the buyer collects. Stamps
-  // collected_at server-side, which resolves the order — drop it from the
-  // active list (it now appears in Order History).
-  // Self-pickup: the buyer reads their 4-digit code, the farmer enters it. A
-  // correct code stamps collected_at server-side and resolves the order. Returns
-  // the result so the card can show a "wrong code" message.
-  const handleMarkPickedUp = async (orderId: string, code: string): Promise<{ ok: boolean; error?: string }> => {
-    setProcessingOrderId(orderId)
-    try {
-      const res = await fetch(`/api/farmer/orders/${orderId}/confirm-pickup`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ otp: code }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) return { ok: false, error: json.error }
-      setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
-      return { ok: true }
-    } catch {
-      return { ok: false, error: L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.') }
-    } finally {
-      setProcessingOrderId(null)
-    }
-  }
-
-  // Farmer-delivered home delivery: same 4-digit code handshake at the door. A
-  // correct code stamps received_at and resolves the order immediately (no
-  // separate buyer "Received" needed).
-  const handleMarkDelivered = async (orderId: string, code: string): Promise<{ ok: boolean; error?: string }> => {
-    setProcessingOrderId(orderId)
-    try {
-      const res = await fetch(`/api/farmer/orders/${orderId}/deliver`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ otp: code }),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) return { ok: false, error: json.error }
-      setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
-      return { ok: true }
-    } catch {
-      return { ok: false, error: L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.') }
-    } finally {
-      setProcessingOrderId(null)
-    }
-  }
-
   if (loading) return <LoadingScreen />
   if (notFound) return <FarmerNotFound onLogout={handleLogout} />
 
@@ -645,8 +473,24 @@ export default function FarmerDashboard() {
           </Link>
         )}
 
-        {/* Stat cards */}
+        {/* Stat cards — fixed order per client spec: 1) Today's orders,
+            2) Active listings, 3) Approved this week, 4) Revenue. Tiles deep-link
+            into the relevant Orders view rather than separate dashboard sections. */}
         <div className="grid grid-cols-2 gap-3">
+          {/* 1. Today's orders — placed/due today; opens Orders ?time=today */}
+          <Link
+            href="/farmer/dashboard/orders?time=today"
+            className={`border rounded-2xl p-4 text-left active:opacity-80 ${
+              pendingCount > 0 ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-gray-50'
+            }`}
+          >
+            <div className={`text-3xl font-black ${pendingCount > 0 ? 'text-orange-700' : 'text-gray-500'}`}>{pendingCount}</div>
+            <div className="text-sm font-semibold text-gray-800 mt-1 leading-tight">{L("Today's orders", 'నేటి ఆర్డర్లు')}</div>
+            <div className="text-[11px] font-bold text-orange-700 mt-2 flex items-center gap-1">
+              {L('View', 'చూడండి')} <span aria-hidden>→</span>
+            </div>
+          </Link>
+          {/* 2. Active listings — opens the managed produce list */}
           <button
             onClick={() => setShowListings(true)}
             className="border-green-200 bg-green-50 border rounded-2xl p-4 text-left active:bg-green-100 relative"
@@ -657,30 +501,22 @@ export default function FarmerDashboard() {
               {tx.manage} <span aria-hidden>→</span>
             </div>
           </button>
-          {/* "My order details" — pending count headline, opens the Orders page
-              showing TODAY's orders (?time=today). The urgent banner above is
-              the one-tap shortcut straight to pending. */}
+          {/* 3. Approved this week — opens Orders filtered to approved, all time */}
           <Link
-            href="/farmer/dashboard/orders?time=today"
-            className={`border rounded-2xl p-4 text-left active:opacity-80 ${
-              pendingCount > 0 ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-gray-50'
-            }`}
+            href="/farmer/dashboard/orders?status=approved&time=all"
+            className="border-green-200 bg-green-50 border rounded-2xl p-4 text-left active:bg-green-100"
           >
-            <div className={`text-3xl font-black ${pendingCount > 0 ? 'text-orange-700' : 'text-gray-500'}`}>{pendingCount}</div>
-            <div className="text-sm font-semibold text-gray-800 mt-1 leading-tight">{L('My order details', 'నా ఆర్డర్ వివరాలు')}</div>
-            <div className="text-[11px] font-bold text-orange-700 mt-2 flex items-center gap-1">
-              {L("Today's orders", 'నేటి ఆర్డర్లు')} <span aria-hidden>→</span>
+            <div className="text-3xl font-black text-green-800">{approvedCount}</div>
+            <div className="text-sm font-semibold text-gray-800 mt-1 leading-tight">{tx.approvedThisWeek}</div>
+            <div className="text-[11px] font-bold text-green-700 mt-2 flex items-center gap-1">
+              {L('View all', 'అన్నీ చూడండి')} <span aria-hidden>→</span>
             </div>
           </Link>
-          {[
-            { label: tx.approvedThisWeek, value: approvedCount, color: 'border-green-200 bg-green-50', vcolor: 'text-green-800' },
-            { label: tx.totalRevenue, value: totalRevenue > 0 ? `₹${totalRevenue}` : '—', color: 'border-purple-200 bg-purple-50', vcolor: 'text-purple-800' },
-          ].map((s) => (
-            <div key={s.label} className={`${s.color} border rounded-2xl p-4`}>
-              <div className={`text-3xl font-black ${s.vcolor}`}>{s.value}</div>
-              <div className="text-sm font-semibold text-gray-800 mt-1 leading-tight">{s.label}</div>
-            </div>
-          ))}
+          {/* 4. Revenue */}
+          <div className="border-purple-200 bg-purple-50 border rounded-2xl p-4">
+            <div className="text-3xl font-black text-purple-800">{totalRevenue > 0 ? `₹${totalRevenue}` : '—'}</div>
+            <div className="text-sm font-semibold text-gray-800 mt-1 leading-tight">{tx.totalRevenue}</div>
+          </div>
         </div>
 
         {/* Your produce — inline list with quick suspend/resume */}
@@ -696,23 +532,6 @@ export default function FarmerDashboard() {
           orderCount={monthlyOrderCount}
           weekly={weeklyEarnings}
         />
-
-        {/* Today's orders — placed today or due today, with full inline actions */}
-        {farmer && (
-          <TodayScheduleSection
-            orders={pendingOrders}
-            processingId={processingOrderId}
-            processingPaidId={processingPaidId}
-            onApprove={handleApprove}
-            onDecline={(o) => setDecliningOrder(o)}
-            onAcknowledge={handleAcknowledgeCancel}
-            onMarkPaid={handleMarkPaid}
-            onUpdatePaymentStatus={handleUpdatePaymentStatus}
-            onSetFulfillmentDate={handleSetFulfillmentDate}
-            onMarkPickedUp={handleMarkPickedUp}
-            onMarkDelivered={handleMarkDelivered}
-          />
-        )}
 
         {/* Orders hub — the full orders list (all statuses + filters) lives on
             its own page now, keeping the dashboard clean. */}
@@ -794,6 +613,7 @@ export default function FarmerDashboard() {
             farmerSlug={farmer!.slug}
             farmerRegion={farmer!.region_slug}
             defaultMethod={farmer!.method}
+            farmerSoilPh={farmer!.soil_ph ?? null}
             onClose={() => setShowForm(false)}
             onPublished={() => { setShowForm(false); loadDashboard() }}
           />
@@ -810,6 +630,7 @@ export default function FarmerDashboard() {
           farmerSlug={farmer.slug}
           farmerRegion={farmer.region_slug}
           defaultMethod={farmer.method ?? 'natural'}
+          farmerSoilPh={farmer.soil_ph ?? null}
           onClose={() => setShowListings(false)}
           onChanged={loadDashboard}
         />
@@ -829,21 +650,6 @@ export default function FarmerDashboard() {
             setShowProfileEdit(false)
           }}
         />
-      )}
-
-      {/* Decline reason sheet (opened from a Today's Schedule order card) */}
-      {decliningOrder && (
-        <DeclineReasonSheet
-          order={decliningOrder}
-          processing={processingOrderId === decliningOrder.id}
-          onCancel={() => setDecliningOrder(null)}
-          onConfirm={(reason) => handleConfirmDecline(decliningOrder.id, reason)}
-        />
-      )}
-
-      {/* Refund confirmation after declining */}
-      {declineResult && (
-        <DeclineSuccessSheet result={declineResult} onClose={() => setDeclineResult(null)} />
       )}
 
     </main>
@@ -950,6 +756,14 @@ function ProfileEditModal({
   const [pickupLocations, setPickupLocations] = useState<string[]>(initialLocations)
   const [newPickup, setNewPickup] = useState('')
   const [farmAddress, setFarmAddress] = useState(farmer.farm_address ?? '')
+
+  // Farm & soil details (also editable by moderators) — surfaced here so farmers
+  // can fill their own WhatsApp, farm size, soil health and story from the dashboard.
+  const [whatsapp, setWhatsapp] = useState(farmer.phone ?? '')
+  const [farmSize, setFarmSize] = useState(farmer.farm_size_acres ? String(farmer.farm_size_acres) : '')
+  const [soilCarbon, setSoilCarbon] = useState(farmer.soil_organic_carbon ? String(farmer.soil_organic_carbon) : '')
+  const [soilPh, setSoilPh] = useState(farmer.soil_ph ? String(farmer.soil_ph) : '')
+  const [storyQuote, setStoryQuote] = useState(farmer.story_quote ?? '')
 
   // Pickup schedule — keyed by location. Each location has its own one-or-more
   // windows (days + time range), so a farmer can offer e.g. weekday mornings at
@@ -1165,6 +979,10 @@ function ProfileEditModal({
       lat: farmerLat,
       lng: farmerLng,
       location_name: farmerLat ? (farmerLocationName || name.trim()) : null,
+      phone:               whatsapp.trim() || farmer.phone,
+      farm_size_acres:     farmSize ? Number(farmSize) : null,
+      soil_organic_carbon: soilCarbon ? Number(soilCarbon) : null,
+      story_quote:         storyQuote.trim() || null,
     }
     if (sinceYear) payload.farming_since_year = Number(sinceYear)
 
@@ -1175,15 +993,23 @@ function ProfileEditModal({
       .select('*')
       .single()
 
-    setLoading(false)
-
     if (err || !data) {
+      setLoading(false)
       setError(err?.message ?? tx.couldNotSave)
       return
     }
 
+    // Soil pH is best-effort: the soil_ph column may not exist until
+    // scripts/farmer-soil-ph-migration.sql is applied, so a missing column must
+    // never block the rest of the profile save.
+    const phValue = soilPh ? Number(soilPh) : null
+    if (soilPh) {
+      await supabase.from('farmers').update({ soil_ph: phValue }).eq('id', farmer.id)
+    }
+
+    setLoading(false)
     localStorage.setItem('yff_farmer_slug', data.slug)
-    onSaved(data)
+    onSaved({ ...(data as Farmer), soil_ph: phValue })
   }
 
   const handleChangePassword = async () => {
@@ -1270,6 +1096,51 @@ function ProfileEditModal({
             onChange={setSinceYear}
             type="number"
           />
+
+          {/* Farm & soil details — shown on the public profile (Story & Quality
+              tabs). Previously only moderators could fill these. */}
+          <Field
+            label={L('WhatsApp number', 'వాట్సాప్ నంబర్')}
+            placeholder="e.g. 9876543210"
+            value={whatsapp}
+            onChange={setWhatsapp}
+            type="tel"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              label={L('Farm size (acres)', 'పొలం పరిమాణం')}
+              placeholder="e.g. 2.5"
+              value={farmSize}
+              onChange={setFarmSize}
+              type="number"
+            />
+            <Field
+              label={L('Soil organic carbon (%)', 'నేల సేంద్రియ కార్బన్')}
+              placeholder="e.g. 0.85"
+              value={soilCarbon}
+              onChange={setSoilCarbon}
+              type="number"
+            />
+          </div>
+          <Field
+            label={L('Soil pH', 'నేల pH')}
+            placeholder="e.g. 6.8"
+            value={soilPh}
+            onChange={setSoilPh}
+            type="number"
+          />
+          <div>
+            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
+              {L('Story / quote', 'కథ / కోట్')}
+            </label>
+            <textarea
+              value={storyQuote}
+              onChange={(e) => setStoryQuote(e.target.value)}
+              rows={3}
+              placeholder={L('A line about your farm and how you grow…', 'మీ పొలం గురించి ఒక మాట…')}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
+            />
+          </div>
 
           {/* Farm GPS location */}
           <div>
@@ -1793,6 +1664,7 @@ function ProduceListingForm({
   farmerSlug = '',
   farmerRegion = '',
   defaultMethod,
+  farmerSoilPh = null,
   editData,
   onClose,
   onPublished,
@@ -1801,6 +1673,7 @@ function ProduceListingForm({
   farmerSlug?: string
   farmerRegion?: string
   defaultMethod: string
+  farmerSoilPh?: number | null
   editData?: ListingRow | null
   onClose: () => void
   onPublished: (saved?: Partial<ListingRow>) => void
@@ -1821,6 +1694,15 @@ function ProduceListingForm({
   const [description, setDescription] = useState(editData?.description ?? '')
   const [brix, setBrix] = useState(editData?.brix != null ? String(editData.brix) : '')
   const [soc, setSoc] = useState(editData?.soil_organic_carbon != null ? String(editData.soil_organic_carbon) : '')
+  // Soil pH defaults from the farm profile but can be overridden per produce.
+  const [soilPh, setSoilPh] = useState(
+    editData?.soil_ph != null ? String(editData.soil_ph) : (farmerSoilPh != null ? String(farmerSoilPh) : ''),
+  )
+  // Chemicals / pesticide info reuses the existing pesticide_result column.
+  const [pesticide, setPesticide] = useState(editData?.pesticide_result ?? '')
+  const [howWeGrow, setHowWeGrow] = useState(editData?.how_we_grow ?? '')
+  // #9 — explicit produce category (drives the consumer category filter).
+  const [category, setCategory] = useState(editData?.category ?? '')
   const [unit, setUnit] = useState(editData?.unit ?? 'kg')
   // #11 — delivery method for this listing: pickup only, farmer courier, or both.
   // Courier collects a flat charge within a radius (km) the farmer sets.
@@ -1835,6 +1717,12 @@ function ProduceListingForm({
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string>('')
   const [existingImageUrl, setExistingImageUrl] = useState(editData?.image_url ?? '')
+  // #12 — extra photos beyond the cover (image_url). New picks + already-saved ones.
+  const [extraFiles, setExtraFiles] = useState<File[]>([])
+  const [extraPreviews, setExtraPreviews] = useState<string[]>([])
+  const [existingExtraUrls, setExistingExtraUrls] = useState<string[]>(
+    (editData?.image_urls ?? []).filter((u) => u && u !== (editData?.image_url ?? '')),
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [preview, setPreview] = useState(false)
@@ -1899,6 +1787,25 @@ function ProduceListingForm({
     return data.publicUrl
   }
 
+  // #12 — add/remove extra produce photos (beyond the cover).
+  const handlePickExtra = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) { setError(tx.pickImageFile); return }
+    if (file.size > 8 * 1024 * 1024) { setError(tx.imageTooLarge); return }
+    setError('')
+    const compressed = await compressImage(file)
+    setExtraFiles((f) => [...f, compressed])
+    setExtraPreviews((p) => [...p, URL.createObjectURL(compressed)])
+    e.target.value = '' // allow picking the same file again
+  }
+  const removeNewExtra = (idx: number) => {
+    setExtraPreviews((p) => { if (p[idx]) URL.revokeObjectURL(p[idx]); return p.filter((_, i) => i !== idx) })
+    setExtraFiles((f) => f.filter((_, i) => i !== idx))
+  }
+  const removeExistingExtra = (url: string) =>
+    setExistingExtraUrls((p) => p.filter((u) => u !== url))
+
   const previewData: PreviewData = {
     name: name || 'Produce name',
     variety: variety || '',
@@ -1925,6 +1832,15 @@ function ProduceListingForm({
     } else if (existingImageUrl) {
       imageUrl = existingImageUrl
     }
+
+    // #12 — upload any new extra photos, then assemble the full ordered set
+    // (cover first). Best-effort: persisted via the secondary update below.
+    const uploadedExtra: string[] = []
+    for (const f of extraFiles) {
+      const u = await uploadImage(f)
+      if (u) uploadedExtra.push(u)
+    }
+    const allImages = [imageUrl, ...existingExtraUrls, ...uploadedExtra].filter(Boolean) as string[]
 
     if (isEdit && editData) {
       // Edit mode: always send all fields so clearing a value actually clears it in DB
@@ -1966,13 +1882,25 @@ function ProduceListingForm({
         return
       }
       const json = await res.json().catch(() => ({}))
+      if (!res.ok) { setLoading(false); setError(json.error ?? 'Could not save changes'); return }
+      // Quality fields are best-effort: their columns may not exist until
+      // scripts/produce-quality-fields-migration.sql is applied, so they must
+      // never block the core listing save. Written directly (client-side) here.
+      const qualityPatch = {
+        soil_ph: soilPh ? Number(soilPh) : null,
+        pesticide_result: pesticide.trim() || null,
+        how_we_grow: howWeGrow.trim() || null,
+        category: category || null,
+        image_urls: allImages.length ? allImages : null,
+      }
+      await supabase.from('produce_listings').update(qualityPatch).eq('id', editData.id)
       setLoading(false)
-      if (!res.ok) { setError(json.error ?? 'Could not save changes'); return }
       // The server may have refreshed the sold-out flag based on the new
       // quantity (e.g. raising stock above 0 clears a stuck "Sold out").
       // Merge its resolved status so the card updates immediately.
       const resolved: Partial<ListingRow> = {
         ...editPayload,
+        ...qualityPatch,
         ...(json.status ? { status: json.status } : {}),
       }
       setSaved(true)
@@ -2006,10 +1934,26 @@ function ProduceListingForm({
     }
 
     const insertPayload = { ...payload, farmer_id: farmerId, status: 'available' }
-    const { error: err } = await supabase.from('produce_listings').insert(insertPayload)
-    setLoading(false)
+    const { data: inserted, error: err } = await supabase
+      .from('produce_listings')
+      .insert(insertPayload)
+      .select('id')
+      .single()
 
-    if (err) { setError(err.message); return }
+    if (err) { setLoading(false); setError(err.message); return }
+
+    // Quality fields are best-effort (columns may not exist until the migration
+    // scripts/produce-quality-fields-migration.sql runs) — never block the listing.
+    if (inserted?.id) {
+      await supabase.from('produce_listings').update({
+        soil_ph: soilPh ? Number(soilPh) : null,
+        pesticide_result: pesticide.trim() || null,
+        how_we_grow: howWeGrow.trim() || null,
+        category: category || null,
+        image_urls: allImages.length ? allImages : null,
+      }).eq('id', inserted.id)
+    }
+    setLoading(false)
 
     setPublished(true)
     setPublishedSlug(farmerSlug)
@@ -2160,6 +2104,24 @@ function ProduceListingForm({
             <option value="organic">{tx.methodOrganic}</option>
             <option value="low_chemical">{tx.methodLowChemical}</option>
             <option value="chemical">{tx.methodChemical}</option>
+          </select>
+        </div>
+
+        {/* Category (#9) — drives the consumer Vegetables/Fruits/Grains/Leafy filter */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            {L('Category', 'వర్గం')}
+          </label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+          >
+            <option value="">{L('Select a category…', 'వర్గాన్ని ఎంచుకోండి…')}</option>
+            <option value="vegetables">{L('Vegetables', 'కూరగాయలు')}</option>
+            <option value="fruits">{L('Fruits', 'పళ్ళు')}</option>
+            <option value="grains">{L('Grains & Pulses', 'ధాన్యాలు')}</option>
+            <option value="leafy">{L('Leafy Greens', 'ఆకు కూరలు')}</option>
           </select>
         </div>
 
@@ -2365,6 +2327,46 @@ function ProduceListingForm({
           </p>
         </div>
 
+        {/* More photos (#12) — extra images beyond the cover; buyers can view all */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            {L('More photos (optional)', 'మరిన్ని ఫోటోలు')}
+          </label>
+          {(existingExtraUrls.length > 0 || extraPreviews.length > 0) && (
+            <div className="flex gap-2 flex-wrap">
+              {existingExtraUrls.map((url) => (
+                <div key={url} className="relative w-20 h-20">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt="" className="w-20 h-20 object-cover rounded-xl border border-gray-200" />
+                  <button
+                    type="button"
+                    onClick={() => removeExistingExtra(url)}
+                    className="absolute -top-1.5 -right-1.5 bg-white text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold shadow border"
+                    aria-label="Remove photo"
+                  >×</button>
+                </div>
+              ))}
+              {extraPreviews.map((src, i) => (
+                <div key={src} className="relative w-20 h-20">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt="" className="w-20 h-20 object-cover rounded-xl border border-gray-200" />
+                  <button
+                    type="button"
+                    onClick={() => removeNewExtra(i)}
+                    className="absolute -top-1.5 -right-1.5 bg-white text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold shadow border"
+                    aria-label="Remove photo"
+                  >×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <label className="flex items-center justify-center gap-2 border-2 border-dashed border-green-300 rounded-xl py-3 px-3 text-green-700 text-sm font-bold cursor-pointer active:bg-green-50">
+            <span className="text-lg leading-none">＋</span>
+            {L('Add another photo', 'మరో ఫోటో జోడించండి')}
+            <input type="file" accept="image/*" onChange={handlePickExtra} className="hidden" />
+          </label>
+        </div>
+
         {/* Quality params */}
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
@@ -2393,6 +2395,37 @@ function ProduceListingForm({
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
               />
             </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-1">{L('Soil pH', 'నేల pH')}</p>
+              <input
+                type="number"
+                step="0.1"
+                placeholder="e.g. 6.8"
+                value={soilPh}
+                onChange={(e) => setSoilPh(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-1">{L('Chemicals / pesticide', 'రసాయనాలు / పురుగుమందు')}</p>
+              <input
+                type="text"
+                placeholder={L('e.g. None / Lab tested', 'ఉదా. ఏదీ లేదు')}
+                value={pesticide}
+                onChange={(e) => setPesticide(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+              />
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">{L('How we grow (growing notes)', 'మేము ఎలా పండిస్తాము')}</p>
+            <textarea
+              rows={3}
+              placeholder={L('How this crop is grown — compost, natural pest control, etc.', 'ఈ పంటను ఎలా పండిస్తారు…')}
+              value={howWeGrow}
+              onChange={(e) => setHowWeGrow(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+            />
           </div>
         </div>
 
@@ -2494,6 +2527,7 @@ function ManageListingsModal({
   farmerSlug = '',
   farmerRegion = '',
   defaultMethod,
+  farmerSoilPh = null,
   onClose,
   onChanged,
 }: {
@@ -2501,6 +2535,7 @@ function ManageListingsModal({
   farmerSlug?: string
   farmerRegion?: string
   defaultMethod: string
+  farmerSoilPh?: number | null
   onClose: () => void
   onChanged: () => void
 }) {
@@ -2514,9 +2549,12 @@ function ManageListingsModal({
 
   const load = useCallback(async () => {
     setLoading(true)
+    // select('*') keeps this migration-tolerant: the per-produce quality columns
+    // (soil_ph, pesticide_result, how_we_grow) may not exist until the migration
+    // runs, and naming a missing column in select(...) would error the whole load.
     const { data, error: err } = await supabase
       .from('produce_listings')
-      .select('id, name, variety, emoji, status, method, stock_qty, price_tier_1_price, price_tier_1_qty, price_tier_2_price, price_tier_2_qty, price_tier_3_price, description, image_url, brix, soil_organic_carbon, unit, harvest_date, availability_period, delivery_mode, delivery_charge, delivery_radius_km, created_at')
+      .select('*')
       .eq('farmer_id', farmerId)
       .order('created_at', { ascending: false })
     setLoading(false)
@@ -2653,6 +2691,7 @@ function ManageListingsModal({
               farmerSlug={farmerSlug}
               farmerRegion={farmerRegion}
               defaultMethod={defaultMethod}
+              farmerSoilPh={farmerSoilPh}
               editData={editingRow}
               onClose={() => setEditingRow(null)}
               onPublished={(saved) => {
@@ -2677,6 +2716,7 @@ function ManageListingsModal({
               farmerSlug={farmerSlug}
               farmerRegion={farmerRegion}
               defaultMethod={defaultMethod}
+              farmerSoilPh={farmerSoilPh}
               onClose={() => setShowAddForm(false)}
               onPublished={() => {
                 setShowAddForm(false)
@@ -2687,97 +2727,6 @@ function ManageListingsModal({
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-/* ─── Today's Schedule (today's orders, with full inline actions) ──── */
-// Today's Schedule is a *view* of the parent's active-orders list (`orders` =
-// pendingOrders), filtered to the picked date — it does NOT run its own query.
-// One source of truth means an action here updates everywhere instantly, and the
-// parent's realtime subscription keeps it fresh (so a just-placed order appears
-// the moment the buyer orders, and consumer/rider changes flow in too).
-//
-// "Today's" order = one placed on the picked day OR scheduled (pickup/delivery)
-// for it. Each renders the full OrderCard, so the farmer can approve, set a
-// date, decline, mark paid, mark shipped/picked-up, or acknowledge a buyer
-// cancellation — all inline, without leaving the dashboard.
-function TodayScheduleSection({
-  orders,
-  processingId,
-  processingPaidId,
-  onApprove,
-  onDecline,
-  onAcknowledge,
-  onMarkPaid,
-  onUpdatePaymentStatus,
-  onSetFulfillmentDate,
-  onMarkPickedUp,
-  onMarkDelivered,
-}: {
-  orders: Order[]
-  processingId: string | null
-  processingPaidId: string | null
-  onApprove: (orderId: string, date: string) => void
-  onDecline: (order: Order) => void
-  onAcknowledge: (orderId: string) => void
-  onMarkPaid: (orderId: string) => void
-  onUpdatePaymentStatus: (orderId: string, status: 'completed' | 'failed' | 'pending') => void
-  onSetFulfillmentDate: (orderId: string, date: string, reason?: string) => void
-  onMarkPickedUp: (orderId: string, code: string) => Promise<{ ok: boolean; error?: string }>
-  onMarkDelivered: (orderId: string, code: string) => Promise<{ ok: boolean; error?: string }>
-}) {
-  const { L } = useLang()
-  const todayStr = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD, local
-  const [date, setDate] = useState(todayStr)
-
-  // An order belongs to the picked day if it was placed that day (so new orders
-  // show up immediately) OR is scheduled (pickup/delivery) for it. created_at is
-  // a UTC timestamp → compare in local time; fulfillment_date is already a
-  // YYYY-MM-DD date string. The parent only feeds active orders here (pending,
-  // approved-and-unresolved, or cancelled-but-unacknowledged), so resolved /
-  // declined ones never appear.
-  const placedOrDue = (o: Order) =>
-    new Date(o.created_at).toLocaleDateString('en-CA') === date
-    || (o.fulfillment_date ?? '').slice(0, 10) === date
-  const todays = orders.filter(placedOrDue)
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-      <div className="px-4 pt-4 pb-3 flex items-center justify-between border-b border-gray-100 gap-2">
-        <h2 className="font-extrabold text-gray-900 text-base leading-tight">
-          📅 {L("Today's Schedule", 'నేటి షెడ్యూల్')}
-        </h2>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value || todayStr)}
-          className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:border-green-500 focus:outline-none"
-        />
-      </div>
-
-      <div className="p-4 space-y-3">
-        {todays.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-4">{L('No orders for this date', 'ఈ తేదీకి ఆర్డర్‌లు లేవు')}</p>
-        ) : (
-          todays.map((o) => (
-            <OrderCard
-              key={o.id}
-              order={o}
-              processing={processingId === o.id}
-              processingPaid={processingPaidId === o.id}
-              onApprove={(d) => onApprove(o.id, d)}
-              onDecline={() => onDecline(o)}
-              onAcknowledge={() => onAcknowledge(o.id)}
-              onMarkPaid={() => onMarkPaid(o.id)}
-              onUpdatePaymentStatus={(s) => onUpdatePaymentStatus(o.id, s)}
-              onSetFulfillmentDate={(d, reason) => onSetFulfillmentDate(o.id, d, reason)}
-              onMarkPickedUp={(code) => onMarkPickedUp(o.id, code)}
-              onMarkDelivered={(code) => onMarkDelivered(o.id, code)}
-            />
-          ))
-        )}
-      </div>
     </div>
   )
 }

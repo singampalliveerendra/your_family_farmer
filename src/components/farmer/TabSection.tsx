@@ -10,14 +10,20 @@ import ReviewsTab from './tabs/ReviewsTab'
 import FarmMediaTab from './tabs/FarmMediaTab'
 import { CartFab } from '@/components/consumer/Cart'
 
+export type ProduceReviewSummary = Record<
+  string,
+  { avg: number; count: number; latest: { name: string; text: string | null; stars: number } | null }
+>
+
 type Props = {
   farmer: Record<string, unknown>
   produce: Record<string, unknown>[]
   reviews: Record<string, unknown>[]
+  produceReviews?: ProduceReviewSummary
   media: Record<string, unknown>[]
 }
 
-export default function TabSection({ farmer, produce, reviews, media }: Props) {
+export default function TabSection({ farmer, produce, reviews, produceReviews, media }: Props) {
   const { tx, L } = useLang()
   const [activeTab, setActiveTab] = useState(1)
   const searchParams = useSearchParams()
@@ -47,7 +53,7 @@ export default function TabSection({ farmer, produce, reviews, media }: Props) {
 
       <div className="px-4 py-4">
         {activeTab === 0 && <StoryTab farmer={farmer} />}
-        {activeTab === 1 && <ProduceTab farmer={farmer} produce={produce} isEditMode={isEditMode} />}
+        {activeTab === 1 && <ProduceTab farmer={farmer} produce={produce} produceReviews={produceReviews} isEditMode={isEditMode} />}
         {activeTab === 2 && <QualityTab farmer={farmer} produce={produce} />}
         {activeTab === 3 && <ReviewsTab reviews={reviews} farmerId={farmer.id as string} />}
         {activeTab === 4 && <FarmMediaTab media={media} />}

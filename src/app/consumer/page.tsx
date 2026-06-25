@@ -65,7 +65,7 @@ const CATEGORIES = [
 const METHOD_SHORT: Record<string, string> = {
   natural:      'Natural',
   organic:      'Organic',
-  low_chemical: 'Low-chem',
+  low_chemical: 'Semi-org',
   chemical:     'Chemical',
 }
 
@@ -263,12 +263,6 @@ export default function ConsumerPage() {
               📍 {consumerLocationName || L('Set location', 'లొకేషన్ పెట్టండి')}
               <span className="text-green-400 text-xs ml-0.5">✎</span>
             </button>
-            <Link
-              href="/consumer/orders"
-              className="inline-flex items-center gap-2 bg-green-800 border border-green-700 text-green-200 text-xs font-semibold px-4 py-2.5 rounded-full"
-            >
-              {L('📦 My Orders', 'నా ఆర్డర్లు →')}
-            </Link>
           </div>
         </div>
       </div>
@@ -296,7 +290,8 @@ export default function ConsumerPage() {
             <option value="all">{L('🌿 All methods', 'అన్ని పద్ధతులు')}</option>
             <option value="natural">{L('🌱 Natural', 'సహజం')}</option>
             <option value="organic">{L('🍃 Organic', 'సేంద్రీయ')}</option>
-            <option value="low_chemical">{L('⚡ Low chemical', 'తక్కువ రసాయన')}</option>
+            <option value="low_chemical">{L('⚡ Semi Organic', 'సెమీ ఆర్గానిక్')}</option>
+            <option value="chemical">{L('🧪 Chemical', 'రసాయన')}</option>
           </select>
         </div>
       </div>
@@ -894,6 +889,7 @@ function LocationBottomSheet({
 /* ─── Demand intent banner ──────────────────────────────────── */
 function DemandIntentBanner() {
   const { L } = useLang()
+  const { consumer } = useConsumerAuth()
   const [open, setOpen] = useState(false)
   const [crop, setCrop] = useState('')
   const [qty, setQty] = useState('')
@@ -904,6 +900,15 @@ function DemandIntentBanner() {
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
+
+  // Pre-fill name/phone from the logged-in consumer once known, so their raised
+  // intent is tied to (and appears under) their account on the My Intents page.
+  useEffect(() => {
+    if (consumer) {
+      setName((n) => n || consumer.name || '')
+      setPhone((p) => p || consumer.phone || '')
+    }
+  }, [consumer])
 
   const handleSubmit = async () => {
     if (!crop.trim() || !name.trim() || !phone.trim()) {
@@ -920,6 +925,7 @@ function DemandIntentBanner() {
       delivery_location: location.trim() || null,
       requester_name: name.trim(),
       requester_phone: phone.trim(),
+      consumer_id: consumer?.id ?? null,
       region_slug: localStorage.getItem('yff_consumer_location_name')?.toLowerCase().replace(/\s+/g, '') || 'tadepalligudem',
     })
     setLoading(false)
@@ -943,13 +949,23 @@ function DemandIntentBanner() {
         </div>
 
         {!open && !submitted && (
-          <button
-            onClick={() => setOpen(true)}
-            className="mt-4 w-full bg-amber-600 text-white font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2"
-          >
-            <span className="text-lg leading-none">+</span>
-            {L('Raise Intent', 'డిమాండ్ నమోదు')}
-          </button>
+          <div className="mt-4 space-y-2">
+            <button
+              onClick={() => setOpen(true)}
+              className="w-full bg-amber-600 text-white font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2"
+            >
+              <span className="text-lg leading-none">+</span>
+              {L('Raise Intent', 'డిమాండ్ నమోదు')}
+            </button>
+            {consumer && (
+              <Link
+                href="/consumer/intents"
+                className="w-full block text-center text-amber-800 font-semibold text-sm py-2.5 rounded-xl border-2 border-amber-300 active:bg-amber-100"
+              >
+                📋 {L('My raised intents', 'నా డిమాండ్‌లు')}
+              </Link>
+            )}
+          </div>
         )}
 
         {submitted && (
@@ -958,6 +974,9 @@ function DemandIntentBanner() {
             <p className="text-green-600 text-sm mt-1">
               {L('Farmers in your area will be notified.', 'మీ ప్రాంతంలోని రైతులకు తెలియజేస్తాము.')}
             </p>
+            <Link href="/consumer/intents" className="inline-block mt-2 text-amber-800 font-semibold text-sm underline">
+              {L('View my intents →', 'నా డిమాండ్‌లు చూడండి →')}
+            </Link>
           </div>
         )}
 

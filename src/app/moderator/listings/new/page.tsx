@@ -138,7 +138,7 @@ export default function NewListingPage() {
           <Field label="Method">
             <select value={form.method} onChange={set('method')} className={inputCls}>
               <option value="natural">Natural (no chemicals)</option>
-              <option value="low_chemical">Low chemical</option>
+              <option value="low_chemical">Semi Organic</option>
               <option value="chemical">Chemical</option>
             </select>
           </Field>

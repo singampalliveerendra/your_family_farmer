@@ -57,10 +57,14 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  if (category && category !== 'all' && CATEGORY_KEYWORDS[category]) {
-    const keywords = CATEGORY_KEYWORDS[category]
+  if (category && category !== 'all') {
+    const keywords = CATEGORY_KEYWORDS[category] ?? []
+    // Prefer the farmer's explicit category (#9); only fall back to guessing from
+    // the crop name for older listings that don't have a category set yet.
     filtered = filtered.filter((p) =>
-      keywords.some((kw) => p.name?.toLowerCase().includes(kw))
+      p.category
+        ? p.category === category
+        : keywords.some((kw) => p.name?.toLowerCase().includes(kw))
     )
   }
 
