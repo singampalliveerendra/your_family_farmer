@@ -8,6 +8,10 @@ import { useLang } from '@/lib/LanguageContext'
 
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
 
+function isOnlinePayment(method: string | null | undefined): boolean {
+  return method === 'razorpay' || method === 'upi'
+}
+
 // Full order row for the farmer's detail view. handover_otp is deliberately NOT
 // fetched — the pickup code must come from the customer, so the farmer's browser
 // never sees it (same rule the orders list follows).
@@ -37,6 +41,7 @@ type Order = {
   delivery_status: DeliveryStatus | null
   delivery_boy_id: string | null
   delivery_address: string | null
+  delivery_city: string | null
   delivery_landmark: string | null
   delivery_pincode: string | null
   delivery_alt_phone: string | null
@@ -53,7 +58,7 @@ type Order = {
 }
 
 const ORDER_COLUMNS =
-  'id, farmer_id, order_code, produce_name, quantity, unit, total_price, buyer_name, buyer_phone, pickup_location, status, payment_method, payment_status, utr_number, decline_reason, refund_status, refund_amount, refunded_at, created_at, confirmed_at, paid_at, delivery_type, delivery_status, delivery_boy_id, delivery_address, delivery_landmark, delivery_pincode, delivery_alt_phone, assigned_at, picked_up_at, out_for_delivery_at, delivered_at, collected_at, shipped_at, received_at, fulfillment_date, acknowledged_at'
+  'id, farmer_id, order_code, produce_name, quantity, unit, total_price, buyer_name, buyer_phone, pickup_location, status, payment_method, payment_status, utr_number, decline_reason, refund_status, refund_amount, refunded_at, created_at, confirmed_at, paid_at, delivery_type, delivery_status, delivery_boy_id, delivery_address, delivery_city, delivery_landmark, delivery_pincode, delivery_alt_phone, assigned_at, picked_up_at, out_for_delivery_at, delivered_at, collected_at, shipped_at, received_at, fulfillment_date, acknowledged_at'
 
 export default function FarmerOrderDetailPage() {
   const params = useParams<{ id: string }>()
@@ -151,34 +156,25 @@ export default function FarmerOrderDetailPage() {
     return o.payment_method
   }
 
-  // Fulfilment milestones (created → confirmed → shipped/ready → received/picked).
+  // Fulfilment milestones — mirrors the consumer's tracker exactly so both
+  // sides stay in sync: Order placed → (Payment received) → Approved → Shipped
+  // → Delivered. The old rider flow (assigned / picked-up / out-for-delivery)
+  // is gone: every order now moves farmer-taps-Shipped → buyer-taps-Delivered,
+  // regardless of pickup / courier / home delivery.
   const milestones: { label: string; at: string | null; done: boolean }[] = order
     ? (() => {
         const approved = order.status === 'approved'
-        const base = [
-          { label: L('Order placed', 'ఆర్డర్ వచ్చింది'), at: order.created_at, done: true },
-          { label: L('Approved by you', 'మీరు ఆమోదించారు'), at: order.confirmed_at, done: approved || !!order.collected_at || !!order.received_at },
-        ]
-        if (isDelivery && (order.assigned_at || order.delivery_status)) {
-          return [
-            ...base,
-            { label: L('Rider assigned', 'రైడర్ కేటాయించారు'), at: order.assigned_at, done: !!order.assigned_at },
-            { label: L('Picked up by rider', 'రైడర్ తీసుకున్నారు'), at: order.picked_up_at, done: !!order.picked_up_at },
-            { label: L('Out for delivery', 'డెలివరీకి బయలుదేరారు'), at: order.out_for_delivery_at, done: !!order.out_for_delivery_at },
-            { label: L('Delivered', 'డెలివరీ అయింది'), at: order.delivered_at, done: order.delivery_status === 'delivered' },
-          ]
-        }
-        if (isDelivery || isCourier) {
-          return [
-            ...base,
-            { label: L('Shipped', 'షిప్ చేశారు'), at: order.shipped_at, done: !!order.shipped_at },
-            { label: L('Received by buyer', 'కొనుగోలుదారు అందుకున్నారు'), at: order.received_at, done: !!order.received_at },
-          ]
-        }
+        const delivered = !!order.received_at || !!order.collected_at
+        const paidOnline = isOnlinePayment(order.payment_method)
+          && (order.payment_status === 'paid' || order.payment_status === 'completed')
         return [
-          ...base,
+          { label: L('Order placed', 'ఆర్డర్ వచ్చింది'), at: order.created_at, done: true },
+          ...(paidOnline
+            ? [{ label: L('Payment received', 'చెల్లింపు అందింది'), at: order.paid_at, done: true }]
+            : []),
+          { label: L('Approved by you', 'మీరు ఆమోదించారు'), at: order.confirmed_at, done: approved || delivered },
           { label: L('Shipped', 'షిప్ చేశారు'), at: order.shipped_at, done: !!order.shipped_at },
-          { label: L('Picked up by buyer', 'కొనుగోలుదారు తీసుకున్నారు'), at: order.collected_at, done: !!order.collected_at },
+          { label: L('Delivered', 'డెలివరీ అయింది'), at: order.received_at || order.collected_at, done: delivered },
         ]
       })()
     : []
@@ -282,6 +278,7 @@ export default function FarmerOrderDetailPage() {
               {(isDelivery || isCourier) && order.delivery_address ? (
                 <>
                   <p className="text-sm text-gray-800 leading-snug whitespace-pre-line">📦 {order.delivery_address}</p>
+                  {order.delivery_city && <p className="text-xs text-gray-600">🏙️ {order.delivery_city}</p>}
                   {order.delivery_landmark && <p className="text-xs text-gray-600">📍 {order.delivery_landmark}</p>}
                   {order.delivery_pincode && <p className="text-xs text-gray-600">PIN: {order.delivery_pincode}</p>}
                 </>
