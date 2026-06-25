@@ -52,7 +52,7 @@ export default function FarmCover({ farmer }: { farmer: Farmer }) {
   return (
     <div className="relative">
       {/* Cover — real photo if uploaded, SVG illustration otherwise */}
-      <div className="relative w-full h-44 bg-green-800 overflow-hidden">
+      <div className="relative w-full h-44 sm:h-60 md:h-72 lg:h-80 bg-green-800 overflow-hidden">
         {farmer.cover_photo_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img

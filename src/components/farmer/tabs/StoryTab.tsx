@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { useLang } from '@/lib/LanguageContext'
 
 type Farmer = {
@@ -21,7 +22,11 @@ export default function StoryTab({ farmer }: { farmer: Record<string, unknown> }
   const { tx, L } = useLang()
   const f = farmer as Farmer
 
-  const infoGrid = [
+  const whatsappVisitLink = `https://wa.me/${f.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(
+    tx.visitWhatsApp.replace('{name}', f.name ?? '')
+  )}`
+
+  const infoGrid: { label: string; value: ReactNode }[] = [
     { label: tx.farmSize, value: f.farm_size_acres ? `${f.farm_size_acres} acres` : '—' },
     { label: tx.location, value: f.village ? `${f.village}, ${f.district}` : '—' },
     { label: tx.farmingSince, value: f.farming_since_year?.toString() ?? '—' },
@@ -33,13 +38,24 @@ export default function StoryTab({ farmer }: { farmer: Record<string, unknown> }
         .filter(Boolean)
         .join(' · ') || tx.pickupOnly,
     },
+    ...(f.phone
+      ? [{
+          label: `${L('Phone', 'ఫోన్')} (${tx.whatsapp})`,
+          value: (
+            <a
+              href={whatsappVisitLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-green-700 underline"
+            >
+              +91 {f.phone}
+            </a>
+          ),
+        }]
+      : []),
   ]
 
   const certifications = [tx.noPesticides, tx.noHybridSeeds, tx.onFarmCompost, tx.cowDungManure]
-
-  const whatsappVisitLink = `https://wa.me/${f.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(
-    tx.visitWhatsApp.replace('{name}', f.name ?? '')
-  )}`
 
   return (
     <div className="space-y-5">

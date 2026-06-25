@@ -14,7 +14,7 @@ export const t = {
     produceNow: 'Produce now',
 
     // Tabs - farmer
-    story: 'Story',
+    story: 'About Farm',
     produce: 'Produce',
     quality: 'Quality',
     reviews: 'Reviews',
@@ -384,7 +384,7 @@ export const t = {
     produceNow: 'ఇప్పుడు పంట',
 
     // Tabs - farmer
-    story: 'కథ',
+    story: 'పొలం గురించి',
     produce: 'పంట',
     quality: 'నాణ్యత',
     reviews: 'సమీక్షలు',

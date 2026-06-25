@@ -160,11 +160,6 @@ export default async function FarmerPage({ params }: { params: Promise<{ slug: s
       <TrustStrip
         farmer={{ ...farmer, rating_avg: ratingAvg }}
         produceCount={(produce ?? []).filter((p) => (p as { status?: string }).status === 'available').length}
-        chemicalListings={(produce ?? []).filter((p) => {
-          const m = (p as { method?: string }).method
-          const st = (p as { status?: string }).status
-          return st === 'available' && (m === 'chemical' || m === 'low_chemical')
-        }).length}
       />
       <Suspense fallback={null}>
         <TabSection

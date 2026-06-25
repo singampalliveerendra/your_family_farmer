@@ -28,7 +28,7 @@ export default function TopNav({ regionSlug }: { regionSlug: string }) {
         <span className="text-sm font-medium">{tx.back}</span>
       </button>
 
-      <LanguageToggle />
+      <LanguageToggle variant="light" />
     </nav>
   )
 }
