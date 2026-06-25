@@ -3,18 +3,35 @@
   "checkpoint_id": "47f26366727c",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 4,
+  "checkpoints_count": 17,
   "files_touched": [
+    "scripts/consumer-intents-migration.sql",
+    "scripts/farmer-soil-ph-migration.sql",
+    "scripts/produce-category-photos-migration.sql",
+    "scripts/produce-quality-fields-migration.sql",
     "src/app/api/consumer/orders/[id]/received/route.ts",
     "src/app/api/farmer/orders/[id]/confirm-pickup/route.ts",
     "src/app/api/farmer/orders/[id]/deliver/route.ts",
     "src/app/api/farmer/orders/[id]/ship/route.ts",
+    "src/app/api/produce/search/route.ts",
+    "src/app/consumer/intents/page.tsx",
     "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/consumer/page.tsx",
+    "src/app/farmer/[slug]/page.tsx",
     "src/app/farmer/dashboard/orders/[id]/page.tsx",
     "src/app/farmer/dashboard/orders/page.tsx",
     "src/app/farmer/dashboard/page.tsx",
+    "src/app/moderator/farmers/page.tsx",
+    "src/app/moderator/listings/new/page.tsx",
+    "src/app/moderator/listings/page.tsx",
+    "src/app/moderator/my-farmers/page.tsx",
     "src/components/consumer/OrderCard.tsx",
-    "src/components/farmer/OrderCard.tsx"
+    "src/components/farmer/FarmCover.tsx",
+    "src/components/farmer/OrderCard.tsx",
+    "src/components/farmer/TabSection.tsx",
+    "src/components/farmer/tabs/ProduceTab.tsx",
+    "src/components/moderator/ModeratorFarmerForm.tsx",
+    "src/lib/translations.ts"
   ],
   "sessions": [
     {
@@ -22,13 +39,19 @@
       "transcript": "/47/f26366727c/0/full.jsonl",
       "content_hash": "/47/f26366727c/0/content_hash.txt",
       "prompt": "/47/f26366727c/0/prompt.txt"
+    },
+    {
+      "metadata": "/47/f26366727c/1/metadata.json",
+      "transcript": "/47/f26366727c/1/full.jsonl",
+      "content_hash": "/47/f26366727c/1/content_hash.txt",
+      "prompt": "/47/f26366727c/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 9428,
-    "cache_creation_tokens": 167243,
-    "cache_read_tokens": 12479922,
-    "output_tokens": 87145,
-    "api_call_count": 111
+    "input_tokens": 22067,
+    "cache_creation_tokens": 515830,
+    "cache_read_tokens": 45938522,
+    "output_tokens": 273437,
+    "api_call_count": 294
   }
 }

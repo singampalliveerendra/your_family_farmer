@@ -1,0 +1,72 @@
+[Image #1] [Image #2] explain this cards in very detail in a table . and with colour batches of easy to hard
+
+---
+
+add all cards in one table only
+
+---
+
+Every order: Farmer taps Shipped → Buyer taps Delivered
+
+┌──────────────┬────────┬───────────────────────────────┬──────────────────────────┐
+│     Step     │  Who   │            Button             │          Result          │
+├──────────────┼────────┼───────────────────────────────┼──────────────────────────┤
+│ Confirm date │ Farmer │ Confirm pickup/delivery date  │ approved                 │
+├──────────────┼────────┼───────────────────────────────┼──────────────────────────┤
+│ Ship         │ Farmer │ 🚚 Mark Shipped (no code)     │ shipped_at, stays active │
+├──────────────┼────────┼───────────────────────────────┼──────────────────────────┤
+│ Deliver      │ Buyer  │ ✓ Mark as Delivered (no code) │ resolved → history       │
+└──────────────┴────────┴───────────────────────────────┴──────────────────────────┘
+ dont change this one if any edits from this okay so de remmaining all cards and some are already done so go aheadh and fix neatly
+
+---
+
+.
+
+---
+
+explain eerything what we have done till now and not explain in very detail
+
+---
+
+explain eerything what we have done till now and not.  explain in very detail
+
+---
+
+raised intetnt can to CRUD by consumer right so where is the  option in there profile
+
+---
+
+in cards they  mentioned right the consumer can do CRUD for intent right
+
+---
+
+check if of that cards missed to implement
+
+---
+
+check if any  of that cards missed to implement
+
+---
+
+18 , 19 , 20 whats about that
+
+---
+
+okay so let farmer can add all these in his produce while adding produce .
+
+---
+
+total how many queries i have to add in supabase for now
+
+---
+
+is everything sone from trelo cards
+
+---
+
+go with 9 and 12
+
+---
+
+is there very importatnt questions or doubts to ask for clinet
