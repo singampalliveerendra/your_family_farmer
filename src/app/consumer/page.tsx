@@ -420,6 +420,7 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
   const methodShort = METHOD_SHORT[method] ?? 'Natural'
   const farmer      = item.farmer
   const farmerHref  = farmer ? `/farmer/${farmer.slug}` : '#'
+  const produceHref = `/consumer/produce/${item.id}`
   const unit        = item.unit || 'kg'
 
   const { tx, lang, L } = useLang()
@@ -533,7 +534,7 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
             {gallery.map((url) => (
               <Link
                 key={url}
-                href={farmerHref}
+                href={produceHref}
                 className="snap-center shrink-0 w-full h-40 block"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -543,7 +544,7 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
           </div>
         ) : (
           <Link
-            href={farmerHref}
+            href={produceHref}
             className="w-full h-full flex items-center justify-center"
             style={{ backgroundColor: produceBg }}
           >
@@ -572,7 +573,7 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
       {/* Content */}
       <div className="p-3 flex flex-col flex-1 min-w-0">
         {/* Name + variety — single line each, ellipsis on overflow */}
-        <Link href={farmerHref} className="block min-w-0">
+        <Link href={produceHref} className="block min-w-0">
           <h3 className="font-bold text-[15px] leading-[1.2] text-gray-900 truncate">
             {localizeName(item.name, lang)}
           </h3>
