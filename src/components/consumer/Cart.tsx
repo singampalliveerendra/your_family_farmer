@@ -212,6 +212,9 @@ type UpiPaymentState = {
   buyerPhone: string
   items: Array<{ name: string; variety?: string; emoji?: string; qty: number; unit?: string; pricePerKg?: number }>
   pickupLocation?: string
+  // Razorpay payment id (online) or the buyer-entered UTR (manual UPI). Shown on
+  // the success screen as the Transaction ID.
+  transactionId?: string
 }
 
 /* ─── Cart FAB ───────────────────────────────────────── */
@@ -350,7 +353,11 @@ export function CartSheet({
   const triggerPostPayment = useCallback(async (screen: UpiPaymentState, utrRef: string) => {
     setSubmittingResult(true)
     const updateData: Record<string, unknown> = { payment_status: 'pending_confirmation' }
-    if (utrRef.trim()) updateData.utr_number = utrRef.trim()
+    if (utrRef.trim()) {
+      updateData.utr_number = utrRef.trim()
+      // Surface the UTR as the Transaction ID on the success screen.
+      setUpiScreen({ ...screen, transactionId: utrRef.trim() })
+    }
     await Promise.all(
       screen.orderIds.map((id) =>
         supabase.from('orders').update(updateData).eq('id', id)
@@ -695,7 +702,7 @@ export function CartSheet({
         }
         clearFarmer(f.farmerId)
         setOnlinePaid(true)
-        setUpiScreen(summary)
+        setUpiScreen({ ...summary, transactionId: res.razorpay_payment_id })
         setPaidDone(true)
       },
     })
@@ -840,10 +847,14 @@ export function CartSheet({
             </p>
           </div>
           <div className="bg-gray-50 rounded-2xl px-5 py-4 w-full text-left space-y-1">
-            <p className="text-xs text-gray-500 font-medium">{cashMode ? 'Order for' : 'Paid to'}</p>
-            <p className="font-bold text-gray-900">{upiScreen.farmerName}</p>
-            <p className="text-xs text-gray-500">{upiScreen.farmerVillage}</p>
-            <p className="text-lg font-black text-green-900 mt-2">₹{upiScreen.amount}</p>
+            <p className="text-xs text-gray-500 font-medium">{cashMode ? L('Amount to pay', 'చెల్లించవలసిన మొత్తం') : L('Amount paid', 'చెల్లించిన మొత్తం')}</p>
+            <p className="text-lg font-black text-green-900">₹{upiScreen.amount}</p>
+            {!cashMode && upiScreen.transactionId && (
+              <div className="pt-2">
+                <p className="text-xs text-gray-500 font-medium">{L('Transaction ID', 'లావాదేవీ ID')}</p>
+                <p className="font-mono text-sm font-bold text-gray-900 break-all">{upiScreen.transactionId}</p>
+              </div>
+            )}
           </div>
           {cashMode ? (
             <p className="text-sm text-gray-600 leading-snug">
