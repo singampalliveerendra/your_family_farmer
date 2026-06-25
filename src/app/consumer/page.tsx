@@ -35,6 +35,7 @@ type ProduceListing = {
   variety?: string
   emoji?: string
   image_url?: string
+  image_urls?: string[] | null
   method?: string
   status: string
   price_tier_1_price?: number
@@ -432,6 +433,18 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
   const [liveStock, setLiveStock] = useState<number | null>(item.stock_qty ?? null)
   const [stockMsg, setStockMsg]   = useState('')
   const [adding, setAdding]       = useState(false)
+
+  // All photos for this produce (cover first) — an Amazon/Flipkart-style swipe
+  // gallery on the card. activeImg tracks which slide is centred, for the dots.
+  const gallery = (item.image_urls && item.image_urls.length ? item.image_urls : (item.image_url ? [item.image_url] : []))
+    .filter(Boolean) as string[]
+  const [activeImg, setActiveImg] = useState(0)
+  const galleryRef = useRef<HTMLDivElement>(null)
+  const onGalleryScroll = () => {
+    const el = galleryRef.current
+    if (!el) return
+    setActiveImg(Math.round(el.scrollLeft / el.clientWidth))
+  }
   const [showReviews, setShowReviews] = useState(false)
 
   useEffect(() => { setLiveStock(item.stock_qty ?? null) }, [item.stock_qty])
@@ -509,30 +522,53 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
 
   return (
     <div className="bg-white rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.08)] flex flex-col h-full">
-      {/* Image (or emoji fallback) — fixed 160px, method pill top-right */}
-      <Link href={farmerHref} className="relative block h-40 w-full flex-shrink-0">
-        {item.image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={item.image_url}
-            alt={item.name}
-            loading="lazy"
-            className="w-full h-full object-cover"
-          />
-        ) : (
+      {/* Image — fixed 160px. Multiple photos become a swipe gallery (swipe
+          right-to-left for the rest); method pill top-right, dots bottom-centre. */}
+      <div className="relative h-40 w-full flex-shrink-0">
+        {gallery.length ? (
           <div
+            ref={galleryRef}
+            onScroll={onGalleryScroll}
+            className="flex h-full w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+          >
+            {gallery.map((url) => (
+              <Link
+                key={url}
+                href={farmerHref}
+                className="snap-center shrink-0 w-full h-40 block"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt={item.name} loading="lazy" className="w-full h-full object-cover" />
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <Link
+            href={farmerHref}
             className="w-full h-full flex items-center justify-center"
             style={{ backgroundColor: produceBg }}
           >
             <span className="text-5xl">{emoji}</span>
-          </div>
+          </Link>
         )}
         <span
           className={`absolute top-2 right-2 ${methodPill} text-[10px] font-bold rounded-full px-1.5 py-0.5 shadow-sm`}
         >
           {methodShort}
         </span>
-      </Link>
+        {gallery.length > 1 && (
+          <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 pointer-events-none">
+            {gallery.map((_, i) => (
+              <span
+                key={i}
+                className={`h-1.5 rounded-full transition-all ${
+                  i === activeImg ? 'w-4 bg-white' : 'w-1.5 bg-white/60'
+                }`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Content */}
       <div className="p-3 flex flex-col flex-1 min-w-0">
