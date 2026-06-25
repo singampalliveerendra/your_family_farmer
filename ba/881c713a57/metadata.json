@@ -5,8 +5,11 @@
   "branch": "main",
   "checkpoints_count": 14,
   "files_touched": [
+    "scripts/platform-fee-migration.sql",
+    "src/app/api/moderator/platform-fee/route.ts",
     "src/app/api/orders/razorpay/create/route.ts",
-    "src/app/moderator/page.tsx"
+    "src/app/moderator/page.tsx",
+    "src/lib/platform-fee.ts"
   ],
   "sessions": [
     {
@@ -14,13 +17,19 @@
       "transcript": "/ba/881c713a57/0/full.jsonl",
       "content_hash": "/ba/881c713a57/0/content_hash.txt",
       "prompt": "/ba/881c713a57/0/prompt.txt"
+    },
+    {
+      "metadata": "/ba/881c713a57/1/metadata.json",
+      "transcript": "/ba/881c713a57/1/full.jsonl",
+      "content_hash": "/ba/881c713a57/1/content_hash.txt",
+      "prompt": ""
     }
   ],
   "token_usage": {
-    "input_tokens": 8006,
-    "cache_creation_tokens": 243443,
-    "cache_read_tokens": 20978902,
-    "output_tokens": 106564,
-    "api_call_count": 201
+    "input_tokens": 8769,
+    "cache_creation_tokens": 287858,
+    "cache_read_tokens": 27632013,
+    "output_tokens": 131987,
+    "api_call_count": 231
   }
 }
