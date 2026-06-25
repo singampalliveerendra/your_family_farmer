@@ -48,6 +48,7 @@ type Order = {
   delivery_type?: 'self_pickup' | 'home_delivery' | 'courier' | null
   delivery_status?: DeliveryStatus | null
   delivery_address?: string | null
+  delivery_city?: string | null
   delivery_landmark?: string | null
   delivery_pincode?: string | null
   delivery_alt_phone?: string | null
@@ -772,6 +773,9 @@ function DeliveryPanel({ order }: { order: Order }) {
         <div className="border-t border-gray-100 pt-3">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Delivering to</p>
           <p className="text-xs text-gray-800 leading-snug whitespace-pre-line">{order.delivery_address}</p>
+          {order.delivery_city && (
+            <p className="text-xs text-gray-600 mt-0.5">🏙️ {order.delivery_city}</p>
+          )}
           {order.delivery_landmark && (
             <p className="text-xs text-gray-600 mt-0.5">📍 {order.delivery_landmark}</p>
           )}

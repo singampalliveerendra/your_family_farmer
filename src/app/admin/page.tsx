@@ -36,6 +36,7 @@ type DeliveryOrder = {
   payment_status: string | null
   delivery_status: DeliveryStatus | null
   delivery_address: string | null
+  delivery_city: string | null
   delivery_landmark: string | null
   delivery_pincode: string | null
   delivery_alt_phone: string | null
@@ -324,6 +325,7 @@ function DeliveryRow({
         <div className="border-t border-gray-100 pt-2 text-xs">
           <p className="text-[10px] font-bold text-gray-400 uppercase">{L('Drop', 'డెలివరీ స్థలం')}</p>
           <p className="text-gray-800 whitespace-pre-line">{order.delivery_address}</p>
+          {order.delivery_city && <p className="text-gray-500">🏙️ {order.delivery_city}</p>}
           {order.delivery_landmark && <p className="text-gray-500">📍 {order.delivery_landmark}</p>}
           {order.delivery_pincode && <p className="text-gray-500">PIN {order.delivery_pincode}</p>}
         </div>

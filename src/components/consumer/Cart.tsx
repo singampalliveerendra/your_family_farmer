@@ -9,6 +9,7 @@ import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
 import { compressImage } from '@/lib/imageCompress'
 import { DELIVERY_FEE_RUPEES } from '@/lib/delivery-fee'
+import { computePlatformFee } from '@/lib/platform-fee'
 import { formatPickupSlots, type PickupSchedule } from '@/lib/pickup-slots'
 
 // Razorpay Checkout is loaded lazily — we only pull the script the first time
@@ -279,6 +280,7 @@ export function CartSheet({
   // address; self-pickup does not.
   const needsAddress = deliveryType === 'home_delivery'
   const [deliveryAddress, setDeliveryAddress] = useState('')
+  const [deliveryCity, setDeliveryCity] = useState('')
   const [deliveryLandmark, setDeliveryLandmark] = useState('')
   const [deliveryPincode, setDeliveryPincode] = useState('')
   const [deliveryAltPhone, setDeliveryAltPhone] = useState('')
@@ -321,6 +323,21 @@ export function CartSheet({
   // the latest order was paid online (drives the success copy below).
   const [payingOnline, setPayingOnline] = useState<string | null>(null)
   const [onlinePaid, setOnlinePaid] = useState(false)
+
+  // Global platform fee (moderator commission), added on top of each farmer
+  // group's subtotal. 0 unless a moderator has set one.
+  const [platformFeePercent, setPlatformFeePercent] = useState(0)
+  useEffect(() => {
+    supabase
+      .from('platform_settings')
+      .select('fee_percent')
+      .eq('id', 1)
+      .maybeSingle()
+      .then(({ data }) => {
+        const p = Number(data?.fee_percent)
+        if (Number.isFinite(p) && p > 0) setPlatformFeePercent(p)
+      })
+  }, [])
 
   // Refs for use inside event listeners (avoids stale closures)
   const upiScreenRef = useRef<UpiPaymentState | null>(null)
@@ -435,7 +452,7 @@ export function CartSheet({
 
   const baseDetailsMissing = !name.trim() || phone.replace(/\D/g, '').length < 10
   const deliveryDetailsMissing = needsAddress
-    && (deliveryAddress.trim().length < 10 || !/^\d{6}$/.test(deliveryPincode.trim()))
+    && (deliveryAddress.trim().length < 10 || !deliveryCity.trim() || !/^\d{6}$/.test(deliveryPincode.trim()))
   const detailsMissing = baseDetailsMissing || deliveryDetailsMissing
 
   const showToast = (msg: string) => {
@@ -462,6 +479,7 @@ export function CartSheet({
         items: group.map((it) => ({ listingId: it.listingId, qty: it.qty })),
         deliveryType,
         deliveryAddress: needsAddress ? deliveryAddress.trim() : null,
+        deliveryCity: needsAddress ? deliveryCity.trim() : null,
         deliveryLandmark: needsAddress ? deliveryLandmark.trim() : null,
         deliveryPincode: needsAddress ? deliveryPincode.trim() : null,
         deliveryAltPhone: needsAddress ? deliveryAltPhone.replace(/\D/g, '').slice(-10) : null,
@@ -1212,6 +1230,18 @@ export function CartSheet({
                   </div>
                   <div>
                     <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                      {L('City / Town', 'నగరం / పట్టణం')}
+                    </label>
+                    <input
+                      type="text"
+                      value={deliveryCity}
+                      onChange={(e) => setDeliveryCity(e.target.value.slice(0, 100))}
+                      placeholder={L('e.g. Guntur', 'ఉదా. గుంటూరు')}
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
                       {L('Landmark (optional)', 'గుర్తు')}
                     </label>
                     <input
@@ -1257,7 +1287,7 @@ export function CartSheet({
                   </div>
                   {deliveryDetailsMissing && (
                     <p className="text-[11px] text-amber-700 bg-amber-50 rounded-xl px-3 py-2">
-                      Please fill the full address and a valid 6-digit pincode.
+                      Please fill the full address, city/town and a valid 6-digit pincode.
                     </p>
                   )}
                 </div>
@@ -1364,7 +1394,12 @@ export function CartSheet({
                               {localizeName(it.name, lang)}
                             </p>
                             {it.pricePerKg && (
-                              <p className="text-xs text-gray-500">₹{it.pricePerKg}/{it.unit || 'kg'}</p>
+                              <>
+                                <p className="text-xs text-gray-500">₹{it.pricePerKg}/{it.unit || 'kg'} × {it.qty}</p>
+                                <span className="inline-block mt-1 text-sm font-extrabold text-green-800 bg-green-100 px-2 py-0.5 rounded-md">
+                                  ₹{it.pricePerKg * it.qty}
+                                </span>
+                              </>
                             )}
                             {getActiveTier(it.qty, it).isDiscount && (
                               <p className="text-[10px] font-semibold text-green-700 mt-0.5">
@@ -1394,36 +1429,46 @@ export function CartSheet({
                         </div>
                       ))}
 
-                      {total > 0 && (
-                        deliveryType === 'home_delivery' && DELIVERY_FEE_RUPEES > 0 ? (
+                      {total > 0 && (() => {
+                        const dFee = deliveryType === 'home_delivery' ? DELIVERY_FEE_RUPEES : 0
+                        const pFee = computePlatformFee(total, platformFeePercent)
+                        // No extra fees → keep the simple "estimated total" line.
+                        if (dFee <= 0 && pFee <= 0) {
+                          return (
+                            <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-2">
+                              <span className="text-xs text-gray-500">{L('Estimated total', 'మొత్తం')}</span>
+                              <span className="font-extrabold text-gray-900">₹{total}</span>
+                            </div>
+                          )
+                        }
+                        return (
                           <div className="pt-2 border-t border-gray-100 mt-2 space-y-1">
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-gray-500">{L('Subtotal', 'ఉత్పత్తి')}</span>
                               <span className="font-semibold text-gray-800">₹{total}</span>
                             </div>
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-gray-500">
-                                {L('Delivery fee', 'డెలివరీ ఛార్జ్')}
-                                <span className="block text-[10px] text-gray-400">{L('cash to rider', 'రైడర్‌కి నగదు')}</span>
-                              </span>
-                              <span className="font-semibold text-gray-800">₹{DELIVERY_FEE_RUPEES}</span>
-                            </div>
+                            {dFee > 0 && (
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-gray-500">
+                                  {L('Delivery fee', 'డెలివరీ ఛార్జ్')}
+                                  <span className="block text-[10px] text-gray-400">{L('cash to rider', 'రైడర్‌కి నగదు')}</span>
+                                </span>
+                                <span className="font-semibold text-gray-800">₹{dFee}</span>
+                              </div>
+                            )}
+                            {pFee > 0 && (
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-gray-500">{L('Platform fee', 'ప్లాట్‌ఫామ్ ఫీజు')} ({platformFeePercent}%)</span>
+                                <span className="font-semibold text-gray-800">₹{pFee}</span>
+                              </div>
+                            )}
                             <div className="flex items-center justify-between pt-1 border-t border-gray-50">
                               <span className="text-xs font-bold text-gray-700">{L('Total', 'మొత్తం')}</span>
-                              <span className="font-extrabold text-gray-900">
-                                ₹{total + DELIVERY_FEE_RUPEES}
-                              </span>
+                              <span className="font-extrabold text-gray-900">₹{total + dFee + pFee}</span>
                             </div>
                           </div>
-                        ) : (
-                          <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-2">
-                            <span className="text-xs text-gray-500">{L('Estimated total', 'మొత్తం')}</span>
-                            <span className="font-extrabold text-gray-900">
-                              ₹{total}
-                            </span>
-                          </div>
                         )
-                      )}
+                      })()}
 
                       {f.farmerPickupLocations && f.farmerPickupLocations.length > 0 && (
                         <div className="pt-2">
@@ -1532,7 +1577,10 @@ export function CartSheet({
                             >
                               {payingOnline === f.farmerId
                                 ? 'Opening payment...'
-                                : `💳 Order & Pay ₹${Math.round(group.reduce((s, it) => s + (it.pricePerKg ?? 0) * it.qty, 0))}`}
+                                : `💳 Order & Pay ₹${(() => {
+                                    const sub = Math.round(group.reduce((s, it) => s + (it.pricePerKg ?? 0) * it.qty, 0))
+                                    return sub + computePlatformFee(sub, platformFeePercent)
+                                  })()}`}
                             </button>
                           )
                         }

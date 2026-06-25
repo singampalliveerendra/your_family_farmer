@@ -36,6 +36,7 @@ type MyOrder = {
   payment_status: string | null
   delivery_status: DeliveryStatus
   delivery_address: string | null
+  delivery_city: string | null
   delivery_landmark: string | null
   delivery_pincode: string | null
   delivery_alt_phone: string | null
@@ -515,6 +516,9 @@ function MyOrderCard({
           <p className="text-sm font-bold text-gray-900">{order.buyer_name || 'Customer'}</p>
           {order.delivery_address && (
             <p className="text-xs text-gray-700 leading-snug whitespace-pre-line">{order.delivery_address}</p>
+          )}
+          {order.delivery_city && (
+            <p className="text-xs text-gray-600">🏙️ {order.delivery_city}</p>
           )}
           {order.delivery_landmark && (
             <p className="text-xs text-gray-600">📍 {order.delivery_landmark}</p>

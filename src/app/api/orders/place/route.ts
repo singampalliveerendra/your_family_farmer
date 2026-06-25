@@ -6,6 +6,7 @@ import { createGuestOrderToken } from '@/lib/guest-order-token'
 import { getTierPrice } from '@/lib/pricing'
 import { normalizePhone } from '@/lib/phone'
 import { DELIVERY_FEE_RUPEES } from '@/lib/delivery-fee'
+import { getPlatformFeePercent, computePlatformFee } from '@/lib/platform-fee'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -57,6 +58,7 @@ export async function POST(req: NextRequest) {
         items?: IncomingItem[]
         deliveryType?: string
         deliveryAddress?: string | null
+        deliveryCity?: string | null
         deliveryLandmark?: string | null
         deliveryPincode?: string | null
         deliveryAltPhone?: string | null
@@ -108,12 +110,14 @@ export async function POST(req: NextRequest) {
     : 'self_pickup'
   const needsAddress = deliveryType === 'home_delivery' || deliveryType === 'courier'
   let deliveryAddress: string | null = null
+  let deliveryCity: string | null = null
   let deliveryLandmark: string | null = null
   let deliveryPincode: string | null = null
   let deliveryAltPhone: string | null = null
 
   if (needsAddress) {
     deliveryAddress = String(body.deliveryAddress ?? '').trim().slice(0, 400)
+    deliveryCity = String(body.deliveryCity ?? '').trim().slice(0, 100) || null
     deliveryLandmark = String(body.deliveryLandmark ?? '').trim().slice(0, 200) || null
     const rawPincode = String(body.deliveryPincode ?? '').trim()
     deliveryPincode = /^\d{6}$/.test(rawPincode) ? rawPincode : null
@@ -122,6 +126,7 @@ export async function POST(req: NextRequest) {
 
     if (!deliveryAddress) return bad('Enter your delivery address.')
     if (deliveryAddress.length < 10) return bad('Delivery address looks too short. Please add door no, street, and area.')
+    if (!deliveryCity) return bad('Enter your city or town.')
     if (!deliveryPincode) return bad('Enter a valid 6-digit pincode.')
   } else if (isGuest) {
     // Guests must always give an address, even for self-pickup, so the farmer
@@ -269,6 +274,7 @@ export async function POST(req: NextRequest) {
       delivery_type: deliveryType,
       delivery_status: deliveryType === 'home_delivery' ? 'unassigned' : null,
       delivery_address: deliveryAddress,
+      delivery_city: deliveryCity,
       delivery_landmark: deliveryLandmark,
       delivery_pincode: deliveryPincode,
       delivery_alt_phone: deliveryAltPhone,
@@ -283,6 +289,16 @@ export async function POST(req: NextRequest) {
   if (rows.length > 0 && deliveryFee > 0) {
     rows[0].delivery_fee = deliveryFee
     rows[0].rider_payout = deliveryFee
+  }
+
+  // Platform fee (moderator commission) — a % of the cart subtotal, added on top
+  // and stamped once per batch (first row), mirroring delivery_fee. Resolved
+  // server-side; 0 unless the moderator has set a fee. Only written when > 0, so
+  // the column is never referenced before its migration runs.
+  const feePercent = await getPlatformFeePercent(supabase)
+  const platformFee = computePlatformFee(total, feePercent)
+  if (rows.length > 0 && platformFee > 0) {
+    rows[0].platform_fee = platformFee
   }
 
   // Atomic stock claim. decrement_stock returns false if the listing went
@@ -335,7 +351,8 @@ export async function POST(req: NextRequest) {
     orderCodes: inserted.map((r) => (r as { order_code?: string | null }).order_code).filter(Boolean),
     total,
     deliveryFee,
-    grandTotal: total + deliveryFee,
+    platformFee,
+    grandTotal: total + deliveryFee + platformFee,
     // Guests get a short-lived token bound to these orders so they can finish
     // the Razorpay create/verify pair without a session cookie.
     ...(isGuest ? { guestToken: createGuestOrderToken(orderIds) } : {}),
