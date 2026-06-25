@@ -11,9 +11,14 @@ type Farmer = {
 export default function TrustStrip({
   farmer,
   produceCount,
+  chemicalListings = 0,
 }: {
   farmer: Farmer
   produceCount: number
+  // How many of the farm's live listings are grown with chemical / semi-organic
+  // methods (driven by the farming method the farmer picks per produce). 0 means
+  // every listing is natural or organic — the ideal "no chemicals" trust signal.
+  chemicalListings?: number
 }) {
   const { tx, L } = useLang()
   const yearsfarming = new Date().getFullYear() - farmer.farming_since_year
@@ -22,7 +27,7 @@ export default function TrustStrip({
     { label: tx.yearsFarming, value: yearsfarming.toString() },
     { label: tx.starRating, value: `${farmer.rating_avg} ★` },
     { label: tx.buyers, value: farmer.buyer_count.toString() },
-    { label: tx.chemicals, value: '0' },
+    { label: tx.chemicals, value: chemicalListings.toString() },
     { label: tx.produceNow, value: `${produceCount}` },
   ]
 
