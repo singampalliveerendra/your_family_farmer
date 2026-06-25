@@ -59,18 +59,18 @@ export default function SplashScreen() {
       {/* YFF circle logo */}
       <div className="splash-logo flex items-center justify-center w-24 h-24 rounded-full border-2 border-white">
         <span className="font-black text-white" style={{ fontSize: 32, lineHeight: 1 }}>
-          YFF
+          GG
         </span>
       </div>
 
       {/* Brand name */}
       <h1 className="splash-name font-bold text-white mt-5" style={{ fontSize: 22 }}>
-        {L('YourFamilyFarmer', 'యువర్ ఫ్యామిలీ ఫార్మర్')}
+        {L('Go Grameen', 'గో గ్రామీణ్')}
       </h1>
 
       {/* Tagline */}
       <p className="splash-tagline italic text-white mt-4" style={{ fontSize: 16 }}>
-        No middlemen. Just farmers.
+        {L('Your Family Farmer', 'యువర్ ఫ్యామిలీ ఫార్మర్')}
       </p>
 
       {/* Slowly rotating wheat */}

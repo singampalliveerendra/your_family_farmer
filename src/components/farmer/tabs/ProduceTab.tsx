@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
-import { FreshnessBadge } from '@/components/FreshnessBadge'
 import { useCart } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
@@ -423,7 +422,6 @@ function ProduceCard({
             {item.brix && (
               <span className="bg-amber-100 text-amber-800 text-[10px] font-semibold px-2 py-0.5 rounded-full">BRIX {item.brix}</span>
             )}
-            {item.harvest_date && <FreshnessBadge harvestDate={item.harvest_date} />}
             {(item.delivery_mode === 'courier' || item.delivery_mode === 'both') && (
               <span className="bg-blue-100 text-blue-800 text-[10px] font-semibold px-2 py-0.5 rounded-full">
                 🛵 {(item.delivery_charge ?? 0) > 0 ? `Delivery ₹${item.delivery_charge}` : 'Free delivery'}

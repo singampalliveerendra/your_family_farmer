@@ -5,7 +5,7 @@ import { ConsumerAuthProvider } from "@/lib/ConsumerAuthContext";
 import SplashScreen from "@/components/SplashScreen";
 
 export const metadata: Metadata = {
-  title: "YourFamilyFarmer — Natural food from farmers near you",
+  title: "Go Grameen — Your Family Farmer",
   description: "Buy natural produce directly from farmers in Andhra Pradesh. No middlemen.",
 };
 

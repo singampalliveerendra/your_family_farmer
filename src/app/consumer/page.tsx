@@ -8,7 +8,6 @@ import MyOrdersChip from '@/components/consumer/MyOrdersChip'
 import RoleGateModal from '@/components/consumer/RoleGateModal'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import { supabase } from '@/lib/supabase'
-import { FreshnessBadge } from '@/components/FreshnessBadge'
 import { haversineKm, nearestTown, formatDistance, farmerCoords } from '@/lib/location'
 import LocationSearch from '@/components/LocationSearch'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
@@ -628,10 +627,9 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
           </span>
         </div>
 
-        {/* Harvest + stock badges */}
-        {(item.harvest_date || liveStock != null) && (
+        {/* Stock badge */}
+        {liveStock != null && (
           <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-            {item.harvest_date && <FreshnessBadge harvestDate={item.harvest_date} dot />}
             {liveStock != null && (
               <span
                 className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${

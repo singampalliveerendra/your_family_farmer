@@ -40,7 +40,7 @@ export default function RoleGateModal() {
         <div className="text-center space-y-1">
           <p className="text-3xl">🌿</p>
           <h2 className="text-lg font-extrabold text-gray-900 leading-tight">
-            {L('Welcome to YourFamilyFarmer', 'యువర్ ఫ్యామిలీ ఫార్మర్‌కి స్వాగతం')}
+            {L('Welcome to Go Grameen', 'గో గ్రామీణ్‌కి స్వాగతం')}
           </h2>
         </div>
 

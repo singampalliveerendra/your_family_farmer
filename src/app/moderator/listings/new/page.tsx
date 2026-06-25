@@ -175,9 +175,6 @@ export default function NewListingPage() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-4">
-          <Field label="Harvest date (actual or expected)">
-            <input value={form.harvest_date} onChange={set('harvest_date')} type="date" className={inputCls} />
-          </Field>
           <Field label="Availability period">
             <input value={form.availability_period} onChange={set('availability_period')} className={inputCls} placeholder="e.g. Next 2 weeks" />
           </Field>

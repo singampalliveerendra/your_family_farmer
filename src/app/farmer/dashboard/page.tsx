@@ -7,7 +7,6 @@ import Link from 'next/link'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useLang } from '@/lib/LanguageContext'
 import LocationSearch from '@/components/LocationSearch'
-import { FreshnessBadge } from '@/components/FreshnessBadge'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import { normalizePickupSchedule, emptyPickupSlot, type PickupSchedule } from '@/lib/pickup-slots'
 import { type FarmerOrder as Order, isResolved } from '@/components/farmer/OrderCard'
@@ -2075,19 +2074,6 @@ function ProduceListingForm({
               className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
             />
           </div>
-          <div>
-            <p className="text-[11px] text-gray-500 mb-1">
-              {L('Harvest date (actual or expected)', 'కోత తేదీ (అసలు లేదా అంచనా)')}
-            </p>
-            {/* No max — farmers can list produce before harvest with an
-                expected date, so today AND future dates are allowed. */}
-            <input
-              type="date"
-              value={harvestDate}
-              onChange={(e) => setHarvestDate(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
-            />
-          </div>
         </div>
 
         {/* Farming method */}
@@ -2822,9 +2808,6 @@ function ListingRowCard({
               <span className="bg-green-50 text-green-800 text-[10px] font-semibold px-2 py-0.5 rounded-full">
                 {row.method}
               </span>
-            )}
-            {row.harvest_date && (
-              <FreshnessBadge harvestDate={row.harvest_date} />
             )}
           </div>
         </div>

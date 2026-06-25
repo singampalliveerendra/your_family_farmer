@@ -10,7 +10,7 @@ import { DeclineReasonSheet, DeclineSuccessSheet } from '@/components/farmer/Dec
 import { ordersInReportWindow } from '@/lib/orderReport'
 import OrderReportSheet from '@/components/farmer/OrderReportSheet'
 
-type StatusFilter = 'all' | 'pending' | 'approved' | 'completed' | 'declined' | 'cancelled'
+type StatusFilter = 'all' | 'pending' | 'approved' | 'shipped' | 'completed' | 'declined' | 'cancelled'
 type TimeFilter = 'today' | 'week' | 'month' | 'all'
 
 // An order the farmer can still act on (approve/decline, mark picked-up/shipped,
@@ -27,8 +27,12 @@ function bucketOf(o: Order): Exclude<StatusFilter, 'all'> {
   if (o.status === 'pending') return 'pending'
   if (o.status === 'declined') return 'declined'
   if (o.status === 'cancelled') return 'cancelled'
-  // approved: resolved (collected / received / delivered) → completed, else awaiting
-  return isResolved(o) ? 'completed' : 'approved'
+  // approved: resolved (collected / received / delivered) → completed; shipped
+  // (farmer marked it shipped, buyer hasn't confirmed yet) → shipped; otherwise
+  // it's approved-and-awaiting dispatch.
+  if (isResolved(o)) return 'completed'
+  if (o.shipped_at) return 'shipped'
+  return 'approved'
 }
 
 function OrdersPageInner() {
@@ -54,7 +58,7 @@ function OrdersPageInner() {
   // opens ?time=today).
   useEffect(() => {
     const s = searchParams.get('status')
-    if (s && ['pending', 'approved', 'completed', 'declined', 'cancelled'].includes(s)) {
+    if (s && ['pending', 'approved', 'shipped', 'completed', 'declined', 'cancelled'].includes(s)) {
       setStatusFilter(s as StatusFilter)
     }
     const t = searchParams.get('time')
@@ -325,6 +329,7 @@ function OrdersPageInner() {
     { key: 'all', label: L('All', 'అన్నీ') },
     { key: 'pending', label: L('Pending', 'పెండింగ్') },
     { key: 'approved', label: L('Approved', 'ఆమోదించారు') },
+    { key: 'shipped', label: L('Shipped', 'షిప్ చేశారు') },
     { key: 'completed', label: L('Picked up', 'తీసుకున్నారు') },
     { key: 'declined', label: L('Declined', 'తిరస్కరించారు') },
     { key: 'cancelled', label: L('Cancelled', 'రద్దు చేశారు') },

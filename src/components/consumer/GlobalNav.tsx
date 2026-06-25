@@ -25,10 +25,11 @@ export default function GlobalNav({ activeTab = 'consumer' }: { activeTab?: Acti
       <div className="flex items-center justify-between px-4 py-3 border-b border-green-800 gap-2">
         <Link href="/consumer" className="flex items-center gap-2.5 min-w-0">
           <div className="w-9 h-9 bg-green-700 rounded-xl flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-black text-xs">YFF</span>
+            <span className="text-white font-black text-xs">GG</span>
           </div>
           <div className="leading-tight min-w-0">
-            <span className="text-white font-bold text-sm block truncate">{L('YourFamilyFarmer', 'యువర్ ఫ్యామిలీ ఫార్మర్')}</span>
+            <span className="text-white font-bold text-sm block truncate">{L('Go Grameen', 'గో గ్రామీణ్')}</span>
+            <span className="text-green-300 text-[10px] block truncate">{L('Your Family Farmer', 'యువర్ ఫ్యామిలీ ఫార్మర్')}</span>
           </div>
         </Link>
 
