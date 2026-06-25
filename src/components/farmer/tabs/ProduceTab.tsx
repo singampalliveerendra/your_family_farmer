@@ -368,19 +368,28 @@ function ProduceCard({
     <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
       <div className="flex gap-3 p-3">
         {gallery.length ? (
-          <button
-            type="button"
-            onClick={() => setLightbox(true)}
-            className="relative w-14 h-14 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100"
-            aria-label={L('View photos', 'ఫోటోలు చూడండి')}
-          >
-            <img src={gallery[0]} alt={item.name} loading="lazy" className="w-14 h-14 object-cover" />
+          // #12 — inline swipeable strip: swipe right-to-left to see the rest of
+          // the photos without leaving the card; a tap opens the full lightbox.
+          <div className="relative w-14 h-14 flex-shrink-0">
+            <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-100 flex overflow-x-auto snap-x snap-mandatory scrollbar-hide">
+              {gallery.map((url) => (
+                <button
+                  key={url}
+                  type="button"
+                  onClick={() => setLightbox(true)}
+                  className="snap-center shrink-0 w-14 h-14"
+                  aria-label={L('View photos', 'ఫోటోలు చూడండి')}
+                >
+                  <img src={url} alt={item.name} loading="lazy" className="w-14 h-14 object-cover" />
+                </button>
+              ))}
+            </div>
             {gallery.length > 1 && (
-              <span className="absolute bottom-0.5 right-0.5 bg-black/60 text-white text-[9px] font-bold px-1 rounded">
+              <span className="absolute bottom-0.5 right-0.5 bg-black/60 text-white text-[9px] font-bold px-1 rounded pointer-events-none">
                 📷 {gallery.length}
               </span>
             )}
-          </button>
+          </div>
         ) : (
           <div className={`${bg} rounded-xl w-14 h-14 flex items-center justify-center text-3xl flex-shrink-0`}>
             {emoji}
