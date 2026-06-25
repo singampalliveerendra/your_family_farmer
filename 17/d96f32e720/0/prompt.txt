@@ -1,0 +1,54 @@
+run
+
+---
+
+'[Image #7]
+
+---
+
+Change the Story/Quote from Edit Profile to How we grow and also remove how we grow option in here Quality parameters (optional)
+BRIX reading
+
+e.g. 8.5
+Soil Organic Carbon %
+
+e.g. 2.1
+Soil pH
+
+e.g. 6.8
+Chemicals / pesticide
+
+e.g. None / Lab tested
+How we grow (growing notes)
+
+How this crop is grown — compost, natural pest control, etc.
+Preview
+Publish
+
+---
+
+continue
+
+---
+
+Produces of View Farmer Profile should NOT show Add to Cart for Farmer module[Image #8]. even the farmer gettign add to cart so please remove
+
+---
+
+Remove Chemicals from the View Profile Header.
+
+---
+
+Change Pickedup Order filter to Resolved
+
+---
+
+[Image #9] no need of name of farmer okay
+
+---
+
+Change Pickedup Order filter to Resolved
+
+---
+
+okay
