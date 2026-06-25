@@ -118,7 +118,82 @@ export default function ModeratorDashboard() {
           </button>
         </div>
       </div>
+
+      {/* Platform fee — global commission added on top of every consumer order */}
+      <PlatformFeeCard />
     </ModeratorShell>
+  )
+}
+
+function PlatformFeeCard() {
+  const [pct, setPct] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  useEffect(() => {
+    fetch('/api/moderator/platform-fee', { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((j) => { if (j?.feePercent != null) setPct(String(j.feePercent)) })
+      .catch(() => {})
+      .finally(() => setLoaded(true))
+  }, [])
+
+  const save = async () => {
+    const value = Number(pct)
+    if (!Number.isFinite(value) || value < 0 || value > 100) {
+      setMsg('Enter a percentage between 0 and 100.')
+      return
+    }
+    setSaving(true); setMsg('')
+    try {
+      const r = await fetch('/api/moderator/platform-fee', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ feePercent: value }),
+      })
+      const j = await r.json().catch(() => ({}))
+      setMsg(r.ok ? '✓ Saved — applies to all new orders.' : (j.error || 'Could not save.'))
+    } catch {
+      setMsg('Network error. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="mt-7 bg-white rounded-2xl border border-gray-100 p-4 shadow-sm max-w-md">
+      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Platform fee</p>
+      <p className="text-xs text-gray-500 mb-3">
+        A commission added on top of every consumer order total and shown to the buyer as a “Platform fee”.
+      </p>
+      <div className="flex items-center gap-2">
+        <div className="relative">
+          <input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            max={100}
+            step={0.5}
+            value={pct}
+            onChange={(e) => { setPct(e.target.value); setMsg('') }}
+            disabled={!loaded}
+            className="w-28 border border-gray-200 rounded-xl pl-4 pr-8 py-2.5 text-sm font-semibold focus:border-green-600 focus:outline-none disabled:opacity-50"
+            placeholder="0"
+          />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+        </div>
+        <button
+          onClick={save}
+          disabled={saving || !loaded}
+          className="bg-green-800 text-white text-sm font-bold px-5 py-2.5 rounded-xl active:bg-green-900 disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+      {msg && <p className={`text-xs mt-2 font-semibold ${msg.startsWith('✓') ? 'text-green-700' : 'text-red-600'}`}>{msg}</p>}
+    </div>
   )
 }
 

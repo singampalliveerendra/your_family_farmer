@@ -33,10 +33,28 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  const { data: orders } = await supabase
-    .from('orders')
-    .select('id, consumer_id, total_price, payment_status, razorpay_order_id')
-    .in('id', orderIds)
+  // Include platform_fee so it's added to the charged amount. The column may not
+  // exist before its migration runs, so fall back to a fee-less select on error.
+  type OrderRow = {
+    id: string; consumer_id: string | null; total_price: number | null
+    payment_status: string | null; razorpay_order_id: string | null; platform_fee?: number | null
+  }
+  let orders: OrderRow[] | null
+  {
+    const withFee = await supabase
+      .from('orders')
+      .select('id, consumer_id, total_price, payment_status, razorpay_order_id, platform_fee')
+      .in('id', orderIds)
+    if (withFee.error) {
+      const noFee = await supabase
+        .from('orders')
+        .select('id, consumer_id, total_price, payment_status, razorpay_order_id')
+        .in('id', orderIds)
+      orders = noFee.data as OrderRow[] | null
+    } else {
+      orders = withFee.data as OrderRow[] | null
+    }
+  }
 
   if (!orders || orders.length !== orderIds.length) {
     return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
@@ -59,10 +77,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'These orders are already paid.' }, { status: 409 })
   }
 
-  // Authoritative amount: sum the product line totals stored at placement.
-  // Delivery fee is intentionally excluded — it's collected as cash by the
-  // rider, matching the existing UX. Razorpay works in paise.
-  const totalRupees = orders.reduce((s, o) => s + (Number(o.total_price) || 0), 0)
+  // Authoritative amount: sum the product line totals stored at placement, plus
+  // the platform fee (the moderator commission, charged on top). Delivery fee is
+  // intentionally excluded — it's collected as cash by the rider, matching the
+  // existing UX. Razorpay works in paise.
+  const subtotalRupees = orders.reduce((s, o) => s + (Number(o.total_price) || 0), 0)
+  const platformFeeRupees = orders.reduce((s, o) => s + (Number(o.platform_fee) || 0), 0)
+  const totalRupees = subtotalRupees + platformFeeRupees
   if (totalRupees <= 0) return NextResponse.json({ error: 'Invalid order total.' }, { status: 400 })
   const amountPaise = Math.round(totalRupees * 100)
 
