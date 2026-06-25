@@ -151,6 +151,12 @@ export default async function FarmerPage({ params }: { params: Promise<{ slug: s
     .eq('farmer_id', farmer.id)
     .order('sort_order', { ascending: true })
 
+  // Real "Buyers" stat — distinct consumers who ordered from this farmer.
+  // farmers.buyer_count is never maintained (always 0); orders are RLS-locked,
+  // so we read it through the farmer_buyer_count SECURITY DEFINER function.
+  const { data: buyerCount } = await supabase.rpc('farmer_buyer_count', { p_farmer_id: farmer.id })
+  const realBuyerCount = typeof buyerCount === 'number' ? buyerCount : (farmer.buyer_count ?? 0)
+
   return (
     <main className="min-h-screen bg-gray-50 pb-24">
       <TopNav regionSlug={farmer.region_slug} />
@@ -158,7 +164,7 @@ export default async function FarmerPage({ params }: { params: Promise<{ slug: s
       {/* Count only live listings — a produce the farmer has suspended (or that
           is still "coming soon") must not inflate the public "Produce now" stat. */}
       <TrustStrip
-        farmer={{ ...farmer, rating_avg: ratingAvg }}
+        farmer={{ ...farmer, rating_avg: ratingAvg, buyer_count: realBuyerCount }}
         produceCount={(produce ?? []).filter((p) => (p as { status?: string }).status === 'available').length}
       />
       <Suspense fallback={null}>
