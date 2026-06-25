@@ -330,7 +330,7 @@ function OrdersPageInner() {
     { key: 'pending', label: L('Pending', 'పెండింగ్') },
     { key: 'approved', label: L('Approved', 'ఆమోదించారు') },
     { key: 'shipped', label: L('Shipped', 'షిప్ చేశారు') },
-    { key: 'completed', label: L('Picked up', 'తీసుకున్నారు') },
+    { key: 'completed', label: L('Resolved', 'పరిష్కరించబడింది') },
     { key: 'declined', label: L('Declined', 'తిరస్కరించారు') },
     { key: 'cancelled', label: L('Cancelled', 'రద్దు చేశారు') },
   ]
