@@ -3,8 +3,9 @@
   "checkpoint_id": "8318490b10a9",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
+    "scripts/apply-pending-migrations.sql",
     "src/app/consumer/page.tsx",
     "src/app/farmer/dashboard/orders/page.tsx",
     "src/app/farmer/dashboard/page.tsx",
@@ -20,13 +21,19 @@
       "transcript": "/83/18490b10a9/0/full.jsonl",
       "content_hash": "/83/18490b10a9/0/content_hash.txt",
       "prompt": "/83/18490b10a9/0/prompt.txt"
+    },
+    {
+      "metadata": "/83/18490b10a9/1/metadata.json",
+      "transcript": "/83/18490b10a9/1/full.jsonl",
+      "content_hash": "/83/18490b10a9/1/content_hash.txt",
+      "prompt": "/83/18490b10a9/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 4178,
-    "cache_creation_tokens": 46506,
-    "cache_read_tokens": 565571,
-    "output_tokens": 7061,
-    "api_call_count": 12
+    "input_tokens": 12823,
+    "cache_creation_tokens": 372096,
+    "cache_read_tokens": 8894236,
+    "output_tokens": 71324,
+    "api_call_count": 83
   }
 }
