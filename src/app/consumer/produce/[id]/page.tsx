@@ -55,6 +55,7 @@ const METHOD_SHORT: Record<string, string> = {
 }
 const CATEGORY_LABEL: Record<string, string> = {
   vegetables: 'Vegetables', fruits: 'Fruits', grains: 'Grains & Pulses', leafy: 'Leafy Greens',
+  spices: 'Spices', other: 'Other',
 }
 
 export default function ProduceDetailPage() {

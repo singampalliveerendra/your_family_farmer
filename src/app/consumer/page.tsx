@@ -59,6 +59,8 @@ const CATEGORIES = [
   { key: 'fruits',     en: 'Fruits',          te: 'పళ్ళు' },
   { key: 'grains',     en: 'Grains & Pulses', te: 'ధాన్యాలు' },
   { key: 'leafy',      en: 'Leafy Greens',    te: 'ఆకు కూరలు' },
+  { key: 'spices',     en: 'Spices',          te: 'మసాలాలు' },
+  { key: 'other',      en: 'Other',           te: 'ఇతర' },
 ]
 
 // Short, single-word method label for the small pill on the image corner.

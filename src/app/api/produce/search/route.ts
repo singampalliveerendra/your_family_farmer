@@ -25,6 +25,13 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'spinach', 'methi', 'fenugreek', 'coriander', 'mint', 'curry',
     'amaranth', 'sorrel', 'moringa', 'drumstick leaves', 'palak',
   ],
+  spices: [
+    'turmeric', 'ginger', 'chilli', 'pepper', 'cardamom', 'clove',
+    'cinnamon', 'cumin', 'coriander seed', 'mustard', 'fenugreek seed',
+    'tamarind', 'curry leaf', 'garlic', 'nutmeg', 'fennel', 'asafoetida',
+  ],
+  // 'other' is a catch-all with no keyword guesses — it matches only listings
+  // the farmer explicitly tagged as 'other'.
 }
 
 export async function GET(request: NextRequest) {
