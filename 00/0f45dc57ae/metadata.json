@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "000f45dc57ae",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/app/api/moderator/farmers/[id]/route.ts",
+    "src/app/api/moderator/farmers/route.ts",
+    "src/app/moderator/farmers/[id]/edit/page.tsx",
+    "src/components/moderator/ModeratorFarmerForm.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/00/0f45dc57ae/0/metadata.json",
+      "transcript": "/00/0f45dc57ae/0/full.jsonl",
+      "content_hash": "/00/0f45dc57ae/0/content_hash.txt",
+      "prompt": "/00/0f45dc57ae/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 8139,
+    "cache_creation_tokens": 251160,
+    "cache_read_tokens": 21400997,
+    "output_tokens": 107587,
+    "api_call_count": 203
+  }
+}
