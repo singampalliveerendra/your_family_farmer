@@ -26,6 +26,7 @@ type Farmer = {
   farm_size_acres: number | null
   soil_organic_carbon: number | null
   soil_ph: number | null
+  water_source: string | null
   story_quote: string | null
   pickup_locations: string[] | null
   farm_address: string | null
@@ -154,6 +155,7 @@ export default function FarmerDashboard() {
   const [notFound, setNotFound] = useState(false)
   const [listings, setListings] = useState<DashboardListing[]>([])
   const [pendingOrders, setPendingOrders] = useState<Order[]>([])
+  const [todayCount, setTodayCount] = useState(0)
   const [approvedCount, setApprovedCount] = useState(0)
   const [totalRevenue, setTotalRevenue] = useState(0)
   const [demandBars, setDemandBars] = useState<DemandBar[]>([])
@@ -181,7 +183,11 @@ export default function FarmerDashboard() {
     monthStart.setDate(1)
     monthStart.setHours(0, 0, 0, 0)
 
-    const [listingsRes, pendingRes, approvedRes, intentsRes, monthlyRes] = await Promise.all([
+    // Local midnight today — matches the Orders page ?time=today window.
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+
+    const [listingsRes, pendingRes, approvedRes, intentsRes, monthlyRes, todayRes] = await Promise.all([
       // Full (lightweight) listing rows so the dashboard can show them inline
       // with a quick suspend/resume; the active-listings count is derived below.
       supabase.from('produce_listings').select('id, name, emoji, status, price_tier_1_price, unit, stock_qty, rating_avg, review_count').eq('farmer_id', farmerData.id).order('created_at', { ascending: false }),
@@ -194,12 +200,16 @@ export default function FarmerDashboard() {
       supabase.from('orders').select('id, total_price').eq('farmer_id', farmerData.id).eq('status', 'approved').gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString()),
       supabase.from('demand_intents').select('crop_name, quantity_kg').eq('region_slug', farmerData.region_slug).eq('fulfilled', false),
       supabase.from('orders').select('id, total_price, created_at').eq('farmer_id', farmerData.id).eq('status', 'approved').gte('created_at', monthStart.toISOString()),
+      // Today's orders — every order placed since local midnight, any status,
+      // to match the Orders list opened by the tile's ?time=today link.
+      supabase.from('orders').select('id', { count: 'exact', head: true }).eq('farmer_id', farmerData.id).gte('created_at', todayStart.toISOString()),
     ])
 
     setListings((listingsRes.data ?? []) as DashboardListing[])
     // Drop approved orders that are already resolved (collected / delivered).
     const activeOrders = (pendingRes.data ?? []).filter((o) => !isResolved(o as Order)) as Order[]
     setPendingOrders(activeOrders)
+    setTodayCount(todayRes.count ?? 0)
     const approved = approvedRes.data ?? []
     setApprovedCount(approved.length)
     setTotalRevenue(approved.reduce((sum, o) => sum + (o.total_price ?? 0), 0))
@@ -265,6 +275,9 @@ export default function FarmerDashboard() {
         { event: 'INSERT', schema: 'public', table: 'orders', filter: `farmer_id=eq.${farmer.id}` },
         (payload) => {
           const row = payload.new as Order
+          // A freshly inserted order is placed today, so it counts toward the
+          // "Today's orders" tile regardless of its initial status.
+          setTodayCount((c) => c + 1)
           if (row.status !== 'pending') return
           setPendingOrders((prev) => prev.some((o) => o.id === row.id) ? prev : [row, ...prev])
           fireNotification(
@@ -480,10 +493,10 @@ export default function FarmerDashboard() {
           <Link
             href="/farmer/dashboard/orders?time=today"
             className={`border rounded-2xl p-4 text-left active:opacity-80 ${
-              pendingCount > 0 ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-gray-50'
+              todayCount > 0 ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-gray-50'
             }`}
           >
-            <div className={`text-3xl font-black ${pendingCount > 0 ? 'text-orange-700' : 'text-gray-500'}`}>{pendingCount}</div>
+            <div className={`text-3xl font-black ${todayCount > 0 ? 'text-orange-700' : 'text-gray-500'}`}>{todayCount}</div>
             <div className="text-sm font-semibold text-gray-800 mt-1 leading-tight">{L("Today's orders", 'నేటి ఆర్డర్లు')}</div>
             <div className="text-[11px] font-bold text-orange-700 mt-2 flex items-center gap-1">
               {L('View', 'చూడండి')} <span aria-hidden>→</span>
@@ -762,6 +775,7 @@ function ProfileEditModal({
   const [farmSize, setFarmSize] = useState(farmer.farm_size_acres ? String(farmer.farm_size_acres) : '')
   const [soilCarbon, setSoilCarbon] = useState(farmer.soil_organic_carbon ? String(farmer.soil_organic_carbon) : '')
   const [soilPh, setSoilPh] = useState(farmer.soil_ph ? String(farmer.soil_ph) : '')
+  const [waterSource, setWaterSource] = useState(farmer.water_source ?? '')
   const [storyQuote, setStoryQuote] = useState(farmer.story_quote ?? '')
 
   // Pickup schedule — keyed by location. Each location has its own one-or-more
@@ -981,6 +995,7 @@ function ProfileEditModal({
       phone:               whatsapp.trim() || farmer.phone,
       farm_size_acres:     farmSize ? Number(farmSize) : null,
       soil_organic_carbon: soilCarbon ? Number(soilCarbon) : null,
+      water_source:        waterSource.trim() || null,
       story_quote:         storyQuote.trim() || null,
     }
     if (sinceYear) payload.farming_since_year = Number(sinceYear)
@@ -1128,6 +1143,25 @@ function ProfileEditModal({
             onChange={setSoilPh}
             type="number"
           />
+          <div>
+            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
+              {L('Water source', 'నీటి వనరు')}
+            </label>
+            <select
+              value={waterSource}
+              onChange={(e) => setWaterSource(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+            >
+              <option value="">{L('Select a water source…', 'నీటి వనరును ఎంచుకోండి…')}</option>
+              <option value="Borewell">{L('Borewell', 'బోర్‌వెల్')}</option>
+              <option value="Open well">{L('Open well', 'బావి')}</option>
+              <option value="Rain-fed">{L('Rain-fed', 'వర్షాధారం')}</option>
+              <option value="Canal">{L('Canal', 'కాలువ')}</option>
+              <option value="River">{L('River', 'నది')}</option>
+              <option value="Pond / Tank">{L('Pond / Tank', 'చెరువు')}</option>
+              <option value="Drip irrigation">{L('Drip irrigation', 'డ్రిప్ ఇరిగేషన్')}</option>
+            </select>
+          </div>
           <div>
             <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
               {L('Story / quote', 'కథ / కోట్')}
@@ -2108,6 +2142,8 @@ function ProduceListingForm({
             <option value="fruits">{L('Fruits', 'పళ్ళు')}</option>
             <option value="grains">{L('Grains & Pulses', 'ధాన్యాలు')}</option>
             <option value="leafy">{L('Leafy Greens', 'ఆకు కూరలు')}</option>
+            <option value="spices">{L('Spices', 'మసాలాలు')}</option>
+            <option value="other">{L('Other', 'ఇతర')}</option>
           </select>
         </div>
 
@@ -3085,13 +3121,20 @@ function FarmPhotosSection({ farmerId }: { farmerId: string }) {
     if (upErr) { setError(`Upload failed: ${upErr.message}`); setUploading(false); return }
 
     const { data: urlData } = supabase.storage.from('farm-images').getPublicUrl(path)
-    const { data: inserted } = await supabase
+    const { data: inserted, error: insErr } = await supabase
       .from('media')
       .insert({ farmer_id: farmerId, type: 'photo', url: urlData.publicUrl, sort_order: photos.length })
       .select('id, url, caption')
       .single()
 
-    if (inserted) setPhotos((prev) => [...prev, inserted as MediaRow])
+    // Surface a failed insert instead of swallowing it — a silent RLS rejection
+    // here is exactly what made "Add Photo" appear to do nothing before.
+    if (insErr || !inserted) {
+      setError(`Could not save photo: ${insErr?.message ?? 'unknown error'}`)
+      setUploading(false)
+      return
+    }
+    setPhotos((prev) => [...prev, inserted as MediaRow])
     setUploading(false)
   }
 
