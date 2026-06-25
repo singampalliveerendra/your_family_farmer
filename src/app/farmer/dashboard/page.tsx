@@ -7,7 +7,6 @@ import Link from 'next/link'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useLang } from '@/lib/LanguageContext'
 import LocationSearch from '@/components/LocationSearch'
-import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import { normalizePickupSchedule, emptyPickupSlot, type PickupSchedule } from '@/lib/pickup-slots'
 import { type FarmerOrder as Order, isResolved } from '@/components/farmer/OrderCard'
 
@@ -366,17 +365,6 @@ export default function FarmerDashboard() {
   // Uses the anon client + RLS UPDATE policy, the same public-write model as the
   // Add/Delete produce flows. .select('id') confirms a row actually changed —
   // without an UPDATE policy the write would silently match 0 rows.
-  const handleToggleListingSuspend = async (id: string, currentStatus: string) => {
-    const next = currentStatus === 'suspended_by_farmer' ? 'available' : 'suspended_by_farmer'
-    setListings((prev) => prev.map((l) => (l.id === id ? { ...l, status: next } : l)))
-    const { data, error } = await supabase
-      .from('produce_listings')
-      .update({ status: next })
-      .eq('id', id)
-      .select('id')
-    if (error || !data?.length) { void loadDashboard() } // re-sync on failure
-  }
-
   if (loading) return <LoadingScreen />
   if (notFound) return <FarmerNotFound onLogout={handleLogout} />
 
@@ -530,13 +518,6 @@ export default function FarmerDashboard() {
             <div className="text-sm font-semibold text-gray-800 mt-1 leading-tight">{tx.totalRevenue}</div>
           </div>
         </div>
-
-        {/* Your produce — inline list with quick suspend/resume */}
-        <DashboardProduceSection
-          listings={listings}
-          onManage={() => setShowListings(true)}
-          onToggleSuspend={handleToggleListingSuspend}
-        />
 
         {/* Monthly earnings summary */}
         <EarningsCard
@@ -1164,7 +1145,7 @@ function ProfileEditModal({
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
-              {L('Story / quote', 'కథ / కోట్')}
+              {L('How we grow', 'మేము ఎలా పండిస్తాము')}
             </label>
             <textarea
               value={storyQuote}
@@ -2439,16 +2420,6 @@ function ProduceListingForm({
               />
             </div>
           </div>
-          <div>
-            <p className="text-xs text-gray-500 mb-1">{L('How we grow (growing notes)', 'మేము ఎలా పండిస్తాము')}</p>
-            <textarea
-              rows={3}
-              placeholder={L('How this crop is grown — compost, natural pest control, etc.', 'ఈ పంటను ఎలా పండిస్తారు…')}
-              value={howWeGrow}
-              onChange={(e) => setHowWeGrow(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
-            />
-          </div>
         </div>
 
         {error && (
@@ -2902,127 +2873,6 @@ function ListingRowCard({
 }
 
 export { FreshnessBadge } from '@/components/FreshnessBadge'
-
-/* ─── Dashboard "Your produce" section ───────────────────────── */
-function DashboardProduceSection({
-  listings,
-  onManage,
-  onToggleSuspend,
-}: {
-  listings: DashboardListing[]
-  onManage: () => void
-  onToggleSuspend: (id: string, currentStatus: string) => void
-}) {
-  const { L } = useLang()
-  // The listing whose buyer reviews are open in the bottom-sheet, if any.
-  const [reviewsFor, setReviewsFor] = useState<DashboardListing | null>(null)
-  // Status chips mirror the Manage Listings card so the two stay consistent.
-  const chip = (status: string): { label: string; color: string } => {
-    switch (status) {
-      case 'available': return { label: L('Live', 'అందుబాటులో'), color: 'bg-green-100 text-green-800' }
-      case 'paused': return { label: L('Paused', 'నిలిపివేశారు'), color: 'bg-purple-100 text-purple-800' }
-      case 'suspended_by_farmer': return { label: L('Suspended', 'నిలిపివేశారు'), color: 'bg-red-100 text-red-800' }
-      case 'suspended': return { label: 'Suspended by team', color: 'bg-orange-100 text-orange-800' }
-      case 'sold_out': return { label: L('Sold out', 'అయిపోయింది'), color: 'bg-gray-100 text-gray-700' }
-      case 'coming_soon': return { label: 'Coming soon', color: 'bg-amber-100 text-amber-800' }
-      default: return { label: status, color: 'bg-gray-100 text-gray-700' }
-    }
-  }
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-      <div className="px-4 pt-4 pb-3 flex items-center justify-between border-b border-gray-100">
-        <div>
-          <h2 className="font-extrabold text-gray-900 text-base leading-tight">
-            {L('Your produce', 'మీ పంట')}
-          </h2>
-          <p className="text-xs text-gray-500 mt-0.5">Suspend or resume any item</p>
-        </div>
-        <button onClick={onManage} className="text-xs font-bold text-green-700">
-          Manage →
-        </button>
-      </div>
-
-      {listings.length === 0 ? (
-        <div className="text-center py-8 px-4">
-          <div className="text-4xl mb-2">🌾</div>
-          <p className="font-semibold text-gray-500 text-sm">No produce listed yet</p>
-        </div>
-      ) : (
-        <div className="divide-y divide-gray-100">
-          {listings.map((l) => {
-            const isSuspended = l.status === 'suspended_by_farmer'
-            // Only the dashboard's own suspend/resume states are togglable here;
-            // pause / moderator-suspend / coming-soon are handled in Manage.
-            const canToggle = l.status === 'available' || l.status === 'sold_out' || isSuspended
-            const c = chip(l.status)
-            return (
-              <div key={l.id} className="flex items-center gap-3 px-4 py-3">
-                <div className="w-9 h-9 bg-green-50 rounded-lg flex items-center justify-center text-xl flex-shrink-0">
-                  {l.emoji ?? '🌿'}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-bold text-gray-900 text-sm truncate">{l.name}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {l.price_tier_1_price != null && (
-                      <span className="text-xs font-bold text-green-700">
-                        ₹{l.price_tier_1_price}
-                        <span className="text-gray-400 font-normal">/{l.unit || 'kg'}</span>
-                      </span>
-                    )}
-                    <span className={`${c.color} text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap`}>
-                      {c.label}
-                    </span>
-                  </div>
-                  {/* Buyer rating — tap to read the individual reviews. Shown
-                      only once at least one verified-buyer rating exists. */}
-                  {(l.review_count ?? 0) > 0 && l.rating_avg != null && (
-                    <button
-                      type="button"
-                      onClick={() => setReviewsFor(l)}
-                      className="flex items-center gap-1 mt-1 active:opacity-70"
-                    >
-                      <span className="inline-flex items-center gap-0.5 bg-green-700 text-white text-[11px] font-bold rounded px-1.5 py-0.5">
-                        {l.rating_avg.toFixed(1)} ★
-                      </span>
-                      <span className="text-[11px] text-gray-500 underline">
-                        {l.review_count} {l.review_count === 1 ? L('review', 'సమీక్ష') : L('reviews', 'సమీక్షలు')}
-                      </span>
-                    </button>
-                  )}
-                </div>
-                {canToggle ? (
-                  <button
-                    onClick={() => onToggleSuspend(l.id, l.status)}
-                    className={`font-bold py-2 px-3 rounded-lg text-xs border flex-shrink-0 ${
-                      isSuspended
-                        ? 'border-green-600 text-green-700 active:bg-green-50'
-                        : 'border-red-300 text-red-600 active:bg-red-50'
-                    }`}
-                  >
-                    {isSuspended ? '▶ Resume' : '⛔ Suspend'}
-                  </button>
-                ) : (
-                  <button onClick={onManage} className="text-xs font-semibold text-gray-400 px-2 flex-shrink-0">
-                    Manage
-                  </button>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {reviewsFor && (
-        <ProduceReviewsModal
-          listingId={reviewsFor.id}
-          produceName={reviewsFor.name}
-          onClose={() => setReviewsFor(null)}
-        />
-      )}
-    </div>
-  )
-}
 
 /* ─── Earnings summary card ──────────────────────────────────── */
 function EarningsCard({
