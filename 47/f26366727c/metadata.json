@@ -3,7 +3,7 @@
   "checkpoint_id": "47f26366727c",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 17,
+  "checkpoints_count": 27,
   "files_touched": [
     "scripts/consumer-intents-migration.sql",
     "scripts/farmer-soil-ph-migration.sql",
@@ -45,13 +45,19 @@
       "transcript": "/47/f26366727c/1/full.jsonl",
       "content_hash": "/47/f26366727c/1/content_hash.txt",
       "prompt": "/47/f26366727c/1/prompt.txt"
+    },
+    {
+      "metadata": "/47/f26366727c/2/metadata.json",
+      "transcript": "/47/f26366727c/2/full.jsonl",
+      "content_hash": "/47/f26366727c/2/content_hash.txt",
+      "prompt": "/47/f26366727c/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 22067,
-    "cache_creation_tokens": 515830,
-    "cache_read_tokens": 45938522,
-    "output_tokens": 273437,
-    "api_call_count": 294
+    "input_tokens": 29884,
+    "cache_creation_tokens": 572769,
+    "cache_read_tokens": 48148023,
+    "output_tokens": 309890,
+    "api_call_count": 343
   }
 }

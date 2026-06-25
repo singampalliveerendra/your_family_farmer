@@ -1,0 +1,88 @@
+In order details for Farmer Payment is shown as "UPI - Pending". It should be only "UPI"... in here 
+Order
+
+YFF-20260623-0124
+
+Turmeric Powder
+
+1 kg · ₹1
+
+✓ Confirmed
+Placed
+
+23 Jun 2026
+
+10:02 am
+
+Payment
+
+UPI · Pending
+
+Pickup
+
+📍 Vijayalakshmi Departmental Stores, Near EVM High School
+
+. just ip online payment show upi only not upi pending
+
+---
+
+if payment not done showing payment pending(cod) . if payment done online show upi
+
+---
+
+Order details for Farmer should have self pickup date as well
+
+---
+
+Order
+
+YFF-20260623-0124
+
+Turmeric Powder
+
+1 kg · ₹1
+
+✓ Confirmed
+Placed
+
+23 Jun 2026
+
+10:02 am
+
+Payment
+
+UPI · Pending
+
+Pickup
+
+📍 Vijayalakshmi Departmental Stores, Near EVM High School
+
+✕ Cancel order still showing this why
+
+---
+
+add payment pending if not paid
+
+---
+
+Order details for Farmer should have self pickup date as well
+
+---
+
+Why is Local demand not having any graphs in farmers page? There are some farmers whose produce and consumers bought them as well.
+
+---
+
+[Image #1] [Image #2] read everything all qurys and understand it cleanly and let me know if you have any doubts about every section .
+
+---
+
+[Image #3]
+
+---
+
+in table explain all 20 cards in detail no technical
+
+---
+
+[Image #4] [Image #5]
