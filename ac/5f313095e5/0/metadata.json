@@ -1,0 +1,45 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "ac5f313095e5",
+  "session_id": "64e6dea2-4454-4132-837d-4df02a938928",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-25T11:02:28.900887625Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "scripts/orders-delivery-city-migration.sql",
+    "src/app/admin/page.tsx",
+    "src/app/api/admin/deliveries/route.ts",
+    "src/app/api/consumer/orders/[id]/route.ts",
+    "src/app/api/orders/place/route.ts",
+    "src/app/api/rider/orders/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/rider/dashboard/page.tsx",
+    "src/components/consumer/Cart.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "ab1e5baa2818",
+  "token_usage": {
+    "input_tokens": 8141,
+    "cache_creation_tokens": 251766,
+    "cache_read_tokens": 21616188,
+    "output_tokens": 108322,
+    "api_call_count": 204
+  },
+  "session_metrics": {
+    "turn_count": 14
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-25T11:02:28.825827891Z",
+    "agent_lines": 108,
+    "agent_removed": 28,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 108,
+    "total_lines_changed": 136,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
