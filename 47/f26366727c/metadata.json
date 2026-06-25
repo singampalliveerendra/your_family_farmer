@@ -1,0 +1,34 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "47f26366727c",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "src/app/api/consumer/orders/[id]/received/route.ts",
+    "src/app/api/farmer/orders/[id]/confirm-pickup/route.ts",
+    "src/app/api/farmer/orders/[id]/deliver/route.ts",
+    "src/app/api/farmer/orders/[id]/ship/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/farmer/dashboard/orders/[id]/page.tsx",
+    "src/app/farmer/dashboard/orders/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/components/consumer/OrderCard.tsx",
+    "src/components/farmer/OrderCard.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/47/f26366727c/0/metadata.json",
+      "transcript": "/47/f26366727c/0/full.jsonl",
+      "content_hash": "/47/f26366727c/0/content_hash.txt",
+      "prompt": "/47/f26366727c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 9428,
+    "cache_creation_tokens": 167243,
+    "cache_read_tokens": 12479922,
+    "output_tokens": 87145,
+    "api_call_count": 111
+  }
+}

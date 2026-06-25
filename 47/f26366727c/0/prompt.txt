@@ -1,0 +1,16 @@
+├─────┼──────────────────────────┼───────────────────────────────────────────────────────────────────┼────────────┤
+│     │                          │ After the farmer confirms the shipping date, the next action      │            │
+│ 5   │ "Shipped" status missing │ button jumps straight to Delivered. It should go Confirm date →   │ 🟠 Hard    │
+│     │                          │ Shipped → Delivered. This is a status-machine fix. explain this
+
+---
+
+before we dont this alrready but you removed while implementing code verfification from consumer . so this implement again and delivered have to click by consumer and shipped by farmer oky do that
+
+---
+
+not picked up the consumer have to say delevered
+
+---
+
+listen the i need older version before code verification . i will explain the farmer hve to click shipped and the consumer have to click delevered thatsit  is no verfication for now
