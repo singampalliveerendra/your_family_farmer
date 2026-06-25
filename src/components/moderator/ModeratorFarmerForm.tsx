@@ -29,6 +29,8 @@ export type FarmerInitial = {
   farm_address: string
   upi_id: string
   soil_organic_carbon: string
+  soil_ph: string
+  water_source: string
   bank_account_number: string
   bank_ifsc: string
   pickup_locations: string[]
@@ -83,7 +85,7 @@ export function emptyFarmerInitial(): FarmerInitial {
   return {
     name: '', phone: '', village: '', district: '',
     method: 'natural', farm_size_acres: '', farming_since_year: '', story_quote: '',
-    farm_address: '', upi_id: '', soil_organic_carbon: '',
+    farm_address: '', upi_id: '', soil_organic_carbon: '', soil_ph: '', water_source: '',
     bank_account_number: '', bank_ifsc: '',
     pickup_locations: [], pickup_slots: {}, cod_enabled: false,
     lat: null, lng: null, location_name: '',
@@ -111,6 +113,7 @@ export default function ModeratorFarmerForm({
     method: initial.method, farm_size_acres: initial.farm_size_acres,
     farming_since_year: initial.farming_since_year, story_quote: initial.story_quote,
     farm_address: initial.farm_address, upi_id: initial.upi_id, soil_organic_carbon: initial.soil_organic_carbon,
+    soil_ph: initial.soil_ph, water_source: initial.water_source,
     bank_account_number: initial.bank_account_number, bank_ifsc: initial.bank_ifsc,
   })
   const [error, setError] = useState('')
@@ -303,6 +306,21 @@ export default function ModeratorFarmerForm({
         </Field>
         <Field label="Soil organic carbon (%)">
           <input value={form.soil_organic_carbon} onChange={set('soil_organic_carbon')} type="number" step="0.01" placeholder="e.g. 0.85" className={inputCls} />
+        </Field>
+        <Field label="Soil pH">
+          <input value={form.soil_ph} onChange={set('soil_ph')} type="number" step="0.1" placeholder="e.g. 6.8" className={inputCls} />
+        </Field>
+        <Field label="Water source">
+          <select value={form.water_source} onChange={set('water_source')} className={inputCls}>
+            <option value="">Select a water source…</option>
+            <option value="Borewell">Borewell</option>
+            <option value="Open well">Open well</option>
+            <option value="Rain-fed">Rain-fed</option>
+            <option value="Canal">Canal</option>
+            <option value="River">River</option>
+            <option value="Pond / Tank">Pond / Tank</option>
+            <option value="Drip irrigation">Drip irrigation</option>
+          </select>
         </Field>
       </div>
       <Field label="Story / quote">

@@ -20,6 +20,8 @@ type FarmerRow = {
   farming_since_year: number | null
   farm_address: string | null
   soil_organic_carbon: number | null
+  soil_ph: number | null
+  water_source: string | null
   upi_id: string | null
   cod_enabled: boolean | null
   bank_account_number: string | null
@@ -50,6 +52,8 @@ function toInitial(f: FarmerRow): FarmerInitial {
     farm_address: str(f.farm_address),
     upi_id: str(f.upi_id),
     soil_organic_carbon: str(f.soil_organic_carbon),
+    soil_ph: str(f.soil_ph),
+    water_source: str(f.water_source),
     bank_account_number: str(f.bank_account_number),
     bank_ifsc: str(f.bank_ifsc),
     pickup_locations: Array.isArray(f.pickup_locations) ? f.pickup_locations : [],

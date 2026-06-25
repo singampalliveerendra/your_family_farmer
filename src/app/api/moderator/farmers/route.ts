@@ -110,6 +110,9 @@ export async function POST(req: NextRequest) {
   const bank_ifsc = String((body as { bank_ifsc?: unknown }).bank_ifsc ?? '').trim().toUpperCase()
   const socRaw = (body as { soil_organic_carbon?: unknown }).soil_organic_carbon
   const soil_organic_carbon = Number(socRaw) > 0 ? Number(socRaw) : null
+  const phRaw = (body as { soil_ph?: unknown }).soil_ph
+  const soil_ph = Number(phRaw) > 0 ? Number(phRaw) : null
+  const water_source = String((body as { water_source?: unknown }).water_source ?? '').trim()
 
   // Photos & farm GPS — the same media a farmer can attach to their own profile.
   const cover_photo_url = String((body as { cover_photo_url?: unknown }).cover_photo_url ?? '').trim()
@@ -186,6 +189,8 @@ export async function POST(req: NextRequest) {
       bank_account_number: bank_account_number || null,
       bank_ifsc: bank_ifsc || null,
       soil_organic_carbon,
+      soil_ph,
+      water_source: water_source || null,
       cover_photo_url: cover_photo_url || null,
       photo_url: photo_url || null,
       pesticide_cert_url: pesticide_cert_url || null,

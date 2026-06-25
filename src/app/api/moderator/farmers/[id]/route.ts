@@ -20,7 +20,7 @@ function svc() {
 // in when onboarding the farmer.
 const EDIT_COLUMNS =
   'id, slug, name, phone, village, district, method, active, story_quote, ' +
-  'farm_size_acres, farming_since_year, farm_address, soil_organic_carbon, ' +
+  'farm_size_acres, farming_since_year, farm_address, soil_organic_carbon, soil_ph, water_source, ' +
   'upi_id, cod_enabled, bank_account_number, bank_ifsc, pickup_locations, pickup_slots, ' +
   'cover_photo_url, photo_url, pesticide_cert_url, upi_qr_code_url, ' +
   'lat, lng, location_name'
@@ -98,6 +98,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if ('soil_organic_carbon' in b) {
     update.soil_organic_carbon = Number(b.soil_organic_carbon) > 0 ? Number(b.soil_organic_carbon) : null
   }
+  if ('soil_ph' in b) update.soil_ph = Number(b.soil_ph) > 0 ? Number(b.soil_ph) : null
+  if ('water_source' in b) update.water_source = String(b.water_source ?? '').trim() || null
   if ('active' in b) update.active = Boolean(b.active)
   if ('cod_enabled' in b) update.cod_enabled = b.cod_enabled === true
   if ('method' in b) {
