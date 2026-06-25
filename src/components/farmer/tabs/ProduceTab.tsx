@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
@@ -68,6 +68,13 @@ export default function ProduceTab({
   const f = farmer as Farmer
   const { addItem } = useCart()
   const { requireAuth } = useConsumerAuth()
+  // When the logged-in farmer views their OWN public profile (e.g. via the
+  // dashboard's "View profile" link), hide the consumer "Add to cart" button —
+  // they can't buy from themselves. Detected client-side from the farmer session.
+  const [isOwner, setIsOwner] = useState(false)
+  useEffect(() => {
+    if (f.id && localStorage.getItem('yff_farmer_id') === f.id) setIsOwner(true)
+  }, [f.id])
   const [listings, setListings] = useState<Produce[]>(produce as Produce[])
   const available = listings.filter((p) => p.status === 'available' && p.stock_qty !== 0)
   const comingSoon = listings.filter((p) => p.status === 'coming_soon')
@@ -113,7 +120,7 @@ export default function ProduceTab({
                 item={item}
                 review={produceReviews?.[item.id]}
                 farmerInfo={farmerCartInfo}
-                onAddToCart={(qty) => requireAuth(() => addItem({
+                onAddToCart={isOwner ? undefined : (qty) => requireAuth(() => addItem({
                   listingId: item.id,
                   name: item.name,
                   variety: item.variety,
@@ -339,7 +346,7 @@ function ProduceCard({
   item: Produce
   review?: ReviewSummary
   farmerInfo: FarmerCartInfo
-  onAddToCart: (qty: number) => void
+  onAddToCart?: (qty: number) => void
   onDelete?: () => void
 }) {
   const { tx, lang, L } = useLang()
@@ -358,6 +365,7 @@ function ProduceCard({
   const bg = bgColors[emoji] ?? 'bg-green-100'
 
   const handleAdd = () => {
+    if (!onAddToCart) return
     onAddToCart(1)
     setAdded(true)
     setTimeout(() => setAdded(false), 1500)
@@ -469,23 +477,25 @@ function ProduceCard({
       )}
 
       <div className="px-3 pb-3 pt-2 space-y-2">
-        <button
-          onClick={handleAdd}
-          className={`flex items-center justify-center gap-2 w-full font-bold py-3.5 rounded-xl text-base transition-colors ${
-            added
-              ? 'bg-green-100 text-green-800'
-              : 'bg-green-700 text-white active:bg-green-800'
-          }`}
-        >
-          {added ? (
-            <>{L('✓ Added to cart', 'బుట్టకు చేర్చబడింది')}</>
-          ) : (
-            <>
-              <span className="text-xl leading-none">+</span>
-              {L('Add to cart', 'బుట్టకు చేర్చండి')}
-            </>
-          )}
-        </button>
+        {onAddToCart && (
+          <button
+            onClick={handleAdd}
+            className={`flex items-center justify-center gap-2 w-full font-bold py-3.5 rounded-xl text-base transition-colors ${
+              added
+                ? 'bg-green-100 text-green-800'
+                : 'bg-green-700 text-white active:bg-green-800'
+            }`}
+          >
+            {added ? (
+              <>{L('✓ Added to cart', 'బుట్టకు చేర్చబడింది')}</>
+            ) : (
+              <>
+                <span className="text-xl leading-none">+</span>
+                {L('Add to cart', 'బుట్టకు చేర్చండి')}
+              </>
+            )}
+          </button>
+        )}
         {onDelete && (
           <button
             onClick={onDelete}
