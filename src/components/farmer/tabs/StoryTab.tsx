@@ -59,6 +59,21 @@ export default function StoryTab({ farmer }: { farmer: Record<string, unknown> }
 
   return (
     <div className="space-y-5">
+      {/* Highlighted, moved to the top — the farm's growing story is the headline. */}
+      <div className="bg-green-50 border-2 border-green-600 rounded-xl p-4 shadow-sm">
+        <h3 className="text-base font-extrabold text-green-800 mb-2 flex items-center gap-2">
+          <span aria-hidden>🌱</span> {tx.howWeGrow}
+        </h3>
+        <p className="text-sm text-gray-700 leading-relaxed">{tx.howWeGrowDesc}</p>
+        <div className="flex flex-wrap gap-2 mt-3">
+          {certifications.map((cert) => (
+            <span key={cert} className="bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full">
+              {cert}
+            </span>
+          ))}
+        </div>
+      </div>
+
       {f.story_quote && (
         <blockquote className="bg-green-50 border-l-4 border-green-700 px-4 py-3 rounded-r-lg">
           <p className="text-sm italic text-green-900 leading-relaxed">"{f.story_quote}"</p>
@@ -74,18 +89,6 @@ export default function StoryTab({ farmer }: { farmer: Record<string, unknown> }
               <p className="text-[10px] text-gray-500 uppercase tracking-wide">{item.label}</p>
               <p className="text-sm font-semibold text-gray-800 mt-0.5">{item.value}</p>
             </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg p-4 border border-gray-100">
-        <h3 className="text-sm font-bold text-gray-700 mb-2">{tx.howWeGrow}</h3>
-        <p className="text-sm text-gray-600 leading-relaxed">{tx.howWeGrowDesc}</p>
-        <div className="flex flex-wrap gap-2 mt-3">
-          {certifications.map((cert) => (
-            <span key={cert} className="bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full">
-              {cert}
-            </span>
           ))}
         </div>
       </div>
