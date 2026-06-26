@@ -208,13 +208,17 @@ export default function ProduceDetailPage() {
   return (
     <main className="min-h-screen bg-gray-50 pb-28">
       {/* Header bar */}
-      <div className="sticky top-0 z-40 bg-green-900 px-4 py-3 flex items-center justify-between">
-        <Link href="/consumer" className="text-green-200 text-sm font-semibold flex items-center gap-1">
-          {L('← Back', '← తిరిగి')}
-        </Link>
-        <LanguageToggle />
+      <div className="sticky top-0 z-40 bg-green-900">
+        <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
+          <Link href="/consumer" className="text-green-200 text-sm font-semibold flex items-center gap-1">
+            {L('← Back', '← తిరిగి')}
+          </Link>
+          <LanguageToggle />
+        </div>
       </div>
 
+      {/* Centered column so the page stays structured on desktop, not full-bleed */}
+      <div className="max-w-lg mx-auto">
       {/* Gallery */}
       <div className="relative bg-white">
         {gallery.length ? (
@@ -245,7 +249,7 @@ export default function ProduceDetailPage() {
         </span>
       </div>
 
-      <div className="px-4 -mt-4 relative space-y-3 max-w-lg mx-auto">
+      <div className="px-4 -mt-4 relative space-y-3">
         {/* Name + price card */}
         <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
           <h1 className="text-xl font-extrabold text-gray-900 leading-tight">{localizeName(item.name, lang)}</h1>
@@ -350,6 +354,7 @@ export default function ProduceDetailPage() {
             </div>
           )}
         </div>
+      </div>
       </div>
 
       {/* Sticky add-to-cart bar */}
