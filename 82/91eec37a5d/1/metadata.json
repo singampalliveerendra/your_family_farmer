@@ -1,0 +1,76 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "8291eec37a5d",
+  "session_id": "aba66bc7-cdba-4fa2-901c-00f6034520c6",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-26T07:16:14.456155442Z",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "src/app/api/demand-supply/route.ts",
+    "src/app/api/moderator/supply/route.ts",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/components/DemandSupplyChart.tsx",
+    "src/lib/demand-supply.ts",
+    "src/lib/translations.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "29bd7d2d4225",
+  "token_usage": {
+    "input_tokens": 5139,
+    "cache_creation_tokens": 140089,
+    "cache_read_tokens": 3318084,
+    "output_tokens": 48000,
+    "api_call_count": 59
+  },
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-26T07:16:14.438904221Z",
+    "agent_lines": 217,
+    "agent_removed": 98,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 1,
+    "total_committed": 217,
+    "total_lines_changed": 316,
+    "agent_percentage": 99.68354430379746,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 2,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_removed_per_file": {
+        "src/app/farmer/dashboard/page.tsx": 1,
+        "src/components/moderator/ModeratorFarmerForm.tsx": 1
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1,
+      "agent_lines_removed": 3
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 219,
+      "agent_lines_removed": 101
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 227,
+      "agent_lines_removed": 106
+    }
+  ]
+}

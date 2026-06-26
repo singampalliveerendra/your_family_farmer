@@ -1,0 +1,20 @@
+Change "Story/Quote" to "How we grow" in the Edit Profile of Moderator.
+
+---
+
+Demand Vs Supply
+
+Show a graph which depicts Demand vs Supply in the area. This graph should be shown to Farmers and Moderators.
+
+Supply should sum up all produces quantities of the same nature. For example All Papaya added from all farmers.
+Demand should sum up all ordered quantities of the same nature. Intent quantity 
+For example all Papaya ordered by all consumers from all farmers.
+Demand should also include the Intent raised by Consumers for a produce.
+
+---
+
+Pickup order type is showing "Mark Shipped" after confirming "Pickup date" by farmer. It should show "Pickedup" . why u changed this again before it was clean right
+
+---
+
+continue
