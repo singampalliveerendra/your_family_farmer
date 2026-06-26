@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
+import { isOrderPaid, isPaymentClaimed } from '@/lib/payment'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import ComplaintModal from '@/components/consumer/ComplaintModal'
 import ProduceReviewBox, { type MyReview } from '@/components/consumer/ProduceReviewBox'
@@ -263,8 +264,8 @@ export default function OrderDetailsPage() {
       // Show the real method (PhonePe / Google Pay / UPI…) once we know it,
       // instead of the gateway name. Falls back to "UPI" before it resolves.
       const m = o.payment_method_detail || 'UPI'
-      if (o.payment_status === 'paid' || o.payment_status === 'completed') return `${m} ✓ Paid`
-      if (o.payment_status === 'pending_confirmation' || o.payment_status === 'payment_claimed')
+      if (isOrderPaid(o.payment_status)) return `${m} ✓ Paid`
+      if (isPaymentClaimed(o.payment_status))
         return `${m} ⏳ Awaiting farmer confirmation`
       if (o.payment_status === 'failed') return `${m} ✕ Not received`
       return L('Payment Pending', 'చెల్లింపు పెండింగ్')
@@ -363,7 +364,7 @@ export default function OrderDetailsPage() {
                 </div>
               )}
 
-              {(order.payment_status === 'paid' || order.payment_status === 'completed') && (
+              {isOrderPaid(order.payment_status) && (
                 <button
                   onClick={() => setShowReceipt(true)}
                   className="mt-3 w-full border border-green-600 text-green-700 font-bold py-2.5 rounded-xl text-sm active:bg-green-50"
@@ -819,8 +820,7 @@ function OrderStatusPanel({ order }: { order: Order }) {
   const received = !!order.received_at
   const delivered = received || collected
   // Online orders that have been paid show an extra "Payment received" step.
-  const paidOnline = isOnlinePayment(order.payment_method)
-    && (order.payment_status === 'paid' || order.payment_status === 'completed')
+  const paidOnline = isOnlinePayment(order.payment_method) && isOrderPaid(order.payment_status)
 
   const fmt = (iso?: string | null) =>
     iso ? new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''

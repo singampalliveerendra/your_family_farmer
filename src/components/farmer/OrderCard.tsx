@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
+import { isOrderPaid, isPaymentClaimed as isPaymentClaimed_ } from '@/lib/payment'
 
 export type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
 
@@ -135,8 +136,8 @@ export default function OrderCard({
 
   const isCod = !order.payment_method || order.payment_method === 'cod'
   const isUpi = order.payment_method === 'upi'
-  const isPaid = order.payment_status === 'completed'
-  const isPaymentClaimed = order.payment_status === 'payment_claimed' || order.payment_status === 'pending_confirmation'
+  const isPaid = isOrderPaid(order.payment_status)
+  const isPaymentClaimed = isPaymentClaimed_(order.payment_status)
 
   // Buyer cancelled this order. It doesn't need the approve/decline/fulfillment
   // machinery — just a clear "cancelled by buyer" notice and an Acknowledge tap

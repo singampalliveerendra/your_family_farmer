@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
+import { isOrderPaid, isPaymentClaimed } from '@/lib/payment'
 
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
 
@@ -131,7 +132,7 @@ export default function FarmerOrderDetailPage() {
   // would never be shipped unpaid. So a delivered order is settled regardless
   // of whether payment_status was explicitly flipped to 'completed'.
   const isDelivered = !!order?.received_at || !!order?.collected_at
-  const isPaid = order?.payment_status === 'completed' || isDelivered
+  const isPaid = isOrderPaid(order?.payment_status) || isDelivered
   const isDelivery = order?.delivery_type === 'home_delivery'
   const isCourier = order?.delivery_type === 'courier'
   // Self-pickup: the buyer collects from the farm, so the dispatch milestone
@@ -158,7 +159,7 @@ export default function FarmerOrderDetailPage() {
     // to the farmer — show "UPI".
     if (o.payment_method === 'upi' || o.payment_method === 'razorpay')
       return isPaid ? L('UPI — Paid', 'UPI — చెల్లించారు')
-        : (o.payment_status === 'payment_claimed' || o.payment_status === 'pending_confirmation')
+        : isPaymentClaimed(o.payment_status)
           ? L('UPI — Buyer paid, verify', 'UPI — ధృవీకరించండి')
           : L('Payment Pending', 'చెల్లింపు పెండింగ్')
     return o.payment_method
@@ -173,8 +174,7 @@ export default function FarmerOrderDetailPage() {
     ? (() => {
         const approved = order.status === 'approved'
         const delivered = !!order.received_at || !!order.collected_at
-        const paidOnline = isOnlinePayment(order.payment_method)
-          && (order.payment_status === 'paid' || order.payment_status === 'completed')
+        const paidOnline = isOnlinePayment(order.payment_method) && isOrderPaid(order.payment_status)
         return [
           { label: L('Order placed', 'ఆర్డర్ వచ్చింది'), at: order.created_at, done: true },
           ...(paidOnline
