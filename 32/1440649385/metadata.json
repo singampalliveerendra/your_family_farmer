@@ -3,7 +3,7 @@
   "checkpoint_id": "321440649385",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
     "src/app/api/farmer/orders/[id]/decline/route.ts"
   ],
@@ -13,13 +13,19 @@
       "transcript": "/32/1440649385/0/full.jsonl",
       "content_hash": "/32/1440649385/0/content_hash.txt",
       "prompt": "/32/1440649385/0/prompt.txt"
+    },
+    {
+      "metadata": "/32/1440649385/1/metadata.json",
+      "transcript": "/32/1440649385/1/full.jsonl",
+      "content_hash": "/32/1440649385/1/content_hash.txt",
+      "prompt": "/32/1440649385/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 8418,
-    "cache_creation_tokens": 35572,
-    "cache_read_tokens": 469056,
-    "output_tokens": 7059,
-    "api_call_count": 11
+    "input_tokens": 16509,
+    "cache_creation_tokens": 99298,
+    "cache_read_tokens": 2887460,
+    "output_tokens": 32819,
+    "api_call_count": 63
   }
 }
