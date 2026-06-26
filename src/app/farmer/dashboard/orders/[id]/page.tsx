@@ -134,6 +134,9 @@ export default function FarmerOrderDetailPage() {
   const isPaid = order?.payment_status === 'completed' || isDelivered
   const isDelivery = order?.delivery_type === 'home_delivery'
   const isCourier = order?.delivery_type === 'courier'
+  // Self-pickup: the buyer collects from the farm, so the dispatch milestone
+  // reads "Picked up" rather than the courier/delivery wording "Shipped".
+  const isPickup = !!order && !isDelivery && !isCourier
 
   const statusBadge = (s: Order['status']) =>
     s === 'approved' ? 'bg-green-100 text-green-800'
@@ -178,8 +181,8 @@ export default function FarmerOrderDetailPage() {
             ? [{ label: L('Payment received', 'చెల్లింపు అందింది'), at: order.paid_at, done: true }]
             : []),
           { label: L('Approved by you', 'మీరు ఆమోదించారు'), at: order.confirmed_at, done: approved || delivered },
-          { label: L('Shipped', 'షిప్ చేశారు'), at: order.shipped_at, done: !!order.shipped_at },
-          { label: L('Delivered', 'డెలివరీ అయింది'), at: order.received_at || order.collected_at, done: delivered },
+          { label: isPickup ? L('Picked up', 'తీసుకున్నారు') : L('Shipped', 'షిప్ చేశారు'), at: order.shipped_at, done: !!order.shipped_at },
+          { label: isPickup ? L('Collected', 'తీసుకువెళ్ళారు') : L('Delivered', 'డెలివరీ అయింది'), at: order.received_at || order.collected_at, done: delivered },
         ]
       })()
     : []

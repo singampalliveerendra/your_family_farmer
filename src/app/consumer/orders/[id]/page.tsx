@@ -832,10 +832,10 @@ function OrderStatusPanel({ order }: { order: Order }) {
       ? [{ label: L('Payment received', 'చెల్లింపు అందింది'), sub: L(`${order.payment_method_detail || 'UPI'} payment confirmed`, `${order.payment_method_detail || 'UPI'} చెల్లింపు ధృవీకరించబడింది`), at: fmt(order.paid_at), done: true }]
       : []),
     { label: L('Confirmed by farmer', 'రైతు ధృవీకరించారు'), sub: L('Farmer accepted your order', 'రైతు అంగీకరించారు'), at: fmt(order.confirmed_at), done: approved },
-    { label: L('Shipped', 'షిప్ చేయబడింది'), sub: isShippedFlow
+    { label: isShippedFlow ? L('Shipped', 'షిప్ చేయబడింది') : L('Picked up', 'తీసుకున్నారు'), sub: isShippedFlow
         ? L('Farmer shipped your order to your address', 'రైతు మీ చిరునామాకు పంపారు')
         : L('Farmer has your order ready', 'రైతు మీ ఆర్డర్ సిద్ధం చేశారు'), at: fmt(order.shipped_at), done: shipped },
-    { label: L('Delivered', 'డెలివరీ అయింది'), sub: L('You confirmed delivery', 'మీరు డెలివరీ ధృవీకరించారు'), at: fmt(order.received_at || order.collected_at), done: delivered },
+    { label: isShippedFlow ? L('Delivered', 'డెలివరీ అయింది') : L('Collected', 'తీసుకువెళ్ళారు'), sub: L('You confirmed delivery', 'మీరు డెలివరీ ధృవీకరించారు'), at: fmt(order.received_at || order.collected_at), done: delivered },
   ]
 
   // Current = the furthest milestone reached (last step marked done).

@@ -288,7 +288,7 @@ export default function OrderCard({
               }}
               className="mt-1 w-full text-center text-xs font-bold text-white bg-green-600 rounded-xl py-2.5 active:bg-green-700 disabled:opacity-50"
             >
-              {busy ? '…' : `✓ ${L('Mark as Delivered', 'డెలివరీ అయింది')}`}
+              {busy ? '…' : `✓ ${order.delivery_type === 'self_pickup' || !order.delivery_type ? L('Mark as Picked up', 'తీసుకున్నారు') : L('Mark as Delivered', 'డెలివరీ అయింది')}`}
             </button>
           )}
 
