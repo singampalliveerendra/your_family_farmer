@@ -3,7 +3,7 @@
   "checkpoint_id": "2c3f736d82f2",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
     "src/components/moderator/ModeratorFarmerForm.tsx"
   ],
@@ -13,13 +13,19 @@
       "transcript": "/2c/3f736d82f2/0/full.jsonl",
       "content_hash": "/2c/3f736d82f2/0/content_hash.txt",
       "prompt": "/2c/3f736d82f2/0/prompt.txt"
+    },
+    {
+      "metadata": "/2c/3f736d82f2/1/metadata.json",
+      "transcript": "/2c/3f736d82f2/1/full.jsonl",
+      "content_hash": "/2c/3f736d82f2/1/content_hash.txt",
+      "prompt": "/2c/3f736d82f2/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 4034,
-    "cache_creation_tokens": 33563,
-    "cache_read_tokens": 759601,
-    "output_tokens": 6299,
-    "api_call_count": 21
+    "input_tokens": 9175,
+    "cache_creation_tokens": 175057,
+    "cache_read_tokens": 4179237,
+    "output_tokens": 54756,
+    "api_call_count": 81
   }
 }
