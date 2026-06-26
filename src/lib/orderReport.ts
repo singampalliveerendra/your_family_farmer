@@ -49,18 +49,42 @@ export function fmtDateTime(iso: string | null | undefined): string {
 
 export const REPORT_STATUSES: ReportStatus[] = ['Pending', 'Approved', 'Completed', 'Declined', 'Cancelled']
 
+// The report can be sliced by a created-at date range and by status. An empty
+// `statuses` array means "all statuses".
+export type ReportFilter = {
+  from: Date
+  to: Date
+  statuses: ReportStatus[]
+}
+
+// Filter orders by created-at range and (optionally) status, newest first.
+export function filterOrders(orders: FarmerOrder[], filter: ReportFilter): FarmerOrder[] {
+  const fromMs = filter.from.getTime()
+  const toMs = filter.to.getTime()
+  const allStatuses = filter.statuses.length === 0
+  return orders
+    .filter((o) => {
+      const t = new Date(o.created_at).getTime()
+      if (t < fromMs || t > toMs) return false
+      if (!allStatuses && !filter.statuses.includes(statusLabel(o))) return false
+      return true
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+}
+
 export type ReportData = {
   orders: FarmerOrder[]
   counts: Record<ReportStatus, number>
   revenue: number
   fromDate: Date
+  toDate: Date
   generatedAt: Date
 }
 
 // Shared computation for both the on-screen report view and the printable PDF:
-// the last-30-days window, per-status counts, and approved revenue.
-export function computeReportData(orders: FarmerOrder[]): ReportData {
-  const windowOrders = ordersInReportWindow(orders)
+// the chosen date/status window, per-status counts, and approved revenue.
+export function computeReportData(orders: FarmerOrder[], filter: ReportFilter): ReportData {
+  const windowOrders = filterOrders(orders, filter)
   const counts: Record<ReportStatus, number> = {
     Pending: 0, Approved: 0, Completed: 0, Declined: 0, Cancelled: 0,
   }
@@ -73,7 +97,8 @@ export function computeReportData(orders: FarmerOrder[]): ReportData {
     orders: windowOrders,
     counts,
     revenue,
-    fromDate: new Date(Date.now() - REPORT_WINDOW_DAYS * 86400000),
+    fromDate: filter.from,
+    toDate: filter.to,
     generatedAt: new Date(),
   }
 }
@@ -88,8 +113,10 @@ function esc(s: string | number | null | undefined): string {
     .replace(/"/g, '&quot;')
 }
 
-function buildReportHtml(orders: FarmerOrder[], farmerName: string): string {
-  const { orders: window, counts, revenue, fromDate, generatedAt } = computeReportData(orders)
+function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: ReportFilter): string {
+  const { orders: window, counts, revenue, fromDate, toDate, generatedAt } = computeReportData(orders, filter)
+  const rangeDesc = `${fmtDate(fromDate.toISOString())} – ${fmtDate(toDate.toISOString())}`
+  const statusDesc = filter.statuses.length === 0 ? 'All statuses' : filter.statuses.join(', ')
 
   const rows = window.map((o) => `
     <tr>
@@ -146,9 +173,8 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string): string {
 <body>
   <h1>Orders Report</h1>
   <p class="sub">
-    ${esc(farmerName)} &nbsp;•&nbsp; ${esc(fromDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }))}
-    – ${esc(generatedAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }))}
-    (last ${REPORT_WINDOW_DAYS} days) &nbsp;•&nbsp; Generated ${esc(fmtDateTime(generatedAt.toISOString()))}
+    ${esc(farmerName)} &nbsp;•&nbsp; ${esc(rangeDesc)}
+    &nbsp;•&nbsp; ${esc(statusDesc)} &nbsp;•&nbsp; Generated ${esc(fmtDateTime(generatedAt.toISOString()))}
   </p>
 
   <div class="summary">
@@ -158,7 +184,7 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string): string {
   </div>
 
   ${window.length === 0
-    ? '<p class="empty">No orders in the last 30 days.</p>'
+    ? '<p class="empty">No orders match these filters.</p>'
     : `<table>
     <thead>
       <tr>
@@ -169,7 +195,7 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string): string {
     <tbody>${rows}</tbody>
   </table>`}
 
-  <footer>YourFamilyFarmer — orders from the last ${REPORT_WINDOW_DAYS} days only.</footer>
+  <footer>YourFamilyFarmer — ${esc(rangeDesc)}${filter.statuses.length ? ` · ${esc(statusDesc)}` : ''}.</footer>
 </body>
 </html>`
 }
@@ -178,8 +204,8 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string): string {
 // dialog, where the farmer chooses "Save as PDF". Dependency-free on purpose —
 // no client-side PDF library to download over a slow 4G connection.
 // Returns false if the window was blocked (caller can surface a message).
-export function downloadOrdersReport(orders: FarmerOrder[], farmerName: string): boolean {
-  const html = buildReportHtml(orders, farmerName)
+export function downloadOrdersReport(orders: FarmerOrder[], farmerName: string, filter: ReportFilter): boolean {
+  const html = buildReportHtml(orders, farmerName, filter)
   const win = window.open('', '_blank')
   if (!win) return false
   win.document.open()

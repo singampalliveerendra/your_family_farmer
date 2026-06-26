@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
 import type { FarmerOrder } from '@/components/farmer/OrderCard'
 import {
@@ -11,8 +12,8 @@ import {
   fmtDate,
   fmtDateTime,
   REPORT_STATUSES,
-  REPORT_WINDOW_DAYS,
   type ReportStatus,
+  type ReportFilter,
 } from '@/lib/orderReport'
 
 const STATUS_CLASS: Record<ReportStatus, string> = {
@@ -23,8 +24,20 @@ const STATUS_CLASS: Record<ReportStatus, string> = {
   Cancelled: 'bg-gray-200 text-gray-700',
 }
 
-// Full-screen, read-only orders report for the last 30 days. The farmer reviews
-// it on screen first, then taps "Download PDF" to save it.
+type TimePreset = 'today' | 'week' | 'month' | 'all' | 'custom'
+
+// Local YYYY-MM-DD (not UTC) so the calendar defaults line up with the
+// farmer's day, not a timezone-shifted one.
+function isoDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+// Full-screen orders report. The farmer picks a date range (preset chips or a
+// custom From–To calendar) and status filters, reviews on screen, then taps
+// "Download PDF" to save exactly what's shown.
 export default function OrderReportSheet({
   orders,
   farmerName,
@@ -35,10 +48,52 @@ export default function OrderReportSheet({
   onClose: () => void
 }) {
   const { L } = useLang()
-  const { orders: rows, counts, revenue, fromDate, generatedAt } = computeReportData(orders)
+
+  const today = useMemo(() => new Date(), [])
+  // Earliest order date drives the "All time" lower bound (and the calendar's
+  // min), so the picker never lets you wander before there's any data.
+  const earliest = useMemo(() => {
+    const ms = orders.reduce(
+      (min, o) => Math.min(min, new Date(o.created_at).getTime()),
+      today.getTime(),
+    )
+    return new Date(ms)
+  }, [orders, today])
+
+  const [preset, setPreset] = useState<TimePreset>('month')
+  const [fromStr, setFromStr] = useState(isoDate(new Date(today.getTime() - 30 * 86400000)))
+  const [toStr, setToStr] = useState(isoDate(today))
+  // Empty = all statuses.
+  const [statusSel, setStatusSel] = useState<ReportStatus[]>([])
+
+  const applyPreset = (p: Exclude<TimePreset, 'custom'>) => {
+    setPreset(p)
+    const to = new Date()
+    let from: Date
+    if (p === 'today') { from = new Date(); from.setHours(0, 0, 0, 0) }
+    else if (p === 'week') from = new Date(Date.now() - 7 * 86400000)
+    else if (p === 'month') from = new Date(Date.now() - 30 * 86400000)
+    else from = earliest // 'all'
+    setFromStr(isoDate(from))
+    setToStr(isoDate(to))
+  }
+
+  const toggleStatus = (s: ReportStatus) =>
+    setStatusSel((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
+
+  const filter: ReportFilter = useMemo(() => ({
+    from: new Date(`${fromStr}T00:00:00`),
+    to: new Date(`${toStr}T23:59:59`),
+    statuses: statusSel,
+  }), [fromStr, toStr, statusSel])
+
+  const { orders: rows, counts, revenue, generatedAt } = useMemo(
+    () => computeReportData(orders, filter),
+    [orders, filter],
+  )
 
   const handleDownload = () => {
-    const ok = downloadOrdersReport(orders, farmerName || L('Farmer', 'రైతు'))
+    const ok = downloadOrdersReport(orders, farmerName || L('Farmer', 'రైతు'), filter)
     if (!ok) {
       alert(L(
         'Please allow pop-ups for this site to download the report.',
@@ -47,7 +102,14 @@ export default function OrderReportSheet({
     }
   }
 
-  const dateRange = `${fromDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} – ${generatedAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
+  const rangeLabel = `${fmtDate(`${fromStr}T00:00:00`)} – ${fmtDate(`${toStr}T00:00:00`)}`
+
+  const TIME_CHIPS: { key: Exclude<TimePreset, 'custom'>; label: string }[] = [
+    { key: 'today', label: L('Today', 'ఈ రోజు') },
+    { key: 'week', label: L('Week', 'వారం') },
+    { key: 'month', label: L('Month', 'నెల') },
+    { key: 'all', label: L('All', 'అన్నీ') },
+  ]
 
   return (
     <div className="fixed inset-0 z-50 bg-gray-50 flex flex-col">
@@ -58,7 +120,7 @@ export default function OrderReportSheet({
             {L('Orders Report', 'ఆర్డర్ల రిపోర్ట్')}
           </h2>
           <p className="text-green-300 text-xs mt-0.5 truncate">
-            {farmerName || L('Farmer', 'రైతు')} · {dateRange} · {L('last 30 days', 'గత 30 రోజులు')}
+            {farmerName || L('Farmer', 'రైతు')} · {rangeLabel}
           </p>
         </div>
         <button
@@ -72,6 +134,77 @@ export default function OrderReportSheet({
 
       {/* Scrollable report body */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        {/* Filters */}
+        <div className="bg-white rounded-xl border border-gray-100 p-3 space-y-3">
+          {/* Duration presets */}
+          <div className="flex flex-wrap gap-1.5">
+            {TIME_CHIPS.map((c) => (
+              <button
+                key={c.key}
+                onClick={() => applyPreset(c.key)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold ${
+                  preset === c.key
+                    ? 'bg-green-700 text-white'
+                    : 'bg-gray-100 text-gray-600 active:bg-gray-200'
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Custom date range */}
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{L('From', 'నుండి')}</span>
+              <input
+                type="date"
+                value={fromStr}
+                min={isoDate(earliest)}
+                max={toStr}
+                onChange={(e) => { setFromStr(e.target.value); setPreset('custom') }}
+                className="mt-0.5 w-full rounded-lg border border-gray-200 px-2.5 py-2 text-sm text-gray-800 focus:border-green-600 focus:outline-none"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{L('To', 'వరకు')}</span>
+              <input
+                type="date"
+                value={toStr}
+                min={fromStr}
+                max={isoDate(today)}
+                onChange={(e) => { setToStr(e.target.value); setPreset('custom') }}
+                className="mt-0.5 w-full rounded-lg border border-gray-200 px-2.5 py-2 text-sm text-gray-800 focus:border-green-600 focus:outline-none"
+              />
+            </label>
+          </div>
+
+          {/* Status filter */}
+          <div className="flex flex-wrap gap-1.5 pt-1 border-t border-gray-100">
+            <button
+              onClick={() => setStatusSel([])}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold ${
+                statusSel.length === 0
+                  ? 'bg-green-700 text-white'
+                  : 'bg-gray-100 text-gray-600 active:bg-gray-200'
+              }`}
+            >
+              {L('All', 'అన్నీ')}
+            </button>
+            {REPORT_STATUSES.map((s) => (
+              <button
+                key={s}
+                onClick={() => toggleStatus(s)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold ${
+                  statusSel.includes(s) ? STATUS_CLASS[s] : 'bg-gray-100 text-gray-500 active:bg-gray-200'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Summary */}
         <div className="grid grid-cols-3 gap-2">
           <SummaryCell n={rows.length} label={L('Total', 'మొత్తం')} highlight />
@@ -91,7 +224,7 @@ export default function OrderReportSheet({
           <div className="text-center py-16">
             <div className="text-5xl mb-3">📭</div>
             <p className="font-semibold text-gray-500 text-sm">
-              {L('No orders in the last 30 days', 'గత 30 రోజుల్లో ఆర్డర్లు లేవు')}
+              {L('No orders match these filters', 'ఈ ఫిల్టర్‌లకు ఆర్డర్లు లేవు')}
             </p>
           </div>
         ) : (
@@ -141,7 +274,7 @@ export default function OrderReportSheet({
         )}
 
         <p className="text-[11px] text-gray-400 text-center pt-1">
-          {L('Generated', 'రూపొందించబడింది')} {fmtDateTime(generatedAt.toISOString())} · {L(`last ${REPORT_WINDOW_DAYS} days only`, `గత ${REPORT_WINDOW_DAYS} రోజులు మాత్రమే`)}
+          {L('Generated', 'రూపొందించబడింది')} {fmtDateTime(generatedAt.toISOString())}
         </p>
       </div>
 
