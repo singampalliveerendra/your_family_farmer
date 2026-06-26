@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "896f00cb2fce",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "scripts/produce-availability-frequency-migration.sql",
+    "src/app/api/moderator/listings/route.ts",
+    "src/app/consumer/page.tsx",
+    "src/app/consumer/produce/[id]/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/app/moderator/listings/new/page.tsx",
+    "src/components/FreshnessBadge.tsx",
+    "src/components/farmer/tabs/ProduceTab.tsx",
+    "src/lib/translations.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/89/6f00cb2fce/0/metadata.json",
+      "transcript": "/89/6f00cb2fce/0/full.jsonl",
+      "content_hash": "/89/6f00cb2fce/0/content_hash.txt",
+      "prompt": "/89/6f00cb2fce/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 2611,
+    "cache_creation_tokens": 325976,
+    "cache_read_tokens": 11361456,
+    "output_tokens": 37283,
+    "api_call_count": 84
+  }
+}
