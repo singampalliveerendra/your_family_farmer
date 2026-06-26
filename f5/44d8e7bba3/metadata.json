@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "f544d8e7bba3",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/components/farmer/tabs/StoryTab.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f5/44d8e7bba3/0/metadata.json",
+      "transcript": "/f5/44d8e7bba3/0/full.jsonl",
+      "content_hash": "/f5/44d8e7bba3/0/content_hash.txt",
+      "prompt": "/f5/44d8e7bba3/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 7760,
+    "cache_creation_tokens": 469173,
+    "cache_read_tokens": 15323599,
+    "output_tokens": 87224,
+    "api_call_count": 148
+  }
+}
