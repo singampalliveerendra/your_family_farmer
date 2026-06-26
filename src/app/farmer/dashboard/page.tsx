@@ -68,8 +68,10 @@ type ListingRow = {
   pesticide_result: string | null
   how_we_grow: string | null
   unit: string | null
-  harvest_date: string | null
-  availability_period: string | null
+  availability_from: string | null
+  availability_to: string | null
+  harvest_frequency: string | null
+  harvest_frequency_count: number | null
   delivery_mode: string | null
   delivery_charge: number | null
   delivery_radius_km: number | null
@@ -1682,7 +1684,15 @@ function ProduceListingForm({
   const [variety, setVariety] = useState(editData?.variety ?? '')
   const [emoji, setEmoji] = useState(editData?.emoji ?? '🌿')
   const [qty, setQty] = useState(editData?.stock_qty != null ? String(editData.stock_qty) : '')
-  const [period, setPeriod] = useState(editData?.availability_period ?? '')
+  // Availability is a date range (From → To). Guard against full timestamps so
+  // the <input type="date"> always receives YYYY-MM-DD.
+  const [availFrom, setAvailFrom] = useState(editData?.availability_from ? editData.availability_from.slice(0, 10) : '')
+  const [availTo, setAvailTo] = useState(editData?.availability_to ? editData.availability_to.slice(0, 10) : '')
+  // Harvesting frequency: cadence ('daily' | 'weekly') + a count (e.g. weekly × 2).
+  const [harvestFreq, setHarvestFreq] = useState(editData?.harvest_frequency ?? '')
+  const [harvestFreqCount, setHarvestFreqCount] = useState(
+    editData?.harvest_frequency_count != null ? String(editData.harvest_frequency_count) : '',
+  )
   const [farmingMethod, setFarmingMethod] = useState(editData?.method ?? defaultMethod ?? 'natural')
   const [price1, setPrice1] = useState(editData?.price_tier_1_price != null ? String(editData.price_tier_1_price) : '')
   const [price1Qty, setPrice1Qty] = useState(editData?.price_tier_1_qty != null ? String(editData.price_tier_1_qty) : '5')
@@ -1709,9 +1719,6 @@ function ProduceListingForm({
   )
   const [deliveryCharge, setDeliveryCharge] = useState(editData?.delivery_charge != null ? String(editData.delivery_charge) : '')
   const [deliveryRadius, setDeliveryRadius] = useState(editData?.delivery_radius_km != null ? String(editData.delivery_radius_km) : '')
-  // harvest_date is a Postgres `date`, but guard against a full timestamp
-  // ever coming back so the <input type="date"> always gets YYYY-MM-DD.
-  const [harvestDate, setHarvestDate] = useState(editData?.harvest_date ? editData.harvest_date.slice(0, 10) : '')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string>('')
   const [existingImageUrl, setExistingImageUrl] = useState(editData?.image_url ?? '')
@@ -1859,8 +1866,10 @@ function ProduceListingForm({
         price_tier_3_price: price3 ? Number(price3) : null,
         price_tier_3_qty: price3 ? Number(Number(price2Qty) + 1) : null,
         image_url: imageUrl,
-        harvest_date: harvestDate || null,
-        availability_period: period.trim() || null,
+        availability_from: availFrom || null,
+        availability_to: availTo || null,
+        harvest_frequency: harvestFreq || null,
+        harvest_frequency_count: harvestFreqCount ? Number(harvestFreqCount) : null,
         delivery_mode: deliveryMode,
         delivery_charge: deliveryMode === 'pickup' ? null : (deliveryCharge ? Number(deliveryCharge) : null),
         delivery_radius_km: deliveryMode === 'pickup' ? null : (deliveryRadius ? Number(deliveryRadius) : null),
@@ -1923,8 +1932,10 @@ function ProduceListingForm({
     if (price2) { payload.price_tier_2_price = Number(price2); payload.price_tier_2_qty = Number(price2Qty) }
     if (price3) { payload.price_tier_3_price = Number(price3); payload.price_tier_3_qty = Number(price2Qty) + 1 }
     payload.image_url = imageUrl
-    payload.harvest_date = harvestDate || null
-    payload.availability_period = period.trim() || null
+    payload.availability_from = availFrom || null
+    payload.availability_to = availTo || null
+    payload.harvest_frequency = harvestFreq || null
+    payload.harvest_frequency_count = harvestFreqCount ? Number(harvestFreqCount) : null
     payload.delivery_mode = deliveryMode
     if (deliveryMode !== 'pickup') {
       if (deliveryCharge) payload.delivery_charge = Number(deliveryCharge)
@@ -2052,27 +2063,76 @@ function ProduceListingForm({
           />
         </div>
 
-        {/* Qty + harvest date */}
+        {/* Quantity */}
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
             {tx.availability}
           </label>
+          <input
+            type="number"
+            placeholder={`Quantity (${unit})`}
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
+          />
+        </div>
+
+        {/* Availability date range (From → To) */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            {L('Available from – to', 'అందుబాటు తేదీలు')}
+          </label>
           <div className="grid grid-cols-2 gap-2">
+            <div>
+              <span className="block text-[11px] text-gray-400 mb-1">{L('From', 'నుండి')}</span>
+              <input
+                type="date"
+                value={availFrom}
+                max={availTo || undefined}
+                onChange={(e) => setAvailFrom(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:border-green-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <span className="block text-[11px] text-gray-400 mb-1">{L('To', 'వరకు')}</span>
+              <input
+                type="date"
+                value={availTo}
+                min={availFrom || undefined}
+                onChange={(e) => setAvailTo(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:border-green-500 focus:outline-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Harvesting frequency: cadence dropdown + count (e.g. weekly × 2) */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            {L('Harvesting frequency', 'కోత తరచుదనం')}
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={harvestFreq}
+              onChange={(e) => setHarvestFreq(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+            >
+              <option value="">{L('Select…', 'ఎంచుకోండి…')}</option>
+              <option value="daily">{L('Daily', 'రోజువారీ')}</option>
+              <option value="weekly">{L('Weekly', 'వారానికి')}</option>
+            </select>
             <input
               type="number"
-              placeholder={`Quantity (${unit})`}
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
-              className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
-            />
-            <input
-              type="text"
-              placeholder={tx.periodPlaceholder}
-              value={period}
-              onChange={(e) => setPeriod(e.target.value)}
-              className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
+              min="1"
+              placeholder={L('How many times', 'ఎన్నిసార్లు')}
+              value={harvestFreqCount}
+              onChange={(e) => setHarvestFreqCount(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
             />
           </div>
+          <p className="text-[11px] text-gray-400">
+            {L('e.g. Weekly + 2 means harvested twice a week.', 'ఉదా. వారానికి + 2 అంటే వారానికి రెండుసార్లు కోత.')}
+          </p>
         </div>
 
         {/* Farming method */}
@@ -2855,8 +2915,6 @@ function ListingRowCard({
     </div>
   )
 }
-
-export { FreshnessBadge } from '@/components/FreshnessBadge'
 
 /* ─── Earnings summary card ──────────────────────────────────── */
 function EarningsCard({

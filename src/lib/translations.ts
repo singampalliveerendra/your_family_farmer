@@ -279,7 +279,6 @@ export const t = {
     varietyPlaceholder: 'Variety (optional) — e.g. Naati heirloom',
     availability: 'Availability',
     quantityPlaceholder: 'Quantity (kg)',
-    periodPlaceholder: 'Period (e.g. Apr–May)',
     deliveryMethod: 'Delivery method',
     courierOption: 'I will courier',
     courierComingSoon: 'Coming soon',
@@ -340,10 +339,6 @@ export const t = {
     changeNumber: 'Change number',
 
     // Harvest date / freshness
-    harvestDateLabel: 'Harvest date (when picked)',
-    harvestToday: '🟢 Picked today',
-    harvestYesterday: '🟡 Picked yesterday',
-    harvestDaysAgo: '🔴 Picked {n} days ago',
 
     // Farm cover photo & avatar
     coverPhotoLabel: 'Farm cover photo',
@@ -653,7 +648,6 @@ export const t = {
     varietyPlaceholder: 'రకం (ఐచ్ఛికం) — ఉదా. నాటి హెయిర్‌లూమ్',
     availability: 'అందుబాటు',
     quantityPlaceholder: 'పరిమాణం (కిలోలు)',
-    periodPlaceholder: 'కాలం (ఉదా. ఏప్రిల్–మే)',
     deliveryMethod: 'డెలివరీ పద్ధతి',
     courierOption: 'నేను కొరియర్ చేస్తాను',
     courierComingSoon: 'త్వరలో',
@@ -714,10 +708,6 @@ export const t = {
     changeNumber: 'నంబర్ మార్చండి',
 
     // Harvest date / freshness
-    harvestDateLabel: 'కోసిన తేదీ',
-    harvestToday: '🟢 ఈరోజు కోశారు',
-    harvestYesterday: '🟡 నిన్న కోశారు',
-    harvestDaysAgo: '🔴 {n} రోజుల క్రితం కోశారు',
 
     // Farm cover photo & avatar
     coverPhotoLabel: 'పొలం కవర్ ఫోటో',

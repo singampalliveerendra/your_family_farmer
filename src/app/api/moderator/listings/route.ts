@@ -74,7 +74,8 @@ function toNum(v: unknown): number | null {
 // Moderator-created listings are trusted, so they go live immediately
 // (status 'available') rather than into the pending_review queue.
 //   { farmer_id, name, variety?, method, unit, stock_qty?, description?,
-//     brix?, price_tier_1_*, price_tier_2_*, harvest_date?, availability_period? }
+//     brix?, price_tier_1_*, price_tier_2_*, availability_from?, availability_to?,
+//     harvest_frequency?, harvest_frequency_count? }
 export async function POST(req: NextRequest) {
   if (!isModeratorRequest(req)) {
     return NextResponse.json({ error: 'Moderator login required.' }, { status: 401 })
@@ -118,8 +119,10 @@ export async function POST(req: NextRequest) {
     stock_qty: toNum(b.stock_qty),
     description: String(b.description ?? '').trim() || null,
     brix: toNum(b.brix),
-    harvest_date: String(b.harvest_date ?? '').trim() || null,
-    availability_period: String(b.availability_period ?? '').trim() || null,
+    availability_from: String(b.availability_from ?? '').trim() || null,
+    availability_to: String(b.availability_to ?? '').trim() || null,
+    harvest_frequency: String(b.harvest_frequency ?? '').trim() || null,
+    harvest_frequency_count: toNum(b.harvest_frequency_count),
     status: 'available',
   }
   if (price1) { insert.price_tier_1_price = price1; insert.price_tier_1_qty = price1Qty ?? 1 }

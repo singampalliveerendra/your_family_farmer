@@ -46,7 +46,6 @@ type ProduceListing = {
   stock_qty?: number
   unit?: string
   available_to?: string
-  harvest_date?: string | null
   rating_avg?: number | null
   review_count?: number | null
   farmer_id: string

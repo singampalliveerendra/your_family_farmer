@@ -23,7 +23,8 @@ export default function NewListingPage() {
     stock_qty: '', description: '', brix: '',
     price_tier_1_qty: '1', price_tier_1_price: '',
     price_tier_2_qty: '', price_tier_2_price: '',
-    harvest_date: '', availability_period: '',
+    availability_from: '', availability_to: '',
+    harvest_frequency: '', harvest_frequency_count: '',
   })
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -80,7 +81,7 @@ export default function NewListingPage() {
             <button
               onClick={() => {
                 setDone(false); setFarmerId(''); setEmoji('📦')
-                setForm({ name: '', variety: '', method: 'natural', unit: 'kg', stock_qty: '', description: '', brix: '', price_tier_1_qty: '1', price_tier_1_price: '', price_tier_2_qty: '', price_tier_2_price: '', harvest_date: '', availability_period: '' })
+                setForm({ name: '', variety: '', method: 'natural', unit: 'kg', stock_qty: '', description: '', brix: '', price_tier_1_qty: '1', price_tier_1_price: '', price_tier_2_qty: '', price_tier_2_price: '', availability_from: '', availability_to: '', harvest_frequency: '', harvest_frequency_count: '' })
               }}
               className="bg-green-800 text-white text-sm font-bold px-4 py-3 rounded-xl active:bg-green-900"
             >
@@ -175,8 +176,24 @@ export default function NewListingPage() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-4">
-          <Field label="Availability period">
-            <input value={form.availability_period} onChange={set('availability_period')} className={inputCls} placeholder="e.g. Next 2 weeks" />
+          <Field label="Available from">
+            <input type="date" value={form.availability_from} onChange={set('availability_from')} max={form.availability_to || undefined} className={inputCls} />
+          </Field>
+          <Field label="Available to">
+            <input type="date" value={form.availability_to} onChange={set('availability_to')} min={form.availability_from || undefined} className={inputCls} />
+          </Field>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4">
+          <Field label="Harvesting frequency">
+            <select value={form.harvest_frequency} onChange={set('harvest_frequency')} className={inputCls}>
+              <option value="">Select…</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+            </select>
+          </Field>
+          <Field label="How many times (e.g. Weekly + 2 = twice a week)">
+            <input type="number" min="1" value={form.harvest_frequency_count} onChange={set('harvest_frequency_count')} className={inputCls} />
           </Field>
         </div>
 

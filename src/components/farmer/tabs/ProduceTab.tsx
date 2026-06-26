@@ -31,7 +31,6 @@ type Produce = {
   description?: string
   image_url?: string
   image_urls?: string[] | null
-  harvest_date?: string | null
   delivery_mode?: string | null
   delivery_charge?: number | null
   delivery_radius_km?: number | null

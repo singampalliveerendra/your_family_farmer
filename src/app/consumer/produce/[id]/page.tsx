@@ -40,6 +40,10 @@ type Listing = {
   soil_ph?: number | null
   pesticide_result?: string | null
   how_we_grow?: string | null
+  availability_from?: string | null
+  availability_to?: string | null
+  harvest_frequency?: string | null
+  harvest_frequency_count?: number | null
   rating_avg?: number | null
   review_count?: number | null
   price_tier_1_qty?: number | null
@@ -56,6 +60,26 @@ const METHOD_SHORT: Record<string, string> = {
 const CATEGORY_LABEL: Record<string, string> = {
   vegetables: 'Vegetables', fruits: 'Fruits', grains: 'Grains & Pulses', leafy: 'Leafy Greens',
   spices: 'Spices', other: 'Other',
+}
+
+// A Postgres `date` (or full timestamp) → short readable date, e.g. "5 Jul 2026".
+function fmtDate(d?: string | null): string {
+  if (!d) return ''
+  const dt = new Date(d.slice(0, 10) + 'T00:00:00')
+  if (isNaN(dt.getTime())) return ''
+  return dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+// Harvesting cadence + count → "Twice a week", "3 times a day", etc.
+function fmtFrequency(freq?: string | null, count?: number | null, L?: (en: string, te: string) => string): string {
+  if (!freq) return ''
+  const tr = L ?? ((en: string) => en)
+  const period = freq === 'daily' ? tr('day', 'రోజు') : tr('week', 'వారం')
+  const n = count && count > 0 ? count : null
+  if (!n) return freq === 'daily' ? tr('Daily', 'రోజువారీ') : tr('Weekly', 'వారానికి')
+  if (n === 1) return tr('Once a', 'ఒకసారి') + ' ' + period
+  if (n === 2) return tr('Twice a', 'రెండుసార్లు') + ' ' + period
+  return `${n} ${tr('times a', 'సార్లు')} ${period}`
 }
 
 export default function ProduceDetailPage() {
@@ -295,6 +319,22 @@ export default function ProduceDetailPage() {
               <span className="bg-amber-100 text-amber-800 text-[11px] font-semibold px-2 py-0.5 rounded-full">BRIX {item.brix}</span>
             )}
           </div>
+
+          {(item.availability_from || item.availability_to) && (
+            <div>
+              <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">📅 {L('Available', 'అందుబాటు')}</p>
+              <p className="text-sm text-gray-600 leading-snug mt-0.5">
+                {[fmtDate(item.availability_from), fmtDate(item.availability_to)].filter(Boolean).join(' – ')}
+              </p>
+            </div>
+          )}
+
+          {item.harvest_frequency && (
+            <div>
+              <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">🌾 {L('Harvesting', 'కోత')}</p>
+              <p className="text-sm text-gray-600 leading-snug mt-0.5">{fmtFrequency(item.harvest_frequency, item.harvest_frequency_count, L)}</p>
+            </div>
+          )}
 
           {item.how_we_grow && (
             <div>
