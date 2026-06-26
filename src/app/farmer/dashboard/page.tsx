@@ -9,6 +9,8 @@ import { useLang } from '@/lib/LanguageContext'
 import LocationSearch from '@/components/LocationSearch'
 import { normalizePickupSchedule, emptyPickupSlot, type PickupSchedule } from '@/lib/pickup-slots'
 import { type FarmerOrder as Order, isResolved } from '@/components/farmer/OrderCard'
+import DemandSupplyChart from '@/components/DemandSupplyChart'
+import { type CropBalance } from '@/lib/demand-supply'
 
 type Farmer = {
   id: string
@@ -41,10 +43,7 @@ type Farmer = {
   cod_enabled: boolean | null
 }
 
-type DemandBar = {
-  crop_name: string
-  total_qty: number
-}
+// Demand-vs-supply rows for the area chart come from /api/demand-supply.
 
 type ListingRow = {
   id: string
@@ -157,7 +156,7 @@ export default function FarmerDashboard() {
   const [todayCount, setTodayCount] = useState(0)
   const [approvedCount, setApprovedCount] = useState(0)
   const [totalRevenue, setTotalRevenue] = useState(0)
-  const [demandBars, setDemandBars] = useState<DemandBar[]>([])
+  const [supplyDemand, setSupplyDemand] = useState<CropBalance[]>([])
   const [monthlyRevenue, setMonthlyRevenue] = useState(0)
   const [monthlyOrderCount, setMonthlyOrderCount] = useState(0)
   const [weeklyEarnings, setWeeklyEarnings] = useState<number[]>([0, 0, 0, 0])
@@ -186,7 +185,7 @@ export default function FarmerDashboard() {
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
 
-    const [listingsRes, pendingRes, approvedRes, intentsRes, monthlyRes, todayRes] = await Promise.all([
+    const [listingsRes, pendingRes, approvedRes, monthlyRes, todayRes] = await Promise.all([
       // Full (lightweight) listing rows so the dashboard can show them inline
       // with a quick suspend/resume; the active-listings count is derived below.
       supabase.from('produce_listings').select('id, name, emoji, status, price_tier_1_price, unit, stock_qty, rating_avg, review_count').eq('farmer_id', farmerData.id).order('created_at', { ascending: false }),
@@ -197,7 +196,6 @@ export default function FarmerDashboard() {
       // farmer taps Acknowledge so the cancellation never goes unnoticed.
       supabase.from('orders').select('*').eq('farmer_id', farmerData.id).or('status.eq.pending,status.eq.approved,and(status.eq.cancelled,acknowledged_at.is.null)').order('created_at', { ascending: false }),
       supabase.from('orders').select('id, total_price').eq('farmer_id', farmerData.id).eq('status', 'approved').gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString()),
-      supabase.from('demand_intents').select('crop_name, quantity_kg').eq('region_slug', farmerData.region_slug).eq('fulfilled', false),
       supabase.from('orders').select('id, total_price, created_at').eq('farmer_id', farmerData.id).eq('status', 'approved').gte('created_at', monthStart.toISOString()),
       // Today's orders — every order placed since local midnight, any status,
       // to match the Orders list opened by the tile's ?time=today link.
@@ -227,16 +225,17 @@ export default function FarmerDashboard() {
     }
     setWeeklyEarnings(weeks)
 
-    const map: Record<string, number> = {}
-    for (const row of intentsRes.data ?? []) {
-      map[row.crop_name] = (map[row.crop_name] ?? 0) + (Number(row.quantity_kg) || 0)
+    // Demand vs supply across the whole area (all farmers' orders + intents vs
+    // all farmers' available produce), computed server-side with the service role.
+    const dsRes = await fetch(
+      `/api/demand-supply?region=${encodeURIComponent(farmerData.region_slug)}`,
+    ).catch(() => null)
+    if (dsRes?.ok) {
+      const json = await dsRes.json().catch(() => ({}))
+      setSupplyDemand(((json.crops ?? []) as CropBalance[]).slice(0, 6))
+    } else {
+      setSupplyDemand([])
     }
-    setDemandBars(
-      Object.entries(map)
-        .map(([crop_name, total_qty]) => ({ crop_name, total_qty }))
-        .sort((a, b) => b.total_qty - a.total_qty)
-        .slice(0, 5)
-    )
 
     setLoading(false)
   }, [router])
@@ -545,40 +544,26 @@ export default function FarmerDashboard() {
           </span>
         </Link>
 
-        {/* Demand chart */}
+        {/* Demand vs supply chart for the area */}
         <div className="bg-white rounded-2xl border border-gray-100 p-4">
           <h2 className="font-extrabold text-gray-900 text-base leading-tight">
-            {tx.localDemand}
+            {tx.demandVsSupply}
           </h2>
           <p className="text-xs text-gray-500 mt-0.5 mb-4">
-            {tx.localDemandHelp}
+            {tx.demandVsSupplyHelp}
           </p>
 
-          {demandBars.length === 0 ? (
+          {supplyDemand.length === 0 ? (
             <div className="text-center py-6">
               <p className="text-gray-400 text-sm">{tx.noDemandSignals}</p>
               <p className="text-gray-400 text-xs mt-1">{tx.shareProfileLink}</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {demandBars.map((bar) => {
-                const pct = Math.round((bar.total_qty / demandBars[0].total_qty) * 100)
-                return (
-                  <div key={bar.crop_name}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-semibold text-gray-800">{bar.crop_name}</span>
-                      <span className="text-xs text-gray-400 font-medium">{bar.total_qty} kg</span>
-                    </div>
-                    <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-green-600 rounded-full"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+            <DemandSupplyChart
+              crops={supplyDemand}
+              demandLabel={tx.demand}
+              supplyLabel={tx.supply}
+            />
           )}
         </div>
 
@@ -1140,7 +1125,6 @@ function ProfileEditModal({
               <option value="Canal">{L('Canal', 'కాలువ')}</option>
               <option value="River">{L('River', 'నది')}</option>
               <option value="Pond / Tank">{L('Pond / Tank', 'చెరువు')}</option>
-              <option value="Drip irrigation">{L('Drip irrigation', 'డ్రిప్ ఇరిగేషన్')}</option>
             </select>
           </div>
           <div>
