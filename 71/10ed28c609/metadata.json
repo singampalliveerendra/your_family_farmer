@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "7110ed28c609",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/app/farmer/dashboard/orders/[id]/page.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/71/10ed28c609/0/metadata.json",
+      "transcript": "/71/10ed28c609/0/full.jsonl",
+      "content_hash": "/71/10ed28c609/0/content_hash.txt",
+      "prompt": "/71/10ed28c609/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 3883,
+    "cache_creation_tokens": 21728,
+    "cache_read_tokens": 233745,
+    "output_tokens": 4596,
+    "api_call_count": 10
+  }
+}
