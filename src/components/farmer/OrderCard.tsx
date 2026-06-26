@@ -467,7 +467,9 @@ export default function OrderCard({
           // just waits for that confirmation.
           <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
             <div className="text-center">
-              <p className="text-xs font-bold text-amber-800">{L('🚚 Shipped', 'షిప్ చేయబడింది')}</p>
+              <p className="text-xs font-bold text-amber-800">
+                {isPickup ? L('📦 Picked Up', '📦 తీసుకోబడింది') : L('🚚 Shipped', 'షిప్ చేయబడింది')}
+              </p>
               <p className="text-[11px] text-amber-700 mt-0.5">
                 {L('Awaiting buyer confirmation', 'కొనుగోలుదారు ధృవీకరణ కోసం వేచి ఉంది')}
               </p>
@@ -485,7 +487,11 @@ export default function OrderCard({
               disabled={processing}
               className="w-full bg-amber-600 text-white font-bold py-2.5 rounded-xl text-sm active:bg-amber-700 disabled:opacity-50"
             >
-              {processing ? '…' : L('🚚 Mark Shipped', '🚚 షిప్ చేయబడింది')}
+              {processing
+                ? '…'
+                : isPickup
+                  ? L('📦 Mark Picked Up', '📦 తీసుకోబడింది')
+                  : L('🚚 Mark Shipped', '🚚 షిప్ చేయబడింది')}
             </button>
             <button
               onClick={onDecline}
