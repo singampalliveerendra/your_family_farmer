@@ -12,9 +12,12 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // dashboard) because issuing a real refund needs the Razorpay secret. Steps:
 //   1. authorise the farmer and confirm the order is theirs and still pending
 //   2. return the reserved stock
-//   3. if the buyer paid by Razorpay, issue a real partial refund for this
-//      line's amount and record it; other paid methods get a manual
-//      'initiated' marker as before
+//   3. if the buyer paid by Razorpay, issue a real refund for the FULL amount
+//      the buyer paid against this order — the produce price plus this row's
+//      share of the delivery fee and platform fee (both stamped on the first
+//      row of the cart). Because the farmer is the one cancelling, the buyer
+//      should be made whole, not just refunded the produce. Other paid methods
+//      get a manual 'initiated' marker carrying the same full amount.
 //   4. mark the order declined
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const session = getFarmerSessionFromRequest(req)
@@ -33,7 +36,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: order, error: loadErr } = await supabase
     .from('orders')
-    .select('id, farmer_id, status, quantity, total_price, produce_listing_id, payment_method, payment_status, razorpay_payment_id, order_code, shipped_at, collected_at, received_at')
+    .select('id, farmer_id, status, quantity, total_price, delivery_fee, platform_fee, produce_listing_id, payment_method, payment_status, razorpay_payment_id, order_code, shipped_at, collected_at, received_at')
     .eq('id', id)
     .maybeSingle()
 
@@ -78,8 +81,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     order.payment_status === 'payment_claimed' ||
     order.payment_status === 'pending_confirmation'
 
+  // Full amount the buyer paid against THIS order row: the produce price plus
+  // the delivery and platform fees, which are stamped on the cart's first row
+  // only (0 on the rest). Summed across all declined rows this can never exceed
+  // the captured total, so partial refunds stay safe.
+  const refundRupees =
+    (Number(order.total_price) || 0) +
+    (Number(order.delivery_fee) || 0) +
+    (Number(order.platform_fee) || 0)
+
   if (paidByRazorpay) {
-    const amountPaise = Math.round((Number(order.total_price) || 0) * 100)
+    const amountPaise = Math.round(refundRupees * 100)
     if (amountPaise > 0) {
       try {
         const refund = await refundPayment({
@@ -102,8 +114,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       }
     }
   } else if (paidByOther) {
-    // Non-Razorpay paid (UPI/manual): flag for manual refund as before.
+    // Non-Razorpay paid (UPI/manual): flag for manual refund, recording the
+    // full amount owed so whoever settles it knows the figure.
     update.refund_status = 'initiated'
+    if (refundRupees > 0) update.refund_amount = Math.round(refundRupees)
   }
 
   const { error: updErr } = await supabase.from('orders').update(update).eq('id', id)
