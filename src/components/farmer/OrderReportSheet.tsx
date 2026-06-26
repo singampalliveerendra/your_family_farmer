@@ -63,8 +63,9 @@ export default function OrderReportSheet({
   const [preset, setPreset] = useState<TimePreset>('month')
   const [fromStr, setFromStr] = useState(isoDate(new Date(today.getTime() - 30 * 86400000)))
   const [toStr, setToStr] = useState(isoDate(today))
-  // Empty = all statuses.
-  const [statusSel, setStatusSel] = useState<ReportStatus[]>([])
+  // Empty = all statuses. Default to Completed so the report opens on finished
+  // orders first; the farmer can tap "All" or other chips to widen it.
+  const [statusSel, setStatusSel] = useState<ReportStatus[]>(['Completed'])
 
   const applyPreset = (p: Exclude<TimePreset, 'custom'>) => {
     setPreset(p)
