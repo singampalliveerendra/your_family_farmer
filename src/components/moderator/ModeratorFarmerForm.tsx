@@ -319,11 +319,10 @@ export default function ModeratorFarmerForm({
             <option value="Canal">Canal</option>
             <option value="River">River</option>
             <option value="Pond / Tank">Pond / Tank</option>
-            <option value="Drip irrigation">Drip irrigation</option>
           </select>
         </Field>
       </div>
-      <Field label="Story / quote">
+      <Field label="How we grow">
         <textarea value={form.story_quote} onChange={set('story_quote')} rows={3} className={inputCls} />
       </Field>
 
