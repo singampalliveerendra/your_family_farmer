@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "255ca4eb47db",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/farmer/dashboard/orders/[id]/page.tsx",
+    "src/components/consumer/OrderCard.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/25/5ca4eb47db/0/metadata.json",
+      "transcript": "/25/5ca4eb47db/0/full.jsonl",
+      "content_hash": "/25/5ca4eb47db/0/content_hash.txt",
+      "prompt": "/25/5ca4eb47db/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 5141,
+    "cache_creation_tokens": 141494,
+    "cache_read_tokens": 3419636,
+    "output_tokens": 48457,
+    "api_call_count": 60
+  }
+}
