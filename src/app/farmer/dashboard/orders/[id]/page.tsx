@@ -126,7 +126,12 @@ export default function FarmerOrderDetailPage() {
     d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : ''
 
   const isCod = !order?.payment_method || order?.payment_method === 'cod'
-  const isPaid = order?.payment_status === 'completed'
+  // Once an order is handed over (collected at pickup / received on delivery)
+  // the money has changed hands — cash is taken at pickup, and an online order
+  // would never be shipped unpaid. So a delivered order is settled regardless
+  // of whether payment_status was explicitly flipped to 'completed'.
+  const isDelivered = !!order?.received_at || !!order?.collected_at
+  const isPaid = order?.payment_status === 'completed' || isDelivered
   const isDelivery = order?.delivery_type === 'home_delivery'
   const isCourier = order?.delivery_type === 'courier'
 
