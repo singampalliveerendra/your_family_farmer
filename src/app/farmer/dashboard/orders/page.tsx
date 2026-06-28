@@ -200,6 +200,51 @@ function OrdersPageInner() {
     }
   }
 
+  // Self-pickup close: farmer types the buyer's 4-digit handover code. The
+  // server matches it against the order's handover_otp and stamps collected_at.
+  // Returns an error message to show inline under the input, or null on success.
+  const handleConfirmPickup = async (orderId: string, otp: string): Promise<string | null> => {
+    setProcessingOrderId(orderId)
+    try {
+      const res = await fetch(`/api/farmer/orders/${orderId}/confirm-pickup`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) return json.error || L('Could not confirm pickup. Please try again.', 'తీసుకోబడిందని ధృవీకరించడం సాధ్యం కాలేదు. మళ్ళీ ప్రయత్నించండి.')
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, collected_at: json.collected_at ?? new Date().toISOString() } : o)))
+      return null
+    } catch {
+      return L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.')
+    } finally {
+      setProcessingOrderId(null)
+    }
+  }
+
+  // Farmer-driven delivery close: farmer types the buyer's code at the door.
+  // Matches handover_otp on the server and stamps received_at (delivered).
+  const handleConfirmDelivery = async (orderId: string, otp: string): Promise<string | null> => {
+    setProcessingOrderId(orderId)
+    try {
+      const res = await fetch(`/api/farmer/orders/${orderId}/deliver`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) return json.error || L('Could not confirm delivery. Please try again.', 'డెలివరీ ధృవీకరించడం సాధ్యం కాలేదు. మళ్ళీ ప్రయత్నించండి.')
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, received_at: json.received_at ?? new Date().toISOString() } : o)))
+      return null
+    } catch {
+      return L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.')
+    } finally {
+      setProcessingOrderId(null)
+    }
+  }
+
   // Farmer acknowledges a buyer-cancelled order (stamps acknowledged_at).
   const handleAcknowledgeCancel = async (orderId: string) => {
     setProcessingOrderId(orderId)
@@ -441,6 +486,8 @@ function OrdersPageInner() {
                   onUpdatePaymentStatus={(s) => handleUpdatePaymentStatus(order.id, s)}
                   onSetFulfillmentDate={(d, reason) => handleSetFulfillmentDate(order.id, d, reason)}
                   onMarkShipped={() => handleMarkShipped(order.id)}
+                  onConfirmPickup={(otp) => handleConfirmPickup(order.id, otp)}
+                  onConfirmDelivery={(otp) => handleConfirmDelivery(order.id, otp)}
                 />
               ) : (
                 <HistoryCard

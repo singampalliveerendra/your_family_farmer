@@ -91,7 +91,6 @@ export default function OrderDetailsPage() {
   const [cancelling, setCancelling] = useState(false)
   const [showCancel, setShowCancel] = useState(false)
   const [showComplaint, setShowComplaint] = useState(false)
-  const [confirmingReceipt, setConfirmingReceipt] = useState(false)
 
   // Buyer may cancel any time before the order is shipped or handed over
   // (pending or approved-and-awaiting). Shared rule with the card + cancel API.
@@ -104,16 +103,9 @@ export default function OrderDetailsPage() {
     && order.delivery_type === 'home_delivery'
     && (!!order.rider || (order.delivery_status != null && order.delivery_status !== 'unassigned'))
 
-  // The buyer confirms delivery themselves, once the farmer has marked the order
-  // shipped — for every farmer-fulfilled type (self-pickup, courier, farmer-
-  // shipped home delivery). Rider home deliveries never set shipped_at (the rider
-  // closes them at the door), so they're naturally excluded here.
-  const canConfirmReceipt = !!order
-    && order.status !== 'cancelled'
-    && order.status !== 'declined'
-    && !!order.shipped_at
-    && !order.collected_at
-    && !order.received_at
+  // The buyer no longer self-confirms delivery. For every farmer-fulfilled type
+  // the farmer (or rider) closes the order by entering the buyer's handover code
+  // at the door / at the farm. The buyer just shows their code.
 
   const handleCancel = async (reason: string) => {
     if (!order) return
@@ -136,27 +128,6 @@ export default function OrderDetailsPage() {
       alert(L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.'))
     } finally {
       setCancelling(false)
-    }
-  }
-
-  const handleConfirmReceipt = async () => {
-    if (!order) return
-    if (!window.confirm(L('Confirm you received this order?', 'మీరు ఈ ఆర్డర్‌ను అందుకున్నారా?'))) return
-    setConfirmingReceipt(true)
-    try {
-      const res = await fetch(`/api/consumer/orders/${order.id}/received`, {
-        method: 'POST',
-        credentials: 'same-origin',
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) { alert(json.error || L('Could not confirm receipt.', 'అందుకున్నట్టు ధృవీకరించలేకపోయాం.')); return }
-      const r = await fetch(`/api/consumer/orders/${order.id}`, { credentials: 'same-origin' })
-      const fresh = await r.json().catch(() => ({}))
-      if (r.ok && fresh.order) setOrder(fresh.order as Order)
-    } catch {
-      alert(L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.'))
-    } finally {
-      setConfirmingReceipt(false)
     }
   }
 
@@ -383,15 +354,6 @@ export default function OrderDetailsPage() {
                 </button>
               )}
 
-              {canConfirmReceipt && (
-                <button
-                  onClick={handleConfirmReceipt}
-                  disabled={confirmingReceipt}
-                  className="mt-3 w-full bg-green-600 text-white font-bold py-3 rounded-xl text-sm active:bg-green-700 disabled:opacity-50"
-                >
-                  {confirmingReceipt ? '…' : L('✓ Mark as Delivered', '✓ డెలివరీ అయింది')}
-                </button>
-              )}
             </div>
 
             {/* Pickup / Delivery date the farmer scheduled for this order. */}
@@ -832,10 +794,18 @@ function OrderStatusPanel({ order }: { order: Order }) {
       ? [{ label: L('Payment received', 'చెల్లింపు అందింది'), sub: L(`${order.payment_method_detail || 'UPI'} payment confirmed`, `${order.payment_method_detail || 'UPI'} చెల్లింపు ధృవీకరించబడింది`), at: fmt(order.paid_at), done: true }]
       : []),
     { label: L('Confirmed by farmer', 'రైతు ధృవీకరించారు'), sub: L('Farmer accepted your order', 'రైతు అంగీకరించారు'), at: fmt(order.confirmed_at), done: approved },
-    { label: isShippedFlow ? L('Shipped', 'షిప్ చేయబడింది') : L('Picked up', 'తీసుకున్నారు'), sub: isShippedFlow
-        ? L('Farmer shipped your order to your address', 'రైతు మీ చిరునామాకు పంపారు')
-        : L('Farmer has your order ready', 'రైతు మీ ఆర్డర్ సిద్ధం చేశారు'), at: fmt(order.shipped_at), done: shipped },
-    { label: isShippedFlow ? L('Delivered', 'డెలివరీ అయింది') : L('Collected', 'తీసుకువెళ్ళారు'), sub: L('You confirmed delivery', 'మీరు డెలివరీ ధృవీకరించారు'), at: fmt(order.received_at || order.collected_at), done: delivered },
+    // Delivery: Shipped (on the way) → Delivered, stamped when the farmer enters
+    // the buyer's code at the door. Self-pickup: a single "Collected" step,
+    // stamped when the farmer enters the code at the farm. Either way the buyer
+    // never marks the order themselves — they just show their code.
+    ...(isShippedFlow
+      ? [
+          { label: L('Shipped', 'షిప్ చేయబడింది'), sub: L('Farmer is on the way to your address', 'రైతు మీ చిరునామాకు వస్తున్నారు'), at: fmt(order.shipped_at), done: shipped },
+          { label: L('Delivered', 'డెలివరీ అయింది'), sub: L('Farmer confirmed delivery with your code', 'మీ కోడ్‌తో రైతు డెలివరీ ధృవీకరించారు'), at: fmt(order.received_at || order.collected_at), done: delivered },
+        ]
+      : [
+          { label: L('Collected', 'తీసుకువెళ్ళారు'), sub: L('Farmer confirmed pickup with your code', 'మీ కోడ్‌తో రైతు పికప్ ధృవీకరించారు'), at: fmt(order.collected_at), done: collected },
+        ]),
   ]
 
   // Current = the furthest milestone reached (last step marked done).
@@ -854,6 +824,26 @@ function OrderStatusPanel({ order }: { order: Order }) {
             : isShippedFlow ? L('Courier delivery', 'కొరియర్ డెలివరీ') : L('Farm pickup', 'ఫామ్ పికప్')}
         </p>
       </div>
+
+      {/* Handover code — the buyer reads this to the farmer at handover (at the
+          farm for pickup, or at the door for farmer-driven delivery). The farmer
+          types it into their order to complete it; the buyer never marks the
+          order themselves. Shown while approved and not yet completed. */}
+      {approved && !delivered && order.handover_otp && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl px-4 py-3 text-center">
+          <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wide">
+            {isShippedFlow
+              ? L('Show this code to the farmer at delivery', 'డెలివరీ సమయంలో రైతుకు ఈ కోడ్ చూపించండి')
+              : L('Show this code to the farmer at pickup', 'పికప్ సమయంలో రైతుకు ఈ కోడ్ చూపించండి')}
+          </p>
+          <p className="text-4xl font-black tracking-widest text-amber-900 mt-2 font-mono">
+            {order.handover_otp}
+          </p>
+          <p className="text-[10px] text-amber-700 mt-1 leading-snug">
+            {L('The farmer enters it to complete your order.', 'మీ ఆర్డర్ పూర్తి చేయడానికి రైతు దీన్ని నమోదు చేస్తారు.')}
+          </p>
+        </div>
+      )}
 
       {/* Prominent completion banner once the order is resolved — same style as
           the "Delivered" banner on the home-delivery tracker. */}

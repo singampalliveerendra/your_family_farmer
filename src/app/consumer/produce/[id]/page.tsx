@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
 import { localizeName } from '@/lib/localizeName'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
+import ShareButton from '@/components/consumer/ShareButton'
 
 type Farmer = {
   id: string
@@ -213,7 +214,23 @@ export default function ProduceDetailPage() {
           <Link href="/consumer" className="text-green-200 text-sm font-semibold flex items-center gap-1">
             {L('← Back', '← తిరిగి')}
           </Link>
-          <LanguageToggle />
+          <div className="flex items-center gap-4">
+            <ShareButton
+              variant="pill"
+              info={{
+                id: item.id,
+                name: item.name,
+                variety: item.variety,
+                emoji: item.emoji,
+                method: item.method,
+                pricePerUnit: item.price_tier_1_price,
+                unit: item.unit,
+                farmerName: farmer?.name,
+                farmerVillage: farmer?.village,
+              }}
+            />
+            <LanguageToggle />
+          </div>
         </div>
       </div>
 

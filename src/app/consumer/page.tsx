@@ -7,6 +7,8 @@ import { CartFab, useCart } from '@/components/consumer/Cart'
 import MyOrdersChip from '@/components/consumer/MyOrdersChip'
 import RoleGateModal from '@/components/consumer/RoleGateModal'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
+import ShareButton from '@/components/consumer/ShareButton'
+import TodaysHarvest from '@/components/consumer/TodaysHarvest'
 import { supabase } from '@/lib/supabase'
 import { haversineKm, nearestTown, formatDistance, farmerCoords } from '@/lib/location'
 import LocationSearch from '@/components/LocationSearch'
@@ -337,13 +339,18 @@ export default function ConsumerPage() {
         </div>
       )}
 
+      {/* ── Today's Harvest near you (freshness USP feed) ───────── */}
+      <div className="max-w-3xl mx-auto px-3 mt-6">
+        <TodaysHarvest />
+      </div>
+
       {/* ── Available now ────────────────────── */}
       <div className="max-w-3xl mx-auto px-3 mt-6">
         <div className="flex items-end justify-between mb-4">
           <div>
-            <h2 className="text-xl font-extrabold text-gray-900">{L('Available now', 'ఇప్పుడు అందుబాటులో')}</h2>
+            <h2 className="text-xl font-extrabold text-gray-900">{L('Fresh Harvests', 'తాజా కోతలు')}</h2>
             <p className="text-green-700 font-semibold text-sm leading-tight">
-              {L('Fresh produce from farms nearby', 'తాజా పంట')}
+              {L('Fresh from farms nearby', 'దగ్గర్లోని ఫామ్‌ల నుండి తాజాగా')}
             </p>
           </div>
           {!loading && (
@@ -557,6 +564,21 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
         >
           {methodShort}
         </span>
+        <div className="absolute top-2 left-2">
+          <ShareButton
+            info={{
+              id: item.id,
+              name: item.name,
+              variety: item.variety,
+              emoji: item.emoji,
+              method: item.method,
+              pricePerUnit: item.price_tier_1_price,
+              unit,
+              farmerName: farmer?.name,
+              farmerVillage: farmer?.village,
+            }}
+          />
+        </div>
         {gallery.length > 1 && (
           <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 pointer-events-none">
             {gallery.map((_, i) => (

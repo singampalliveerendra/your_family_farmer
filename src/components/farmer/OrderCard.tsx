@@ -75,6 +75,8 @@ export default function OrderCard({
   onUpdatePaymentStatus,
   onSetFulfillmentDate,
   onMarkShipped,
+  onConfirmPickup,
+  onConfirmDelivery,
 }: {
   order: FarmerOrder
   processing: boolean
@@ -88,11 +90,16 @@ export default function OrderCard({
   // an already-approved order, a reason is required and passed too — the buyer
   // sees it, so a date change is never silent.
   onSetFulfillmentDate: (date: string, reason?: string) => void
-  // No farmer handover step closes an order: a courier / farmer-driven home
-  // delivery is marked Shipped (trust-based dispatch), and the BUYER confirms
-  // receipt; a self-pickup is confirmed by the buyer too. The farmer never
-  // confirms a handover with a code.
+  // Courier / farmer-driven home delivery is marked Shipped (trust-based
+  // dispatch), and the BUYER confirms receipt. A SELF-PICKUP is closed by the
+  // farmer entering the buyer's 4-digit handover code (onConfirmPickup) — the
+  // buyer reads it off their order page at collection. Returns an error message
+  // to show inline, or null on success.
   onMarkShipped: () => void
+  onConfirmPickup: (otp: string) => Promise<string | null>
+  // Farmer-driven home delivery / courier: after marking Shipped, the farmer
+  // types the buyer's code at the door to close the order (received_at).
+  onConfirmDelivery: (otp: string) => Promise<string | null>
 }) {
   const { tx, L } = useLang()
   const router = useRouter()
@@ -123,6 +130,19 @@ export default function OrderCard({
   const [editingDate, setEditingDate] = useState(false)
   const [newDate, setNewDate] = useState(fulfillmentDate)
   const [rescheduleReason, setRescheduleReason] = useState('')
+
+  // Handover-code entry. The farmer types the buyer's 4-digit code at handover;
+  // a match closes the order — collected_at for self-pickup (onConfirmPickup),
+  // received_at for farmer-driven delivery (onConfirmDelivery). Only one code
+  // form ever renders at a time, so the state is shared. Wrong code shows inline.
+  const [pickupOtp, setPickupOtp] = useState('')
+  const [pickupErr, setPickupErr] = useState<string | null>(null)
+  const submitCode = async (handler: (otp: string) => Promise<string | null>) => {
+    setPickupErr(null)
+    const err = await handler(pickupOtp)
+    if (err) setPickupErr(err)
+    else setPickupOtp('')
+  }
 
   const timeAgo = (ts: string) => {
     const diff = Date.now() - new Date(ts).getTime()
@@ -462,37 +482,91 @@ export default function OrderCard({
             {processing ? tx.declining : `✕ ${tx.decline}`}
           </button>
         ) : isShipped ? (
-          // Already shipped (courier / farmer-ships home delivery). Only the
-          // BUYER confirms receipt now (Delivered / Received on their order
-          // page), which stamps received_at and resolves the order — the farmer
-          // just waits for that confirmation.
-          <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
-            <div className="text-center">
-              <p className="text-xs font-bold text-amber-800">
-                {isPickup ? L('📦 Picked Up', '📦 తీసుకోబడింది') : L('🚚 Shipped', 'షిప్ చేయబడింది')}
+          // Shipped & on the way (farmer-driven courier / home delivery). The
+          // farmer delivers it himself, so at the buyer's door he types the
+          // buyer's 4-digit code to close the order (received_at) — the buyer
+          // no longer self-confirms. Same verified handover as self-pickup.
+          <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2.5 space-y-2">
+            <p className="text-[11px] font-bold text-amber-800 text-center">🚚 {L('Shipped — on the way', 'షిప్ అయింది — దారిలో')}</p>
+            <p className="text-xs font-bold text-green-800 text-center">
+              {L('Enter the customer’s code at delivery', 'డెలివరీ సమయంలో కస్టమర్ కోడ్ నమోదు చేయండి')}
+            </p>
+            <div className="flex gap-2">
+              <input
+                inputMode="numeric"
+                pattern="\d*"
+                maxLength={4}
+                value={pickupOtp}
+                onChange={(e) => { setPickupOtp(e.target.value.replace(/\D/g, '').slice(0, 4)); setPickupErr(null) }}
+                placeholder="0000"
+                className="flex-1 min-w-0 text-center text-lg font-bold tracking-[0.4em] border border-green-300 rounded-lg py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <button
+                onClick={() => submitCode(onConfirmDelivery)}
+                disabled={processing || pickupOtp.length !== 4}
+                className="px-4 bg-green-700 text-white font-bold rounded-lg text-sm active:bg-green-800 disabled:opacity-50"
+              >
+                {processing ? '…' : L('Confirm', 'ధృవీకరించు')}
+              </button>
+            </div>
+            {pickupErr && <p className="text-[11px] text-red-600 text-center font-semibold">{pickupErr}</p>}
+            <p className="text-[10px] text-green-700 text-center leading-snug">
+              {L('Ask the customer to read the 4-digit code from their order page.', 'కస్టమర్‌ను వారి ఆర్డర్ పేజీలోని 4-అంకెల కోడ్ చదవమని అడగండి.')}
+            </p>
+          </div>
+        ) : isPickup ? (
+          // Approved SELF-PICKUP: the farmer closes the order by entering the
+          // buyer's 4-digit handover code (shown only on the buyer's own order
+          // page). A match stamps collected_at and resolves the order. There is
+          // no "mark picked up" tap — the code proves the customer was actually
+          // present to collect, so the farmer can't close it alone.
+          <>
+            <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2.5 space-y-2">
+              <p className="text-xs font-bold text-green-800 text-center">
+                {L('Enter the customer’s pickup code', 'కస్టమర్ పికప్ కోడ్ నమోదు చేయండి')}
               </p>
-              <p className="text-[11px] text-amber-700 mt-0.5">
-                {L('Awaiting buyer confirmation', 'కొనుగోలుదారు ధృవీకరణ కోసం వేచి ఉంది')}
+              <div className="flex gap-2">
+                <input
+                  inputMode="numeric"
+                  pattern="\d*"
+                  maxLength={4}
+                  value={pickupOtp}
+                  onChange={(e) => { setPickupOtp(e.target.value.replace(/\D/g, '').slice(0, 4)); setPickupErr(null) }}
+                  placeholder="0000"
+                  className="flex-1 min-w-0 text-center text-lg font-bold tracking-[0.4em] border border-green-300 rounded-lg py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <button
+                  onClick={() => submitCode(onConfirmPickup)}
+                  disabled={processing || pickupOtp.length !== 4}
+                  className="px-4 bg-green-700 text-white font-bold rounded-lg text-sm active:bg-green-800 disabled:opacity-50"
+                >
+                  {processing ? '…' : L('Confirm', 'ధృవీకరించు')}
+                </button>
+              </div>
+              {pickupErr && <p className="text-[11px] text-red-600 text-center font-semibold">{pickupErr}</p>}
+              <p className="text-[10px] text-green-700 text-center leading-snug">
+                {L('Ask the customer to read the 4-digit code from their order page.', 'కస్టమర్‌ను వారి ఆర్డర్ పేజీలోని 4-అంకెల కోడ్ చదవమని అడగండి.')}
               </p>
             </div>
-          </div>
+            <button
+              onClick={onDecline}
+              disabled={processing}
+              className="w-full border-2 border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
+            >
+              {processing ? tx.declining : `✕ ${tx.decline}`}
+            </button>
+          </>
         ) : (
-          // Approved order not yet shipped (self-pickup, courier, or a farmer-
-          // driven home delivery — rider deliveries were handled above). The
-          // farmer marks it Shipped himself (trust-based dispatch — no code). The
-          // order stays active; the BUYER then confirms it from their own order
-          // page ("Delivered"), which closes it.
+          // Approved courier / farmer-driven home delivery (rider deliveries were
+          // handled above). The farmer marks it Shipped (trust-based dispatch);
+          // the BUYER then confirms receipt from their order page, which closes it.
           <>
             <button
               onClick={onMarkShipped}
               disabled={processing}
               className="w-full bg-amber-600 text-white font-bold py-2.5 rounded-xl text-sm active:bg-amber-700 disabled:opacity-50"
             >
-              {processing
-                ? '…'
-                : isPickup
-                  ? L('📦 Mark Picked Up', '📦 తీసుకోబడింది')
-                  : L('🚚 Mark Shipped', '🚚 షిప్ చేయబడింది')}
+              {processing ? '…' : L('🚚 Mark Shipped', '🚚 షిప్ చేయబడింది')}
             </button>
             <button
               onClick={onDecline}

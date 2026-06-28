@@ -72,6 +72,7 @@ type ListingRow = {
   availability_to: string | null
   harvest_frequency: string | null
   harvest_frequency_count: number | null
+  harvest_date: string | null
   delivery_mode: string | null
   delivery_charge: number | null
   delivery_radius_km: number | null
@@ -1693,6 +1694,8 @@ function ProduceListingForm({
   const [harvestFreqCount, setHarvestFreqCount] = useState(
     editData?.harvest_frequency_count != null ? String(editData.harvest_frequency_count) : '',
   )
+  // Optional last-harvest date (kept alongside the availability range/frequency).
+  const [harvestDate, setHarvestDate] = useState(editData?.harvest_date ? editData.harvest_date.slice(0, 10) : '')
   const [farmingMethod, setFarmingMethod] = useState(editData?.method ?? defaultMethod ?? 'natural')
   const [price1, setPrice1] = useState(editData?.price_tier_1_price != null ? String(editData.price_tier_1_price) : '')
   const [price1Qty, setPrice1Qty] = useState(editData?.price_tier_1_qty != null ? String(editData.price_tier_1_qty) : '5')
@@ -1870,6 +1873,7 @@ function ProduceListingForm({
         availability_to: availTo || null,
         harvest_frequency: harvestFreq || null,
         harvest_frequency_count: harvestFreqCount ? Number(harvestFreqCount) : null,
+        harvest_date: harvestDate || null,
         delivery_mode: deliveryMode,
         delivery_charge: deliveryMode === 'pickup' ? null : (deliveryCharge ? Number(deliveryCharge) : null),
         delivery_radius_km: deliveryMode === 'pickup' ? null : (deliveryRadius ? Number(deliveryRadius) : null),
@@ -1936,6 +1940,7 @@ function ProduceListingForm({
     payload.availability_to = availTo || null
     payload.harvest_frequency = harvestFreq || null
     payload.harvest_frequency_count = harvestFreqCount ? Number(harvestFreqCount) : null
+    payload.harvest_date = harvestDate || null
     payload.delivery_mode = deliveryMode
     if (deliveryMode !== 'pickup') {
       if (deliveryCharge) payload.delivery_charge = Number(deliveryCharge)
@@ -2133,6 +2138,20 @@ function ProduceListingForm({
           <p className="text-[11px] text-gray-400">
             {L('e.g. Weekly + 2 means harvested twice a week.', 'ఉదా. వారానికి + 2 అంటే వారానికి రెండుసార్లు కోత.')}
           </p>
+        </div>
+
+        {/* Harvest date (optional) — last/expected harvest for this listing */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            {L('Harvest date', 'కోత తేదీ')}{' '}
+            <span className="text-gray-400 font-normal normal-case">({L('optional', 'ఐచ్ఛికం')})</span>
+          </label>
+          <input
+            type="date"
+            value={harvestDate}
+            onChange={(e) => setHarvestDate(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
+          />
         </div>
 
         {/* Farming method */}
@@ -2700,6 +2719,7 @@ function ManageListingsModal({
             <ListingRowCard
               key={row.id}
               row={row}
+              farmerId={farmerId}
               deleting={deletingId === row.id}
               onDelete={() => handleDelete(row)}
               onEdit={() => setEditingRow(row)}
@@ -2770,6 +2790,7 @@ function ManageListingsModal({
 
 function ListingRowCard({
   row,
+  farmerId,
   deleting,
   onDelete,
   onEdit,
@@ -2777,6 +2798,7 @@ function ListingRowCard({
   onToggleSuspend,
 }: {
   row: ListingRow
+  farmerId: string
   deleting: boolean
   onDelete: () => void
   onEdit: () => void
@@ -2785,6 +2807,44 @@ function ListingRowCard({
 }) {
   const { tx, L } = useLang()
   const emoji = row.emoji ?? '🌿'
+
+  // ── "Add Harvest" inline form ────────────────────────────────
+  // A produce_listing is the template; logging a harvest records one actual
+  // pick (date+time, shelf life, approx qty) into the `harvests` table, which
+  // powers the consumer "Today's Harvest" feed + the "Harvested 2h ago" clock.
+  const nowLocal = () => {
+    const d = new Date()
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+    return d.toISOString().slice(0, 16) // yyyy-MM-ddThh:mm for datetime-local
+  }
+  const [showHarvest, setShowHarvest] = useState(false)
+  const [harvestedAt, setHarvestedAt] = useState(nowLocal())
+  const [shelfLife, setShelfLife] = useState('')
+  const [approxQty, setApproxQty] = useState('')
+  const [savingHarvest, setSavingHarvest] = useState(false)
+  const [harvestMsg, setHarvestMsg] = useState('')
+  const [harvestErr, setHarvestErr] = useState('')
+
+  const submitHarvest = async () => {
+    setHarvestErr('')
+    setHarvestMsg('')
+    const when = new Date(harvestedAt)
+    if (isNaN(when.getTime())) { setHarvestErr(L('Pick a valid harvest date & time.', 'సరైన కోత తేదీ & సమయం ఎంచుకోండి.')); return }
+    setSavingHarvest(true)
+    const { error: err } = await supabase.from('harvests').insert({
+      produce_listing_id: row.id,
+      farmer_id: farmerId,
+      harvested_at: when.toISOString(),
+      shelf_life_days: shelfLife ? Math.max(0, parseInt(shelfLife, 10)) : null,
+      approx_quantity: approxQty ? Number(approxQty) : null,
+      unit: row.unit ?? null,
+    })
+    setSavingHarvest(false)
+    if (err) { setHarvestErr(err.message); return }
+    setHarvestMsg(L('Harvest logged ✓', 'కోత నమోదైంది ✓'))
+    setShelfLife(''); setApproxQty(''); setHarvestedAt(nowLocal())
+    setTimeout(() => { setShowHarvest(false); setHarvestMsg('') }, 1400)
+  }
   const isPaused = row.status === 'paused'
   const isSuspended = row.status === 'suspended_by_farmer'
   const statusLabel =
@@ -2865,6 +2925,66 @@ function ListingRowCard({
       </div>
 
       <div className="px-3 pb-3 space-y-2">
+        {/* Add Harvest — log a fresh pick against this produce template. */}
+        {!showHarvest ? (
+          <button
+            onClick={() => { setShowHarvest(true); setHarvestErr(''); setHarvestMsg('') }}
+            className="w-full bg-green-700 text-white font-bold py-2.5 rounded-xl text-sm active:bg-green-800 flex items-center justify-center gap-1.5"
+          >
+            🌾 {L('Add Harvest', 'కోత చేర్చండి')}
+          </button>
+        ) : (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-3 space-y-2.5">
+            <p className="text-xs font-bold text-green-800">🌾 {L('Log a harvest', 'కోత నమోదు చేయండి')}</p>
+            <div>
+              <label className="text-[11px] font-semibold text-gray-600">{L('Harvest date & time', 'కోత తేదీ & సమయం')}</label>
+              <input
+                type="datetime-local"
+                value={harvestedAt}
+                onChange={(e) => setHarvestedAt(e.target.value)}
+                className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-[11px] font-semibold text-gray-600">{L('Shelf life (days)', 'తాజా (రోజులు)')}</label>
+                <input
+                  type="number" inputMode="numeric" min={0} placeholder="e.g. 5"
+                  value={shelfLife}
+                  onChange={(e) => setShelfLife(e.target.value)}
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-[11px] font-semibold text-gray-600">{L('Approx qty', 'సుమారు పరిమాణం')} ({row.unit || 'kg'})</label>
+                <input
+                  type="number" inputMode="decimal" min={0} placeholder="e.g. 20"
+                  value={approxQty}
+                  onChange={(e) => setApproxQty(e.target.value)}
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+            </div>
+            {harvestErr && <p className="text-[11px] text-red-600 font-semibold">{harvestErr}</p>}
+            {harvestMsg && <p className="text-[11px] text-green-700 font-semibold">{harvestMsg}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={submitHarvest}
+                disabled={savingHarvest}
+                className="flex-1 bg-green-700 text-white font-bold py-2 rounded-lg text-sm active:bg-green-800 disabled:opacity-50"
+              >
+                {savingHarvest ? '…' : L('Save harvest', 'సేవ్ చేయి')}
+              </button>
+              <button
+                onClick={() => { setShowHarvest(false); setHarvestErr('') }}
+                className="px-4 border border-gray-300 text-gray-600 font-semibold py-2 rounded-lg text-sm"
+              >
+                {L('Cancel', 'రద్దు')}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Pause / Suspend — two independent reversible hide-from-buyers
             controls, both distinct from Delete. Only the relevant one shows
             once a listing is already paused or suspended. */}
