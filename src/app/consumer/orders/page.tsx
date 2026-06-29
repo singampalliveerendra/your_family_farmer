@@ -26,8 +26,9 @@ export default function ConsumerOrdersPage() {
   // Order the cancel-reason modal is open for (null = closed) + its busy flag.
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null)
   const [cancelBusy, setCancelBusy] = useState(false)
-  // After a successful cancel, show the animated confirmation ({ wasPaid }).
-  const [cancelledInfo, setCancelledInfo] = useState<{ wasPaid: boolean } | null>(null)
+  // After a successful cancel, show the animated confirmation with the refund
+  // breakdown (the platform fee is withheld on a buyer cancel).
+  const [cancelledInfo, setCancelledInfo] = useState<{ wasPaid: boolean; refundAmount?: number; platformFeeWithheld?: number } | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -92,7 +93,11 @@ export default function ConsumerOrdersPage() {
         cancellingOrder.payment_status ?? '',
       )
       setCancellingOrder(null)
-      setCancelledInfo({ wasPaid })
+      setCancelledInfo({
+        wasPaid,
+        refundAmount: typeof json?.refundAmount === 'number' ? json.refundAmount : undefined,
+        platformFeeWithheld: typeof json?.platformFeeWithheld === 'number' ? json.platformFeeWithheld : undefined,
+      })
       await refresh()
     } else {
       alert(json?.error ?? L('Could not cancel. Please try again.', 'రద్దు చేయలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
@@ -173,7 +178,7 @@ export default function ConsumerOrdersPage() {
             <div className="text-5xl mb-3">📭</div>
             <p className="font-semibold text-gray-500 text-sm">{tx.noOrdersYet}</p>
             <Link href="/consumer" className="mt-4 inline-block text-green-700 text-sm underline font-semibold">
-              {L('Browse produce →', 'పంట చూడండి →')}
+              {L('Browse harvests →', 'కోతలు చూడండి →')}
             </Link>
           </div>
         ) : (
@@ -185,7 +190,7 @@ export default function ConsumerOrdersPage() {
                   {L('No active orders', 'ప్రస్తుత ఆర్డర్‌లు లేవు')}
                 </p>
                 <Link href="/consumer" className="mt-3 inline-block text-green-700 text-sm underline font-semibold">
-                  {L('Browse produce →', 'పంట చూడండి →')}
+                  {L('Browse harvests →', 'కోతలు చూడండి →')}
                 </Link>
               </div>
             ) : (
@@ -250,6 +255,8 @@ export default function ConsumerOrdersPage() {
       {cancelledInfo && (
         <CancelSuccessSheet
           wasPaid={cancelledInfo.wasPaid}
+          refundAmount={cancelledInfo.refundAmount}
+          platformFeeWithheld={cancelledInfo.platformFeeWithheld}
           onClose={() => setCancelledInfo(null)}
         />
       )}

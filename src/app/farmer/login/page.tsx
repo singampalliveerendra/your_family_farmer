@@ -135,7 +135,7 @@ export default function FarmerLoginPage() {
 
         <p className="text-center text-xs text-gray-400 mt-6">
           <Link href="/consumer" className="text-green-700 underline">
-            {L('Browse produce instead', 'పంట బ్రౌజ్ చేయండి')}
+            {L('Browse harvests instead', 'కోతలు బ్రౌజ్ చేయండి')}
           </Link>
         </p>
       </div>

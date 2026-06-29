@@ -9,12 +9,17 @@ import { useLang } from '@/lib/LanguageContext'
 // note since a paid order is refunded automatically on cancel.
 export function CancelSuccessSheet({
   wasPaid,
+  refundAmount,
+  platformFeeWithheld,
   onClose,
 }: {
   wasPaid: boolean
+  refundAmount?: number
+  platformFeeWithheld?: number
   onClose: () => void
 }) {
   const { L } = useLang()
+  const showFeeBreakdown = wasPaid && (platformFeeWithheld ?? 0) > 0
   return (
     <div className="fixed inset-0 z-[130] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 text-center space-y-3">
@@ -29,9 +34,28 @@ export function CancelSuccessSheet({
             {L('Order cancelled', 'ఆర్డర్ రద్దు చేయబడింది')}
           </h2>
           {wasPaid ? (
-            <p className="text-sm text-gray-600 leading-snug">
-              {L('A refund has been started — it will reach your account in 3–5 business days.', 'రీఫండ్ ప్రారంభమైంది — 3–5 పని దినాలలో మీ ఖాతాకు జమ అవుతుంది.')}
-            </p>
+            <>
+              <p className="text-sm text-gray-600 leading-snug">
+                {L('A refund has been started — it will reach your account in 3–5 business days.', 'రీఫండ్ ప్రారంభమైంది — 3–5 పని దినాలలో మీ ఖాతాకు జమ అవుతుంది.')}
+              </p>
+              {showFeeBreakdown && (
+                <div className="bg-gray-50 rounded-2xl px-4 py-3 text-left space-y-1">
+                  {refundAmount != null && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">{L('Refund amount', 'రీఫండ్ మొత్తం')}</span>
+                      <span className="font-extrabold text-green-800">₹{refundAmount}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">{L('Platform fee (not refunded)', 'ప్లాట్‌ఫామ్ ఫీజు (తిరిగి ఇవ్వబడదు)')}</span>
+                    <span className="font-semibold text-gray-500">− ₹{platformFeeWithheld}</span>
+                  </div>
+                  <p className="text-[11px] text-gray-400 leading-snug pt-1">
+                    {L('Since the order was cancelled by you, the platform fee covers the payment & service cost and is not refunded.', 'ఆర్డర్‌ను మీరు రద్దు చేసినందున, ప్లాట్‌ఫామ్ ఫీజు చెల్లింపు, సేవా ఖర్చును కవర్ చేస్తుంది, తిరిగి ఇవ్వబడదు.')}
+                  </p>
+                </div>
+              )}
+            </>
           ) : (
             <p className="text-sm text-gray-600 leading-snug">
               {L('Your order has been cancelled. The farmer has been notified.', 'మీ ఆర్డర్ రద్దు చేయబడింది. రైతుకు తెలియజేయబడింది.')}

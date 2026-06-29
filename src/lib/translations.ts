@@ -126,7 +126,7 @@ export const t = {
 
     // Region tabs
     farmers: 'Farmers',
-    browseProduce: 'Browse produce',
+    browseProduce: 'Browse harvests',
     addFarmer: 'Add a farmer',
 
     // Farmer card
@@ -495,7 +495,7 @@ export const t = {
 
     // Region tabs
     farmers: 'రైతులు',
-    browseProduce: 'పంట చూడండి',
+    browseProduce: 'కోతలు చూడండి',
     addFarmer: 'రైతును చేర్చండి',
 
     // Farmer card

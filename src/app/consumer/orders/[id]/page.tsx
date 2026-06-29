@@ -23,6 +23,7 @@ type Order = {
   quantity: number | null
   unit: string | null
   total_price: number | null
+  platform_fee: number | null
   pickup_location: string | null
   status: 'pending' | 'approved' | 'declined' | 'cancelled'
   payment_method: string | null
@@ -850,7 +851,7 @@ function OrderStatusPanel({ order }: { order: Order }) {
       {delivered && (
         <div className="bg-green-50 border border-green-200 rounded-2xl px-4 py-3 text-center">
           <p className="text-sm font-extrabold text-green-800">
-            ✓ {L('Delivered', 'డెలివరీ అయింది')}
+            ✓ {isShippedFlow ? L('Delivered', 'డెలివరీ అయింది') : L('Collected', 'తీసుకువెళ్ళారు')}
           </p>
           <p className="text-xs text-green-700 mt-0.5">{fmt(order.received_at || order.collected_at)}</p>
         </div>
@@ -946,6 +947,15 @@ function RefundPanel({ order }: { order: Order }) {
           )
         })}
       </ol>
+
+      {/* On a buyer cancellation the platform fee is withheld — show it clearly
+          so the refund total is never mistaken for the full amount paid. A
+          farmer decline refunds in full, so this note is cancel-only. */}
+      {order.status === 'cancelled' && (order.platform_fee ?? 0) > 0 && (
+        <p className="text-[11px] text-purple-700 leading-snug border-t border-purple-100 pt-2">
+          {L(`Platform fee of ₹${order.platform_fee} is not refunded on a cancellation.`, `రద్దు చేసినప్పుడు ₹${order.platform_fee} ప్లాట్‌ఫామ్ ఫీజు తిరిగి ఇవ్వబడదు.`)}
+        </p>
+      )}
 
       {order.refund_id && (
         <p className="text-[10px] text-purple-400 font-mono border-t border-purple-100 pt-2">Ref: {order.refund_id}</p>

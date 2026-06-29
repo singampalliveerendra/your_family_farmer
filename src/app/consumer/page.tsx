@@ -886,7 +886,7 @@ function LocationBottomSheet({
               {L('Where are you?', 'మీరు ఎక్కడ ఉన్నారు?')}
             </h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              {L('See produce from farmers near you', 'దగ్గరలోని రైతుల పంట చూడండి')}
+              {L('See harvests from farmers near you', 'దగ్గరలోని రైతుల కోతలు చూడండి')}
             </p>
           </div>
           <button onClick={onClose} className="text-gray-400 text-3xl leading-none p-1">×</button>

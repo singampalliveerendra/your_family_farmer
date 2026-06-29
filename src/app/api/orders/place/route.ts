@@ -291,14 +291,22 @@ export async function POST(req: NextRequest) {
     rows[0].rider_payout = deliveryFee
   }
 
-  // Platform fee (moderator commission) — a % of the cart subtotal, added on top
-  // and stamped once per batch (first row), mirroring delivery_fee. Resolved
-  // server-side; 0 unless the moderator has set a fee. Only written when > 0, so
-  // the column is never referenced before its migration runs.
+  // Platform fee (moderator commission) — a % charged PER ITEM and stamped on
+  // each row (unlike delivery_fee, which is one-per-cart on the first row). Per
+  // row means a single-item cancel/decline withholds or refunds exactly that
+  // item's own fee, and the per-item fees the buyer sees at checkout sum to what
+  // we charge. Resolved server-side; 0 unless the moderator set a fee. Only
+  // touched when a fee applies, so the column is never referenced before its
+  // migration runs — and when it is, every row in the batch carries it (even 0)
+  // so the bulk insert has a uniform column set.
   const feePercent = await getPlatformFeePercent(supabase)
-  const platformFee = computePlatformFee(total, feePercent)
-  if (rows.length > 0 && platformFee > 0) {
-    rows[0].platform_fee = platformFee
+  let platformFee = 0
+  if (feePercent > 0) {
+    for (const r of rows) {
+      const fee = computePlatformFee(Number(r.total_price) || 0, feePercent)
+      r.platform_fee = fee
+      platformFee += fee
+    }
   }
 
   // Atomic stock claim. decrement_stock returns false if the listing went

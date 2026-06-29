@@ -3,6 +3,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import ModeratorShell, { useModeratorAuth } from '../ModeratorShell'
 
+type Payout = {
+  farmerId: string
+  name: string
+  earned: number
+  rejectedOrders: number
+  rejectedAmount: number
+  deduction: number
+  net: number
+}
+
 type Report = {
   orders: number
   gmv: number
@@ -11,6 +21,8 @@ type Report = {
   escalationsTotal: number
   topFarmer: { name: string; gmv: number } | null
   topCrop: { name: string; orders: number } | null
+  commissionPercent: number
+  payouts: Payout[]
 }
 
 type Period = 'week' | 'month' | 'lastmonth'
@@ -105,6 +117,51 @@ export default function ModeratorReportsPage() {
                 </>
               ) : <p className="text-sm text-gray-400">No orders yet</p>}
             </div>
+          </div>
+
+          {/* Farmer payouts — produce earnings minus rejection deductions (Case 4) */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm mt-4">
+            <div className="flex items-baseline justify-between mb-1">
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Farmer payouts</p>
+              <p className="text-[11px] font-semibold text-gray-400">Commission {report.commissionPercent}%</p>
+            </div>
+            <p className="text-[11px] text-gray-400 mb-3 leading-snug">
+              Each rejected order is charged {report.commissionPercent}% of its amount, deducted from the farmer&apos;s payout.
+            </p>
+            {report.payouts.length === 0 ? (
+              <p className="text-sm text-gray-400 py-4 text-center">No payouts this period</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-[11px] text-gray-400 uppercase tracking-wide border-b border-gray-100">
+                      <th className="py-2 pr-2 font-bold">Farmer</th>
+                      <th className="py-2 px-2 font-bold text-right">Earned</th>
+                      <th className="py-2 px-2 font-bold text-right">Rejected</th>
+                      <th className="py-2 px-2 font-bold text-right">Deduction</th>
+                      <th className="py-2 pl-2 font-bold text-right">Net payout</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.payouts.map((p) => (
+                      <tr key={p.farmerId} className="border-b border-gray-50 last:border-0">
+                        <td className="py-2 pr-2 font-semibold text-gray-900">{p.name}</td>
+                        <td className="py-2 px-2 text-right text-gray-700">₹{p.earned.toLocaleString('en-IN')}</td>
+                        <td className="py-2 px-2 text-right text-gray-500">
+                          {p.rejectedOrders > 0 ? (
+                            <>{p.rejectedOrders} · ₹{p.rejectedAmount.toLocaleString('en-IN')}</>
+                          ) : '—'}
+                        </td>
+                        <td className="py-2 px-2 text-right font-semibold text-red-600">
+                          {p.deduction > 0 ? <>− ₹{p.deduction.toLocaleString('en-IN')}</> : '—'}
+                        </td>
+                        <td className="py-2 pl-2 text-right font-extrabold text-gray-900">₹{p.net.toLocaleString('en-IN')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           <div className="mt-6 print:hidden">

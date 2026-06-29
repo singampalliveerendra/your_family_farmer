@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: order, error: loadErr } = await supabase
     .from('orders')
-    .select('id, consumer_id, status, quantity, total_price, produce_listing_id, payment_status, razorpay_payment_id, created_at, order_code, shipped_at, collected_at, received_at, delivery_status')
+    .select('id, consumer_id, status, quantity, total_price, platform_fee, produce_listing_id, payment_status, razorpay_payment_id, created_at, order_code, shipped_at, collected_at, received_at, delivery_status')
     .eq('id', id)
     .maybeSingle()
 
@@ -82,8 +82,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     order.payment_status === 'payment_claimed' ||
     order.payment_status === 'pending_confirmation'
 
+  // Cancellation is the buyer's choice, so the platform fee (moderator
+  // commission) is NOT refunded — it covers the gateway/software cost already
+  // incurred. We refund the produce price only; the fee stamped on this row
+  // (the cart's first row carries it) is withheld. Surfaced to the buyer so the
+  // deduction is shown clearly.
+  const platformFeeWithheld = Math.max(0, Number(order.platform_fee) || 0)
+  const refundAmount = Math.max(0, Number(order.total_price) || 0)
+
   if (paidByRazorpay) {
-    const amountPaise = Math.round((Number(order.total_price) || 0) * 100)
+    const amountPaise = Math.round(refundAmount * 100)
     if (amountPaise > 0) {
       try {
         const refund = await refundPayment({
@@ -113,5 +121,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: 'Could not cancel the order. Please try again.' }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, refunded: !!update.refund_id })
+  return NextResponse.json({
+    ok: true,
+    refunded: !!update.refund_id,
+    refundInitiated: update.refund_status === 'initiated',
+    refundAmount,
+    platformFeeWithheld,
+  })
 }

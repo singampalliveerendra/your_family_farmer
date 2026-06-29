@@ -34,7 +34,11 @@ type RazorpayOptions = {
   theme?: { color?: string }
   modal?: { ondismiss?: () => void }
 }
-type RazorpayInstance = { open: () => void }
+type RazorpayInstance = {
+  open: () => void
+  // Subscribe to Checkout events, e.g. 'payment.failed'.
+  on: (event: string, handler: (response: unknown) => void) => void
+}
 declare global {
   interface Window {
     Razorpay?: new (options: RazorpayOptions) => RazorpayInstance
@@ -212,6 +216,9 @@ type UpiPaymentState = {
   buyerPhone: string
   items: Array<{ name: string; variety?: string; emoji?: string; qty: number; unit?: string; pricePerKg?: number }>
   pickupLocation?: string
+  // Platform fee (moderator commission) included in `amount`, shown as a
+  // breakdown line on the success screen so the total stays transparent.
+  platformFee?: number
   // Razorpay payment id (online) or the buyer-entered UTR (manual UPI). Shown on
   // the success screen as the Transaction ID.
   transactionId?: string
@@ -641,13 +648,18 @@ export function CartSheet({
       return
     }
 
-    // Order summary kept for the success screen once payment verifies.
+    // Order summary kept for the success screen once payment verifies. The
+    // online charge (createRes.amount, in paise) is the authoritative total the
+    // buyer pays — subtotal plus the platform fee — so show that, not the
+    // fee-less subtotal, and keep the fee for the breakdown line.
+    const chargedTotal = Math.round((createRes.amount ?? result.total * 100) / 100)
     const summary: UpiPaymentState = {
       farmerName: f.farmerName,
       farmerVillage: f.farmerVillage,
       farmerPhone: f.farmerPhone,
       upiId: '',
-      amount: result.total,
+      amount: chargedTotal,
+      platformFee: Math.max(0, chargedTotal - result.total),
       orderIds: result.orderIds,
       farmerId: f.farmerId,
       buyerName: name.trim(),
@@ -662,6 +674,21 @@ export function CartSheet({
       })),
     }
 
+    // Once the payment succeeds we mark it settled so a trailing dismiss/failed
+    // event can never abandon an order the buyer actually paid for.
+    let settled = false
+    // Undo a placed-but-unpaid order: the buyer failed or cancelled payment, so
+    // the order must not be initiated. Cancels the pending rows and frees the
+    // reserved stock server-side.
+    const abandonOrders = async () => {
+      await fetch('/api/orders/razorpay/abandon', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderIds: result.orderIds }),
+      }).catch(() => {})
+    }
+
     // 3. Open Razorpay Checkout.
     const rzp = new window.Razorpay({
       key: createRes.keyId,
@@ -674,13 +701,16 @@ export function CartSheet({
       theme: { color: '#15803d' },
       modal: {
         ondismiss: () => {
-          // Buyer closed Checkout without paying. The orders stay pending so
-          // they can pay later from their orders page — nothing to undo here.
+          // Buyer closed Checkout without paying. Don't keep an unpaid order —
+          // cancel it and release the stock so nothing is initiated.
+          if (settled) return
           setPayingOnline(null)
-          showToast('Payment cancelled. Your order is saved as unpaid.')
+          showToast('Payment cancelled. Your order was not placed.')
+          void abandonOrders()
         },
       },
       handler: async (res) => {
+        settled = true
         // 4. Verify the signature server-side before trusting the payment.
         const vr = await fetch('/api/orders/razorpay/verify', {
           method: 'POST',
@@ -705,6 +735,14 @@ export function CartSheet({
         setUpiScreen({ ...summary, transactionId: res.razorpay_payment_id })
         setPaidDone(true)
       },
+    })
+    // A declined card / failed UPI fires this. The payment didn't go through, so
+    // the order must not be initiated — cancel it and release the stock.
+    rzp.on('payment.failed', () => {
+      if (settled) return
+      setPayingOnline(null)
+      showToast('Payment failed. Your order was not placed — please try again.')
+      void abandonOrders()
     })
     rzp.open()
   }
@@ -849,6 +887,11 @@ export function CartSheet({
           <div className="bg-gray-50 rounded-2xl px-5 py-4 w-full text-left space-y-1">
             <p className="text-xs text-gray-500 font-medium">{cashMode ? L('Amount to pay', 'చెల్లించవలసిన మొత్తం') : L('Amount paid', 'చెల్లించిన మొత్తం')}</p>
             <p className="text-lg font-black text-green-900">₹{upiScreen.amount}</p>
+            {upiScreen.platformFee != null && upiScreen.platformFee > 0 && (
+              <p className="text-[11px] text-gray-500">
+                {L('Includes', 'వీటితో సహా')} ₹{upiScreen.platformFee} {L('platform fee', 'ప్లాట్‌ఫామ్ ఫీజు')}
+              </p>
+            )}
             {!cashMode && upiScreen.transactionId && (
               <div className="pt-2">
                 <p className="text-xs text-gray-500 font-medium">{L('Transaction ID', 'లావాదేవీ ID')}</p>
@@ -1131,7 +1174,7 @@ export function CartSheet({
               <div className="text-5xl mb-3">🛒</div>
               <p className="font-semibold">{L('Your cart is empty', 'బుట్ట ఖాళీగా ఉంది')}</p>
               <Link href="/consumer" className="mt-4 inline-block text-green-700 text-sm font-bold underline">
-                {L('Browse produce →', 'పంట చూడండి →')}
+                {L('Browse harvests →', 'కోతలు చూడండి →')}
               </Link>
             </div>
           ) : (
@@ -1410,6 +1453,15 @@ export function CartSheet({
                                 <span className="inline-block mt-1 text-sm font-extrabold text-green-800 bg-green-100 px-2 py-0.5 rounded-md">
                                   ₹{it.pricePerKg * it.qty}
                                 </span>
+                                {(() => {
+                                  const itemFee = computePlatformFee(it.pricePerKg * it.qty, platformFeePercent)
+                                  if (itemFee <= 0) return null
+                                  return (
+                                    <p className="text-[10px] text-gray-400 mt-0.5">
+                                      + ₹{itemFee} {L('platform fee', 'ప్లాట్‌ఫామ్ ఫీజు')}
+                                    </p>
+                                  )
+                                })()}
                               </>
                             )}
                             {getActiveTier(it.qty, it).isDiscount && (
@@ -1442,7 +1494,9 @@ export function CartSheet({
 
                       {total > 0 && (() => {
                         const dFee = deliveryType === 'home_delivery' ? DELIVERY_FEE_RUPEES : 0
-                        const pFee = computePlatformFee(total, platformFeePercent)
+                        // Sum the per-item fees so the line matches the per-item
+                        // breakdown shown above (and what the server charges).
+                        const pFee = group.reduce((s, it) => s + computePlatformFee((it.pricePerKg ?? 0) * it.qty, platformFeePercent), 0)
                         // No extra fees → keep the simple "estimated total" line.
                         if (dFee <= 0 && pFee <= 0) {
                           return (
@@ -1590,7 +1644,8 @@ export function CartSheet({
                                 ? 'Opening payment...'
                                 : `💳 Order & Pay ₹${(() => {
                                     const sub = Math.round(group.reduce((s, it) => s + (it.pricePerKg ?? 0) * it.qty, 0))
-                                    return sub + computePlatformFee(sub, platformFeePercent)
+                                    const fee = group.reduce((s, it) => s + computePlatformFee((it.pricePerKg ?? 0) * it.qty, platformFeePercent), 0)
+                                    return sub + fee
                                   })()}`}
                             </button>
                           )

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
+import { getPlatformFeePercent } from '@/lib/platform-fee'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
   if (farmerIds.length === 0) {
     return NextResponse.json({
       period,
-      report: { orders: 0, gmv: 0, avgOrder: 0, escalationsResolved: 0, escalationsTotal: 0, topFarmer: null, topCrop: null },
+      report: { orders: 0, gmv: 0, avgOrder: 0, escalationsResolved: 0, escalationsTotal: 0, topFarmer: null, topCrop: null, commissionPercent: 0, payouts: [] },
     })
   }
 
@@ -59,7 +60,7 @@ export async function GET(req: NextRequest) {
   // matching the dashboard's "orders / GMV this week" cards so the two agree.
   const { data: orders, error: oErr } = await supabase
     .from('orders')
-    .select('farmer_id, produce_name, total_price')
+    .select('farmer_id, produce_name, total_price, status, collected_at, received_at, delivered_at')
     .in('farmer_id', farmerIds)
     .gte('created_at', from.toISOString())
     .lt('created_at', to.toISOString())
@@ -95,6 +96,45 @@ export async function GET(req: NextRequest) {
     if (!topCrop || c > topCrop.orders) topCrop = { name, orders: c }
   }
 
+  // Farmer payouts with rejection deductions (Case 4). A farmer earns the full
+  // produce price on every fulfilled order, but each order he REJECTS is
+  // penalised: rejected_amount × commission% is deducted from his payout (it
+  // recovers the gateway/refund cost GoGrameen ate by refunding the buyer in
+  // full). Commission is the same moderator-set platform fee percentage.
+  const commissionPercent = await getPlatformFeePercent(supabase)
+  type Payout = {
+    farmerId: string
+    name: string
+    earned: number          // produce price on fulfilled (delivered/collected/received) orders
+    rejectedOrders: number
+    rejectedAmount: number  // produce price across rejected orders
+    deduction: number       // rejectedAmount × commission%, rounded per order
+    net: number             // earned − deduction
+  }
+  const payoutByFarmer = new Map<string, Payout>()
+  for (const o of list) {
+    const fid = o.farmer_id
+    if (!fid) continue
+    let rec = payoutByFarmer.get(fid)
+    if (!rec) {
+      rec = { farmerId: fid, name: nameById.get(fid) ?? '—', earned: 0, rejectedOrders: 0, rejectedAmount: 0, deduction: 0, net: 0 }
+      payoutByFarmer.set(fid, rec)
+    }
+    const price = Number(o.total_price ?? 0)
+    if (o.status === 'declined') {
+      rec.rejectedOrders += 1
+      rec.rejectedAmount += price
+      rec.deduction += Math.round((price * commissionPercent) / 100)
+    } else if (o.collected_at || o.received_at || o.delivered_at) {
+      // Fulfilled — the farmer is owed the produce price for it.
+      rec.earned += price
+    }
+  }
+  const payouts = Array.from(payoutByFarmer.values())
+    .map((p) => ({ ...p, net: p.earned - p.deduction }))
+    .filter((p) => p.earned > 0 || p.rejectedOrders > 0)
+    .sort((a, b) => b.net - a.net)
+
   // Escalation resolution rate in the same window.
   const { data: escs } = await supabase
     .from('escalations')
@@ -107,6 +147,6 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     period,
-    report: { orders: count, gmv, avgOrder, escalationsResolved, escalationsTotal, topFarmer, topCrop },
+    report: { orders: count, gmv, avgOrder, escalationsResolved, escalationsTotal, topFarmer, topCrop, commissionPercent, payouts },
   })
 }

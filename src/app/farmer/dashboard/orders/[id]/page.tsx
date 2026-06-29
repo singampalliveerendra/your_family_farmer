@@ -181,7 +181,12 @@ export default function FarmerOrderDetailPage() {
             ? [{ label: L('Payment received', 'చెల్లింపు అందింది'), at: order.paid_at, done: true }]
             : []),
           { label: L('Approved by you', 'మీరు ఆమోదించారు'), at: order.confirmed_at, done: approved || delivered },
-          { label: isPickup ? L('Picked up', 'తీసుకున్నారు') : L('Shipped', 'షిప్ చేశారు'), at: order.shipped_at, done: !!order.shipped_at },
+          // Self-pickup has no in-transit step — the buyer just collects from the
+          // farm, so "Collected" is the only handover milestone. Courier/delivery
+          // still show "Shipped" before "Delivered".
+          ...(isPickup
+            ? []
+            : [{ label: L('Shipped', 'షిప్ చేశారు'), at: order.shipped_at, done: !!order.shipped_at }]),
           { label: isPickup ? L('Collected', 'తీసుకువెళ్ళారు') : L('Delivered', 'డెలివరీ అయింది'), at: order.received_at || order.collected_at, done: delivered },
         ]
       })()
