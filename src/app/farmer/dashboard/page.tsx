@@ -11,6 +11,7 @@ import { normalizePickupSchedule, emptyPickupSlot, type PickupSchedule } from '@
 import { type FarmerOrder as Order, isResolved } from '@/components/farmer/OrderCard'
 import DemandSupplyChart from '@/components/DemandSupplyChart'
 import { type CropBalance } from '@/lib/demand-supply'
+import { harvestClock, freshnessLabel, type Harvest } from '@/lib/harvest'
 
 type Farmer = {
   id: string
@@ -2817,6 +2818,14 @@ function ListingRowCard({
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
     return d.toISOString().slice(0, 16) // yyyy-MM-ddThh:mm for datetime-local
   }
+  // datetime-local wants yyyy-MM-ddThh:mm in LOCAL time; convert a stored UTC
+  // ISO string back to that shape for the edit inputs.
+  const toLocalInput = (iso: string) => {
+    const d = new Date(iso)
+    if (isNaN(d.getTime())) return ''
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+    return d.toISOString().slice(0, 16)
+  }
   const [showHarvest, setShowHarvest] = useState(false)
   const [harvestedAt, setHarvestedAt] = useState(nowLocal())
   const [shelfLife, setShelfLife] = useState('')
@@ -2824,6 +2833,36 @@ function ListingRowCard({
   const [savingHarvest, setSavingHarvest] = useState(false)
   const [harvestMsg, setHarvestMsg] = useState('')
   const [harvestErr, setHarvestErr] = useState('')
+
+  // Logged harvests for this produce — listed so each can be edited (date/time,
+  // shelf life, approx qty). Shelf life is a per-harvest attribute, so editing
+  // it lives here, not on the produce Edit form.
+  const [harvests, setHarvests] = useState<Harvest[]>([])
+  const [harvestsLoaded, setHarvestsLoaded] = useState(false)
+  // The harvest currently being edited (id) + its draft field values.
+  const [editingHarvestId, setEditingHarvestId] = useState<string | null>(null)
+  const [editAt, setEditAt] = useState('')
+  const [editShelf, setEditShelf] = useState('')
+  const [editQty, setEditQty] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editErr, setEditErr] = useState('')
+
+  const loadHarvests = useCallback(async () => {
+    const { data } = await supabase
+      .from('harvests')
+      .select('id, produce_listing_id, farmer_id, harvested_at, shelf_life_days, approx_quantity, unit, notes')
+      .eq('produce_listing_id', row.id)
+      .order('harvested_at', { ascending: false })
+      .limit(20)
+    setHarvests((data ?? []) as Harvest[])
+    setHarvestsLoaded(true)
+  }, [row.id])
+
+  // Open the harvest panel, loading the logged-harvest list the first time.
+  const openHarvestPanel = () => {
+    setShowHarvest(true); setHarvestErr(''); setHarvestMsg('')
+    if (!harvestsLoaded) void loadHarvests()
+  }
 
   const submitHarvest = async () => {
     setHarvestErr('')
@@ -2843,7 +2882,34 @@ function ListingRowCard({
     if (err) { setHarvestErr(err.message); return }
     setHarvestMsg(L('Harvest logged ✓', 'కోత నమోదైంది ✓'))
     setShelfLife(''); setApproxQty(''); setHarvestedAt(nowLocal())
-    setTimeout(() => { setShowHarvest(false); setHarvestMsg('') }, 1400)
+    void loadHarvests()
+    setTimeout(() => setHarvestMsg(''), 1400)
+  }
+
+  // Open the inline editor for a logged harvest, prefilled with its values.
+  const startEditHarvest = (h: Harvest) => {
+    setEditingHarvestId(h.id)
+    setEditErr('')
+    setEditAt(toLocalInput(h.harvested_at))
+    setEditShelf(h.shelf_life_days != null ? String(h.shelf_life_days) : '')
+    setEditQty(h.approx_quantity != null ? String(h.approx_quantity) : '')
+  }
+
+  const saveEditHarvest = async () => {
+    if (!editingHarvestId) return
+    setEditErr('')
+    const when = new Date(editAt)
+    if (isNaN(when.getTime())) { setEditErr(L('Pick a valid harvest date & time.', 'సరైన కోత తేదీ & సమయం ఎంచుకోండి.')); return }
+    setSavingEdit(true)
+    const { error: err } = await supabase.from('harvests').update({
+      harvested_at: when.toISOString(),
+      shelf_life_days: editShelf ? Math.max(0, parseInt(editShelf, 10)) : null,
+      approx_quantity: editQty ? Number(editQty) : null,
+    }).eq('id', editingHarvestId)
+    setSavingEdit(false)
+    if (err) { setEditErr(err.message); return }
+    setEditingHarvestId(null)
+    void loadHarvests()
   }
   const isPaused = row.status === 'paused'
   const isSuspended = row.status === 'suspended_by_farmer'
@@ -2928,7 +2994,7 @@ function ListingRowCard({
         {/* Add Harvest — log a fresh pick against this produce template. */}
         {!showHarvest ? (
           <button
-            onClick={() => { setShowHarvest(true); setHarvestErr(''); setHarvestMsg('') }}
+            onClick={openHarvestPanel}
             className="w-full bg-green-700 text-white font-bold py-2.5 rounded-xl text-sm active:bg-green-800 flex items-center justify-center gap-1.5"
           >
             🌾 {L('Add Harvest', 'కోత చేర్చండి')}
@@ -2976,12 +3042,96 @@ function ListingRowCard({
                 {savingHarvest ? '…' : L('Save harvest', 'సేవ్ చేయి')}
               </button>
               <button
-                onClick={() => { setShowHarvest(false); setHarvestErr('') }}
+                onClick={() => { setShowHarvest(false); setHarvestErr(''); setEditingHarvestId(null) }}
                 className="px-4 border border-gray-300 text-gray-600 font-semibold py-2 rounded-lg text-sm"
               >
                 {L('Cancel', 'రద్దు')}
               </button>
             </div>
+
+            {/* Logged harvests — each editable (date/time, shelf life, qty).
+                This is the "Edit Harvest" surface: shelf life is a per-harvest
+                value, so it's corrected here, not on the produce Edit form. */}
+            {harvestsLoaded && harvests.length > 0 && (
+              <div className="pt-1 border-t border-green-200 space-y-2">
+                <p className="text-[11px] font-bold text-green-800 uppercase tracking-wide">
+                  {L('Logged harvests', 'నమోదైన కోతలు')}
+                </p>
+                {harvests.map((h) => (
+                  <div key={h.id} className="bg-white border border-green-200 rounded-lg p-2.5">
+                    {editingHarvestId === h.id ? (
+                      <div className="space-y-2">
+                        <div>
+                          <label className="text-[11px] font-semibold text-gray-600">{L('Harvest date & time', 'కోత తేదీ & సమయం')}</label>
+                          <input
+                            type="datetime-local"
+                            value={editAt}
+                            onChange={(e) => setEditAt(e.target.value)}
+                            className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <label className="text-[11px] font-semibold text-gray-600">{L('Shelf life (days)', 'తాజా (రోజులు)')}</label>
+                            <input
+                              type="number" inputMode="numeric" min={0} placeholder="e.g. 5"
+                              value={editShelf}
+                              onChange={(e) => setEditShelf(e.target.value)}
+                              className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="text-[11px] font-semibold text-gray-600">{L('Approx qty', 'సుమారు పరిమాణం')} ({row.unit || 'kg'})</label>
+                            <input
+                              type="number" inputMode="decimal" min={0} placeholder="e.g. 20"
+                              value={editQty}
+                              onChange={(e) => setEditQty(e.target.value)}
+                              className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                            />
+                          </div>
+                        </div>
+                        {editErr && <p className="text-[11px] text-red-600 font-semibold">{editErr}</p>}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={saveEditHarvest}
+                            disabled={savingEdit}
+                            className="flex-1 bg-green-700 text-white font-bold py-2 rounded-lg text-sm active:bg-green-800 disabled:opacity-50"
+                          >
+                            {savingEdit ? '…' : L('Save changes', 'మార్పులు సేవ్ చేయి')}
+                          </button>
+                          <button
+                            onClick={() => setEditingHarvestId(null)}
+                            className="px-4 border border-gray-300 text-gray-600 font-semibold py-2 rounded-lg text-sm"
+                          >
+                            {L('Cancel', 'రద్దు')}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-gray-800 truncate">
+                            🌾 {harvestClock(h.harvested_at, L)}
+                          </p>
+                          <p className="text-[11px] text-gray-500">
+                            {h.shelf_life_days != null
+                              ? (freshnessLabel(h.harvested_at, h.shelf_life_days, L) ?? `${L('Shelf life', 'తాజా')}: ${h.shelf_life_days} ${L('days', 'రోజులు')}`)
+                              : L('No shelf life set', 'తాజా రోజులు లేవు')}
+                            {h.approx_quantity != null && <> · {h.approx_quantity} {h.unit || row.unit || 'kg'}</>}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => startEditHarvest(h)}
+                          className="flex-shrink-0 text-xs font-bold text-green-700 border border-green-300 rounded-lg px-3 py-1.5 active:bg-green-50"
+                        >
+                          {L('Edit', 'సవరించు')}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
