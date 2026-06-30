@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
+import { isOrderPaid, isPaymentClaimed } from '@/lib/payment'
 import type { FarmerOrder } from './OrderCard'
 
 /* ─── Decline success / refund confirmation sheet ──────────── */
@@ -88,6 +89,16 @@ export function DeclineReasonSheet({
   const finalReason = selected ?? custom.trim()
   const canSubmit = finalReason.length >= 3 && !processing
 
+  // Refund preview, shown BEFORE the farmer confirms. A farmer decline makes the
+  // buyer whole — it refunds the FULL amount they paid: produce price plus the
+  // delivery and platform fees stamped on this row. Mirrors the decline API.
+  // Only relevant once the buyer's money is in or claimed.
+  const buyerPaid = isOrderPaid(order.payment_status) || isPaymentClaimed(order.payment_status)
+  const buyerRefund =
+    (Number(order.total_price) || 0) +
+    (Number(order.delivery_fee) || 0) +
+    (Number(order.platform_fee) || 0)
+
   return (
     <div className="fixed inset-0 z-[120] bg-black/50 flex items-end justify-center">
       <div className="bg-white w-full max-w-md rounded-t-3xl p-5 space-y-4">
@@ -114,6 +125,21 @@ export function DeclineReasonSheet({
           {order.produce_name && <> · {order.produce_name}</>}
           {order.quantity != null && <> · {order.quantity} {order.unit || 'kg'}</>}
         </div>
+
+        {/* Refund preview — what the buyer gets back if the farmer declines. */}
+        {buyerPaid && buyerRefund > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-700 font-semibold">
+                {L('Buyer will be refunded', 'కొనుగోలుదారుకు తిరిగి ఇవ్వబడేది')}
+              </span>
+              <span className="font-extrabold text-amber-800">₹{Math.round(buyerRefund)}</span>
+            </div>
+            <p className="text-[11px] text-gray-500 leading-snug">
+              {L('The full amount they paid (including any delivery & platform fees) is refunded in 3–5 business days.', 'వారు చెల్లించిన పూర్తి మొత్తం (డెలివరీ, ప్లాట్‌ఫామ్ ఫీజులతో సహా) 3–5 పని దినాలలో తిరిగి ఇవ్వబడుతుంది.')}
+            </p>
+          </div>
+        )}
 
         <div className="space-y-2">
           <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">

@@ -246,6 +246,7 @@ export default function ConsumerOrdersPage() {
 
       {cancellingOrder && (
         <CancelOrderModal
+          order={cancellingOrder}
           cancelling={cancelBusy}
           onClose={() => setCancellingOrder(null)}
           onConfirm={cancelOrder}

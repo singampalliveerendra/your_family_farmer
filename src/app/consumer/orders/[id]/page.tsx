@@ -508,6 +508,7 @@ export default function OrderDetailsPage() {
 
       {showCancel && order && (
         <CancelModal
+          order={order}
           cancelling={cancelling}
           onClose={() => setShowCancel(false)}
           onConfirm={handleCancel}
@@ -520,10 +521,12 @@ export default function OrderDetailsPage() {
 // Lets the buyer pick / type a reason before cancelling. The reason is stored on
 // the order and shown to the farmer, so they understand why it fell through.
 function CancelModal({
+  order,
   cancelling,
   onClose,
   onConfirm,
 }: {
+  order: Order
   cancelling: boolean
   onClose: () => void
   onConfirm: (reason: string) => void
@@ -537,6 +540,13 @@ function CancelModal({
   ]
   const [reason, setReason] = useState('')
 
+  // Refund preview, shown BEFORE the buyer confirms. A buyer cancel refunds the
+  // produce price only (= total_price) and WITHHOLDS the platform fee. Mirrors
+  // the cancel API and the shared CancelOrderModal on the orders list.
+  const wasPaid = isOrderPaid(order.payment_status) || isPaymentClaimed(order.payment_status)
+  const refundAmount = Math.max(0, Number(order.total_price) || 0)
+  const platformFeeWithheld = Math.max(0, Number(order.platform_fee) || 0)
+
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4">
@@ -546,6 +556,30 @@ function CancelModal({
             {L('Please tell the farmer why. If you have already paid, you will be refunded automatically.', 'రైతుకు కారణం చెప్పండి. మీరు ఇప్పటికే చెల్లించి ఉంటే, డబ్బు ఆటోమేటిక్‌గా తిరిగి వస్తుంది.')}
           </p>
         </div>
+
+        {/* Refund preview — what the buyer will get back if they go ahead. */}
+        {wasPaid && (
+          <div className="bg-green-50 border border-green-200 rounded-2xl px-4 py-3 space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-700 font-semibold">{L('You will be refunded', 'మీకు తిరిగి వచ్చేది')}</span>
+              <span className="font-extrabold text-green-800">₹{refundAmount}</span>
+            </div>
+            {platformFeeWithheld > 0 && (
+              <>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">{L('Platform fee (not refunded)', 'ప్లాట్‌ఫామ్ ఫీజు (తిరిగి ఇవ్వబడదు)')}</span>
+                  <span className="font-semibold text-gray-500">− ₹{platformFeeWithheld}</span>
+                </div>
+                <p className="text-[11px] text-gray-400 leading-snug pt-0.5">
+                  {L('Since you are cancelling, the platform fee covers the payment & service cost and is not refunded.', 'మీరు రద్దు చేస్తున్నందున, ప్లాట్‌ఫామ్ ఫీజు చెల్లింపు, సేవా ఖర్చును కవర్ చేస్తుంది, తిరిగి ఇవ్వబడదు.')}
+                </p>
+              </>
+            )}
+            <p className="text-[11px] text-gray-400 leading-snug pt-0.5">
+              {L('The refund reaches your account in 3–5 business days.', 'రీఫండ్ 3–5 పని దినాలలో మీ ఖాతాకు జమ అవుతుంది.')}
+            </p>
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-2">
           {presets.map((p) => (

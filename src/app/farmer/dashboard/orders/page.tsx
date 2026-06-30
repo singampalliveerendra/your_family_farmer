@@ -79,7 +79,7 @@ function OrdersPageInner() {
     // Every status is fetched (this page is the full orders hub).
     const { data } = await supabase
       .from('orders')
-      .select('id, farmer_id, order_code, produce_listing_id, produce_name, quantity, unit, total_price, buyer_name, buyer_phone, pickup_location, status, payment_method, payment_status, utr_number, decline_reason, refund_status, refund_amount, refunded_at, delivery_type, delivery_status, delivery_boy_id, collected_at, shipped_at, received_at, fulfillment_date, created_at, acknowledged_at')
+      .select('id, farmer_id, order_code, produce_listing_id, produce_name, quantity, unit, total_price, delivery_fee, platform_fee, buyer_name, buyer_phone, pickup_location, status, payment_method, payment_status, utr_number, decline_reason, refund_status, refund_amount, refunded_at, delivery_type, delivery_status, delivery_boy_id, collected_at, shipped_at, received_at, fulfillment_date, created_at, acknowledged_at')
       .eq('farmer_id', farmerId)
       .order('created_at', { ascending: false })
 

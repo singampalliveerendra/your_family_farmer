@@ -15,6 +15,10 @@ export type ConsumerOrder = {
   quantity: number | null
   unit: string | null
   total_price: number | null
+  // Platform fee stamped on this row (cart's first row carries it, 0 on the
+  // rest). Withheld — not refunded — when the BUYER cancels, so the cancel modal
+  // can preview the deduction.
+  platform_fee?: number | null
   pickup_location: string | null
   status: 'pending' | 'approved' | 'declined' | 'cancelled'
   payment_method: string | null
