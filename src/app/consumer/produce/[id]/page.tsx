@@ -10,6 +10,7 @@ import { useCart, CartFab } from '@/components/consumer/Cart'
 import { supabase } from '@/lib/supabase'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
 import { localizeName } from '@/lib/localizeName'
+import { harvestClock, freshnessLabel } from '@/lib/harvest'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import ShareButton from '@/components/consumer/ShareButton'
 
@@ -98,6 +99,8 @@ export default function ProduceDetailPage() {
   const [stockMsg, setStockMsg] = useState('')
   const [adding, setAdding] = useState(false)
   const [showReviews, setShowReviews] = useState(false)
+  // Latest harvest for this produce — powers the "Harvested 2 hours ago" clock.
+  const [latestHarvest, setLatestHarvest] = useState<{ at: string; shelf: number | null } | null>(null)
 
   // Swipe gallery
   const [activeImg, setActiveImg] = useState(0)
@@ -117,6 +120,17 @@ export default function ProduceDetailPage() {
     setLiveStock((l as Listing).stock_qty ?? null)
     const { data: f } = await supabase.from('farmers').select('*').eq('id', (l as Listing).farmer_id).maybeSingle()
     setFarmer((f as Farmer) ?? null)
+    // Latest harvest for the clock. Best-effort — silent if the table is absent.
+    try {
+      const { data: h } = await supabase
+        .from('harvests')
+        .select('harvested_at, shelf_life_days')
+        .eq('produce_listing_id', id)
+        .order('harvested_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      setLatestHarvest(h ? { at: h.harvested_at as string, shelf: (h.shelf_life_days as number | null) ?? null } : null)
+    } catch { setLatestHarvest(null) }
     setLoading(false)
   }, [id])
 
@@ -133,7 +147,7 @@ export default function ProduceDetailPage() {
     return (
       <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-3 px-6 text-center">
         <div className="text-4xl">🌱</div>
-        <p className="text-gray-600 font-semibold">{L('This produce is no longer available.', 'ఈ పంట ఇప్పుడు అందుబాటులో లేదు.')}</p>
+        <p className="text-gray-600 font-semibold">{L('This harvest is no longer available.', 'ఈ కోత ఇప్పుడు అందుబాటులో లేదు.')}</p>
         <Link href="/consumer" className="text-green-700 font-bold underline">{L('Back to browse', 'తిరిగి వెళ్ళండి')} →</Link>
       </main>
     )
@@ -271,6 +285,19 @@ export default function ProduceDetailPage() {
         <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
           <h1 className="text-xl font-extrabold text-gray-900 leading-tight">{localizeName(item.name, lang)}</h1>
           {item.variety && <p className="text-sm text-gray-500 mt-0.5">{localizeName(item.variety, lang)}</p>}
+
+          {/* Harvest clock — "Harvested 2 hours ago", from the latest harvest. */}
+          {latestHarvest && (
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1 text-xs font-bold text-green-700 bg-green-50 rounded-full px-2.5 py-1">
+                ⏱ {harvestClock(latestHarvest.at, L)}
+              </span>
+              {(() => {
+                const fresh = freshnessLabel(latestHarvest.at, latestHarvest.shelf, L)
+                return fresh ? <span className="text-xs font-semibold text-amber-700">{fresh}</span> : null
+              })()}
+            </div>
+          )}
 
           {(item.review_count ?? 0) > 0 && item.rating_avg != null && (
             <button onClick={() => setShowReviews(true)} className="flex items-center gap-1.5 mt-2 active:opacity-70">

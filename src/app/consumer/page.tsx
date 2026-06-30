@@ -15,6 +15,7 @@ import LocationSearch from '@/components/LocationSearch'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
+import { harvestClock, freshnessLabel } from '@/lib/harvest'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
 
 type Farmer = {
@@ -52,6 +53,10 @@ type ProduceListing = {
   review_count?: number | null
   farmer_id: string
   farmer?: Farmer
+  // Latest harvest for this produce (template), attached client-side from the
+  // `harvests` table — drives the "Harvested 2 hours ago" clock on the card.
+  latest_harvested_at?: string | null
+  latest_shelf_life_days?: number | null
 }
 
 const CATEGORIES = [
@@ -94,6 +99,9 @@ export default function ConsumerPage() {
   const { L } = useLang()
   const [available, setAvailable]     = useState<ProduceListing[]>([])
   const [comingSoon, setComingSoon]   = useState<ProduceListing[]>([])
+  // Latest harvest per produce (listing id → harvest), for the "Harvested 2h
+  // ago" clock on each card. Best-effort from the `harvests` table.
+  const [harvestMap, setHarvestMap]   = useState<Record<string, { at: string; shelf: number | null }>>({})
   const [filtered, setFiltered]       = useState<ProduceListing[]>([])
   const [search, setSearch]           = useState('')
   const [method, setMethod]           = useState('all')
@@ -124,6 +132,25 @@ export default function ConsumerPage() {
       setFiltered(avArr)
       setComingSoon(csArr)
       setFarmerCount(new Set(avArr.map((p) => p.farmer_id)).size)
+
+      // Latest harvest per produce → the card clock. Best-effort: a missing
+      // `harvests` table (migration not applied) just leaves the map empty.
+      try {
+        const since = new Date(Date.now() - 14 * 86_400_000).toISOString()
+        const { data: hs } = await supabase
+          .from('harvests')
+          .select('produce_listing_id, harvested_at, shelf_life_days')
+          .gte('harvested_at', since)
+          .order('harvested_at', { ascending: false })
+          .limit(500)
+        const map: Record<string, { at: string; shelf: number | null }> = {}
+        for (const h of (hs ?? []) as { produce_listing_id: string; harvested_at: string; shelf_life_days: number | null }[]) {
+          if (!map[h.produce_listing_id]) {
+            map[h.produce_listing_id] = { at: h.harvested_at, shelf: h.shelf_life_days ?? null }
+          }
+        }
+        setHarvestMap(map)
+      } catch { /* harvests table not present yet */ }
     } catch { /* silent */ }
     if (!silent) setLoading(false)
   }, [])
@@ -206,7 +233,14 @@ export default function ConsumerPage() {
           distApprox = coords.approximate
         }
       }
-      return { ...item, distKm, distApprox }
+      const h = harvestMap[item.id]
+      return {
+        ...item,
+        distKm,
+        distApprox,
+        latest_harvested_at: h?.at ?? item.latest_harvested_at ?? null,
+        latest_shelf_life_days: h?.shelf ?? item.latest_shelf_life_days ?? null,
+      }
     })
     if (!consumerLat || !consumerLng) return withDist
     let result = withDist
@@ -219,7 +253,7 @@ export default function ConsumerPage() {
       if (b.distKm === null) return -1
       return a.distKm - b.distKm
     })
-  }, [filtered, consumerLat, consumerLng, distanceFilter])
+  }, [filtered, consumerLat, consumerLng, distanceFilter, harvestMap])
 
   return (
     <main className="min-h-screen bg-[#f8f8f8] pb-12">
@@ -279,7 +313,7 @@ export default function ConsumerPage() {
             </svg>
             <input
               type="search"
-              placeholder={L('Search produce...', 'పంట వెతకండి...')}
+              placeholder={L('Search harvests...', 'కోతలు వెతకండి...')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-base focus:border-green-500 focus:outline-none"
@@ -605,6 +639,20 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
           )}
         </Link>
 
+        {/* Harvest clock — "Harvested 2 hours ago", from this produce's latest
+            harvest. Only shows once a harvest has been logged. */}
+        {item.latest_harvested_at && (
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-green-700 bg-green-50 rounded-full px-2 py-0.5">
+              ⏱ {harvestClock(item.latest_harvested_at, L)}
+            </span>
+            {(() => {
+              const fresh = freshnessLabel(item.latest_harvested_at, item.latest_shelf_life_days, L)
+              return fresh ? <span className="text-[11px] font-semibold text-amber-700">{fresh}</span> : null
+            })()}
+          </div>
+        )}
+
         {/* Farmer + location, with a small tappable "View profile" link */}
         {farmer && (
           <div className="flex items-center justify-between gap-1.5 mt-1">
@@ -820,7 +868,7 @@ function DistanceEmptyState({ km, onClear }: { km: number; onClear: () => void }
         onClick={onClear}
         className="mt-5 bg-green-700 text-white font-bold px-6 py-3 rounded-xl text-sm"
       >
-        {L('Show all produce', 'అన్ని పంటలు చూపించు')}
+        {L('Show all harvests', 'అన్ని కోతలు చూపించు')}
       </button>
     </div>
   )
@@ -832,7 +880,7 @@ function EmptyState() {
   return (
     <div className="text-center py-14">
       <div className="text-6xl mb-4">🔍</div>
-      <p className="text-gray-800 font-bold text-lg">{L('No produce found', 'పంట కనుగొనబడలేదు')}</p>
+      <p className="text-gray-800 font-bold text-lg">{L('No harvests found', 'కోతలు కనుగొనబడలేదు')}</p>
       <p className="text-gray-400 text-sm mt-2">
         {L('Try a different search or category', 'వేరే వెతకండి లేదా వేరే వర్గాన్ని ఎంచుకోండి')}
       </p>
