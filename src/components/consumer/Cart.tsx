@@ -1509,7 +1509,7 @@ export function CartSheet({
                         return (
                           <div className="pt-2 border-t border-gray-100 mt-2 space-y-1">
                             <div className="flex items-center justify-between text-xs">
-                              <span className="text-gray-500">{L('Subtotal', 'ఉత్పత్తి')}</span>
+                              <span className="text-gray-500">{L('Farmer Price', 'రైతు ధర')}</span>
                               <span className="font-semibold text-gray-800">₹{total}</span>
                             </div>
                             {dFee > 0 && (

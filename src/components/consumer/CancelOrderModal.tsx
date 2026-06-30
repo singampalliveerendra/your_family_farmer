@@ -122,6 +122,13 @@ export default function CancelOrderModal({
           </p>
         </div>
 
+        {/* "Are you sure?" warning — cancelling can't be undone. */}
+        <div className="bg-amber-50 border border-amber-300 rounded-xl px-3 py-2.5">
+          <p className="text-xs font-bold text-amber-800 leading-snug">
+            ⚠️ {L('Are you sure you want to cancel this order? This cannot be undone.', 'మీరు ఖచ్చితంగా ఈ ఆర్డర్‌ను రద్దు చేయాలనుకుంటున్నారా? దీన్ని తిరిగి మార్చలేరు.')}
+          </p>
+        </div>
+
         {/* Refund preview — what the buyer will get back if they go ahead. */}
         {wasPaid && (
           <div className="bg-green-50 border border-green-200 rounded-2xl px-4 py-3 space-y-1">

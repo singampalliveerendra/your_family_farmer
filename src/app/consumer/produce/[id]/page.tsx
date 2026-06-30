@@ -310,11 +310,18 @@ export default function ProduceDetailPage() {
             </button>
           )}
 
-          <div className="mt-3 flex items-baseline gap-1">
-            <span className="text-3xl font-extrabold text-green-800">
-              {item.price_tier_1_price ? `₹${item.price_tier_1_price}` : '—'}
-            </span>
-            <span className="text-sm text-gray-500">/{unit}</span>
+          {/* Farmer Price — the price the farmer receives (USP: a major share
+              goes to the farmer). The platform fee is shown separately at checkout. */}
+          <div className="mt-3">
+            <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">
+              🧑‍🌾 {L('Farmer Price', 'రైతు ధర')}
+            </p>
+            <div className="mt-0.5 flex items-baseline gap-1">
+              <span className="text-3xl font-extrabold text-green-800">
+                {item.price_tier_1_price ? `₹${item.price_tier_1_price}` : '—'}
+              </span>
+              <span className="text-sm text-gray-500">/{unit}</span>
+            </div>
           </div>
 
           {liveStock != null && (

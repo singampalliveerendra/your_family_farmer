@@ -126,6 +126,13 @@ export function DeclineReasonSheet({
           {order.quantity != null && <> · {order.quantity} {order.unit || 'kg'}</>}
         </div>
 
+        {/* "Are you sure?" warning — declining can't be undone. */}
+        <div className="bg-amber-50 border border-amber-300 rounded-xl px-3 py-2.5">
+          <p className="text-xs font-bold text-amber-800 leading-snug">
+            ⚠️ {L('Are you sure you want to decline this order? This cannot be undone.', 'మీరు ఖచ్చితంగా ఈ ఆర్డర్‌ను తిరస్కరించాలనుకుంటున్నారా? దీన్ని తిరిగి మార్చలేరు.')}
+          </p>
+        </div>
+
         {/* Refund preview — what the buyer gets back if the farmer declines. */}
         {buyerPaid && buyerRefund > 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-1">

@@ -1688,11 +1688,13 @@ function ProduceListingForm({
   const [qty, setQty] = useState(editData?.stock_qty != null ? String(editData.stock_qty) : '')
   // Availability is a date range (From → To). Guard against full timestamps so
   // the <input type="date"> always receives YYYY-MM-DD.
-  const [availFrom, setAvailFrom] = useState(editData?.availability_from ? editData.availability_from.slice(0, 10) : '')
-  const [availTo, setAvailTo] = useState(editData?.availability_to ? editData.availability_to.slice(0, 10) : '')
-  // Harvesting frequency: cadence ('daily' | 'weekly') + a count (e.g. weekly × 2).
-  const [harvestFreq, setHarvestFreq] = useState(editData?.harvest_frequency ?? '')
-  const [harvestFreqCount, setHarvestFreqCount] = useState(
+  // Availability range + harvesting frequency inputs were removed from the form
+  // (superseded by the harvests model). We still read any existing values so a
+  // save preserves them rather than wiping the columns — hence no setters.
+  const [availFrom] = useState(editData?.availability_from ? editData.availability_from.slice(0, 10) : '')
+  const [availTo] = useState(editData?.availability_to ? editData.availability_to.slice(0, 10) : '')
+  const [harvestFreq] = useState(editData?.harvest_frequency ?? '')
+  const [harvestFreqCount] = useState(
     editData?.harvest_frequency_count != null ? String(editData.harvest_frequency_count) : '',
   )
   // Optional last-harvest date (kept alongside the availability range/frequency).
@@ -2083,63 +2085,8 @@ function ProduceListingForm({
           />
         </div>
 
-        {/* Availability date range (From → To) */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {L('Available from – to', 'అందుబాటు తేదీలు')}
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <span className="block text-[11px] text-gray-400 mb-1">{L('From', 'నుండి')}</span>
-              <input
-                type="date"
-                value={availFrom}
-                max={availTo || undefined}
-                onChange={(e) => setAvailFrom(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:border-green-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <span className="block text-[11px] text-gray-400 mb-1">{L('To', 'వరకు')}</span>
-              <input
-                type="date"
-                value={availTo}
-                min={availFrom || undefined}
-                onChange={(e) => setAvailTo(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:border-green-500 focus:outline-none"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Harvesting frequency: cadence dropdown + count (e.g. weekly × 2) */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {L('Harvesting frequency', 'కోత తరచుదనం')}
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              value={harvestFreq}
-              onChange={(e) => setHarvestFreq(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
-            >
-              <option value="">{L('Select…', 'ఎంచుకోండి…')}</option>
-              <option value="daily">{L('Daily', 'రోజువారీ')}</option>
-              <option value="weekly">{L('Weekly', 'వారానికి')}</option>
-            </select>
-            <input
-              type="number"
-              min="1"
-              placeholder={L('How many times', 'ఎన్నిసార్లు')}
-              value={harvestFreqCount}
-              onChange={(e) => setHarvestFreqCount(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
-            />
-          </div>
-          <p className="text-[11px] text-gray-400">
-            {L('e.g. Weekly + 2 means harvested twice a week.', 'ఉదా. వారానికి + 2 అంటే వారానికి రెండుసార్లు కోత.')}
-          </p>
-        </div>
+        {/* Availability range + harvesting frequency removed — the harvests
+            model (per-pick date/time + shelf life) supersedes them. */}
 
         {/* Harvest date (optional) — last/expected harvest for this listing */}
         <div className="space-y-2">
@@ -2695,7 +2642,7 @@ function ManageListingsModal({
             className="w-full bg-green-700 text-white font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 active:bg-green-800"
           >
             <span className="text-lg leading-none">+</span>
-            {L('Add New Produce', 'కొత్త పంట చేర్చండి')}
+            {L('Add New Harvest', 'కొత్త కోత చేర్చండి')}
           </button>
 
           {loading && (
