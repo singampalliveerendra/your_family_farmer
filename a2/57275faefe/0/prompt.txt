@@ -1,0 +1,1 @@
+"Picked Up" is shown to both Farmer and Consumer. It should be shown only to Farmer and allow him to enter the code. Once the code is matched the order is resolved.
