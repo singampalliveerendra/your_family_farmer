@@ -98,6 +98,10 @@ export function DeclineReasonSheet({
     (Number(order.total_price) || 0) +
     (Number(order.delivery_fee) || 0) +
     (Number(order.platform_fee) || 0)
+  // Declining carries a penalty for the farmer equal to the platform fee on this
+  // order — it recovers the fee the platform refunds to the buyer in full, and
+  // is deducted from the farmer's payout (shown negative in their report).
+  const farmerPenalty = Math.max(0, Number(order.platform_fee) || 0)
 
   return (
     <div className="fixed inset-0 z-[120] bg-black/50 flex items-end justify-center">
@@ -144,6 +148,21 @@ export function DeclineReasonSheet({
             </div>
             <p className="text-[11px] text-gray-500 leading-snug">
               {L('The full amount they paid (including any delivery & platform fees) is refunded in 3–5 business days.', 'వారు చెల్లించిన పూర్తి మొత్తం (డెలివరీ, ప్లాట్‌ఫామ్ ఫీజులతో సహా) 3–5 పని దినాలలో తిరిగి ఇవ్వబడుతుంది.')}
+            </p>
+          </div>
+        )}
+
+        {/* Penalty warning — the farmer bears the platform fee on a decline. */}
+        {farmerPenalty > 0 && (
+          <div className="bg-red-50 border border-red-300 rounded-xl px-4 py-3 space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-red-800 font-bold">
+                {L('Your penalty', 'మీ జరిమానా')}
+              </span>
+              <span className="font-extrabold text-red-700">− ₹{Math.round(farmerPenalty)}</span>
+            </div>
+            <p className="text-[11px] text-red-600 leading-snug">
+              {L(`Declining this order costs you a platform-fee penalty of ₹${Math.round(farmerPenalty)}, deducted from your payout.`, `ఈ ఆర్డర్‌ను తిరస్కరిస్తే ₹${Math.round(farmerPenalty)} ప్లాట్‌ఫామ్ ఫీజు జరిమానా మీ చెల్లింపు నుండి తీసివేయబడుతుంది.`)}
             </p>
           </div>
         )}

@@ -130,5 +130,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     ok: true,
     refunded: !!update.refund_id,
     refundStatus: (update.refund_status as string | undefined) ?? null,
+    // The actual amount refunded to the buyer (full: produce + delivery +
+    // platform fee), so the confirmation screen shows the real figure rather
+    // than the produce price alone.
+    refundAmount: typeof update.refund_amount === 'number' ? update.refund_amount : null,
   })
 }

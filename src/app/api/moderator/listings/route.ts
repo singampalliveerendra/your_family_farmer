@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
   const farmer_id = String(b.farmer_id ?? '').trim()
   const name = String(b.name ?? '').trim()
   if (!farmer_id) return NextResponse.json({ error: 'Choose a farmer.' }, { status: 400 })
-  if (!name) return NextResponse.json({ error: 'Produce name is required.' }, { status: 400 })
+  if (!name) return NextResponse.json({ error: 'Harvest name is required.' }, { status: 400 })
 
   // The chosen farmer must belong to this moderator's zone.
   const { data: farmer } = await supabase

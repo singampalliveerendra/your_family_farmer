@@ -332,7 +332,7 @@ export default function ModeratorFarmerForm({
 
         <div>
           <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wide block mb-1">Farm location (GPS)</span>
-          <p className="text-[11px] text-gray-500 mb-2">Set the farm location so nearby buyers discover their produce first.</p>
+          <p className="text-[11px] text-gray-500 mb-2">Set the farm location so nearby buyers discover their harvests first.</p>
           {lat != null && lng != null ? (
             <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-3">
               <span className="text-sm font-semibold text-green-800">✓ 📍 {locationName || 'Location set'}</span>

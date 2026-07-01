@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useLang } from '@/lib/LanguageContext'
+import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 
 type Farmer = {
+  id: string
   name: string
   village: string
   district: string
@@ -14,25 +16,52 @@ type Farmer = {
   phone?: string | null
 }
 
-export default function FarmCover({ farmer }: { farmer: Farmer }) {
+export default function FarmCover({
+  farmer,
+  initialFollowers = 0,
+}: {
+  farmer: Farmer
+  initialFollowers?: number
+}) {
   const { tx, L } = useLang()
+  const { requireAuth } = useConsumerAuth()
   const [followed, setFollowed] = useState(false)
+  const [followers, setFollowers] = useState(initialFollowers)
+  const [busy, setBusy] = useState(false)
   const [lightbox, setLightbox] = useState(false)
 
+  // Load the live count + whether THIS consumer already follows (the count is
+  // public; `following` is false when logged out).
   useEffect(() => {
-    const saved = localStorage.getItem(`follow_${farmer.name}`)
-    if (saved) setFollowed(true)
-  }, [farmer.name])
+    let cancelled = false
+    fetch(`/api/farmer/${farmer.id}/follow`, { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelled || !j) return
+        if (typeof j.count === 'number') setFollowers(j.count)
+        setFollowed(!!j.following)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [farmer.id])
 
-  const toggleFollow = () => {
-    if (followed) {
-      localStorage.removeItem(`follow_${farmer.name}`)
-      setFollowed(false)
-    } else {
-      localStorage.setItem(`follow_${farmer.name}`, 'true')
-      setFollowed(true)
+  // Follow/unfollow. Requires a logged-in consumer (so each person counts once);
+  // an anonymous tap opens the login modal and then runs the toggle.
+  const doToggle = useCallback(async () => {
+    setBusy(true)
+    const r = await fetch(`/api/farmer/${farmer.id}/follow`, {
+      method: 'POST',
+      credentials: 'same-origin',
+    }).catch(() => null)
+    const j = r ? await r.json().catch(() => null) : null
+    if (r && r.ok && j) {
+      setFollowed(!!j.following)
+      if (typeof j.count === 'number') setFollowers(j.count)
     }
-  }
+    setBusy(false)
+  }, [farmer.id])
+
+  const toggleFollow = () => requireAuth(() => { void doToggle() })
 
   const initials = farmer.name
     .split(' ')
@@ -152,7 +181,8 @@ export default function FarmCover({ farmer }: { farmer: Farmer }) {
             )}
             <button
               onClick={toggleFollow}
-              className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-all ${
+              disabled={busy}
+              className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-all disabled:opacity-60 ${
                 followed
                   ? 'bg-green-700 text-white border-green-700'
                   : 'bg-white text-green-700 border-green-700'
@@ -160,6 +190,10 @@ export default function FarmCover({ farmer }: { farmer: Farmer }) {
             >
               {followed ? tx.following : tx.follow}
             </button>
+            {/* Follower count — a plain number, shown to everyone. */}
+            <span className="text-[11px] font-semibold text-gray-500">
+              👥 {followers.toLocaleString('en-IN')} {followers === 1 ? L('follower', 'అనుచరుడు') : L('followers', 'అనుచరులు')}
+            </span>
           </div>
         </div>
       </div>

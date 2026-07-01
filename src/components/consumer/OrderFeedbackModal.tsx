@@ -25,7 +25,7 @@ export default function OrderFeedbackModal({
   onSaved: () => void
 }) {
   const { L, lang } = useLang()
-  const name = localizeName(produceName, lang) || L('this produce', 'ఈ ఉత్పత్తి')
+  const name = localizeName(produceName, lang) || L('this harvest', 'ఈ కోత')
   const [rating, setRating] = useState(existing?.star_rating ?? 0)
   const [hover, setHover] = useState(0)
   const [text, setText] = useState(existing?.review_text ?? '')

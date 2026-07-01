@@ -46,6 +46,7 @@ type Listing = {
   availability_to?: string | null
   harvest_frequency?: string | null
   harvest_frequency_count?: number | null
+  shelf_life_days?: number | null
   rating_avg?: number | null
   review_count?: number | null
   price_tier_1_qty?: number | null
@@ -129,7 +130,10 @@ export default function ProduceDetailPage() {
         .order('harvested_at', { ascending: false })
         .limit(1)
         .maybeSingle()
-      setLatestHarvest(h ? { at: h.harvested_at as string, shelf: (h.shelf_life_days as number | null) ?? null } : null)
+      // Shelf life falls back to the listing's own value (set on the produce
+      // Edit form) when a logged harvest doesn't carry its own.
+      const listingShelf = (l as Listing).shelf_life_days ?? null
+      setLatestHarvest(h ? { at: h.harvested_at as string, shelf: (h.shelf_life_days as number | null) ?? listingShelf } : null)
     } catch { setLatestHarvest(null) }
     setLoading(false)
   }, [id])

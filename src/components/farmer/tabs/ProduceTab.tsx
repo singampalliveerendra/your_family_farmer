@@ -223,7 +223,7 @@ function AddProduceForm({ farmerId, onAdded }: { farmerId: string; onAdded: (ite
         onClick={() => setOpen(true)}
         className="w-full border-2 border-dashed border-green-300 rounded-xl py-4 text-green-700 text-sm font-semibold flex items-center justify-center gap-2 hover:border-green-500 hover:bg-green-50 transition-colors"
       >
-        <span className="text-lg">+</span> {L('Add your produce', 'మీ పంట చేర్చండి')}
+        <span className="text-lg">+</span> {L('Add your harvest', 'మీ కోత చేర్చండి')}
       </button>
     )
   }
@@ -231,7 +231,7 @@ function AddProduceForm({ farmerId, onAdded }: { farmerId: string; onAdded: (ite
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-bold text-gray-800 text-sm">{L('Add produce', 'పంట చేర్చండి')}</h3>
+        <h3 className="font-bold text-gray-800 text-sm">{L('Add harvest', 'కోత చేర్చండి')}</h3>
         <button onClick={() => { reset(); setOpen(false) }} className="text-gray-400 text-lg leading-none">×</button>
       </div>
 
@@ -255,7 +255,7 @@ function AddProduceForm({ farmerId, onAdded }: { farmerId: string; onAdded: (ite
       <div className="space-y-2">
         <input
           type="text"
-          placeholder={L('Produce name', 'పంట పేరు (e.g. Papaya)')}
+          placeholder={L('Harvest name', 'కోత పేరు (e.g. Papaya)')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
@@ -318,7 +318,7 @@ function AddProduceForm({ farmerId, onAdded }: { farmerId: string; onAdded: (ite
           disabled={loading || !name.trim()}
           className="w-full bg-green-700 text-white text-sm font-semibold py-2.5 rounded-lg disabled:opacity-50"
         >
-          {loading ? L('Adding...', 'చేరుస్తోంది') : L('Add produce', 'పంట చేర్చండి')}
+          {loading ? L('Adding...', 'చేరుస్తోంది') : L('Add harvest', 'కోత చేర్చండి')}
         </button>
       )}
     </div>

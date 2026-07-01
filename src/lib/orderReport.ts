@@ -76,27 +76,47 @@ export type ReportData = {
   orders: FarmerOrder[]
   counts: Record<ReportStatus, number>
   revenue: number
+  // Service fee (moderator commission) the farmer is charged on the orders he
+  // DECLINED in this window: round(produce price × fee%) per declined order. It
+  // recovers the gateway/refund cost the platform ate by refunding the buyer in
+  // full, and is deducted from the farmer's payout. Mirrors the moderator
+  // reports payout deduction so the two figures agree. 0 if no fee is set.
+  serviceFeeDeducted: number
   fromDate: Date
   toDate: Date
   generatedAt: Date
 }
 
+// Per-declined-order service fee, rounded per order to match the moderator's
+// payout deduction (see app/api/moderator/reports/route.ts). This is the
+// penalty the farmer bears on a decline, shown as a negative amount for that
+// order in the report.
+export function declineServiceFee(o: FarmerOrder, feePercent: number): number {
+  if (o.status !== 'declined' || feePercent <= 0) return 0
+  return Math.round(((Number(o.total_price) || 0) * feePercent) / 100)
+}
+
 // Shared computation for both the on-screen report view and the printable PDF:
-// the chosen date/status window, per-status counts, and approved revenue.
-export function computeReportData(orders: FarmerOrder[], filter: ReportFilter): ReportData {
+// the chosen date/status window, per-status counts, approved revenue, and the
+// service fee deducted on declined orders. `feePercent` is the moderator
+// commission percentage (5 → 5%); pass 0 when none is set.
+export function computeReportData(orders: FarmerOrder[], filter: ReportFilter, feePercent = 0): ReportData {
   const windowOrders = filterOrders(orders, filter)
   const counts: Record<ReportStatus, number> = {
     Pending: 0, Approved: 0, Completed: 0, Declined: 0, Cancelled: 0,
   }
   let revenue = 0
+  let serviceFeeDeducted = 0
   for (const o of windowOrders) {
     counts[statusLabel(o)] += 1
     if (o.status === 'approved') revenue += o.total_price ?? 0
+    serviceFeeDeducted += declineServiceFee(o, feePercent)
   }
   return {
     orders: windowOrders,
     counts,
     revenue,
+    serviceFeeDeducted,
     fromDate: filter.from,
     toDate: filter.to,
     generatedAt: new Date(),
@@ -113,24 +133,33 @@ function esc(s: string | number | null | undefined): string {
     .replace(/"/g, '&quot;')
 }
 
-function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: ReportFilter): string {
-  const { orders: window, counts, revenue, fromDate, toDate, generatedAt } = computeReportData(orders, filter)
+function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: ReportFilter, feePercent = 0): string {
+  const { orders: window, counts, revenue, serviceFeeDeducted, fromDate, toDate, generatedAt } = computeReportData(orders, filter, feePercent)
   const rangeDesc = `${fmtDate(fromDate.toISOString())} – ${fmtDate(toDate.toISOString())}`
   const statusDesc = filter.statuses.length === 0 ? 'All statuses' : filter.statuses.join(', ')
 
-  const rows = window.map((o) => `
+  const rows = window.map((o) => {
+    // Declined orders show the farmer's penalty as a negative amount (the
+    // platform fee lost on the decline), not the produce price they never earn.
+    const penalty = declineServiceFee(o, feePercent)
+    const amountCell =
+      o.status === 'declined'
+        ? (penalty > 0 ? `<span class="neg">−₹${esc(penalty)}</span>` : '—')
+        : (o.total_price != null ? `₹${esc(o.total_price)}` : '—')
+    return `
     <tr>
       <td class="mono">${esc(o.order_code || '—')}</td>
       <td>${esc(fmtDate(o.created_at))}</td>
       <td>${esc(o.buyer_name || '—')}${o.buyer_phone ? `<br><span class="muted">+91 ${esc(o.buyer_phone)}</span>` : ''}</td>
       <td>${esc(o.produce_name || '—')}</td>
       <td class="num">${esc(o.quantity ?? '—')} ${esc(o.unit || 'kg')}</td>
-      <td class="num">${o.total_price != null ? `₹${esc(o.total_price)}` : '—'}</td>
+      <td class="num">${amountCell}</td>
       <td><span class="status status-${statusLabel(o).toLowerCase()}">${esc(statusLabel(o))}</span></td>
       <td>${esc(paymentLabel(o))}</td>
       <td>${esc(deliveryLabel(o))}</td>
       <td>${esc(fmtDate(o.fulfillment_date))}</td>
-    </tr>`).join('')
+    </tr>`
+  }).join('')
 
   const summaryChips = REPORT_STATUSES
     .map((k) => `<div class="chip"><span class="chip-n">${counts[k]}</span><span class="chip-l">${k}</span></div>`)
@@ -152,11 +181,14 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: Repo
   .chip-n { display: block; font-size: 20px; font-weight: 800; color: #14532d; }
   .chip-l { display: block; font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: .03em; }
   .revenue { background: #f0fdf4; border-color: #bbf7d0; }
+  .deduction { background: #fef2f2; border-color: #fecaca; }
+  .deduction .chip-n { color: #991b1b; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   thead th { background: #14532d; color: #fff; text-align: left; padding: 8px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .02em; }
   tbody td { padding: 8px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
   tbody tr:nth-child(even) { background: #fafafa; }
   .num { white-space: nowrap; }
+  .neg { color: #991b1b; font-weight: 700; }
   .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; }
   .muted { color: #888; font-size: 11px; }
   .status { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
@@ -181,6 +213,9 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: Repo
     <div class="chip"><span class="chip-n">${window.length}</span><span class="chip-l">Total orders</span></div>
     ${summaryChips}
     <div class="chip revenue"><span class="chip-n">₹${revenue}</span><span class="chip-l">Approved revenue</span></div>
+    ${serviceFeeDeducted > 0
+      ? `<div class="chip deduction"><span class="chip-n">−₹${serviceFeeDeducted}</span><span class="chip-l">Service fee on declined</span></div>`
+      : ''}
   </div>
 
   ${window.length === 0
@@ -188,7 +223,7 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: Repo
     : `<table>
     <thead>
       <tr>
-        <th>Order</th><th>Date</th><th>Buyer</th><th>Produce</th><th>Qty</th>
+        <th>Order</th><th>Date</th><th>Buyer</th><th>Harvest</th><th>Qty</th>
         <th>Amount</th><th>Status</th><th>Payment</th><th>Delivery</th><th>Fulfil date</th>
       </tr>
     </thead>
@@ -204,8 +239,8 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: Repo
 // dialog, where the farmer chooses "Save as PDF". Dependency-free on purpose —
 // no client-side PDF library to download over a slow 4G connection.
 // Returns false if the window was blocked (caller can surface a message).
-export function downloadOrdersReport(orders: FarmerOrder[], farmerName: string, filter: ReportFilter): boolean {
-  const html = buildReportHtml(orders, farmerName, filter)
+export function downloadOrdersReport(orders: FarmerOrder[], farmerName: string, filter: ReportFilter, feePercent = 0): boolean {
+  const html = buildReportHtml(orders, farmerName, filter, feePercent)
   const win = window.open('', '_blank')
   if (!win) return false
   win.document.open()

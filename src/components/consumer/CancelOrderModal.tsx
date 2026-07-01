@@ -50,7 +50,7 @@ export function CancelSuccessSheet({
                   )}
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-gray-500">{L('Platform fee (not refunded)', 'ప్లాట్‌ఫామ్ ఫీజు (తిరిగి ఇవ్వబడదు)')}</span>
-                    <span className="font-semibold text-gray-500">− ₹{platformFeeWithheld}</span>
+                    <span className="font-bold text-red-600">₹{platformFeeWithheld}</span>
                   </div>
                   <p className="text-[11px] text-gray-400 leading-snug pt-1">
                     {L('Since the order was cancelled by you, the platform fee covers the payment & service cost and is not refunded.', 'ఆర్డర్‌ను మీరు రద్దు చేసినందున, ప్లాట్‌ఫామ్ ఫీజు చెల్లింపు, సేవా ఖర్చును కవర్ చేస్తుంది, తిరిగి ఇవ్వబడదు.')}
@@ -140,7 +140,7 @@ export default function CancelOrderModal({
               <>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-500">{L('Platform fee (not refunded)', 'ప్లాట్‌ఫామ్ ఫీజు (తిరిగి ఇవ్వబడదు)')}</span>
-                  <span className="font-semibold text-gray-500">− ₹{platformFeeWithheld}</span>
+                  <span className="font-bold text-red-600">₹{platformFeeWithheld}</span>
                 </div>
                 <p className="text-[11px] text-gray-400 leading-snug pt-0.5">
                   {L('Since you are cancelling, the platform fee covers the payment & service cost and is not refunded.', 'మీరు రద్దు చేస్తున్నందున, ప్లాట్‌ఫామ్ ఫీజు చెల్లింపు, సేవా ఖర్చును కవర్ చేస్తుంది, తిరిగి ఇవ్వబడదు.')}

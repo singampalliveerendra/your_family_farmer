@@ -74,6 +74,7 @@ type ListingRow = {
   harvest_frequency: string | null
   harvest_frequency_count: number | null
   harvest_date: string | null
+  shelf_life_days: number | null
   delivery_mode: string | null
   delivery_charge: number | null
   delivery_radius_km: number | null
@@ -1150,7 +1151,7 @@ function ProfileEditModal({
               {L('Farm location', 'పొలం లొకేషన్')}
             </label>
             <p className="text-[11px] text-gray-500 mb-2 leading-snug">
-              {L('Set your farm location so nearby buyers discover your produce first.', 'దగ్గరలో ఉన్న కొనుగోలుదారులు మీ పంటను ముందుగా కనుగొంటారు.')}
+              {L('Set your farm location so nearby buyers discover your harvests first.', 'దగ్గరలో ఉన్న కొనుగోలుదారులు మీ కోతలను ముందుగా కనుగొంటారు.')}
             </p>
             {farmerLat && farmerLng ? (
               <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-3">
@@ -1274,7 +1275,7 @@ function ProfileEditModal({
               {L('Farm Address', 'పొలం చిరునామా')}
             </label>
             <p className="text-[11px] text-gray-500 mb-2 leading-snug">
-              {L('Where should the delivery rider come to collect the produce? Include door number, street and landmark.', 'డెలివరీ రైడర్ ఎక్కడకు వచ్చి సరుకు తీసుకోవాలి? డోర్ నంబర్, వీధి, ల్యాండ్‌మార్క్ ఇవ్వండి.')}
+              {L('Where should the delivery rider come to collect the harvest? Include door number, street and landmark.', 'డెలివరీ రైడర్ ఎక్కడకు వచ్చి కోత తీసుకోవాలి? డోర్ నంబర్, వీధి, ల్యాండ్‌మార్క్ ఇవ్వండి.')}
             </p>
             <textarea
               value={farmAddress}
@@ -1697,8 +1698,20 @@ function ProduceListingForm({
   const [harvestFreqCount] = useState(
     editData?.harvest_frequency_count != null ? String(editData.harvest_frequency_count) : '',
   )
-  // Optional last-harvest date (kept alongside the availability range/frequency).
-  const [harvestDate, setHarvestDate] = useState(editData?.harvest_date ? editData.harvest_date.slice(0, 10) : '')
+  // Harvest date & time for this listing (stored as a full timestamp so the
+  // time is preserved). datetime-local wants LOCAL yyyy-MM-ddThh:mm, so convert
+  // the stored UTC ISO string back to that shape for the input.
+  const [harvestDate, setHarvestDate] = useState(() => {
+    if (!editData?.harvest_date) return ''
+    const d = new Date(editData.harvest_date)
+    if (isNaN(d.getTime())) return ''
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+    return d.toISOString().slice(0, 16)
+  })
+  // Shelf life (days) — how long this harvest stays fresh.
+  const [shelfLifeDays, setShelfLifeDays] = useState(
+    editData?.shelf_life_days != null ? String(editData.shelf_life_days) : '',
+  )
   const [farmingMethod, setFarmingMethod] = useState(editData?.method ?? defaultMethod ?? 'natural')
   const [price1, setPrice1] = useState(editData?.price_tier_1_price != null ? String(editData.price_tier_1_price) : '')
   const [price1Qty, setPrice1Qty] = useState(editData?.price_tier_1_qty != null ? String(editData.price_tier_1_qty) : '5')
@@ -1818,7 +1831,7 @@ function ProduceListingForm({
     setExistingExtraUrls((p) => p.filter((u) => u !== url))
 
   const previewData: PreviewData = {
-    name: name || 'Produce name',
+    name: name || 'Harvest name',
     variety: variety || '',
     emoji,
     price: price1 || '—',
@@ -1853,6 +1866,11 @@ function ProduceListingForm({
     }
     const allImages = [imageUrl, ...existingExtraUrls, ...uploadedExtra].filter(Boolean) as string[]
 
+    // Harvest date+time (datetime-local, local time) → stored UTC ISO string.
+    // Shelf life is an optional non-negative day count.
+    const harvestDateIso = harvestDate ? new Date(harvestDate).toISOString() : null
+    const shelfLifeVal = shelfLifeDays ? Math.max(0, parseInt(shelfLifeDays, 10)) : null
+
     if (isEdit && editData) {
       // Edit mode: always send all fields so clearing a value actually clears it in DB
       const editPayload: Record<string, unknown> = {
@@ -1876,7 +1894,8 @@ function ProduceListingForm({
         availability_to: availTo || null,
         harvest_frequency: harvestFreq || null,
         harvest_frequency_count: harvestFreqCount ? Number(harvestFreqCount) : null,
-        harvest_date: harvestDate || null,
+        harvest_date: harvestDateIso,
+        shelf_life_days: shelfLifeVal,
         delivery_mode: deliveryMode,
         delivery_charge: deliveryMode === 'pickup' ? null : (deliveryCharge ? Number(deliveryCharge) : null),
         delivery_radius_km: deliveryMode === 'pickup' ? null : (deliveryRadius ? Number(deliveryRadius) : null),
@@ -1943,7 +1962,8 @@ function ProduceListingForm({
     payload.availability_to = availTo || null
     payload.harvest_frequency = harvestFreq || null
     payload.harvest_frequency_count = harvestFreqCount ? Number(harvestFreqCount) : null
-    payload.harvest_date = harvestDate || null
+    payload.harvest_date = harvestDateIso
+    payload.shelf_life_days = shelfLifeVal
     payload.delivery_mode = deliveryMode
     if (deliveryMode !== 'pickup') {
       if (deliveryCharge) payload.delivery_charge = Number(deliveryCharge)
@@ -2030,7 +2050,7 @@ function ProduceListingForm({
             ))}
           </div>
           <p className="text-[11px] text-gray-500 mt-1.5">
-            {L('📦 = Other — pick this for any produce without its own icon', '📦 = ఇతర — ప్రత్యేక ఐకాన్ లేని ఏ పంటకైనా దీన్ని ఎంచుకోండి')}
+            {L('📦 = Other — pick this for any harvest without its own icon', '📦 = ఇతర — ప్రత్యేక ఐకాన్ లేని ఏ కోతకైనా దీన్ని ఎంచుకోండి')}
           </p>
         </div>
 
@@ -2088,16 +2108,31 @@ function ProduceListingForm({
         {/* Availability range + harvesting frequency removed — the harvests
             model (per-pick date/time + shelf life) supersedes them. */}
 
-        {/* Harvest date (optional) — last/expected harvest for this listing */}
+        {/* Harvest date & time + shelf life (optional) for this listing */}
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {L('Harvest date', 'కోత తేదీ')}{' '}
+            {L('Harvest date & time', 'కోత తేదీ & సమయం')}{' '}
             <span className="text-gray-400 font-normal normal-case">({L('optional', 'ఐచ్ఛికం')})</span>
           </label>
           <input
-            type="date"
+            type="datetime-local"
             value={harvestDate}
             onChange={(e) => setHarvestDate(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            {L('Shelf life (days)', 'తాజా (రోజులు)')}{' '}
+            <span className="text-gray-400 font-normal normal-case">({L('optional', 'ఐచ్ఛికం')})</span>
+          </label>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            placeholder={L('e.g. 5', 'ఉదా. 5')}
+            value={shelfLifeDays}
+            onChange={(e) => setShelfLifeDays(e.target.value)}
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
           />
         </div>
@@ -3281,7 +3316,7 @@ function FarmPhotosSection({ farmerId }: { farmerId: string }) {
         <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-xl">
           <p className="text-3xl mb-2">📷</p>
           <p className="text-sm font-semibold text-gray-500">No farm photos yet</p>
-          <p className="text-xs text-gray-400 mt-1">Add photos of your farm, fields, and produce</p>
+          <p className="text-xs text-gray-400 mt-1">Add photos of your farm, fields, and harvests</p>
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-1.5">

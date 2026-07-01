@@ -53,6 +53,9 @@ type ProduceListing = {
   review_count?: number | null
   farmer_id: string
   farmer?: Farmer
+  // Shelf life set on the listing itself (produce Edit form) — used as the
+  // fallback when the latest logged harvest doesn't carry its own.
+  shelf_life_days?: number | null
   // Latest harvest for this produce (template), attached client-side from the
   // `harvests` table — drives the "Harvested 2 hours ago" clock on the card.
   latest_harvested_at?: string | null
@@ -239,7 +242,7 @@ export default function ConsumerPage() {
         distKm,
         distApprox,
         latest_harvested_at: h?.at ?? item.latest_harvested_at ?? null,
-        latest_shelf_life_days: h?.shelf ?? item.latest_shelf_life_days ?? null,
+        latest_shelf_life_days: h?.shelf ?? item.latest_shelf_life_days ?? item.shelf_life_days ?? null,
       }
     })
     if (!consumerLat || !consumerLng) return withDist

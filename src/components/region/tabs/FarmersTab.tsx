@@ -13,6 +13,7 @@ type Farmer = {
   method?: string
   rating_avg?: number
   buyer_count?: number
+  follower_count?: number
   farming_since_year?: number
 }
 
@@ -22,7 +23,7 @@ type Produce = {
   emoji?: string
 }
 
-type Sort = 'newest' | 'top_rated'
+type Sort = 'most_followed' | 'newest' | 'top_rated'
 
 export default function FarmersTab({
   farmers,
@@ -36,7 +37,8 @@ export default function FarmersTab({
   const { tx, L } = useLang()
   const list = farmers as Farmer[]
   const produceList = produce as Produce[]
-  const [sort, setSort] = useState<Sort>('newest')
+  // Default = most followed, so popular farmers in this region surface first.
+  const [sort, setSort] = useState<Sort>('most_followed')
   const [search, setSearch] = useState('')
 
   const firstFarmerId = list[0]?.id
@@ -50,6 +52,9 @@ export default function FarmersTab({
         (f.village ?? '').toLowerCase().includes(q)
       )
     })
+    if (sort === 'most_followed') {
+      return [...filtered].sort((a, b) => (b.follower_count ?? 0) - (a.follower_count ?? 0))
+    }
     if (sort === 'top_rated') {
       return [...filtered].sort((a, b) => (b.rating_avg ?? 0) - (a.rating_avg ?? 0))
     }
@@ -72,7 +77,7 @@ export default function FarmersTab({
           className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-green-500 focus:outline-none bg-white"
         />
         <div className="flex gap-2">
-          {(['newest', 'top_rated'] as Sort[]).map((s) => (
+          {(['most_followed', 'newest', 'top_rated'] as Sort[]).map((s) => (
             <button
               key={s}
               onClick={() => setSort(s)}
@@ -80,7 +85,7 @@ export default function FarmersTab({
                 sort === s ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 active:bg-gray-200'
               }`}
             >
-              {s === 'newest' ? tx.sortNewest : tx.sortTopRated}
+              {s === 'most_followed' ? L('Most followed', 'ఎక్కువ అనుచరులు') : s === 'newest' ? tx.sortNewest : tx.sortTopRated}
             </button>
           ))}
         </div>
@@ -126,6 +131,11 @@ export default function FarmersTab({
                   <p className="text-xs text-gray-500 mt-0.5">
                     {farmer.village ?? farmer.district}
                     {yearsfarming ? ` · ${yearsfarming} ${tx.yrsFarming}` : ''}
+                  </p>
+
+                  {/* Follower count — plain number, drives the "Most followed" rank */}
+                  <p className="text-xs font-semibold text-green-700 mt-1">
+                    👥 {(farmer.follower_count ?? 0).toLocaleString('en-IN')} {(farmer.follower_count ?? 0) === 1 ? L('follower', 'అనుచరుడు') : L('followers', 'అనుచరులు')}
                   </p>
 
                   {/* Star rating row */}

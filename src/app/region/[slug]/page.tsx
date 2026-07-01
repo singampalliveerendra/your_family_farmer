@@ -50,11 +50,28 @@ export default async function RegionPage({ params }: { params: Promise<{ slug: s
         .order('created_at', { ascending: false })
     : { data: [] }
 
+  // Follower counts per farmer → rank the farmers list by popularity. Best-effort:
+  // an absent farmer_follows table just leaves every count at 0.
+  const followerCounts = new Map<string, number>()
+  if (farmerIds.length) {
+    const { data: follows } = await supabase
+      .from('farmer_follows')
+      .select('farmer_id')
+      .in('farmer_id', farmerIds)
+    for (const row of follows ?? []) {
+      followerCounts.set(row.farmer_id, (followerCounts.get(row.farmer_id) ?? 0) + 1)
+    }
+  }
+  const farmersWithFollowers = (farmers ?? []).map((f) => ({
+    ...f,
+    follower_count: followerCounts.get(f.id) ?? 0,
+  }))
+
   return (
     <main className="min-h-screen bg-gray-50">
       <RegionTopBar region={region} />
       <RegionHero region={region} farmerCount={farmers?.length ?? 0} produceCount={produce?.length ?? 0} />
-      <RegionContent farmers={farmers ?? []} produce={produce ?? []} />
+      <RegionContent farmers={farmersWithFollowers} produce={produce ?? []} />
     </main>
   )
 }

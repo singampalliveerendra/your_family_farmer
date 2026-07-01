@@ -377,7 +377,7 @@ function AvailableCard({
             </span>
           ) : (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800 whitespace-nowrap">
-              {L('Produce paid', 'ఉత్పత్తి చెల్లించబడింది')}
+              {L('Harvest paid', 'కోత చెల్లించబడింది')}
             </span>
           )}
         </div>
@@ -471,7 +471,7 @@ function MyOrderCard({
         {isCod && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs">
             <span className="font-bold text-amber-900">💵 {L('Collect', 'వసూలు')} ₹{(order.total_price ?? 0) + (order.delivery_fee ?? 0)}</span> {L('in cash from the customer', 'కస్టమర్ నుండి నగదు తీసుకోండి')}
-            {(order.delivery_fee ?? 0) > 0 && L(` (₹${order.total_price ?? 0} produce + ₹${order.delivery_fee} delivery)`, ` (₹${order.total_price ?? 0} పంట + ₹${order.delivery_fee} డెలివరీ)`)}
+            {(order.delivery_fee ?? 0) > 0 && L(` (₹${order.total_price ?? 0} harvest + ₹${order.delivery_fee} delivery)`, ` (₹${order.total_price ?? 0} కోత + ₹${order.delivery_fee} డెలివరీ)`)}
             .
           </div>
         )}

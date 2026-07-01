@@ -6,7 +6,7 @@ import SplashScreen from "@/components/SplashScreen";
 
 export const metadata: Metadata = {
   title: "Go Grameen — Your Family Farmer",
-  description: "Buy natural produce directly from farmers in Andhra Pradesh. No middlemen.",
+  description: "Buy natural harvests directly from farmers in Andhra Pradesh. No middlemen.",
 };
 
 export const viewport: Viewport = {

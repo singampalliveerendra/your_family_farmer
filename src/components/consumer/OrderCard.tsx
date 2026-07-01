@@ -360,7 +360,7 @@ export default function OrderCard({
               >
                 {reviewed
                   ? `⭐ ${L('Feedback given', 'అభిప్రాయం ఇచ్చారు')}`
-                  : `⭐ ${completed ? L('Rate produce', 'రేటింగ్ ఇవ్వండి') : L('Give feedback', 'అభిప్రాయం')}`}
+                  : `⭐ ${completed ? L('Rate harvest', 'రేటింగ్ ఇవ్వండి') : L('Give feedback', 'అభిప్రాయం')}`}
               </button>
             )}
           </div>

@@ -1,10 +1,12 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
+import { supabase } from '@/lib/supabase'
 import type { FarmerOrder } from '@/components/farmer/OrderCard'
 import {
   computeReportData,
+  declineServiceFee,
   downloadOrdersReport,
   statusLabel,
   deliveryLabel,
@@ -49,6 +51,21 @@ export default function OrderReportSheet({
 }) {
   const { L } = useLang()
 
+  // Moderator commission %, used to compute the service fee deducted on declined
+  // orders (mirrors the moderator payout deduction). 0 unless one is set.
+  const [feePercent, setFeePercent] = useState(0)
+  useEffect(() => {
+    supabase
+      .from('platform_settings')
+      .select('fee_percent')
+      .eq('id', 1)
+      .maybeSingle()
+      .then(({ data }) => {
+        const p = Number(data?.fee_percent)
+        if (Number.isFinite(p) && p > 0) setFeePercent(p)
+      })
+  }, [])
+
   const today = useMemo(() => new Date(), [])
   // Earliest order date drives the "All time" lower bound (and the calendar's
   // min), so the picker never lets you wander before there's any data.
@@ -88,13 +105,13 @@ export default function OrderReportSheet({
     statuses: statusSel,
   }), [fromStr, toStr, statusSel])
 
-  const { orders: rows, counts, revenue, generatedAt } = useMemo(
-    () => computeReportData(orders, filter),
-    [orders, filter],
+  const { orders: rows, counts, revenue, serviceFeeDeducted, generatedAt } = useMemo(
+    () => computeReportData(orders, filter, feePercent),
+    [orders, filter, feePercent],
   )
 
   const handleDownload = () => {
-    const ok = downloadOrdersReport(orders, farmerName || L('Farmer', 'రైతు'), filter)
+    const ok = downloadOrdersReport(orders, farmerName || L('Farmer', 'రైతు'), filter, feePercent)
     if (!ok) {
       alert(L(
         'Please allow pop-ups for this site to download the report.',
@@ -218,6 +235,19 @@ export default function OrderReportSheet({
             </span>
             <span className="text-2xl font-black text-green-800">₹{revenue}</span>
           </div>
+          {serviceFeeDeducted > 0 && (
+            <div className="col-span-3 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 flex items-center justify-between">
+              <div className="min-w-0">
+                <span className="text-xs font-bold text-red-700 uppercase tracking-wide block">
+                  {L('Service fee on declined', 'తిరస్కరించిన వాటిపై సర్వీస్ ఫీజు')}
+                </span>
+                <span className="text-[10px] text-red-500 leading-snug">
+                  {L(`Deducted from your payout (${feePercent}% of declined orders)`, `మీ చెల్లింపు నుండి తీసివేయబడుతుంది (తిరస్కరించిన ఆర్డర్లలో ${feePercent}%)`)}
+                </span>
+              </div>
+              <span className="text-2xl font-black text-red-700 flex-shrink-0">−₹{serviceFeeDeducted}</span>
+            </div>
+          )}
         </div>
 
         {/* Order list */}
@@ -255,12 +285,21 @@ export default function OrderReportSheet({
                   <span className="font-semibold text-gray-800">{o.produce_name || '—'}</span>
                   <span className="text-gray-300">·</span>
                   <span className="text-gray-600">{o.quantity ?? '—'} {o.unit || 'kg'}</span>
-                  {o.total_price != null && (
+                  {/* Declined orders show the farmer's platform-fee penalty as a
+                      negative amount; other orders show the produce price. */}
+                  {o.status === 'declined' ? (
+                    declineServiceFee(o, feePercent) > 0 && (
+                      <>
+                        <span className="text-gray-300">·</span>
+                        <span className="font-bold text-red-600">−₹{declineServiceFee(o, feePercent)}</span>
+                      </>
+                    )
+                  ) : o.total_price != null ? (
                     <>
                       <span className="text-gray-300">·</span>
                       <span className="font-bold text-green-700">₹{o.total_price}</span>
                     </>
-                  )}
+                  ) : null}
                 </div>
 
                 <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-gray-500 pt-0.5">

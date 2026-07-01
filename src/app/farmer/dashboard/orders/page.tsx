@@ -279,6 +279,10 @@ function OrdersPageInner() {
         return
       }
       const refundInitiated = !!json.refunded || !!json.refundStatus
+      // Full amount refunded to the buyer (produce + delivery + platform fee),
+      // reported by the decline API. Falls back to total_price only if absent.
+      const refundAmount: number | null =
+        typeof json.refundAmount === 'number' ? json.refundAmount : (declined?.total_price ?? null)
       setOrders((prev) =>
         prev.map((o) =>
           o.id === orderId
@@ -287,14 +291,14 @@ function OrdersPageInner() {
                 status: 'declined',
                 decline_reason: reason,
                 refund_status: refundInitiated ? (o.refund_status ?? 'initiated') : o.refund_status,
-                refund_amount: refundInitiated ? (o.refund_amount ?? o.total_price ?? null) : o.refund_amount,
+                refund_amount: refundInitiated ? (refundAmount ?? o.refund_amount ?? null) : o.refund_amount,
               }
             : o,
         ),
       )
       setDeclineResult({
         buyerName: declined?.buyer_name ?? null,
-        amount: declined?.total_price ?? null,
+        amount: refundInitiated ? refundAmount : null,
         refundInitiated,
       })
       setDecliningOrder(null)

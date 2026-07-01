@@ -94,13 +94,13 @@ export default function ModeratorListingsPage() {
   }
 
   return (
-    <ModeratorShell title="Listing management" subtitle="Review, approve or reject farmer produce listings" zone={zone}>
+    <ModeratorShell title="Listing management" subtitle="Review, approve or reject farmer harvest listings" zone={zone}>
       <div className="flex justify-end mb-3">
         <button
           onClick={() => router.push('/moderator/listings/new')}
           className="bg-green-800 text-white text-sm font-bold px-4 py-2 rounded-xl active:bg-green-900"
         >
-          + Add produce
+          + Add harvest
         </button>
       </div>
 
@@ -172,6 +172,13 @@ export default function ModeratorListingsPage() {
 
               {/* Actions */}
               <div className="flex flex-wrap gap-2 mt-3">
+                <button
+                  onClick={() => router.push(`/moderator/listings/${l.id}/edit`)}
+                  disabled={busyId === l.id}
+                  className="bg-white border border-gray-300 text-gray-700 text-xs font-bold px-3 py-1.5 rounded-lg active:bg-gray-50 disabled:opacity-50"
+                >
+                  ✎ Edit
+                </button>
                 {l.status === 'pending_review' && (
                   <>
                     <button

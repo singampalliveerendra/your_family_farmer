@@ -67,7 +67,7 @@ export default function ModeratorSupplyPage() {
         <div className="text-center py-14 bg-white rounded-2xl border border-gray-100">
           <div className="text-5xl mb-3">📊</div>
           <p className="font-semibold text-gray-500 text-sm">No demand or supply data yet</p>
-          <p className="text-xs text-gray-400 mt-1">Numbers appear once buyers request crops and farmers list produce.</p>
+          <p className="text-xs text-gray-400 mt-1">Numbers appear once buyers request crops and farmers list harvests.</p>
         </div>
       ) : (
         <>

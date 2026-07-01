@@ -77,3 +77,121 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   return NextResponse.json({ listing: updated })
 }
+
+// Confirm a listing exists AND its farmer is in this moderator's zone.
+// Returns the farmer_id when in-zone, otherwise null.
+async function listingFarmerInZone(
+  supabase: ReturnType<typeof svc>,
+  id: string,
+  zone: string | null,
+): Promise<string | null> {
+  const { data: listing } = await supabase
+    .from('produce_listings').select('id, farmer_id').eq('id', id).maybeSingle()
+  if (!listing?.farmer_id) return null
+  const { data: farmer } = await supabase
+    .from('farmers').select('region_slug').eq('id', listing.farmer_id).maybeSingle()
+  if (!farmer || farmer.region_slug !== zone) return null
+  return listing.farmer_id as string
+}
+
+// GET — full listing for the edit form. Zone-scoped; includes the farmer name
+// so the edit screen can show which farmer this harvest belongs to.
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!isModeratorRequest(req)) {
+    return NextResponse.json({ error: 'Moderator login required.' }, { status: 401 })
+  }
+  const { id } = await params
+  const zone = getModeratorZone(req)
+  const supabase = svc()
+
+  const farmerId = await listingFarmerInZone(supabase, id, zone)
+  if (!farmerId) return NextResponse.json({ error: 'Listing not found in your zone.' }, { status: 404 })
+
+  const { data: listing, error } = await supabase
+    .from('produce_listings').select('*').eq('id', id).single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  const { data: farmer } = await supabase
+    .from('farmers').select('name').eq('id', farmerId).maybeSingle()
+
+  return NextResponse.json({ listing, farmer_name: farmer?.name ?? '—' })
+}
+
+const METHODS = ['natural', 'low_chemical', 'chemical'] as const
+const UNITS = ['kg', 'g', 'litre', 'dozen', 'piece', 'bunch'] as const
+
+// Positive number (prices, min quantities) — else null.
+function toPos(v: unknown): number | null {
+  const n = Number(v)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+// Non-negative number (stock, brix, shelf life) — 0 is valid; else null.
+function toNonNeg(v: unknown): number | null {
+  if (v === '' || v == null) return null
+  const n = Number(v)
+  return Number.isFinite(n) && n >= 0 ? n : null
+}
+
+// PUT — edit a listing's fields (name, pricing, stock, shelf life, …). Zone-
+// scoped. Does not change status or ownership; use PATCH actions for those.
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!isModeratorRequest(req)) {
+    return NextResponse.json({ error: 'Moderator login required.' }, { status: 401 })
+  }
+  const { id } = await params
+  const zone = getModeratorZone(req)
+  const supabase = svc()
+
+  const farmerId = await listingFarmerInZone(supabase, id, zone)
+  if (!farmerId) return NextResponse.json({ error: 'Listing not found in your zone.' }, { status: 404 })
+
+  const body = await req.json().catch(() => null)
+  if (!body) return NextResponse.json({ error: 'Invalid body.' }, { status: 400 })
+  const b = body as Record<string, unknown>
+
+  const name = String(b.name ?? '').trim()
+  if (!name) return NextResponse.json({ error: 'Harvest name is required.' }, { status: 400 })
+
+  const methodRaw = String(b.method ?? 'natural')
+  const method = (METHODS as readonly string[]).includes(methodRaw) ? methodRaw : 'natural'
+  const unitRaw = String(b.unit ?? 'kg')
+  const unit = (UNITS as readonly string[]).includes(unitRaw) ? unitRaw : 'kg'
+
+  const price1 = toPos(b.price_tier_1_price)
+  const price1Qty = toPos(b.price_tier_1_qty)
+  const price2 = toPos(b.price_tier_2_price)
+  const price2Qty = toPos(b.price_tier_2_qty)
+
+  const update: Record<string, unknown> = {
+    name,
+    emoji: String(b.emoji ?? '📦') || '📦',
+    method,
+    unit,
+    variety: String(b.variety ?? '').trim() || null,
+    stock_qty: toNonNeg(b.stock_qty),
+    description: String(b.description ?? '').trim() || null,
+    brix: toNonNeg(b.brix),
+    shelf_life_days: toNonNeg(b.shelf_life_days),
+    availability_from: String(b.availability_from ?? '').trim() || null,
+    availability_to: String(b.availability_to ?? '').trim() || null,
+    harvest_frequency: String(b.harvest_frequency ?? '').trim() || null,
+    harvest_frequency_count: toPos(b.harvest_frequency_count),
+    // Clear tiers when blanked; only set when a valid price is given.
+    price_tier_1_price: price1,
+    price_tier_1_qty: price1 ? (price1Qty ?? 1) : null,
+    price_tier_2_price: price2 && price2Qty ? price2 : null,
+    price_tier_2_qty: price2 && price2Qty ? price2Qty : null,
+  }
+
+  const { data: updated, error } = await supabase
+    .from('produce_listings')
+    .update(update)
+    .eq('id', id)
+    .select('id')
+    .single()
+  if (error) {
+    console.error('[YFF moderator/listings PUT] update failed:', error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+  return NextResponse.json({ id: updated.id })
+}

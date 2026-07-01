@@ -157,10 +157,17 @@ export default async function FarmerPage({ params }: { params: Promise<{ slug: s
   const { data: buyerCount } = await supabase.rpc('farmer_buyer_count', { p_farmer_id: farmer.id })
   const realBuyerCount = typeof buyerCount === 'number' ? buyerCount : (farmer.buyer_count ?? 0)
 
+  // Follower count (best-effort: 0 if the farmer_follows table isn't present
+  // yet). The client refines it live + reflects this consumer's own state.
+  const { count: followerCount } = await supabase
+    .from('farmer_follows')
+    .select('id', { count: 'exact', head: true })
+    .eq('farmer_id', farmer.id)
+
   return (
     <main className="min-h-screen bg-gray-50 pb-24">
       <TopNav regionSlug={farmer.region_slug} />
-      <FarmCover farmer={farmer} />
+      <FarmCover farmer={farmer} initialFollowers={followerCount ?? 0} />
       {/* Count only live listings — a produce the farmer has suspended (or that
           is still "coming soon") must not inflate the public "Produce now" stat. */}
       <TrustStrip

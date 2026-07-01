@@ -80,7 +80,7 @@ export default function ModeratorAgentsPage() {
   const activeCount = items.filter((a) => a.active).length
 
   return (
-    <ModeratorShell title="Delivery agents" subtitle="Local agents who deliver farm produce in your zone" zone={zone}>
+    <ModeratorShell title="Delivery agents" subtitle="Local agents who deliver farm harvests in your zone" zone={zone}>
       <div className="flex items-center justify-between mb-4">
         <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">
           {activeCount} active · {items.length} total
@@ -103,7 +103,7 @@ export default function ModeratorAgentsPage() {
         <div className="text-center py-14 bg-white rounded-2xl border border-gray-100">
           <div className="text-5xl mb-3">🛵</div>
           <p className="font-semibold text-gray-500 text-sm">No delivery agents yet</p>
-          <p className="text-xs text-gray-400 mt-1">Recruit a bike owner or anyone who wants to earn by delivering produce.</p>
+          <p className="text-xs text-gray-400 mt-1">Recruit a bike owner or anyone who wants to earn by delivering harvests.</p>
         </div>
       ) : (
         <div className="space-y-3">

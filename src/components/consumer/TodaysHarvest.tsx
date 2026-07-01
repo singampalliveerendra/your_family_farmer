@@ -24,6 +24,7 @@ type Listing = {
   status?: string | null
   price_tier_1_price?: number | null
   unit?: string | null
+  shelf_life_days?: number | null
 }
 
 type HarvestRow = {
@@ -50,7 +51,7 @@ export default function TodaysHarvest() {
     const end = new Date(Date.now() + 3 * DAY).toISOString()
     supabase
       .from('harvests')
-      .select('id, harvested_at, shelf_life_days, approx_quantity, unit, produce_listing_id, produce_listings!inner(id, name, variety, emoji, image_url, image_urls, method, status, price_tier_1_price, unit)')
+      .select('id, harvested_at, shelf_life_days, approx_quantity, unit, produce_listing_id, produce_listings!inner(id, name, variety, emoji, image_url, image_urls, method, status, price_tier_1_price, unit, shelf_life_days)')
       .gte('harvested_at', start)
       .lte('harvested_at', end)
       .eq('produce_listings.status', 'available')
@@ -99,7 +100,7 @@ export default function TodaysHarvest() {
           const emoji = item.emoji || '🌿'
           const cover = (item.image_urls && item.image_urls.length ? item.image_urls[0] : item.image_url) || null
           const clock = harvestClock(r.harvested_at, L)
-          const fresh = freshnessLabel(r.harvested_at, r.shelf_life_days, L)
+          const fresh = freshnessLabel(r.harvested_at, r.shelf_life_days ?? item.shelf_life_days ?? null, L)
           const future = new Date(r.harvested_at).getTime() > Date.now()
           return (
             <Link

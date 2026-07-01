@@ -402,7 +402,7 @@ export default function OrderDetailsPage() {
               && (!!order.received_at || !!order.collected_at || !!order.delivered_at || order.delivery_status === 'delivered') && (
               <ProduceReviewBox
                 orderId={order.id}
-                produceName={order.produce_name ? localizeName(order.produce_name, lang) : L('this produce', 'ఈ ఉత్పత్తి')}
+                produceName={order.produce_name ? localizeName(order.produce_name, lang) : L('this harvest', 'ఈ కోత')}
                 existing={order.my_review ?? null}
               />
             )}
@@ -575,7 +575,7 @@ function CancelModal({
               <>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-500">{L('Platform fee (not refunded)', 'ప్లాట్‌ఫామ్ ఫీజు (తిరిగి ఇవ్వబడదు)')}</span>
-                  <span className="font-semibold text-gray-500">− ₹{platformFeeWithheld}</span>
+                  <span className="font-bold text-red-600">₹{platformFeeWithheld}</span>
                 </div>
                 <p className="text-[11px] text-gray-400 leading-snug pt-0.5">
                   {L('Since you are cancelling, the platform fee covers the payment & service cost and is not refunded.', 'మీరు రద్దు చేస్తున్నందున, ప్లాట్‌ఫామ్ ఫీజు చెల్లింపు, సేవా ఖర్చును కవర్ చేస్తుంది, తిరిగి ఇవ్వబడదు.')}
@@ -644,6 +644,10 @@ function ReceiptOverlay({ order, onClose }: { order: Order; onClose: () => void 
     day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
   })
   const paymentRef = order.razorpay_payment_id || order.order_code || order.id
+  // Platform fee the buyer paid for this order (stamped per row); the true
+  // total paid = item price + platform fee.
+  const platformFeePaid = Math.max(0, Number(order.platform_fee) || 0)
+  const totalPaid = (Number(order.total_price) || 0) + platformFeePaid
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 overflow-y-auto">
@@ -669,16 +673,22 @@ function ReceiptOverlay({ order, onClose }: { order: Order; onClose: () => void 
           <div className="flex justify-between"><span className="text-gray-500">{L('Payment', 'చెల్లింపు')}</span><span className="font-semibold text-gray-900">{order.payment_method_detail || (order.payment_method === 'cod' ? 'Cash on Delivery' : isOnlinePayment(order.payment_method) ? 'UPI' : order.payment_method || '—')}</span></div>
         </div>
 
-        <div className="border-t border-dashed border-gray-300 py-3">
+        <div className="border-t border-dashed border-gray-300 py-3 space-y-1.5">
           <div className="flex justify-between text-xs">
             <span className="text-gray-700">{localizeName(order.produce_name, lang)} × {order.quantity} {order.unit || 'kg'}</span>
             <span className="font-semibold text-gray-900">₹{order.total_price ?? 0}</span>
           </div>
+          {platformFeePaid > 0 && (
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">{L('Platform fee', 'ప్లాట్‌ఫామ్ ఫీజు')}</span>
+              <span className="font-semibold text-gray-900">₹{platformFeePaid}</span>
+            </div>
+          )}
         </div>
 
         <div className="border-t-2 border-gray-900 pt-2 flex justify-between items-center">
           <span className="text-sm font-bold text-gray-900">{L('Total Paid', 'మొత్తం చెల్లించారు')}</span>
-          <span className="text-lg font-extrabold text-green-700">₹{order.total_price ?? 0}</span>
+          <span className="text-lg font-extrabold text-green-700">₹{totalPaid}</span>
         </div>
 
         <div className="mt-3 text-center">
@@ -993,8 +1003,10 @@ function RefundPanel({ order }: { order: Order }) {
           so the refund total is never mistaken for the full amount paid. A
           farmer decline refunds in full, so this note is cancel-only. */}
       {order.status === 'cancelled' && (order.platform_fee ?? 0) > 0 && (
-        <p className="text-[11px] text-purple-700 leading-snug border-t border-purple-100 pt-2">
-          {L(`Platform fee of ₹${order.platform_fee} is not refunded on a cancellation.`, `రద్దు చేసినప్పుడు ₹${order.platform_fee} ప్లాట్‌ఫామ్ ఫీజు తిరిగి ఇవ్వబడదు.`)}
+        <p className="text-[11px] text-gray-600 leading-snug border-t border-purple-100 pt-2">
+          {L('Platform fee of ', 'రద్దు చేసినప్పుడు ')}
+          <span className="font-bold text-red-600">₹{order.platform_fee}</span>
+          {L(' is not refunded on a cancellation.', ' ప్లాట్‌ఫామ్ ఫీజు తిరిగి ఇవ్వబడదు.')}
         </p>
       )}
 

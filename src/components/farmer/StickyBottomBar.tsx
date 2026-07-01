@@ -36,7 +36,7 @@ export default function StickyBottomBar({ farmer }: { farmer: Record<string, unk
         }}
         className="flex-1 bg-green-700 text-white font-bold py-4 rounded-xl text-sm leading-tight"
       >
-        <span className="block">{L('Shop Produce', 'పంట కొనండి')}</span>
+        <span className="block">{L('Shop Harvests', 'కోతలు కొనండి')}</span>
       </button>
     </div>
   )
