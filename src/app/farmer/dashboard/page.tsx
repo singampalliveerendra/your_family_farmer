@@ -2862,12 +2862,16 @@ function ListingRowCard({
     setHarvestMsg('')
     const when = new Date(harvestedAt)
     if (isNaN(when.getTime())) { setHarvestErr(L('Pick a valid harvest date & time.', 'సరైన కోత తేదీ & సమయం ఎంచుకోండి.')); return }
+    const shelfNum = parseInt(shelfLife, 10)
+    if (!shelfLife || !Number.isFinite(shelfNum) || shelfNum <= 0) {
+      setHarvestErr(L('Shelf life (days) is required.', 'తాజా (రోజులు) తప్పనిసరి.')); return
+    }
     setSavingHarvest(true)
     const { error: err } = await supabase.from('harvests').insert({
       produce_listing_id: row.id,
       farmer_id: farmerId,
       harvested_at: when.toISOString(),
-      shelf_life_days: shelfLife ? Math.max(0, parseInt(shelfLife, 10)) : null,
+      shelf_life_days: shelfNum,
       approx_quantity: approxQty ? Number(approxQty) : null,
       unit: row.unit ?? null,
     })
@@ -2893,10 +2897,14 @@ function ListingRowCard({
     setEditErr('')
     const when = new Date(editAt)
     if (isNaN(when.getTime())) { setEditErr(L('Pick a valid harvest date & time.', 'సరైన కోత తేదీ & సమయం ఎంచుకోండి.')); return }
+    const editShelfNum = parseInt(editShelf, 10)
+    if (!editShelf || !Number.isFinite(editShelfNum) || editShelfNum <= 0) {
+      setEditErr(L('Shelf life (days) is required.', 'తాజా (రోజులు) తప్పనిసరి.')); return
+    }
     setSavingEdit(true)
     const { error: err } = await supabase.from('harvests').update({
       harvested_at: when.toISOString(),
-      shelf_life_days: editShelf ? Math.max(0, parseInt(editShelf, 10)) : null,
+      shelf_life_days: editShelfNum,
       approx_quantity: editQty ? Number(editQty) : null,
     }).eq('id', editingHarvestId)
     setSavingEdit(false)
@@ -2904,6 +2912,17 @@ function ListingRowCard({
     setEditingHarvestId(null)
     void loadHarvests()
   }
+
+  // Delete one logged harvest (a specific date/time). Confirms first — it can't
+  // be undone. On success the list reloads without that row.
+  const deleteHarvest = async (h: Harvest) => {
+    if (!window.confirm(L('Delete this harvest? This cannot be undone.', 'ఈ కోతను తొలగించాలా? దీన్ని తిరిగి మార్చలేరు.'))) return
+    const { error: err } = await supabase.from('harvests').delete().eq('id', h.id)
+    if (err) { setHarvestErr(err.message); return }
+    if (editingHarvestId === h.id) setEditingHarvestId(null)
+    void loadHarvests()
+  }
+
   const isPaused = row.status === 'paused'
   const isSuspended = row.status === 'suspended_by_farmer'
   const statusLabel =
@@ -2990,7 +3009,7 @@ function ListingRowCard({
             onClick={openHarvestPanel}
             className="w-full bg-green-700 text-white font-bold py-2.5 rounded-xl text-sm active:bg-green-800 flex items-center justify-center gap-1.5"
           >
-            🌾 {L('Add Harvest', 'కోత చేర్చండి')}
+            🌾 {L('Harvest timings', 'కోత సమయాలు')}
           </button>
         ) : (
           <div className="bg-green-50 border border-green-200 rounded-xl p-3 space-y-2.5">
@@ -3006,7 +3025,7 @@ function ListingRowCard({
             </div>
             <div className="flex gap-2">
               <div className="flex-1">
-                <label className="text-[11px] font-semibold text-gray-600">{L('Shelf life (days)', 'తాజా (రోజులు)')}</label>
+                <label className="text-[11px] font-semibold text-gray-600">{L('Shelf life (days)', 'తాజా (రోజులు)')} <span className="text-red-500">*</span></label>
                 <input
                   type="number" inputMode="numeric" min={0} placeholder="e.g. 5"
                   value={shelfLife}
@@ -3065,7 +3084,7 @@ function ListingRowCard({
                         </div>
                         <div className="flex gap-2">
                           <div className="flex-1">
-                            <label className="text-[11px] font-semibold text-gray-600">{L('Shelf life (days)', 'తాజా (రోజులు)')}</label>
+                            <label className="text-[11px] font-semibold text-gray-600">{L('Shelf life (days)', 'తాజా (రోజులు)')} <span className="text-red-500">*</span></label>
                             <input
                               type="number" inputMode="numeric" min={0} placeholder="e.g. 5"
                               value={editShelf}
@@ -3113,12 +3132,21 @@ function ListingRowCard({
                             {h.approx_quantity != null && <> · {h.approx_quantity} {h.unit || row.unit || 'kg'}</>}
                           </p>
                         </div>
-                        <button
-                          onClick={() => startEditHarvest(h)}
-                          className="flex-shrink-0 text-xs font-bold text-green-700 border border-green-300 rounded-lg px-3 py-1.5 active:bg-green-50"
-                        >
-                          {L('Edit', 'సవరించు')}
-                        </button>
+                        <div className="flex-shrink-0 flex items-center gap-1.5">
+                          <button
+                            onClick={() => startEditHarvest(h)}
+                            className="text-xs font-bold text-green-700 border border-green-300 rounded-lg px-3 py-1.5 active:bg-green-50"
+                          >
+                            {L('Edit', 'సవరించు')}
+                          </button>
+                          <button
+                            onClick={() => deleteHarvest(h)}
+                            aria-label={L('Delete harvest', 'కోత తొలగించు')}
+                            className="text-xs font-bold text-red-600 border border-red-200 rounded-lg px-2.5 py-1.5 active:bg-red-50"
+                          >
+                            🗑
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
