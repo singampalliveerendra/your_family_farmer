@@ -7,6 +7,9 @@ import type { FarmerOrder } from '@/components/farmer/OrderCard'
 import {
   computeReportData,
   declineServiceFee,
+  amountPaid,
+  refundAmount,
+  amountReceived,
   downloadOrdersReport,
   statusLabel,
   deliveryLabel,
@@ -307,6 +310,18 @@ export default function OrderReportSheet({
                   <span>🚚 {deliveryLabel(o)}</span>
                   <span>💳 {paymentLabel(o)}</span>
                   <span>📦 {L('Fulfil', 'పూర్తి')}: {fmtDate(o.fulfillment_date)}</span>
+                  {amountPaid(o) > 0 && (
+                    <span>💰 {L('Paid', 'చెల్లించింది')}: <b className="text-gray-700">₹{amountPaid(o)}</b></span>
+                  )}
+                  {(refundAmount(o) > 0 || o.refund_status) && (
+                    <span>💸 {L('Refund', 'రీఫండ్')}: <b className="text-amber-700">₹{refundAmount(o)}</b>{o.refund_status ? ` · ${o.refund_status}` : ''}</span>
+                  )}
+                  <span>
+                    ✅ {L('Received', 'అందింది')}:{' '}
+                    {amountReceived(o, feePercent) < 0
+                      ? <b className="text-red-600">−₹{Math.abs(amountReceived(o, feePercent))}</b>
+                      : <b className="text-green-700">₹{amountReceived(o, feePercent)}</b>}
+                  </span>
                 </div>
               </div>
             ))}

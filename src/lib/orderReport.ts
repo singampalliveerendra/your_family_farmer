@@ -1,5 +1,6 @@
 import type { FarmerOrder } from '@/components/farmer/OrderCard'
 import { isResolved } from '@/components/farmer/OrderCard'
+import { isOrderPaid, isPaymentClaimed } from '@/lib/payment'
 
 // One-month window for the report: orders created in the last 30 days. Kept in
 // sync with the "month" time filter on the orders page.
@@ -96,6 +97,36 @@ export function declineServiceFee(o: FarmerOrder, feePercent: number): number {
   return Math.round(((Number(o.total_price) || 0) * feePercent) / 100)
 }
 
+// ── Payment / refund / received figures for the report ──────────────────────
+
+// True once the buyer's money is actually in (paid gateway or claimed manual).
+export function isPaidOrder(o: FarmerOrder): boolean {
+  return isOrderPaid(o.payment_status) || isPaymentClaimed(o.payment_status)
+}
+
+// Amount the buyer paid for this order row = produce price + this row's share of
+// the delivery and platform fees (both stamped on the cart's first row only).
+// 0 when the buyer hasn't paid yet.
+export function amountPaid(o: FarmerOrder): number {
+  if (!isPaidOrder(o)) return 0
+  return (Number(o.total_price) || 0) + (Number(o.delivery_fee) || 0) + (Number(o.platform_fee) || 0)
+}
+
+// Refund raised on this order (buyer cancel / farmer decline). 0 if none.
+export function refundAmount(o: FarmerOrder): number {
+  return Math.max(0, Number(o.refund_amount) || 0)
+}
+
+// Net amount the farmer actually receives for this order:
+//   • completed / approved → the produce price (total_price)
+//   • declined            → negative platform-fee penalty
+//   • cancelled           → 0 (buyer's produce money is refunded)
+export function amountReceived(o: FarmerOrder, feePercent: number): number {
+  if (o.status === 'declined') return -declineServiceFee(o, feePercent)
+  if (o.status === 'cancelled') return 0
+  return Number(o.total_price) || 0
+}
+
 // Shared computation for both the on-screen report view and the printable PDF:
 // the chosen date/status window, per-status counts, approved revenue, and the
 // service fee deducted on declined orders. `feePercent` is the moderator
@@ -146,6 +177,18 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: Repo
       o.status === 'declined'
         ? (penalty > 0 ? `<span class="neg">−₹${esc(penalty)}</span>` : '—')
         : (o.total_price != null ? `₹${esc(o.total_price)}` : '—')
+
+    // Payment / refund / received detail.
+    const paid = amountPaid(o)
+    const paidCell = paid > 0 ? `₹${esc(paid)}` : '—'
+    const refund = refundAmount(o)
+    const refundCell = refund > 0 || o.refund_status
+      ? `${refund > 0 ? `₹${esc(refund)}` : '—'}${o.refund_status ? `<br><span class="muted">${esc(o.refund_status)}</span>` : ''}`
+      : '—'
+    const received = amountReceived(o, feePercent)
+    const receivedCell = received < 0
+      ? `<span class="neg">−₹${esc(Math.abs(received))}</span>`
+      : `₹${esc(received)}`
     return `
     <tr>
       <td class="mono">${esc(o.order_code || '—')}</td>
@@ -156,6 +199,9 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: Repo
       <td class="num">${amountCell}</td>
       <td><span class="status status-${statusLabel(o).toLowerCase()}">${esc(statusLabel(o))}</span></td>
       <td>${esc(paymentLabel(o))}</td>
+      <td class="num">${paidCell}</td>
+      <td class="num">${refundCell}</td>
+      <td class="num">${receivedCell}</td>
       <td>${esc(deliveryLabel(o))}</td>
       <td>${esc(fmtDate(o.fulfillment_date))}</td>
     </tr>`
@@ -224,7 +270,7 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: Repo
     <thead>
       <tr>
         <th>Order</th><th>Date</th><th>Buyer</th><th>Harvest</th><th>Qty</th>
-        <th>Amount</th><th>Status</th><th>Payment</th><th>Delivery</th><th>Fulfil date</th>
+        <th>Amount</th><th>Status</th><th>Payment</th><th>Paid</th><th>Refund</th><th>Received</th><th>Delivery</th><th>Fulfil date</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
