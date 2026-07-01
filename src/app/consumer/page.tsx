@@ -56,6 +56,9 @@ type ProduceListing = {
   // Shelf life set on the listing itself (produce Edit form) — used as the
   // fallback when the latest logged harvest doesn't carry its own.
   shelf_life_days?: number | null
+  // Harvest date/time set on the listing itself (produce Edit form). Drives the
+  // clock when no separate `harvests` row has been logged for this produce.
+  harvest_date?: string | null
   // Latest harvest for this produce (template), attached client-side from the
   // `harvests` table — drives the "Harvested 2 hours ago" clock on the card.
   latest_harvested_at?: string | null
@@ -241,7 +244,10 @@ export default function ConsumerPage() {
         ...item,
         distKm,
         distApprox,
-        latest_harvested_at: h?.at ?? item.latest_harvested_at ?? null,
+        // Clock source, in order of preference: a logged `harvests` row, else
+        // the harvest date/time set on the listing's Edit form. So every produce
+        // with a harvest date shows "Harvested 2h ago", not only logged ones.
+        latest_harvested_at: h?.at ?? item.harvest_date ?? item.latest_harvested_at ?? null,
         latest_shelf_life_days: h?.shelf ?? item.latest_shelf_life_days ?? item.shelf_life_days ?? null,
       }
     })

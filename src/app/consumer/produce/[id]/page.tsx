@@ -47,6 +47,7 @@ type Listing = {
   harvest_frequency?: string | null
   harvest_frequency_count?: number | null
   shelf_life_days?: number | null
+  harvest_date?: string | null
   rating_avg?: number | null
   review_count?: number | null
   price_tier_1_qty?: number | null
@@ -130,10 +131,18 @@ export default function ProduceDetailPage() {
         .order('harvested_at', { ascending: false })
         .limit(1)
         .maybeSingle()
-      // Shelf life falls back to the listing's own value (set on the produce
-      // Edit form) when a logged harvest doesn't carry its own.
+      // Clock source, in order of preference: a logged `harvests` row, else the
+      // harvest date/time set on the listing's Edit form. Shelf life falls back
+      // to the listing's own value the same way.
       const listingShelf = (l as Listing).shelf_life_days ?? null
-      setLatestHarvest(h ? { at: h.harvested_at as string, shelf: (h.shelf_life_days as number | null) ?? listingShelf } : null)
+      const listingHarvestDate = (l as Listing).harvest_date ?? null
+      if (h) {
+        setLatestHarvest({ at: h.harvested_at as string, shelf: (h.shelf_life_days as number | null) ?? listingShelf })
+      } else if (listingHarvestDate) {
+        setLatestHarvest({ at: listingHarvestDate, shelf: listingShelf })
+      } else {
+        setLatestHarvest(null)
+      }
     } catch { setLatestHarvest(null) }
     setLoading(false)
   }, [id])
@@ -388,9 +397,30 @@ export default function ProduceDetailPage() {
             </div>
           )}
 
+          {/* Harvest freshness — the actual pick date/time, how fresh it still
+              is, and its shelf life, so the buyer can judge freshness fully. */}
+          {latestHarvest && (
+            <div>
+              <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">🌾 {L('Harvest', 'కోత')}</p>
+              <p className="text-sm font-bold text-green-800 leading-snug mt-0.5">⏱ {harvestClock(latestHarvest.at, L)}</p>
+              <p className="text-sm text-gray-600 leading-snug mt-0.5">
+                {L('Harvested on', 'కోసిన తేదీ')}: {new Date(latestHarvest.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </p>
+              {latestHarvest.shelf != null && (
+                <p className="text-sm text-gray-600 leading-snug mt-0.5">
+                  {L('Shelf life', 'తాజా')}: {latestHarvest.shelf} {L('days', 'రోజులు')}
+                  {(() => {
+                    const fresh = freshnessLabel(latestHarvest.at, latestHarvest.shelf, L)
+                    return fresh ? <span className="text-amber-700 font-semibold"> · {fresh}</span> : null
+                  })()}
+                </p>
+              )}
+            </div>
+          )}
+
           {item.harvest_frequency && (
             <div>
-              <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">🌾 {L('Harvesting', 'కోత')}</p>
+              <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">🔁 {L('Harvesting', 'కోత')}</p>
               <p className="text-sm text-gray-600 leading-snug mt-0.5">{fmtFrequency(item.harvest_frequency, item.harvest_frequency_count, L)}</p>
             </div>
           )}

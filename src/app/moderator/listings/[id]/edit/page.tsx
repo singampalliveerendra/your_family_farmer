@@ -15,6 +15,15 @@ type Loaded = {
 
 const numStr = (v: number | null | undefined) => (v == null ? '' : String(v))
 
+// Stored UTC ISO timestamp → local "yyyy-MM-ddThh:mm" for a datetime-local input.
+const toLocalInput = (iso: string | null | undefined): string => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const tz = d.getTimezoneOffset() * 60000
+  return new Date(d.getTime() - tz).toISOString().slice(0, 16)
+}
+
 export default function EditListingPage() {
   const { id } = useParams<{ id: string }>()
   const { zone, checked } = useModeratorAuth()
@@ -37,6 +46,7 @@ export default function EditListingPage() {
         stock_qty: numStr(l.stock_qty as number | null),
         description: (l.description as string) ?? '',
         brix: numStr(l.brix as number | null),
+        harvest_date: toLocalInput(l.harvest_date as string | null),
         shelf_life_days: numStr(l.shelf_life_days as number | null),
         price_tier_1_qty: numStr(l.price_tier_1_qty as number | null) || '1',
         price_tier_1_price: numStr(l.price_tier_1_price as number | null),

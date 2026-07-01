@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ModeratorShell, { useModeratorAuth } from '../ModeratorShell'
+import { harvestClock, freshnessLabel } from '@/lib/harvest'
 
 type Listing = {
   id: string
@@ -18,6 +19,8 @@ type Listing = {
   status: string
   rejection_reason: string | null
   created_at: string
+  harvest_date: string | null
+  shelf_life_days: number | null
 }
 
 type Tab = 'pending' | 'active' | 'rejected'
@@ -165,6 +168,23 @@ export default function ModeratorListingsPage() {
                 {l.method && <span>Method: <b>{METHOD_LABEL[l.method] ?? l.method}</b></span>}
                 {l.brix != null && <span>BRIX: <b>{l.brix}</b></span>}
               </div>
+
+              {/* Harvest clock + freshness — same "Harvested 2h ago" the buyer
+                  sees, so the moderator can judge freshness on the listing. */}
+              {l.harvest_date && (
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-green-700 bg-green-50 rounded-full px-2 py-0.5">
+                    ⏱ {harvestClock(l.harvest_date)}
+                  </span>
+                  {l.shelf_life_days != null && (
+                    <span className="text-[11px] text-gray-500">Shelf life: <b>{l.shelf_life_days}d</b></span>
+                  )}
+                  {(() => {
+                    const fresh = freshnessLabel(l.harvest_date, l.shelf_life_days)
+                    return fresh ? <span className="text-[11px] font-semibold text-amber-700">{fresh}</span> : null
+                  })()}
+                </div>
+              )}
 
               {l.status === 'rejected' && l.rejection_reason && (
                 <p className="mt-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">Reason: {l.rejection_reason}</p>

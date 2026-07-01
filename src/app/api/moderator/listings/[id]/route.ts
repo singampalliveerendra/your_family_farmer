@@ -125,11 +125,18 @@ function toPos(v: unknown): number | null {
   const n = Number(v)
   return Number.isFinite(n) && n > 0 ? n : null
 }
-// Non-negative number (stock, brix, shelf life) — 0 is valid; else null.
+// Non-negative number (stock, brix) — 0 is valid; else null.
 function toNonNeg(v: unknown): number | null {
   if (v === '' || v == null) return null
   const n = Number(v)
   return Number.isFinite(n) && n >= 0 ? n : null
+}
+// datetime-local string (or any parseable date) → stored UTC ISO, else null.
+function toIso(v: unknown): string | null {
+  const s = String(v ?? '').trim()
+  if (!s) return null
+  const d = new Date(s)
+  return isNaN(d.getTime()) ? null : d.toISOString()
 }
 
 // PUT — edit a listing's fields (name, pricing, stock, shelf life, …). Zone-
@@ -152,6 +159,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const name = String(b.name ?? '').trim()
   if (!name) return NextResponse.json({ error: 'Harvest name is required.' }, { status: 400 })
 
+  // Harvest date/time + shelf life are mandatory (drive the buyer freshness clock).
+  const harvestDate = toIso(b.harvest_date)
+  if (!harvestDate) return NextResponse.json({ error: 'Harvest date & time is required.' }, { status: 400 })
+  const shelfLife = toPos(b.shelf_life_days)
+  if (!shelfLife) return NextResponse.json({ error: 'Shelf life (days) is required.' }, { status: 400 })
+
   const methodRaw = String(b.method ?? 'natural')
   const method = (METHODS as readonly string[]).includes(methodRaw) ? methodRaw : 'natural'
   const unitRaw = String(b.unit ?? 'kg')
@@ -171,7 +184,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     stock_qty: toNonNeg(b.stock_qty),
     description: String(b.description ?? '').trim() || null,
     brix: toNonNeg(b.brix),
-    shelf_life_days: toNonNeg(b.shelf_life_days),
+    harvest_date: harvestDate,
+    shelf_life_days: shelfLife,
     availability_from: String(b.availability_from ?? '').trim() || null,
     availability_to: String(b.availability_to ?? '').trim() || null,
     harvest_frequency: String(b.harvest_frequency ?? '').trim() || null,

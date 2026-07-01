@@ -16,6 +16,7 @@ export type ListingFormValues = {
   stock_qty: string
   description: string
   brix: string
+  harvest_date: string
   shelf_life_days: string
   price_tier_1_qty: string
   price_tier_1_price: string
@@ -29,7 +30,7 @@ export type ListingFormValues = {
 
 export const EMPTY_LISTING_FORM: ListingFormValues = {
   name: '', variety: '', method: 'natural', unit: 'kg',
-  stock_qty: '', description: '', brix: '', shelf_life_days: '',
+  stock_qty: '', description: '', brix: '', harvest_date: '', shelf_life_days: '',
   price_tier_1_qty: '1', price_tier_1_price: '',
   price_tier_2_qty: '', price_tier_2_price: '',
   availability_from: '', availability_to: '',
@@ -88,6 +89,13 @@ export default function ListingForm({
     if (submitting) return
     if (mode === 'create' && !farmerId) { setError('Choose a farmer.'); return }
     if (!form.name.trim()) { setError('Harvest name is required.'); return }
+    // Harvest date/time and shelf life are mandatory — they drive the buyer's
+    // freshness clock, so a listing can't be saved without them.
+    if (!form.harvest_date) { setError('Harvest date & time is required.'); return }
+    const shelfNum = parseInt(form.shelf_life_days, 10)
+    if (!form.shelf_life_days || !Number.isFinite(shelfNum) || shelfNum <= 0) {
+      setError('Shelf life (days) is required.'); return
+    }
     setError(''); setSubmitting(true)
 
     const url = mode === 'edit' ? `/api/moderator/listings/${listingId}` : '/api/moderator/listings'
@@ -187,8 +195,11 @@ export default function ListingForm({
         <Field label="Brix (sweetness)">
           <input value={form.brix} onChange={set('brix')} type="number" min="0" step="0.1" className={inputCls} />
         </Field>
-        <Field label="Shelf life (days)">
-          <input value={form.shelf_life_days} onChange={set('shelf_life_days')} type="number" min="0" step="1" className={inputCls} placeholder="e.g. 5" />
+        <Field label="Harvest date & time *">
+          <input value={form.harvest_date} onChange={set('harvest_date')} type="datetime-local" required className={inputCls} />
+        </Field>
+        <Field label="Shelf life (days) *">
+          <input value={form.shelf_life_days} onChange={set('shelf_life_days')} type="number" min="1" step="1" required className={inputCls} placeholder="e.g. 5" />
         </Field>
       </div>
 
@@ -211,27 +222,9 @@ export default function ListingForm({
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-4">
-        <Field label="Available from">
-          <input type="date" value={form.availability_from} onChange={set('availability_from')} max={form.availability_to || undefined} className={inputCls} />
-        </Field>
-        <Field label="Available to">
-          <input type="date" value={form.availability_to} onChange={set('availability_to')} min={form.availability_from || undefined} className={inputCls} />
-        </Field>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-4">
-        <Field label="Harvesting frequency">
-          <select value={form.harvest_frequency} onChange={set('harvest_frequency')} className={inputCls}>
-            <option value="">Select…</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-          </select>
-        </Field>
-        <Field label="How many times (e.g. Weekly + 2 = twice a week)">
-          <input type="number" min="1" value={form.harvest_frequency_count} onChange={set('harvest_frequency_count')} className={inputCls} />
-        </Field>
-      </div>
+      {/* Availability range + harvesting frequency removed — kept in sync with
+          the farmer's Edit form, where the harvest date/time + shelf-life model
+          supersedes them. */}
 
       <Field label="Description">
         <textarea value={form.description} onChange={set('description')} rows={3} className={inputCls} />

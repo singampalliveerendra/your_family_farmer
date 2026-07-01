@@ -1846,6 +1846,17 @@ function ProduceListingForm({
       setError(tx.priceRequired)
       return
     }
+    // Harvest date/time and shelf life are mandatory — they drive the freshness
+    // clock buyers rely on, so a listing can't go live without them.
+    if (!harvestDate) {
+      setError(L('Harvest date & time is required.', 'కోత తేదీ & సమయం తప్పనిసరి.'))
+      return
+    }
+    const shelfNum = parseInt(shelfLifeDays, 10)
+    if (!shelfLifeDays || !Number.isFinite(shelfNum) || shelfNum <= 0) {
+      setError(L('Shelf life (days) is required.', 'తాజా (రోజులు) తప్పనిసరి.'))
+      return
+    }
     setLoading(true)
     setError('')
 
@@ -2108,14 +2119,14 @@ function ProduceListingForm({
         {/* Availability range + harvesting frequency removed — the harvests
             model (per-pick date/time + shelf life) supersedes them. */}
 
-        {/* Harvest date & time + shelf life (optional) for this listing */}
+        {/* Harvest date & time + shelf life (required) for this listing */}
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {L('Harvest date & time', 'కోత తేదీ & సమయం')}{' '}
-            <span className="text-gray-400 font-normal normal-case">({L('optional', 'ఐచ్ఛికం')})</span>
+            {L('Harvest date & time', 'కోత తేదీ & సమయం')} <span className="text-red-500">*</span>
           </label>
           <input
             type="datetime-local"
+            required
             value={harvestDate}
             onChange={(e) => setHarvestDate(e.target.value)}
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
@@ -2123,13 +2134,13 @@ function ProduceListingForm({
         </div>
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {L('Shelf life (days)', 'తాజా (రోజులు)')}{' '}
-            <span className="text-gray-400 font-normal normal-case">({L('optional', 'ఐచ్ఛికం')})</span>
+            {L('Shelf life (days)', 'తాజా (రోజులు)')} <span className="text-red-500">*</span>
           </label>
           <input
             type="number"
             inputMode="numeric"
-            min={0}
+            min={1}
+            required
             placeholder={L('e.g. 5', 'ఉదా. 5')}
             value={shelfLifeDays}
             onChange={(e) => setShelfLifeDays(e.target.value)}

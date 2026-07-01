@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
   const ascending = tab === 'pending'
   const { data: listings, error } = await supabase
     .from('produce_listings')
-    .select('id, farmer_id, name, variety, method, unit, stock_qty, brix, price_tier_1_price, status, rejection_reason, created_at')
+    .select('id, farmer_id, name, variety, method, unit, stock_qty, brix, price_tier_1_price, status, rejection_reason, created_at, harvest_date, shelf_life_days')
     .in('farmer_id', farmerIds)
     .in('status', statuses)
     .order('created_at', { ascending })
@@ -68,6 +68,14 @@ const UNITS = ['kg', 'g', 'litre', 'dozen', 'piece', 'bunch'] as const
 function toNum(v: unknown): number | null {
   const n = Number(v)
   return Number.isFinite(n) && n > 0 ? n : null
+}
+
+// datetime-local string (or any parseable date) → stored UTC ISO, else null.
+function toIso(v: unknown): string | null {
+  const s = String(v ?? '').trim()
+  if (!s) return null
+  const d = new Date(s)
+  return isNaN(d.getTime()) ? null : d.toISOString()
 }
 
 // POST — moderator adds a produce listing on behalf of a farmer in their zone.
@@ -91,6 +99,12 @@ export async function POST(req: NextRequest) {
   const name = String(b.name ?? '').trim()
   if (!farmer_id) return NextResponse.json({ error: 'Choose a farmer.' }, { status: 400 })
   if (!name) return NextResponse.json({ error: 'Harvest name is required.' }, { status: 400 })
+
+  // Harvest date/time + shelf life are mandatory (drive the buyer freshness clock).
+  const harvestDate = toIso(b.harvest_date)
+  if (!harvestDate) return NextResponse.json({ error: 'Harvest date & time is required.' }, { status: 400 })
+  const shelfLife = toNum(b.shelf_life_days)
+  if (!shelfLife) return NextResponse.json({ error: 'Shelf life (days) is required.' }, { status: 400 })
 
   // The chosen farmer must belong to this moderator's zone.
   const { data: farmer } = await supabase
@@ -123,6 +137,8 @@ export async function POST(req: NextRequest) {
     availability_to: String(b.availability_to ?? '').trim() || null,
     harvest_frequency: String(b.harvest_frequency ?? '').trim() || null,
     harvest_frequency_count: toNum(b.harvest_frequency_count),
+    harvest_date: harvestDate,
+    shelf_life_days: shelfLife,
     status: 'available',
   }
   if (price1) { insert.price_tier_1_price = price1; insert.price_tier_1_qty = price1Qty ?? 1 }
