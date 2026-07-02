@@ -153,3 +153,7 @@ moderator also register farmers and add produces right keep all option the moder
 ---
 
 do remaining last two features
+
+---
+
+deploy to main commit nd push
