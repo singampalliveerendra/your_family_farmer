@@ -15,8 +15,8 @@ export type ConsumerOrder = {
   quantity: number | null
   unit: string | null
   total_price: number | null
-  // Platform fee stamped on this row (cart's first row carries it, 0 on the
-  // rest). Withheld — not refunded — when the BUYER cancels, so the cancel modal
+  // Platform fee stamped on this row (per item — each row carries its own
+  // fee). Withheld — not refunded — when the BUYER cancels, so the cancel modal
   // can preview the deduction.
   platform_fee?: number | null
   pickup_location: string | null
@@ -209,6 +209,13 @@ export default function OrderCard({
               <p className="text-xs text-gray-500 mt-0.5">
                 {order.quantity} {order.unit || 'kg'}
                 {order.total_price ? ` · ₹${order.total_price}` : ''}
+              </p>
+              {/* Platform fee collected on this order (₹0 when none applied)
+                  + the true total the buyer pays (item price + fee). */}
+              <p className="text-[11px] text-gray-500 mt-0.5">
+                {L('Platform fee', 'ప్లాట్‌ఫామ్ ఫీజు')} ₹{order.platform_fee ?? 0}
+                {' · '}
+                {L('Total', 'మొత్తం')} ₹{(order.total_price ?? 0) + (order.platform_fee ?? 0)}
               </p>
             </div>
             <div className="flex flex-col items-end gap-1 flex-shrink-0">

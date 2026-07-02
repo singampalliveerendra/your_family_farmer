@@ -11,6 +11,7 @@ type Loaded = {
   emoji: string
   farmerId: string
   farmerName: string
+  images: string[]
 }
 
 const numStr = (v: number | null | undefined) => (v == null ? '' : String(v))
@@ -36,12 +37,18 @@ export default function EditListingPage() {
     const json = await r.json().catch(() => ({}))
     if (!r.ok) { setError(json?.error ?? 'Could not load harvest.'); return }
     const l = json.listing as Record<string, unknown>
+    // Prefill the photo gallery from image_urls (falling back to the single
+    // image_url cover) so the moderator can add/remove existing photos.
+    const urls = Array.isArray(l.image_urls) ? (l.image_urls as unknown[]).filter((u): u is string => typeof u === 'string' && !!u) : []
+    const cover = typeof l.image_url === 'string' ? l.image_url : ''
+    const images = urls.length ? urls : (cover ? [cover] : [])
     setLoaded({
       form: {
         ...EMPTY_LISTING_FORM,
         name: (l.name as string) ?? '',
         variety: (l.variety as string) ?? '',
         method: (l.method as string) ?? 'natural',
+        category: (l.category as string) ?? '',
         unit: (l.unit as string) ?? 'kg',
         stock_qty: numStr(l.stock_qty as number | null),
         description: (l.description as string) ?? '',
@@ -52,6 +59,10 @@ export default function EditListingPage() {
         price_tier_1_price: numStr(l.price_tier_1_price as number | null),
         price_tier_2_qty: numStr(l.price_tier_2_qty as number | null),
         price_tier_2_price: numStr(l.price_tier_2_price as number | null),
+        price_tier_3_price: numStr(l.price_tier_3_price as number | null),
+        soil_organic_carbon: numStr(l.soil_organic_carbon as number | null),
+        soil_ph: numStr(l.soil_ph as number | null),
+        pesticide_result: (l.pesticide_result as string) ?? '',
         availability_from: (l.availability_from as string)?.slice(0, 10) ?? '',
         availability_to: (l.availability_to as string)?.slice(0, 10) ?? '',
         harvest_frequency: (l.harvest_frequency as string) ?? '',
@@ -60,6 +71,7 @@ export default function EditListingPage() {
       emoji: (l.emoji as string) || '📦',
       farmerId: (l.farmer_id as string) ?? '',
       farmerName: (json.farmer_name as string) ?? '—',
+      images,
     })
   }, [id])
 
@@ -87,6 +99,7 @@ export default function EditListingPage() {
           initialForm={loaded.form}
           initialEmoji={loaded.emoji}
           initialFarmerId={loaded.farmerId}
+          initialImages={loaded.images}
           fixedFarmerName={loaded.farmerName}
         />
       )}

@@ -9,6 +9,7 @@ import RoleGateModal from '@/components/consumer/RoleGateModal'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import ShareButton from '@/components/consumer/ShareButton'
 import TodaysHarvest from '@/components/consumer/TodaysHarvest'
+import FreshHarvestsTable, { UpcomingHarvestsTable } from '@/components/consumer/FreshHarvestsTable'
 import { supabase } from '@/lib/supabase'
 import { haversineKm, nearestTown, formatDistance, farmerCoords } from '@/lib/location'
 import LocationSearch from '@/components/LocationSearch'
@@ -51,6 +52,9 @@ type ProduceListing = {
   available_to?: string
   rating_avg?: number | null
   review_count?: number | null
+  // Non-cancelled/declined order count for this listing — powers "sort by
+  // Purchases". Attached by /api/produce and /api/produce/search.
+  purchase_count?: number | null
   farmer_id: string
   farmer?: Farmer
   // Shelf life set on the listing itself (produce Edit form) — used as the
@@ -112,6 +116,9 @@ export default function ConsumerPage() {
   const [search, setSearch]           = useState('')
   const [method, setMethod]           = useState('all')
   const [category, setCategory]       = useState('all')
+  // Harvest-list sort + farmer filter (Trello: sort/filter the harvests list).
+  const [sortBy, setSortBy]           = useState<'fresh' | 'rating' | 'purchases'>('fresh')
+  const [farmerFilter, setFarmerFilter] = useState('all')
   const [loading, setLoading]         = useState(true)
   const [farmerCount, setFarmerCount] = useState(0)
   const searchAbortRef = useRef<AbortController | null>(null)
@@ -226,10 +233,19 @@ export default function ConsumerPage() {
     setShowLocationSheet(false)
   }, [])
 
-  // Sort + distance-filter produce
+  // Farmers present in the current harvest list → the "Filter by farmer" options.
+  const farmerOptions = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const p of available) {
+      if (p.farmer_id && p.farmer?.name) m.set(p.farmer_id, p.farmer.name)
+    }
+    return Array.from(m, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+  }, [available])
+
+  // Filter (farmer + distance) then sort (harvest date / rating / purchases).
   const displayItems = useMemo(() => {
     type WithDist = ProduceListing & { distKm: number | null; distApprox: boolean }
-    const withDist: WithDist[] = filtered.map((item) => {
+    let items: WithDist[] = filtered.map((item) => {
       let distKm: number | null = null
       let distApprox = false
       if (consumerLat && consumerLng && item.farmer) {
@@ -251,18 +267,30 @@ export default function ConsumerPage() {
         latest_shelf_life_days: h?.shelf ?? item.latest_shelf_life_days ?? item.shelf_life_days ?? null,
       }
     })
-    if (!consumerLat || !consumerLng) return withDist
-    let result = withDist
-    if (distanceFilter) {
-      result = result.filter((i) => i.distKm !== null && i.distKm <= distanceFilter)
+
+    // Filter by farmer.
+    if (farmerFilter !== 'all') items = items.filter((i) => i.farmer_id === farmerFilter)
+    // Filter by distance (only meaningful once a location is set).
+    if (consumerLat && consumerLng && distanceFilter) {
+      items = items.filter((i) => i.distKm !== null && i.distKm <= distanceFilter)
     }
-    return result.sort((a, b) => {
-      if (a.distKm === null && b.distKm === null) return 0
-      if (a.distKm === null) return 1
-      if (b.distKm === null) return -1
-      return a.distKm - b.distKm
+
+    const ts = (iso: string | null | undefined) => {
+      const t = iso ? new Date(iso).getTime() : NaN
+      return Number.isNaN(t) ? -Infinity : t
+    }
+    items.sort((a, b) => {
+      if (sortBy === 'rating') {
+        return (b.rating_avg ?? 0) - (a.rating_avg ?? 0) || (b.review_count ?? 0) - (a.review_count ?? 0)
+      }
+      if (sortBy === 'purchases') {
+        return (b.purchase_count ?? 0) - (a.purchase_count ?? 0)
+      }
+      // 'fresh' — most recent harvest date/time first.
+      return ts(b.latest_harvested_at) - ts(a.latest_harvested_at)
     })
-  }, [filtered, consumerLat, consumerLng, distanceFilter, harvestMap])
+    return items
+  }, [filtered, consumerLat, consumerLng, distanceFilter, harvestMap, farmerFilter, sortBy])
 
   return (
     <main className="min-h-screen bg-[#f8f8f8] pb-12">
@@ -313,8 +341,15 @@ export default function ConsumerPage() {
         </div>
       </div>
 
-      {/* ── Search card (floats over hero) ────── */}
-      <div className="max-w-3xl mx-auto px-4 -mt-7">
+      {/* ── Fresh Harvests table + Search card (float over hero) ────── */}
+      <div className="max-w-3xl mx-auto px-4 -mt-7 space-y-3">
+        {/* Fresh + upcoming harvests near you, above the search box. Sit side by
+            side on larger screens, stacked on mobile. Each renders nothing when
+            it has no matching harvests / the harvests table isn't present yet. */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+          <FreshHarvestsTable />
+          <UpcomingHarvestsTable />
+        </div>
         <div className="bg-white rounded-2xl shadow-xl p-4 space-y-3">
           <div className="relative">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -339,6 +374,29 @@ export default function ConsumerPage() {
             <option value="low_chemical">{L('⚡ Semi Organic', 'సెమీ ఆర్గానిక్')}</option>
             <option value="chemical">{L('🧪 Chemical', 'రసాయన')}</option>
           </select>
+
+          {/* Sort + farmer filter for the harvest list. */}
+          <div className="grid grid-cols-2 gap-3">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'fresh' | 'rating' | 'purchases')}
+              className="w-full px-3 py-3 border-2 border-gray-200 rounded-xl text-sm bg-white focus:border-green-500 focus:outline-none"
+            >
+              <option value="fresh">{L('⏱ Freshest first', 'తాజావి ముందు')}</option>
+              <option value="rating">{L('⭐ Top rated', 'టాప్ రేటెడ్')}</option>
+              <option value="purchases">{L('🔥 Most bought', 'ఎక్కువ కొన్నవి')}</option>
+            </select>
+            <select
+              value={farmerFilter}
+              onChange={(e) => setFarmerFilter(e.target.value)}
+              className="w-full px-3 py-3 border-2 border-gray-200 rounded-xl text-sm bg-white focus:border-green-500 focus:outline-none"
+            >
+              <option value="all">{L('🧑‍🌾 All farmers', 'రైతులందరూ')}</option>
+              {farmerOptions.map((f) => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 

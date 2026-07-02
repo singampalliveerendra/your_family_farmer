@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { purchaseCountsFor } from '@/lib/purchaseCounts'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -91,5 +92,9 @@ export async function GET(request: NextRequest) {
     .map((p) => ({ ...p, farmer: farmerMap[p.farmer_id] ?? null }))
     .filter((p) => p.farmer !== null)
 
-  return NextResponse.json(result)
+  // Popularity count so the "sort by Purchases" option works while searching too.
+  const counts = await purchaseCountsFor(result.map((p) => p.id as string))
+  const withCounts = result.map((p) => ({ ...p, purchase_count: counts[p.id as string] ?? 0 }))
+
+  return NextResponse.json(withCounts)
 }

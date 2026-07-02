@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ModeratorShell, { useModeratorAuth } from '../ModeratorShell'
 import { harvestClock, freshnessLabel } from '@/lib/harvest'
@@ -21,6 +21,9 @@ type Listing = {
   created_at: string
   harvest_date: string | null
   shelf_life_days: number | null
+  rating_avg: number | null
+  review_count: number | null
+  purchase_count: number | null
 }
 
 type Tab = 'pending' | 'active' | 'rejected'
@@ -32,7 +35,7 @@ const TABS: { key: Tab; label: string }[] = [
 ]
 
 const METHOD_LABEL: Record<string, string> = {
-  natural: 'Natural', low_chemical: 'Semi Organic', chemical: 'Chemical',
+  natural: 'Natural', organic: 'Organic', low_chemical: 'Semi Organic', chemical: 'Chemical',
 }
 
 function timeAgo(iso: string): string {
@@ -53,6 +56,10 @@ export default function ModeratorListingsPage() {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [rejecting, setRejecting] = useState<Listing | null>(null)
   const [reason, setReason] = useState('')
+  // Sort + filter controls for the harvest list.
+  const [sortBy, setSortBy] = useState<'fresh' | 'rating' | 'purchases'>('fresh')
+  const [methodFilter, setMethodFilter] = useState('all')
+  const [farmerFilter, setFarmerFilter] = useState('all')
 
   const load = useCallback(async (t: Tab) => {
     setLoading(true)
@@ -66,6 +73,33 @@ export default function ModeratorListingsPage() {
   }, [])
 
   useEffect(() => { if (checked) void load(tab) }, [checked, tab, load])
+
+  // Farmers present in the loaded list → the "Filter by farmer" options.
+  const farmerOptions = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const l of listings) if (l.farmer_id) m.set(l.farmer_id, l.farmer_name)
+    return Array.from(m, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+  }, [listings])
+
+  // Apply method + farmer filters, then sort by harvest date / rating / purchases.
+  const visibleListings = useMemo(() => {
+    let arr = listings
+    if (methodFilter !== 'all') arr = arr.filter((l) => (l.method ?? '') === methodFilter)
+    if (farmerFilter !== 'all') arr = arr.filter((l) => l.farmer_id === farmerFilter)
+    const ts = (iso: string | null) => {
+      const t = iso ? new Date(iso).getTime() : NaN
+      return Number.isNaN(t) ? -Infinity : t
+    }
+    return [...arr].sort((a, b) => {
+      if (sortBy === 'rating') {
+        return (b.rating_avg ?? 0) - (a.rating_avg ?? 0) || (b.review_count ?? 0) - (a.review_count ?? 0)
+      }
+      if (sortBy === 'purchases') {
+        return (b.purchase_count ?? 0) - (a.purchase_count ?? 0)
+      }
+      return ts(b.harvest_date) - ts(a.harvest_date)
+    })
+  }, [listings, methodFilter, farmerFilter, sortBy])
 
   const act = async (l: Listing, action: 'approve' | 'reject' | 'suspend', rejectReason?: string) => {
     if (busyId) return
@@ -125,13 +159,47 @@ export default function ModeratorListingsPage() {
         ))}
       </div>
 
+      {/* Sort + filter controls for the harvest list. */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as 'fresh' | 'rating' | 'purchases')}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none"
+        >
+          <option value="fresh">⏱ Harvest date (newest)</option>
+          <option value="rating">⭐ Rating</option>
+          <option value="purchases">🔥 Purchases</option>
+        </select>
+        <select
+          value={methodFilter}
+          onChange={(e) => setMethodFilter(e.target.value)}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none"
+        >
+          <option value="all">All methods</option>
+          <option value="natural">Natural</option>
+          <option value="organic">Organic</option>
+          <option value="low_chemical">Semi Organic</option>
+          <option value="chemical">Chemical</option>
+        </select>
+        <select
+          value={farmerFilter}
+          onChange={(e) => setFarmerFilter(e.target.value)}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none"
+        >
+          <option value="all">All farmers</option>
+          {farmerOptions.map((f) => (
+            <option key={f.id} value={f.id}>{f.name}</option>
+          ))}
+        </select>
+      </div>
+
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2 text-sm font-semibold mb-4">{error}</div>
       )}
 
       {loading ? (
         <p className="text-sm text-gray-400 py-10 text-center">Loading…</p>
-      ) : listings.length === 0 ? (
+      ) : visibleListings.length === 0 ? (
         <div className="text-center py-14 bg-white rounded-2xl border border-gray-100">
           <div className="text-5xl mb-3">🧺</div>
           <p className="font-semibold text-gray-500 text-sm">
@@ -140,7 +208,7 @@ export default function ModeratorListingsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {listings.map((l) => (
+          {visibleListings.map((l) => (
             <div key={l.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -167,6 +235,10 @@ export default function ModeratorListingsPage() {
                 {l.stock_qty != null && <span>Stock: <b>{l.stock_qty} {l.unit || 'kg'}</b></span>}
                 {l.method && <span>Method: <b>{METHOD_LABEL[l.method] ?? l.method}</b></span>}
                 {l.brix != null && <span>BRIX: <b>{l.brix}</b></span>}
+                {l.rating_avg != null && (l.review_count ?? 0) > 0 && (
+                  <span>Rating: <b>{l.rating_avg.toFixed(1)}★</b> ({l.review_count})</span>
+                )}
+                {(l.purchase_count ?? 0) > 0 && <span>Purchases: <b>{l.purchase_count}</b></span>}
               </div>
 
               {/* Harvest clock + freshness — same "Harvested 2h ago" the buyer

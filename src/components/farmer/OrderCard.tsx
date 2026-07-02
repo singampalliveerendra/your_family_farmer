@@ -308,6 +308,14 @@ export default function OrderCard({
             )}
           </div>
 
+          {/* Platform fee collected on this order (goes to the platform, not
+              the farmer; ₹0 when none applied) + the total the buyer pays. */}
+          <p className="text-[11px] text-gray-500">
+            {L('Platform fee', 'ప్లాట్‌ఫామ్ ఫీజు')} ₹{order.platform_fee ?? 0}
+            {' · '}
+            {L('Buyer pays', 'కొనుగోలుదారు చెల్లించేది')} ₹{(order.total_price ?? 0) + (order.platform_fee ?? 0)}
+          </p>
+
           {order.pickup_location && (
             <p className="text-xs text-gray-500">📍 {order.pickup_location}</p>
           )}

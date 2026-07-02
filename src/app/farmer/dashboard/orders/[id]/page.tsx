@@ -24,6 +24,9 @@ type Order = {
   quantity: number | null
   unit: string | null
   total_price: number | null
+  // Platform fee collected on this order (₹0 when none applied). Goes to the
+  // platform, not the farmer.
+  platform_fee: number | null
   buyer_name: string | null
   buyer_phone: string | null
   pickup_location: string | null
@@ -59,7 +62,7 @@ type Order = {
 }
 
 const ORDER_COLUMNS =
-  'id, farmer_id, order_code, produce_name, quantity, unit, total_price, buyer_name, buyer_phone, pickup_location, status, payment_method, payment_status, utr_number, decline_reason, refund_status, refund_amount, refunded_at, created_at, confirmed_at, paid_at, delivery_type, delivery_status, delivery_boy_id, delivery_address, delivery_city, delivery_landmark, delivery_pincode, delivery_alt_phone, assigned_at, picked_up_at, out_for_delivery_at, delivered_at, collected_at, shipped_at, received_at, fulfillment_date, acknowledged_at'
+  'id, farmer_id, order_code, produce_name, quantity, unit, total_price, platform_fee, buyer_name, buyer_phone, pickup_location, status, payment_method, payment_status, utr_number, decline_reason, refund_status, refund_amount, refunded_at, created_at, confirmed_at, paid_at, delivery_type, delivery_status, delivery_boy_id, delivery_address, delivery_city, delivery_landmark, delivery_pincode, delivery_alt_phone, assigned_at, picked_up_at, out_for_delivery_at, delivered_at, collected_at, shipped_at, received_at, fulfillment_date, acknowledged_at'
 
 export default function FarmerOrderDetailPage() {
   const params = useParams<{ id: string }>()
@@ -239,6 +242,34 @@ export default function FarmerOrderDetailPage() {
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${statusBadge(order.status)}`}>
                   {statusText(order.status)}
                 </span>
+              </div>
+
+              {/* Price breakdown — item amount, the platform fee collected on
+                  this order (goes to the platform, not the farmer; ₹0 when no
+                  fee applied) and the total the buyer pays. */}
+              <div className="pt-2 border-t border-gray-100 space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">{L('Item total', 'వస్తువుల ధర')}</span>
+                  <span className="font-semibold text-gray-900">₹{order.total_price ?? 0}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">{L('Platform fee collected', 'వసూలు చేసిన ప్లాట్‌ఫామ్ ఫీజు')}</span>
+                  <span className="font-semibold text-gray-900">₹{order.platform_fee ?? 0}</span>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                  <span className="text-sm font-bold text-gray-900">{L('Buyer pays', 'కొనుగోలుదారు చెల్లించేది')}</span>
+                  <span className="text-sm font-extrabold text-green-700">
+                    ₹{(order.total_price ?? 0) + (order.platform_fee ?? 0)}
+                  </span>
+                </div>
+                {order.refund_status && order.refund_status !== 'failed' && (
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-gray-100">
+                    <span className="text-gray-500">
+                      {order.refund_status === 'processed' ? L('Refunded to buyer', 'కొనుగోలుదారుకు రీఫండ్ అయింది') : L('Refund initiated', 'రీఫండ్ ప్రారంభమైంది')}
+                    </span>
+                    <span className="font-semibold text-purple-700">₹{order.refund_amount ?? order.total_price ?? 0}</span>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-100">

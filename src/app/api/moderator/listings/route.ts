@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
+import { purchaseCountsFor } from '@/lib/purchaseCounts'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
   const ascending = tab === 'pending'
   const { data: listings, error } = await supabase
     .from('produce_listings')
-    .select('id, farmer_id, name, variety, method, unit, stock_qty, brix, price_tier_1_price, status, rejection_reason, created_at, harvest_date, shelf_life_days')
+    .select('id, farmer_id, name, variety, method, unit, stock_qty, brix, price_tier_1_price, status, rejection_reason, created_at, harvest_date, shelf_life_days, rating_avg, review_count')
     .in('farmer_id', farmerIds)
     .in('status', statuses)
     .order('created_at', { ascending })
@@ -58,11 +59,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  const rows = (listings ?? []).map((l) => ({ ...l, farmer_name: nameById.get(l.farmer_id) ?? '—' }))
+  // Purchase counts so the moderator can sort harvests by popularity.
+  const counts = await purchaseCountsFor((listings ?? []).map((l) => l.id as string))
+  const rows = (listings ?? []).map((l) => ({
+    ...l,
+    farmer_name: nameById.get(l.farmer_id) ?? '—',
+    purchase_count: counts[l.id as string] ?? 0,
+  }))
   return NextResponse.json({ listings: rows })
 }
 
-const METHODS = ['natural', 'low_chemical', 'chemical'] as const
+const METHODS = ['natural', 'organic', 'low_chemical', 'chemical'] as const
 const UNITS = ['kg', 'g', 'litre', 'dozen', 'piece', 'bunch'] as const
 
 function toNum(v: unknown): number | null {
@@ -122,6 +129,7 @@ export async function POST(req: NextRequest) {
   const price1Qty = toNum(b.price_tier_1_qty)
   const price2 = toNum(b.price_tier_2_price)
   const price2Qty = toNum(b.price_tier_2_qty)
+  const price3 = toNum(b.price_tier_3_price)
 
   const insert: Record<string, unknown> = {
     farmer_id,
@@ -133,6 +141,8 @@ export async function POST(req: NextRequest) {
     stock_qty: toNum(b.stock_qty),
     description: String(b.description ?? '').trim() || null,
     brix: toNum(b.brix),
+    soil_organic_carbon: toNum(b.soil_organic_carbon),
+    image_url: (typeof b.image_url === 'string' && b.image_url) ? b.image_url : null,
     availability_from: String(b.availability_from ?? '').trim() || null,
     availability_to: String(b.availability_to ?? '').trim() || null,
     harvest_frequency: String(b.harvest_frequency ?? '').trim() || null,
@@ -143,6 +153,8 @@ export async function POST(req: NextRequest) {
   }
   if (price1) { insert.price_tier_1_price = price1; insert.price_tier_1_qty = price1Qty ?? 1 }
   if (price2 && price2Qty) { insert.price_tier_2_price = price2; insert.price_tier_2_qty = price2Qty }
+  // Tier 3 sits just above tier 2's band (matches the farmer form's qty rule).
+  if (price3) { insert.price_tier_3_price = price3; insert.price_tier_3_qty = (price2Qty ?? 1) + 1 }
 
   const { data: created, error } = await supabase
     .from('produce_listings')

@@ -117,7 +117,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   return NextResponse.json({ listing, farmer_name: farmer?.name ?? '—' })
 }
 
-const METHODS = ['natural', 'low_chemical', 'chemical'] as const
+const METHODS = ['natural', 'organic', 'low_chemical', 'chemical'] as const
 const UNITS = ['kg', 'g', 'litre', 'dozen', 'piece', 'bunch'] as const
 
 // Positive number (prices, min quantities) — else null.
@@ -174,6 +174,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const price1Qty = toPos(b.price_tier_1_qty)
   const price2 = toPos(b.price_tier_2_price)
   const price2Qty = toPos(b.price_tier_2_qty)
+  const price3 = toPos(b.price_tier_3_price)
 
   const update: Record<string, unknown> = {
     name,
@@ -184,6 +185,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     stock_qty: toNonNeg(b.stock_qty),
     description: String(b.description ?? '').trim() || null,
     brix: toNonNeg(b.brix),
+    soil_organic_carbon: toNonNeg(b.soil_organic_carbon),
+    image_url: (typeof b.image_url === 'string' && b.image_url) ? b.image_url : null,
     harvest_date: harvestDate,
     shelf_life_days: shelfLife,
     availability_from: String(b.availability_from ?? '').trim() || null,
@@ -195,6 +198,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     price_tier_1_qty: price1 ? (price1Qty ?? 1) : null,
     price_tier_2_price: price2 && price2Qty ? price2 : null,
     price_tier_2_qty: price2 && price2Qty ? price2Qty : null,
+    // Tier 3 sits just above tier 2's band (matches the farmer form's qty rule).
+    price_tier_3_price: price3,
+    price_tier_3_qty: price3 ? ((price2Qty ?? 1) + 1) : null,
   }
 
   const { data: updated, error } = await supabase
