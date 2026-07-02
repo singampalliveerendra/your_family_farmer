@@ -1,0 +1,59 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "3fdabedc16fe",
+  "session_id": "6f43fb4d-1544-492b-b78b-4a43272e0792",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-02T06:59:39.03406001Z",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/app/api/moderator/listings/[id]/route.ts",
+    "src/app/api/moderator/listings/route.ts",
+    "src/app/api/produce/route.ts",
+    "src/app/api/produce/search/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/consumer/page.tsx",
+    "src/app/farmer/dashboard/orders/[id]/page.tsx",
+    "src/app/moderator/listings/ListingForm.tsx",
+    "src/app/moderator/listings/[id]/edit/page.tsx",
+    "src/app/moderator/listings/page.tsx",
+    "src/components/consumer/FreshHarvestsTable.tsx",
+    "src/components/consumer/OrderCard.tsx",
+    "src/components/farmer/OrderCard.tsx",
+    "src/lib/purchaseCounts.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "78ad31ab6796",
+  "token_usage": {
+    "input_tokens": 7370,
+    "cache_creation_tokens": 27454,
+    "cache_read_tokens": 401059,
+    "output_tokens": 8671,
+    "api_call_count": 14
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-02T06:59:39.025861284Z",
+    "agent_lines": 612,
+    "agent_removed": 36,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 612,
+    "total_lines_changed": 648,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
