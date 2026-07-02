@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "3fdabedc16fe",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 16,
+  "files_touched": [
+    "src/app/api/moderator/listings/[id]/route.ts",
+    "src/app/api/moderator/listings/route.ts",
+    "src/app/api/produce/route.ts",
+    "src/app/api/produce/search/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/consumer/page.tsx",
+    "src/app/farmer/dashboard/orders/[id]/page.tsx",
+    "src/app/moderator/listings/ListingForm.tsx",
+    "src/app/moderator/listings/[id]/edit/page.tsx",
+    "src/app/moderator/listings/page.tsx",
+    "src/components/consumer/FreshHarvestsTable.tsx",
+    "src/components/consumer/OrderCard.tsx",
+    "src/components/farmer/OrderCard.tsx",
+    "src/lib/purchaseCounts.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/3f/dabedc16fe/0/metadata.json",
+      "transcript": "/3f/dabedc16fe/0/full.jsonl",
+      "content_hash": "/3f/dabedc16fe/0/content_hash.txt",
+      "prompt": "/3f/dabedc16fe/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 7375,
+    "cache_creation_tokens": 310125,
+    "cache_read_tokens": 20221264,
+    "output_tokens": 132446,
+    "api_call_count": 138
+  }
+}
