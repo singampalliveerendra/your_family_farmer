@@ -11,7 +11,10 @@ import { getPlatformFeePercent, computePlatformFee } from '@/lib/platform-fee'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-type IncomingItem = { listingId: string; qty: number }
+// harvestId is present when the buyer ordered a specific harvest (the
+// harvest-as-product path). Legacy produce-card orders omit it and draw from
+// the listing's own stock.
+type IncomingItem = { listingId: string; harvestId?: string; qty: number }
 
 // Pragmatic email check — we only need to reject obvious junk, not enforce
 // RFC 5322. The real signal is whether the buyer can be reached.
@@ -83,6 +86,7 @@ export async function POST(req: NextRequest) {
   for (const it of items) {
     if (!it || typeof it !== 'object') return bad('Invalid item.')
     if (!it.listingId || !UUID_RE.test(it.listingId)) return bad('Invalid listing id.')
+    if (it.harvestId != null && !UUID_RE.test(it.harvestId)) return bad('Invalid harvest id.')
     if (!Number.isFinite(it.qty) || it.qty <= 0 || it.qty > 10000) return bad('Invalid quantity.')
   }
 
@@ -220,6 +224,24 @@ export async function POST(req: NextRequest) {
   }
 
   const listingById = new Map(listings.map((l) => [l.id, l]))
+
+  // Harvest-as-product: when a line names a harvest, we sell that harvest's own
+  // stock (harvests.stock_qty), not the listing's. Pull the referenced harvests
+  // and check each still belongs to its listing (and thus the farmer). Price,
+  // name and unit still come from the produce_listing template.
+  const harvestIds = [...new Set(items.map((i) => i.harvestId).filter(Boolean))] as string[]
+  const harvestById = new Map<string, { id: string; produce_listing_id: string; stock_qty: number | null }>()
+  if (harvestIds.length > 0) {
+    const { data: harvestRows } = await supabase
+      .from('harvests')
+      .select('id, produce_listing_id, stock_qty')
+      .in('id', harvestIds) as { data: Array<{ id: string; produce_listing_id: string; stock_qty: number | null }> | null }
+    if (!harvestRows || harvestRows.length !== harvestIds.length) {
+      return bad('One or more harvests in your cart are no longer available.')
+    }
+    for (const h of harvestRows) harvestById.set(h.id, h)
+  }
+
   const rows: Array<Record<string, unknown>> = []
   let total = 0
   // One OTP for the whole batch. Home delivery: the rider does a single
@@ -239,6 +261,14 @@ export async function POST(req: NextRequest) {
     // 'available' produce may be purchased.
     if (listing.status !== 'available') {
       return bad(`${listing.name} is no longer available.`)
+    }
+
+    // A harvest line must reference a harvest of this very listing.
+    if (item.harvestId) {
+      const harvest = harvestById.get(item.harvestId)
+      if (!harvest || harvest.produce_listing_id !== listing.id) {
+        return bad(`${listing.name} is no longer available.`)
+      }
     }
 
     const unitPrice = getTierPrice(item.qty, {
@@ -291,6 +321,15 @@ export async function POST(req: NextRequest) {
     rows[0].rider_payout = deliveryFee
   }
 
+  // Harvest-as-product: record which harvest each line sold. rows are built 1:1
+  // with items in loop order, so rows[i] matches items[i]. Only stamped when the
+  // cart actually references harvests — a legacy produce-only checkout never
+  // touches the column before its migration runs — and when it is, every row
+  // carries it (null where absent) so the bulk insert has a uniform column set.
+  if (harvestIds.length > 0) {
+    items.forEach((it, i) => { if (rows[i]) rows[i].harvest_id = it.harvestId ?? null })
+  }
+
   // Platform fee (moderator commission) — a % charged PER ITEM and stamped on
   // each row (unlike delivery_fee, which is one-per-cart on the first row). Per
   // row means a single-item cancel/decline withholds or refunds exactly that
@@ -312,24 +351,29 @@ export async function POST(req: NextRequest) {
   // Atomic stock claim. decrement_stock returns false if the listing went
   // below zero (or vanished). On any failure we revert prior claims so we
   // don't leak inventory.
-  const claimed: Array<{ listingId: string; qty: number }> = []
+  // A claim is against a harvest (harvest-as-product) or, for legacy produce-
+  // card lines, the listing itself. We revert with the matching increment RPC.
+  const claimed: Array<{ harvestId?: string; listingId: string; qty: number }> = []
   const revertClaims = async () => {
     for (const c of claimed) {
       try {
-        await supabase.rpc('increment_stock', { p_listing_id: c.listingId, p_qty: c.qty })
+        if (c.harvestId) {
+          await supabase.rpc('increment_harvest_stock', { p_harvest_id: c.harvestId, p_qty: c.qty })
+        } else {
+          await supabase.rpc('increment_stock', { p_listing_id: c.listingId, p_qty: c.qty })
+        }
       } catch (e) {
-        console.error('[YFF] increment_stock revert failed:', e)
+        console.error('[YFF] stock revert failed:', e)
       }
     }
   }
   for (const item of items) {
     const listing = listingById.get(item.listingId)!
-    const { data: ok, error: rpcErr } = await supabase.rpc('decrement_stock', {
-      p_listing_id: item.listingId,
-      p_qty: item.qty,
-    })
+    const { data: ok, error: rpcErr } = item.harvestId
+      ? await supabase.rpc('decrement_harvest_stock', { p_harvest_id: item.harvestId, p_qty: item.qty })
+      : await supabase.rpc('decrement_stock', { p_listing_id: item.listingId, p_qty: item.qty })
     if (rpcErr) {
-      console.error('[YFF] decrement_stock rpc failed:', rpcErr.message)
+      console.error('[YFF] decrement stock rpc failed:', rpcErr.message)
       await revertClaims()
       return bad('Could not place order. Please try again.', 500)
     }
@@ -337,7 +381,7 @@ export async function POST(req: NextRequest) {
       await revertClaims()
       return bad(`${listing.name} just sold out. Please reduce the quantity and try again.`)
     }
-    claimed.push({ listingId: item.listingId, qty: item.qty })
+    claimed.push({ harvestId: item.harvestId, listingId: item.listingId, qty: item.qty })
   }
 
   const { data: inserted, error: insertErr } = await supabase

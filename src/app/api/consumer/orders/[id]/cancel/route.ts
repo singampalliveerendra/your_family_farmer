@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: order, error: loadErr } = await supabase
     .from('orders')
-    .select('id, consumer_id, status, quantity, total_price, platform_fee, produce_listing_id, payment_status, razorpay_payment_id, created_at, order_code, shipped_at, collected_at, received_at, delivery_status')
+    .select('id, consumer_id, status, quantity, total_price, platform_fee, produce_listing_id, harvest_id, payment_status, razorpay_payment_id, created_at, order_code, shipped_at, collected_at, received_at, delivery_status')
     .eq('id', id)
     .maybeSingle()
 
@@ -59,13 +59,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     )
   }
 
-  // Return the reserved stock.
-  if (order.produce_listing_id && order.quantity != null && order.quantity > 0) {
+  // Return the reserved stock. Harvest orders return the harvest's stock;
+  // legacy orders the listing's.
+  if (order.quantity != null && order.quantity > 0) {
     try {
-      await supabase.rpc('increment_stock', {
-        p_listing_id: order.produce_listing_id,
-        p_qty: order.quantity,
-      })
+      if (order.harvest_id) {
+        await supabase.rpc('increment_harvest_stock', { p_harvest_id: order.harvest_id, p_qty: order.quantity })
+      } else if (order.produce_listing_id) {
+        await supabase.rpc('increment_stock', { p_listing_id: order.produce_listing_id, p_qty: order.quantity })
+      }
     } catch (e) {
       console.error('[YFF] restock on cancel failed:', e)
     }
@@ -104,11 +106,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         update.refund_amount = Math.round(refund.amountPaise / 100)
         update.refunded_at = new Date().toISOString()
       } catch (e) {
+        // The gateway refused the refund (e.g. account/gateway state). Don't
+        // trap the buyer with an order they can't cancel: cancel it anyway and
+        // flag the refund as failed, recording the amount owed so the team can
+        // settle it manually from the Razorpay dashboard. The buyer sees a
+        // "refund failed / will be processed manually" note.
         console.error('[YFF] razorpay refund on cancel failed:', e)
-        return NextResponse.json(
-          { error: 'Could not issue the refund. The order was not cancelled — please try again.' },
-          { status: 502 },
-        )
+        update.refund_status = 'failed'
+        update.refund_amount = refundAmount
       }
     }
   } else if (paidByOther) {
@@ -125,6 +130,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     ok: true,
     refunded: !!update.refund_id,
     refundInitiated: update.refund_status === 'initiated',
+    refundFailed: update.refund_status === 'failed',
     refundAmount,
     platformFeeWithheld,
   })

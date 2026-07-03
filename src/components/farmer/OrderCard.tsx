@@ -5,8 +5,11 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
 import { isOrderPaid, isPaymentClaimed as isPaymentClaimed_ } from '@/lib/payment'
+import { harvestClock } from '@/lib/harvest'
 
 export type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
+
+type HarvestRef = { harvested_at: string; shelf_life_days?: number | null }
 
 // Shared farmer-side order shape. Superset of the columns the dashboard and the
 // Orders page each fetch, so the same card renders on both.
@@ -15,6 +18,12 @@ export type FarmerOrder = {
   farmer_id: string
   order_code?: string | null
   produce_listing_id: string | null
+  // The specific harvest this order was placed against (harvest-as-product). Lets
+  // the farmer see which pick the order is for, and gates the pickup/delivery
+  // time to be at/after the harvest time. Embedded from the orders query.
+  harvest_id?: string | null
+  // PostgREST may hand back a to-one embed as an object or a single-element array.
+  harvest?: HarvestRef | HarvestRef[] | null
   produce_name: string | null
   quantity: number | null
   unit: string | null
@@ -120,14 +129,44 @@ export default function OrderCard({
     && order.delivery_status != null
     && order.delivery_status !== 'unassigned'
   const isApproved = order.status === 'approved'
+  // Stored as a full timestamp (timestamptz ISO). The schedule carries a time,
+  // not just a date, so the picker is a datetime-local.
   const fulfillmentDate = order.fulfillment_date ?? ''
-  // Local (not UTC) "today" so the picker still allows today's date in IST
-  // evenings. Used as the minimum selectable pickup/delivery date. Computed
-  // once on mount via the lazy initializer.
-  const [todayStr] = useState(() => {
+  // A stored UTC ISO string → the yyyy-MM-ddThh:mm LOCAL shape datetime-local
+  // wants; and the reverse (local input → UTC ISO for storage).
+  const toLocalInput = (iso: string) => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    if (isNaN(d.getTime())) return ''
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+    return d.toISOString().slice(0, 16)
+  }
+  const localToIso = (local: string) => {
+    if (!local) return ''
+    const d = new Date(local)
+    return isNaN(d.getTime()) ? '' : d.toISOString()
+  }
+  // The harvest this order is against (embed may be an object or 1-el array).
+  const harvestRef = Array.isArray(order.harvest) ? order.harvest[0] : order.harvest
+  const harvestAt = harvestRef?.harvested_at ?? ''
+  // A pickup/delivery can't be scheduled before the produce is harvested, so the
+  // chosen date-time must be at/after the harvest time.
+  const isAfterHarvest = (iso: string) =>
+    !harvestAt || (!!iso && new Date(iso).getTime() >= new Date(harvestAt).getTime())
+
+  // Local (not UTC) "now" so the picker still allows today in IST evenings.
+  // Minimum selectable pickup/delivery date-time. For a pre-book (future) harvest
+  // the minimum is the harvest time itself; otherwise "now". Computed once on mount.
+  const [nowLocalMin] = useState(() => {
     const d = new Date()
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+    return d.toISOString().slice(0, 16)
   })
+  const harvestLocalMin = harvestAt ? toLocalInput(harvestAt) : ''
+  const minDateTime = harvestLocalMin && harvestLocalMin > nowLocalMin ? harvestLocalMin : nowLocalMin
+
+  // Error shown when the farmer tries to schedule before the harvest.
+  const [dateError, setDateError] = useState('')
 
   // Reschedule editor state for an APPROVED order: the date is read-only until
   // the farmer taps "Change date", which reveals a date picker + a required
@@ -329,6 +368,20 @@ export default function OrderCard({
           <DeliveryTagForFarmer order={order} />
         )}
 
+        {/* Which harvest this order is against — highlighted so the farmer
+            knows exactly which pick to prepare. */}
+        {harvestAt && (
+          <div className="mt-1 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+            <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide">🌾 {L('Against harvest', 'ఈ కోతకు')}</p>
+            <p className="text-xs font-semibold text-green-900 mt-0.5">
+              {harvestClock(harvestAt, L)}
+              <span className="font-normal text-green-700"> · {new Date(harvestAt).toLocaleString('en-IN', {
+                day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+              })}</span>
+            </p>
+          </div>
+        )}
+
         {/* Pickup / delivery date. */}
         <div className="pt-1">
           <label className="text-[11px] font-bold text-gray-600 block mb-1">
@@ -337,12 +390,21 @@ export default function OrderCard({
 
           {!isApproved ? (
             // Pending: the date is the gate to approval — the farmer picks it,
-            // then confirms below. No reason needed for the first choice.
+            // then confirms below. No reason needed for the first choice. It must
+            // be at/after the harvest time (can't schedule before it's picked).
             <input
-              type="date"
-              value={fulfillmentDate}
-              min={todayStr}
-              onChange={(e) => onSetFulfillmentDate(e.target.value)}
+              type="datetime-local"
+              value={toLocalInput(fulfillmentDate)}
+              min={minDateTime}
+              onChange={(e) => {
+                const iso = localToIso(e.target.value)
+                if (iso && !isAfterHarvest(iso)) {
+                  setDateError(L('Pickup/delivery must be after the harvest time.', 'పికప్/డెలివరీ కోత సమయం తర్వాత ఉండాలి.'))
+                  return
+                }
+                setDateError('')
+                onSetFulfillmentDate(iso)
+              }}
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none"
             />
           ) : !editingDate ? (
@@ -351,8 +413,9 @@ export default function OrderCard({
             <>
               <p className="text-sm font-bold text-gray-900">
                 {fulfillmentDate
-                  ? new Date(`${fulfillmentDate}T00:00:00`).toLocaleDateString('en-IN', {
+                  ? new Date(fulfillmentDate).toLocaleString('en-IN', {
                       weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+                      hour: '2-digit', minute: '2-digit',
                     })
                   : '—'}
               </p>
@@ -374,10 +437,16 @@ export default function OrderCard({
             // Reschedule editor: new date + a required reason for the buyer.
             <div className="space-y-2 bg-amber-50 border border-amber-200 rounded-xl p-2.5">
               <input
-                type="date"
-                value={newDate}
-                min={todayStr}
-                onChange={(e) => setNewDate(e.target.value)}
+                type="datetime-local"
+                value={toLocalInput(newDate)}
+                min={minDateTime}
+                onChange={(e) => {
+                  const iso = localToIso(e.target.value)
+                  setNewDate(iso)
+                  setDateError(iso && !isAfterHarvest(iso)
+                    ? L('Pickup/delivery must be after the harvest time.', 'పికప్/డెలివరీ కోత సమయం తర్వాత ఉండాలి.')
+                    : '')
+                }}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none"
               />
               <textarea
@@ -397,8 +466,14 @@ export default function OrderCard({
                 </button>
                 <button
                   type="button"
-                  disabled={processing || !newDate || !rescheduleReason.trim() || newDate === fulfillmentDate}
-                  onClick={() => { onSetFulfillmentDate(newDate, rescheduleReason.trim()); setEditingDate(false) }}
+                  disabled={processing || !newDate || !rescheduleReason.trim() || newDate === fulfillmentDate || !isAfterHarvest(newDate)}
+                  onClick={() => {
+                    if (!isAfterHarvest(newDate)) {
+                      setDateError(L('Pickup/delivery must be after the harvest time.', 'పికప్/డెలివరీ కోత సమయం తర్వాత ఉండాలి.'))
+                      return
+                    }
+                    onSetFulfillmentDate(newDate, rescheduleReason.trim()); setEditingDate(false)
+                  }}
                   className="bg-green-600 text-white font-bold py-2 rounded-xl text-xs active:bg-green-700 disabled:opacity-50"
                 >
                   {L('Save new date', 'కొత్త తేదీ సేవ్')}
@@ -408,6 +483,10 @@ export default function OrderCard({
                 <p className="text-[11px] text-amber-700">{L('Add a reason so the buyer knows why.', 'కొనుగోలుదారుకు కారణం తెలియజేయండి.')}</p>
               )}
             </div>
+          )}
+
+          {dateError && (
+            <p className="text-[11px] font-semibold text-red-600 mt-1">{dateError}</p>
           )}
         </div>
       </div>
@@ -465,8 +544,14 @@ export default function OrderCard({
             <div className={`grid gap-2 ${isUpi && isPaymentClaimed ? 'grid-cols-1' : 'grid-cols-2'}`}>
               {!(isUpi && isPaymentClaimed) && (
                 <button
-                  onClick={() => onApprove(fulfillmentDate)}
-                  disabled={processing || !fulfillmentDate}
+                  onClick={() => {
+                    if (!isAfterHarvest(fulfillmentDate)) {
+                      setDateError(L('Pickup/delivery must be after the harvest time.', 'పికప్/డెలివరీ కోత సమయం తర్వాత ఉండాలి.'))
+                      return
+                    }
+                    onApprove(fulfillmentDate)
+                  }}
+                  disabled={processing || !fulfillmentDate || !isAfterHarvest(fulfillmentDate)}
                   className="bg-green-600 text-white font-bold py-3 rounded-xl text-sm active:bg-green-700 disabled:opacity-50"
                 >
                   {processing ? tx.approving : (isPickup ? tx.confirmPickupDate : tx.confirmDeliveryDate)}

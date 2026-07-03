@@ -79,7 +79,7 @@ function OrdersPageInner() {
     // Every status is fetched (this page is the full orders hub).
     const { data } = await supabase
       .from('orders')
-      .select('id, farmer_id, order_code, produce_listing_id, produce_name, quantity, unit, total_price, delivery_fee, platform_fee, buyer_name, buyer_phone, pickup_location, status, payment_method, payment_status, utr_number, decline_reason, refund_status, refund_amount, refunded_at, delivery_type, delivery_status, delivery_boy_id, collected_at, shipped_at, received_at, fulfillment_date, created_at, acknowledged_at')
+      .select('id, farmer_id, order_code, produce_listing_id, harvest_id, harvest:harvests(harvested_at, shelf_life_days), produce_name, quantity, unit, total_price, delivery_fee, platform_fee, buyer_name, buyer_phone, pickup_location, status, payment_method, payment_status, utr_number, decline_reason, refund_status, refund_amount, refunded_at, delivery_type, delivery_status, delivery_boy_id, collected_at, shipped_at, received_at, fulfillment_date, created_at, acknowledged_at')
       .eq('farmer_id', farmerId)
       .order('created_at', { ascending: false })
 
@@ -648,8 +648,8 @@ function HistoryCard({ order }: { order: Order }) {
           <p className="text-[11px] text-gray-500">
             📅 {isDelivery ? tx.deliveryDateLabel : tx.pickupDateLabel}:{' '}
             <span className="font-semibold text-gray-700">
-              {new Date(`${order.fulfillment_date}T00:00:00`).toLocaleDateString('en-IN', {
-                day: 'numeric', month: 'short', year: 'numeric',
+              {new Date(order.fulfillment_date).toLocaleString('en-IN', {
+                day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
               })}
             </span>
           </p>

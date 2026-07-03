@@ -309,7 +309,7 @@ export default function OrderReportSheet({
                   <span>📅 {L('Ordered', 'ఆర్డర్')}: {fmtDate(o.created_at)}</span>
                   <span>🚚 {deliveryLabel(o)}</span>
                   <span>💳 {paymentLabel(o)}</span>
-                  <span>📦 {L('Fulfil', 'పూర్తి')}: {fmtDate(o.fulfillment_date)}</span>
+                  <span>📦 {L('Fulfil', 'పూర్తి')}: {fmtDateTime(o.fulfillment_date)}</span>
                   {amountPaid(o) > 0 && (
                     <span>💰 {L('Paid', 'చెల్లించింది')}: <b className="text-gray-700">₹{amountPaid(o)}</b></span>
                   )}

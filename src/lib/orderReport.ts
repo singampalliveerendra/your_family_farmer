@@ -203,7 +203,7 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: Repo
       <td class="num">${refundCell}</td>
       <td class="num">${receivedCell}</td>
       <td>${esc(deliveryLabel(o))}</td>
-      <td>${esc(fmtDate(o.fulfillment_date))}</td>
+      <td>${esc(fmtDateTime(o.fulfillment_date))}</td>
     </tr>`
   }).join('')
 

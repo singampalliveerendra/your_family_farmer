@@ -207,11 +207,36 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     .from('produce_listings')
     .update(update)
     .eq('id', id)
-    .select('id')
+    .select('id, farmer_id')
     .single()
   if (error) {
     console.error('[YFF moderator/listings PUT] update failed:', error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // Parity with the farmer flow: keep this produce's harvest in sync so it stays
+  // a sellable HARVEST (with its own stock) in the Fresh/Upcoming feeds. Update
+  // the most recent harvest row; create one if none exists yet (e.g. a listing
+  // predating the harvest-as-product change). Best-effort.
+  const harvestQty = toNonNeg(b.stock_qty)
+  const { data: latest } = await supabase
+    .from('harvests')
+    .select('id')
+    .eq('produce_listing_id', id)
+    .order('harvested_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const harvestFields = {
+    harvested_at: harvestDate,
+    shelf_life_days: shelfLife,
+    approx_quantity: harvestQty,
+    stock_qty: harvestQty,
+    unit,
+  }
+  const { error: hErr } = latest
+    ? await supabase.from('harvests').update(harvestFields).eq('id', latest.id)
+    : await supabase.from('harvests').insert({ produce_listing_id: id, farmer_id: updated.farmer_id, ...harvestFields })
+  if (hErr) console.error('[YFF moderator/listings PUT] harvest sync failed:', hErr.message)
+
   return NextResponse.json({ id: updated.id })
 }

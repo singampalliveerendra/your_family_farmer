@@ -36,7 +36,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: order, error: loadErr } = await supabase
     .from('orders')
-    .select('id, farmer_id, status, quantity, total_price, delivery_fee, platform_fee, produce_listing_id, payment_method, payment_status, razorpay_payment_id, order_code, shipped_at, collected_at, received_at')
+    .select('id, farmer_id, status, quantity, total_price, delivery_fee, platform_fee, produce_listing_id, harvest_id, payment_method, payment_status, razorpay_payment_id, order_code, shipped_at, collected_at, received_at')
     .eq('id', id)
     .maybeSingle()
 
@@ -60,13 +60,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     )
   }
 
-  // 1. Return the reserved stock.
-  if (order.produce_listing_id && order.quantity != null && order.quantity > 0) {
+  // 1. Return the reserved stock. Harvest orders return the harvest's stock;
+  // legacy orders the listing's.
+  if (order.quantity != null && order.quantity > 0) {
     try {
-      await supabase.rpc('increment_stock', {
-        p_listing_id: order.produce_listing_id,
-        p_qty: order.quantity,
-      })
+      if (order.harvest_id) {
+        await supabase.rpc('increment_harvest_stock', { p_harvest_id: order.harvest_id, p_qty: order.quantity })
+      } else if (order.produce_listing_id) {
+        await supabase.rpc('increment_stock', { p_listing_id: order.produce_listing_id, p_qty: order.quantity })
+      }
     } catch (e) {
       console.error('[YFF] restock on decline failed:', e)
     }

@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 
   const { data: orders, error: loadErr } = await supabase
     .from('orders')
-    .select('id, consumer_id, status, payment_status, quantity, produce_listing_id')
+    .select('id, consumer_id, status, payment_status, quantity, produce_listing_id, harvest_id')
     .in('id', orderIds)
   if (loadErr) return NextResponse.json({ error: loadErr.message }, { status: 500 })
 
@@ -47,12 +47,14 @@ export async function POST(req: NextRequest) {
     if (order.payment_status === 'paid') continue
 
     // Return the reserved stock before flipping the row, mirroring a cancel.
-    if (order.produce_listing_id && order.quantity != null && order.quantity > 0) {
+    // Harvest orders return the harvest's stock; legacy orders the listing's.
+    if (order.quantity != null && order.quantity > 0) {
       try {
-        await supabase.rpc('increment_stock', {
-          p_listing_id: order.produce_listing_id,
-          p_qty: order.quantity,
-        })
+        if (order.harvest_id) {
+          await supabase.rpc('increment_harvest_stock', { p_harvest_id: order.harvest_id, p_qty: order.quantity })
+        } else if (order.produce_listing_id) {
+          await supabase.rpc('increment_stock', { p_listing_id: order.produce_listing_id, p_qty: order.quantity })
+        }
       } catch (e) {
         console.error('[YFF] restock on abandon failed:', e)
       }

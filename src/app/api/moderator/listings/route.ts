@@ -165,5 +165,22 @@ export async function POST(req: NextRequest) {
     console.error('[YFF moderator/listings POST] insert failed:', error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // Parity with the farmer flow: log a matching harvest row so this produce
+  // becomes a sellable HARVEST (appears in the Fresh/Upcoming feeds with its own
+  // stock), not just a template. The listing's stock is the harvest's sellable
+  // quantity. Best-effort — never fail the listing save on it.
+  const harvestQty = toNum(b.stock_qty)
+  const { error: hErr } = await supabase.from('harvests').insert({
+    produce_listing_id: created.id,
+    farmer_id,
+    harvested_at: harvestDate,
+    shelf_life_days: shelfLife,
+    approx_quantity: harvestQty,
+    stock_qty: harvestQty,
+    unit,
+  })
+  if (hErr) console.error('[YFF moderator/listings POST] harvest insert failed:', hErr.message)
+
   return NextResponse.json({ id: created.id })
 }

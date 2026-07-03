@@ -59,6 +59,16 @@ function loadRazorpayScript(): Promise<boolean> {
 
 export type CartItem = {
   listingId: string
+  // The specific harvest this line is for. A produce (template) can have many
+  // harvests (fresh vs pre-book), each its own sellable product with its own
+  // stock — so the cart is keyed by harvestId, and two harvests of the same
+  // listing are two separate lines. Legacy produce-card adds leave it unset and
+  // fall back to keying by listingId.
+  harvestId?: string
+  // Harvest-specific display info, carried so the cart/checkout can show which
+  // pick this is (e.g. "harvested 2 hours ago").
+  harvestedAt?: string
+  shelfLifeDays?: number
   qty: number
   name: string
   variety?: string
@@ -83,6 +93,11 @@ export type CartItem = {
 }
 
 export type CartState = Record<string, CartItem>
+
+// The cart is keyed per harvest so two harvests of the same produce are two
+// separate lines. Legacy produce-card items (no harvestId) key by listingId.
+export const cartKeyOf = (item: { listingId: string; harvestId?: string }): string =>
+  item.harvestId ?? item.listingId
 
 export type ConsumerInfo = { name: string; phone: string }
 
@@ -140,12 +155,13 @@ export function useCart() {
 
   const addItem = useCallback((item: Omit<CartItem, 'qty'>, qty = 1) => {
     const next = { ...readCart() }
-    const existing = next[item.listingId]
+    const key = cartKeyOf(item)
+    const existing = next[key]
     const rawQty = Math.max(1, (existing?.qty ?? 0) + qty)
     const newQty = item.stockQty != null ? Math.min(rawQty, item.stockQty) : rawQty
     const merged = { ...item, qty: newQty }
     const { price } = getActiveTier(newQty, merged)
-    next[item.listingId] = { ...merged, pricePerKg: price ?? item.pricePerKg }
+    next[key] = { ...merged, pricePerKg: price ?? item.pricePerKg }
     writeCart(next)
   }, [])
 
@@ -490,7 +506,7 @@ export function CartSheet({
         farmerId: f.farmerId,
         paymentMethod,
         pickupLocation: deliveryType === 'self_pickup' ? (pickupByFarmer[f.farmerId] || null) : null,
-        items: group.map((it) => ({ listingId: it.listingId, qty: it.qty })),
+        items: group.map((it) => ({ listingId: it.listingId, harvestId: it.harvestId, qty: it.qty })),
         deliveryType,
         deliveryAddress: needsAddress ? deliveryAddress.trim() : null,
         deliveryCity: needsAddress ? deliveryCity.trim() : null,
@@ -1439,7 +1455,7 @@ export function CartSheet({
 
                     <div className="p-3 space-y-2">
                       {group.map((it) => (
-                        <div key={it.listingId} className="flex items-center gap-3">
+                        <div key={cartKeyOf(it)} className="flex items-center gap-3">
                           <div className="w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center text-xl flex-shrink-0">
                             {it.emoji ?? '🌿'}
                           </div>
@@ -1473,17 +1489,17 @@ export function CartSheet({
                           <QtyStepper
                             qty={it.qty}
                             maxQty={it.stockQty}
-                            onDec={() => setQty(it.listingId, it.qty - 1)}
+                            onDec={() => setQty(cartKeyOf(it), it.qty - 1)}
                             onInc={() => {
                               if (it.stockQty != null && it.qty >= it.stockQty) {
                                 showToast(L('No more stock available', 'స్టాక్ అయిపోయింది'))
                                 return
                               }
-                              setQty(it.listingId, it.qty + 1)
+                              setQty(cartKeyOf(it), it.qty + 1)
                             }}
                           />
                           <button
-                            onClick={() => removeItem(it.listingId)}
+                            onClick={() => removeItem(cartKeyOf(it))}
                             className="text-gray-300 text-xl px-1"
                             aria-label="Remove"
                           >

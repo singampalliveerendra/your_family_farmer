@@ -358,6 +358,17 @@ export default function OrderDetailsPage() {
                     <span className="font-semibold text-purple-700">₹{order.refund_amount ?? order.total_price ?? 0}</span>
                   </div>
                 )}
+                {order.refund_status === 'failed' && (
+                  <div className="pt-1 border-t border-gray-100">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-red-600 font-semibold">⚠️ {L('Refund pending (manual)', 'రీఫండ్ పెండింగ్ (మాన్యువల్)')}</span>
+                      <span className="font-semibold text-red-600">₹{order.refund_amount ?? order.total_price ?? 0}</span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 leading-snug mt-0.5">
+                      {L('The automatic refund could not be processed. Our team will refund you manually within a few days.', 'ఆటోమేటిక్ రీఫండ్ జరగలేదు. మా బృందం కొన్ని రోజుల్లో మాన్యువల్‌గా రీఫండ్ చేస్తుంది.')}
+                    </p>
+                  </div>
+                )}
                 {(order.status === 'cancelled' || order.status === 'declined')
                   && !order.refund_status
                   && !isOrderPaid(order.payment_status) && (
@@ -402,12 +413,13 @@ export default function OrderDetailsPage() {
                 <div>
                   <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide">
                     {order.delivery_type === 'home_delivery'
-                      ? L('Delivery date', 'డెలివరీ తేదీ')
-                      : L('Pickup date', 'పికప్ తేదీ')}
+                      ? L('Delivery date & time', 'డెలివరీ తేదీ & సమయం')
+                      : L('Pickup date & time', 'పికప్ తేదీ & సమయం')}
                   </p>
                   <p className="text-sm font-extrabold text-green-900 mt-0.5">
-                    {new Date(`${order.fulfillment_date}T00:00:00`).toLocaleDateString('en-IN', {
+                    {new Date(order.fulfillment_date).toLocaleString('en-IN', {
                       weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+                      hour: '2-digit', minute: '2-digit',
                     })}
                   </p>
                   {order.reschedule_reason && (

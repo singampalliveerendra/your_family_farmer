@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
 import { isOrderPaid, isPaymentClaimed } from '@/lib/payment'
+import { harvestClock } from '@/lib/harvest'
 
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
 
@@ -59,10 +60,13 @@ type Order = {
   fulfillment_date: string | null
   acknowledged_at: string | null
   reschedule_reason?: string | null
+  harvest_id?: string | null
+  // Embedded harvest this order was placed against (object or 1-el array).
+  harvest?: { harvested_at: string; shelf_life_days?: number | null } | Array<{ harvested_at: string; shelf_life_days?: number | null }> | null
 }
 
 const ORDER_COLUMNS =
-  'id, farmer_id, order_code, produce_name, quantity, unit, total_price, platform_fee, buyer_name, buyer_phone, pickup_location, status, payment_method, payment_status, utr_number, decline_reason, refund_status, refund_amount, refunded_at, created_at, confirmed_at, paid_at, delivery_type, delivery_status, delivery_boy_id, delivery_address, delivery_city, delivery_landmark, delivery_pincode, delivery_alt_phone, assigned_at, picked_up_at, out_for_delivery_at, delivered_at, collected_at, shipped_at, received_at, fulfillment_date, acknowledged_at'
+  'id, farmer_id, order_code, produce_name, quantity, unit, total_price, platform_fee, buyer_name, buyer_phone, pickup_location, status, payment_method, payment_status, utr_number, decline_reason, refund_status, refund_amount, refunded_at, created_at, confirmed_at, paid_at, delivery_type, delivery_status, delivery_boy_id, delivery_address, delivery_city, delivery_landmark, delivery_pincode, delivery_alt_phone, assigned_at, picked_up_at, out_for_delivery_at, delivered_at, collected_at, shipped_at, received_at, fulfillment_date, acknowledged_at, harvest_id, harvest:harvests(harvested_at, shelf_life_days)'
 
 export default function FarmerOrderDetailPage() {
   const params = useParams<{ id: string }>()
@@ -125,9 +129,6 @@ export default function FarmerOrderDetailPage() {
 
   const fmt = (iso?: string | null) =>
     iso ? new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''
-
-  const fmtDate = (d?: string | null) =>
-    d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : ''
 
   const isCod = !order?.payment_method || order?.payment_method === 'cod'
   // Once an order is handed over (collected at pickup / received on delivery)
@@ -244,6 +245,24 @@ export default function FarmerOrderDetailPage() {
                 </span>
               </div>
 
+              {/* Which harvest this order is against — the farmer knows exactly
+                  which pick to prepare. */}
+              {(() => {
+                const h = Array.isArray(order.harvest) ? order.harvest[0] : order.harvest
+                if (!h?.harvested_at) return null
+                return (
+                  <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+                    <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide">🌾 {L('Against harvest', 'ఈ కోతకు')}</p>
+                    <p className="text-xs font-semibold text-green-900 mt-0.5">
+                      {harvestClock(h.harvested_at, L)}
+                      <span className="font-normal text-green-700"> · {new Date(h.harvested_at).toLocaleString('en-IN', {
+                        day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+                      })}</span>
+                    </p>
+                  </div>
+                )
+              })()}
+
               {/* Price breakdown — item amount, the platform fee collected on
                   this order (goes to the platform, not the farmer; ₹0 when no
                   fee applied) and the total the buyer pays. */}
@@ -290,7 +309,7 @@ export default function FarmerOrderDetailPage() {
                       {isDelivery ? tx.deliveryDateLabel : tx.pickupDateLabel}
                     </p>
                     <p className="text-xs font-semibold text-gray-700">
-                      {order.fulfillment_date ? fmtDate(order.fulfillment_date) : L('Not set', 'సెట్ చేయలేదు')}
+                      {order.fulfillment_date ? fmt(order.fulfillment_date) : L('Not set', 'సెట్ చేయలేదు')}
                     </p>
                   </div>
                 )}
@@ -333,7 +352,7 @@ export default function FarmerOrderDetailPage() {
               )}
               {order.fulfillment_date && order.status !== 'declined' && order.status !== 'cancelled' && (
                 <p className="text-sm font-bold text-green-700 pt-1">
-                  📅 {isDelivery ? tx.deliveryDateLabel : tx.pickupDateLabel}: {fmtDate(order.fulfillment_date)}
+                  📅 {isDelivery ? tx.deliveryDateLabel : tx.pickupDateLabel}: {fmt(order.fulfillment_date)}
                 </p>
               )}
               {order.reschedule_reason && order.status !== 'declined' && order.status !== 'cancelled' && (

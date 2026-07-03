@@ -28,7 +28,7 @@ export default function ConsumerOrdersPage() {
   const [cancelBusy, setCancelBusy] = useState(false)
   // After a successful cancel, show the animated confirmation with the refund
   // breakdown (the platform fee is withheld on a buyer cancel).
-  const [cancelledInfo, setCancelledInfo] = useState<{ wasPaid: boolean; refundAmount?: number; platformFeeWithheld?: number } | null>(null)
+  const [cancelledInfo, setCancelledInfo] = useState<{ wasPaid: boolean; refundAmount?: number; platformFeeWithheld?: number; refundFailed?: boolean } | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -97,6 +97,7 @@ export default function ConsumerOrdersPage() {
         wasPaid,
         refundAmount: typeof json?.refundAmount === 'number' ? json.refundAmount : undefined,
         platformFeeWithheld: typeof json?.platformFeeWithheld === 'number' ? json.platformFeeWithheld : undefined,
+        refundFailed: json?.refundFailed === true,
       })
       await refresh()
     } else {
@@ -258,6 +259,7 @@ export default function ConsumerOrdersPage() {
           wasPaid={cancelledInfo.wasPaid}
           refundAmount={cancelledInfo.refundAmount}
           platformFeeWithheld={cancelledInfo.platformFeeWithheld}
+          refundFailed={cancelledInfo.refundFailed}
           onClose={() => setCancelledInfo(null)}
         />
       )}

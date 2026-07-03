@@ -13,11 +13,15 @@ export function CancelSuccessSheet({
   wasPaid,
   refundAmount,
   platformFeeWithheld,
+  refundFailed = false,
   onClose,
 }: {
   wasPaid: boolean
   refundAmount?: number
   platformFeeWithheld?: number
+  // The automatic gateway refund couldn't be processed — the order is still
+  // cancelled, but the refund will be settled manually.
+  refundFailed?: boolean
   onClose: () => void
 }) {
   const { L } = useLang()
@@ -38,7 +42,9 @@ export function CancelSuccessSheet({
           {wasPaid ? (
             <>
               <p className="text-sm text-gray-600 leading-snug">
-                {L('A refund has been started — it will reach your account in 3–5 business days.', 'రీఫండ్ ప్రారంభమైంది — 3–5 పని దినాలలో మీ ఖాతాకు జమ అవుతుంది.')}
+                {refundFailed
+                  ? L('Your order is cancelled. The automatic refund could not be processed right now — our team will refund you manually within a few days.', 'మీ ఆర్డర్ రద్దు చేయబడింది. ఆటోమేటిక్ రీఫండ్ ఇప్పుడు జరగలేదు — మా బృందం కొన్ని రోజుల్లో మాన్యువల్‌గా రీఫండ్ చేస్తుంది.')
+                  : L('A refund has been started — it will reach your account in 3–5 business days.', 'రీఫండ్ ప్రారంభమైంది — 3–5 పని దినాలలో మీ ఖాతాకు జమ అవుతుంది.')}
               </p>
               {showFeeBreakdown && (
                 <div className="bg-gray-50 rounded-2xl px-4 py-3 text-left space-y-1">

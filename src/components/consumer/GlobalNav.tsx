@@ -8,7 +8,17 @@ import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 
 type ActiveTab = 'consumer' | 'farmer' | 'delivery' | 'moderator'
 
-export default function GlobalNav({ activeTab = 'consumer' }: { activeTab?: ActiveTab }) {
+// Optional location control shown in the top bar (right side, beside the
+// greeting). Only the consumer browse page passes it; other pages omit it.
+type LocationControl = { name: string; onClick: () => void }
+
+export default function GlobalNav({
+  activeTab = 'consumer',
+  location,
+}: {
+  activeTab?: ActiveTab
+  location?: LocationControl
+}) {
   const { tx, L } = useLang()
   const { state, consumer, openAuth, logout, suspendedReason, dismissSuspension } = useConsumerAuth()
 
@@ -28,12 +38,24 @@ export default function GlobalNav({ activeTab = 'consumer' }: { activeTab?: Acti
             <span className="text-white font-black text-xs">GG</span>
           </div>
           <div className="leading-tight min-w-0">
-            <span className="text-white font-bold text-sm block truncate">{L('Go Grameen', 'గో గ్రామీణ్')}</span>
-            <span className="text-green-300 text-[10px] block truncate">{L('Your Family Farmer', 'యువర్ ఫ్యామిలీ ఫార్మర్')}</span>
+            <span className="text-white font-bold text-sm block truncate">{L('Fresh from your local farmer', 'మీ స్థానిక రైతు నుండి తాజా')}</span>
+            <span className="text-green-300 text-[10px] block truncate">{L('Straight from farm · No middlemen', 'నేరుగా పొలం నుండి · మధ్యవర్తులు లేరు')}</span>
           </div>
         </Link>
 
-        <div className="flex items-center gap-2.5 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Location — beside the greeting. Compact so the top bar stays tidy
+              on 390px; the name truncates. */}
+          {location && (
+            <button
+              onClick={location.onClick}
+              aria-label={L('Set location', 'లొకేషన్ పెట్టండి')}
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-green-100 bg-green-800 active:bg-green-700 rounded-full px-2.5 py-1.5 leading-tight max-w-[104px]"
+            >
+              <span aria-hidden>📍</span>
+              <span className="truncate">{location.name || L('Set location', 'లొకేషన్ పెట్టండి')}</span>
+            </button>
+          )}
           {state.status === 'loading' ? null : consumer ? (
             <ConsumerMenu name={consumer.name} onLogout={logout} />
           ) : (
