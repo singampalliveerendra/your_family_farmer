@@ -68,6 +68,28 @@ type ProduceListing = {
   latest_shelf_life_days?: number | null
 }
 
+// One logged harvest of a produce (template). The main grid shows a separate
+// card per harvest — so 3 harvests of the same Banana are 3 cards, each with its
+// own pick date/time, shelf life and stock — while inheriting everything else
+// (photos, price, farmer, quality) from the produce_listing. Reads the
+// `harvests` table (scripts/harvests-migration.sql).
+type GridHarvest = {
+  id: string
+  harvested_at: string
+  shelf_life_days: number | null
+  stock_qty: number | null
+  unit: string | null
+}
+
+// A produce listing with its computed distance from the consumer.
+type WithDist = ProduceListing & { distKm: number | null; distApprox: boolean }
+
+// One grid tile. `harvest` present → a specific harvest of the produce (own
+// date/shelf/stock, links to the harvest page); absent → the produce template
+// (fallback when nothing has been logged). `sortAt` is the harvest date/time
+// used by the "Freshest first" sort; `key` is the React/cart key.
+type DisplayCard = { item: WithDist; harvest?: GridHarvest; key: string; sortAt: number }
+
 const CATEGORIES = [
   { key: 'all',        en: 'All',             te: 'అన్నీ' },
   { key: 'vegetables', en: 'Vegetables',      te: 'కూరగాయలు' },
@@ -108,9 +130,10 @@ export default function ConsumerPage() {
   const { L } = useLang()
   const [available, setAvailable]     = useState<ProduceListing[]>([])
   const [comingSoon, setComingSoon]   = useState<ProduceListing[]>([])
-  // Latest harvest per produce (listing id → harvest), for the "Harvested 2h
-  // ago" clock on each card. Best-effort from the `harvests` table.
-  const [harvestMap, setHarvestMap]   = useState<Record<string, { at: string; shelf: number | null }>>({})
+  // All logged harvests per produce (listing id → harvests, newest first). Each
+  // becomes its own card; the newest also drives the fallback clock. Best-effort
+  // from the `harvests` table.
+  const [harvestsByListing, setHarvestsByListing] = useState<Record<string, GridHarvest[]>>({})
   const [filtered, setFiltered]       = useState<ProduceListing[]>([])
   const [search, setSearch]           = useState('')
   const [method, setMethod]           = useState('all')
@@ -145,23 +168,28 @@ export default function ConsumerPage() {
       setComingSoon(csArr)
       setFarmerCount(new Set(avArr.map((p) => p.farmer_id)).size)
 
-      // Latest harvest per produce → the card clock. Best-effort: a missing
-      // `harvests` table (migration not applied) just leaves the map empty.
+      // All harvests per produce (last 14 days + any future pre-books) → one card
+      // each. Best-effort: a missing `harvests` table (migration not applied)
+      // just leaves the map empty, so the grid falls back to one card per produce.
       try {
         const since = new Date(Date.now() - 14 * 86_400_000).toISOString()
         const { data: hs } = await supabase
           .from('harvests')
-          .select('produce_listing_id, harvested_at, shelf_life_days')
+          .select('id, produce_listing_id, harvested_at, shelf_life_days, stock_qty, unit')
           .gte('harvested_at', since)
           .order('harvested_at', { ascending: false })
           .limit(500)
-        const map: Record<string, { at: string; shelf: number | null }> = {}
-        for (const h of (hs ?? []) as { produce_listing_id: string; harvested_at: string; shelf_life_days: number | null }[]) {
-          if (!map[h.produce_listing_id]) {
-            map[h.produce_listing_id] = { at: h.harvested_at, shelf: h.shelf_life_days ?? null }
-          }
+        const map: Record<string, GridHarvest[]> = {}
+        for (const h of (hs ?? []) as (GridHarvest & { produce_listing_id: string })[]) {
+          ;(map[h.produce_listing_id] ??= []).push({
+            id: h.id,
+            harvested_at: h.harvested_at,
+            shelf_life_days: h.shelf_life_days ?? null,
+            stock_qty: h.stock_qty ?? null,
+            unit: h.unit ?? null,
+          })
         }
-        setHarvestMap(map)
+        setHarvestsByListing(map)
       } catch { /* harvests table not present yet */ }
     } catch { /* silent */ }
     if (!silent) setLoading(false)
@@ -241,9 +269,9 @@ export default function ConsumerPage() {
     return Array.from(m, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
   }, [available])
 
-  // Filter (farmer + distance) then sort (harvest date / rating / purchases).
-  const displayItems = useMemo(() => {
-    type WithDist = ProduceListing & { distKm: number | null; distApprox: boolean }
+  // Filter (farmer + distance), expand each produce into one card PER harvest,
+  // then sort (harvest date / rating / purchases).
+  const displayItems = useMemo<DisplayCard[]>(() => {
     let items: WithDist[] = filtered.map((item) => {
       let distKm: number | null = null
       let distApprox = false
@@ -254,16 +282,16 @@ export default function ConsumerPage() {
           distApprox = coords.approximate
         }
       }
-      const h = harvestMap[item.id]
+      const latest = (harvestsByListing[item.id] ?? [])[0]
       return {
         ...item,
         distKm,
         distApprox,
-        // Clock source, in order of preference: a logged `harvests` row, else
-        // the harvest date/time set on the listing's Edit form. So every produce
-        // with a harvest date shows "Harvested 2h ago", not only logged ones.
-        latest_harvested_at: h?.at ?? item.harvest_date ?? item.latest_harvested_at ?? null,
-        latest_shelf_life_days: h?.shelf ?? item.latest_shelf_life_days ?? item.shelf_life_days ?? null,
+        // Fallback clock (used only when this produce has NO logged harvest, so
+        // it shows a single template card): the newest logged harvest, else the
+        // harvest date/time set on the listing's Edit form.
+        latest_harvested_at: latest?.harvested_at ?? item.harvest_date ?? item.latest_harvested_at ?? null,
+        latest_shelf_life_days: latest?.shelf_life_days ?? item.latest_shelf_life_days ?? item.shelf_life_days ?? null,
       }
     })
 
@@ -278,18 +306,32 @@ export default function ConsumerPage() {
       const t = iso ? new Date(iso).getTime() : NaN
       return Number.isNaN(t) ? -Infinity : t
     }
-    items.sort((a, b) => {
+
+    // Expand: a produce with logged harvests becomes one card per harvest (each
+    // its own product — own date, shelf, stock); a produce with none falls back
+    // to a single template card.
+    const cards: DisplayCard[] = []
+    for (const item of items) {
+      const hs = harvestsByListing[item.id] ?? []
+      if (hs.length) {
+        for (const h of hs) cards.push({ item, harvest: h, key: h.id, sortAt: ts(h.harvested_at) })
+      } else {
+        cards.push({ item, key: item.id, sortAt: ts(item.latest_harvested_at) })
+      }
+    }
+
+    cards.sort((a, b) => {
       if (sortBy === 'rating') {
-        return (b.rating_avg ?? 0) - (a.rating_avg ?? 0) || (b.review_count ?? 0) - (a.review_count ?? 0)
+        return (b.item.rating_avg ?? 0) - (a.item.rating_avg ?? 0) || (b.item.review_count ?? 0) - (a.item.review_count ?? 0)
       }
       if (sortBy === 'purchases') {
-        return (b.purchase_count ?? 0) - (a.purchase_count ?? 0)
+        return (b.item.purchase_count ?? 0) - (a.item.purchase_count ?? 0)
       }
       // 'fresh' — most recent harvest date/time first.
-      return ts(b.latest_harvested_at) - ts(a.latest_harvested_at)
+      return b.sortAt - a.sortAt
     })
-    return items
-  }, [filtered, consumerLat, consumerLng, distanceFilter, harvestMap, farmerFilter, sortBy])
+    return cards
+  }, [filtered, consumerLat, consumerLng, distanceFilter, harvestsByListing, farmerFilter, sortBy])
 
   return (
     <main className="min-h-screen bg-[#f8f8f8] pb-12">
@@ -302,8 +344,20 @@ export default function ConsumerPage() {
       {/* ── Hero ─────────────────────────────── */}
       <div className="bg-green-900">
         <div className="max-w-3xl mx-auto px-4 pt-8 pb-14">
+          {/* Page title — its own full-width place in the hero, where it is
+              always fully visible. (The top-bar logo keeps the "Go Grameen"
+              brand; this marketing title lives here, not squeezed into the nav.) */}
+          <h1 className="text-2xl sm:text-4xl font-extrabold text-white leading-snug">
+            {L('Fresh from your local farmer', 'మీ స్థానిక రైతు నుండి తాజా ఆహారం')}
+          </h1>
+          <p className="text-green-400 text-sm mt-1">
+            {L('Straight from farm · No middlemen', 'నేరుగా పొలం నుండి · మధ్యవర్తులు లేరు')}
+          </p>
+
           {/* My Orders quick link (only when logged in) */}
-          <MyOrdersChip />
+          <div className="mt-5">
+            <MyOrdersChip />
+          </div>
         </div>
       </div>
 
@@ -432,12 +486,13 @@ export default function ConsumerPage() {
           )
         ) : (
           <div className="grid grid-cols-2 gap-2 auto-rows-fr">
-            {displayItems.map((item) => (
+            {displayItems.map((card) => (
               <ProduceCard
-                key={item.id}
-                item={item}
-                distanceKm={'distKm' in item ? (item as ProduceListing & { distKm: number | null }).distKm : null}
-                distanceApprox={'distApprox' in item ? (item as ProduceListing & { distApprox: boolean }).distApprox : false}
+                key={card.key}
+                item={card.item}
+                harvest={card.harvest}
+                distanceKm={card.item.distKm}
+                distanceApprox={card.item.distApprox}
               />
             ))}
           </div>
@@ -482,7 +537,12 @@ export default function ConsumerPage() {
 }
 
 /* ─── Produce card ──────────────────────────────────────── */
-function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListing; distanceKm?: number | null; distanceApprox?: boolean }) {
+// `harvest` present → this tile is one specific harvest of the produce (its own
+// pick date, shelf life and stock; tapping opens the harvest page and Add puts
+// that harvest in the cart). Absent → the produce template, as a fallback for
+// produce with no logged harvest. Everything else (photos, price, farmer,
+// quality, reviews) is inherited from the produce_listing either way.
+function ProduceCard({ item, harvest, distanceKm, distanceApprox }: { item: ProduceListing; harvest?: GridHarvest; distanceKm?: number | null; distanceApprox?: boolean }) {
   const emoji       = item.emoji ?? '🌿'
   const produceBg   = PRODUCE_BG[emoji] ?? DEFAULT_PRODUCE_BG
   const method      = item.method?.toLowerCase() ?? 'natural'
@@ -490,17 +550,27 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
   const methodShort = METHOD_SHORT[method] ?? 'Natural'
   const farmer      = item.farmer
   const farmerHref  = farmer ? `/farmer/${farmer.slug}` : '#'
-  const produceHref = `/consumer/produce/${item.id}`
-  const unit        = item.unit || 'kg'
+  // Harvest card links to the harvest page and is keyed on the harvest; template
+  // card links to the produce page and is keyed on the listing.
+  const produceHref = harvest ? `/consumer/harvest/${harvest.id}` : `/consumer/produce/${item.id}`
+  const cartKey     = harvest ? harvest.id : item.id
+  const unit        = harvest?.unit || item.unit || 'kg'
+
+  // Clock + freshness: from THIS harvest when it's a harvest card, else the
+  // produce's fallback (latest logged / Edit-form harvest date).
+  const clockAt    = harvest ? harvest.harvested_at : (item.latest_harvested_at ?? null)
+  const clockShelf = harvest ? (harvest.shelf_life_days ?? item.shelf_life_days ?? null) : (item.latest_shelf_life_days ?? null)
+  // Stock: the harvest carries its own; the template uses the listing's.
+  const baseStock  = harvest ? (harvest.stock_qty ?? null) : (item.stock_qty ?? null)
 
   const { tx, lang, L } = useLang()
   const { cart, addItem, setQty } = useCart()
   const { requireAuth } = useConsumerAuth()
-  const inCart = cart[item.id]
+  const inCart = cart[cartKey]
 
   const canAdd = !!farmer && !!farmer.phone
 
-  const [liveStock, setLiveStock] = useState<number | null>(item.stock_qty ?? null)
+  const [liveStock, setLiveStock] = useState<number | null>(baseStock)
   const [stockMsg, setStockMsg]   = useState('')
   const [adding, setAdding]       = useState(false)
 
@@ -517,7 +587,7 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
   }
   const [showReviews, setShowReviews] = useState(false)
 
-  useEffect(() => { setLiveStock(item.stock_qty ?? null) }, [item.stock_qty])
+  useEffect(() => { setLiveStock(baseStock) }, [baseStock])
 
   const isOutOfStock = liveStock !== null && liveStock <= 0
   const atMax        = liveStock !== null && inCart != null && inCart.qty >= liveStock
@@ -532,11 +602,11 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
     setAdding(true)
     setStockMsg('')
 
-    const { data } = await supabase
-      .from('produce_listings')
-      .select('stock_qty')
-      .eq('id', item.id)
-      .single()
+    // Re-read the live stock from the right source: the harvest's own row for a
+    // harvest card, else the produce listing.
+    const { data } = harvest
+      ? await supabase.from('harvests').select('stock_qty').eq('id', harvest.id).single()
+      : await supabase.from('produce_listings').select('stock_qty').eq('id', item.id).single()
 
     const fresh = data?.stock_qty ?? null
     if (fresh !== null) setLiveStock(fresh)
@@ -560,11 +630,20 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
 
     addItem({
       listingId: item.id,
+      // Harvest card → tie the cart line to this harvest (own date/shelf/stock),
+      // so two harvests of the same produce are separate lines.
+      ...(harvest
+        ? {
+            harvestId: harvest.id,
+            harvestedAt: harvest.harvested_at,
+            shelfLifeDays: harvest.shelf_life_days ?? item.shelf_life_days ?? undefined,
+          }
+        : {}),
       name: item.name,
       variety: item.variety,
       emoji: item.emoji,
       unit,
-      stockQty: fresh != null ? fresh : (item.stock_qty ?? undefined),
+      stockQty: fresh != null ? fresh : (baseStock ?? undefined),
       pricePerKg: item.price_tier_1_price,
       priceTier1Qty: item.price_tier_1_qty,
       priceTier1Price: item.price_tier_1_price,
@@ -587,7 +666,7 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
       return
     }
     setStockMsg('')
-    setQty(item.id, inCart.qty + 1)
+    setQty(cartKey, inCart.qty + 1)
   }
 
   return (
@@ -667,15 +746,15 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
           )}
         </Link>
 
-        {/* Harvest clock — "Harvested 2 hours ago", from this produce's latest
-            harvest. Only shows once a harvest has been logged. */}
-        {item.latest_harvested_at && (
+        {/* Harvest clock — "Harvested 2 hours ago", from THIS harvest (or the
+            produce's latest as a fallback). Only shows once a harvest date exists. */}
+        {clockAt && (
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-green-700 bg-green-50 rounded-full px-2 py-0.5">
-              ⏱ {harvestClock(item.latest_harvested_at, L)}
+              ⏱ {harvestClock(clockAt, L)}
             </span>
             {(() => {
-              const fresh = freshnessLabel(item.latest_harvested_at, item.latest_shelf_life_days, L)
+              const fresh = freshnessLabel(clockAt, clockShelf, L)
               return fresh ? <span className="text-[11px] font-semibold text-amber-700">{fresh}</span> : null
             })()}
           </div>
@@ -776,7 +855,7 @@ function ProduceCard({ item, distanceKm, distanceApprox }: { item: ProduceListin
           ) : (
             <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl h-10 px-2">
               <button
-                onClick={() => { setQty(item.id, inCart.qty - 1); setStockMsg('') }}
+                onClick={() => { setQty(cartKey, inCart.qty - 1); setStockMsg('') }}
                 className="w-7 h-7 rounded-lg bg-white border border-green-300 text-green-800 text-lg font-bold leading-none"
                 aria-label="Decrease"
               >

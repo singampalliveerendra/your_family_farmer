@@ -38,8 +38,8 @@ export default function GlobalNav({
             <span className="text-white font-black text-xs">GG</span>
           </div>
           <div className="leading-tight min-w-0">
-            <span className="text-white font-bold text-sm block truncate">{L('Fresh from your local farmer', 'మీ స్థానిక రైతు నుండి తాజా')}</span>
-            <span className="text-green-300 text-[10px] block truncate">{L('Straight from farm · No middlemen', 'నేరుగా పొలం నుండి · మధ్యవర్తులు లేరు')}</span>
+            <span className="text-white font-bold text-sm block truncate">{L('Go Grameen', 'గో గ్రామీణ్')}</span>
+            <span className="text-green-300 text-[10px] block truncate">{L('Your Family Farmer', 'యువర్ ఫ్యామిలీ ఫార్మర్')}</span>
           </div>
         </Link>
 

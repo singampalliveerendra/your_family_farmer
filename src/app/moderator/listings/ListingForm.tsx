@@ -149,8 +149,10 @@ export default function ListingForm({
     if (submitting) return
     if (mode === 'create' && !farmerId) { setError('Choose a farmer.'); return }
     if (!form.name.trim()) { setError('Harvest name is required.'); return }
-    // Harvest date/time and shelf life are mandatory — they drive the buyer's
-    // freshness clock, so a listing can't be saved without them.
+    // The moderator form has no separate harvest logger (unlike the farmer's
+    // HarvestManager), so this "Harvest date & time" field IS how a moderator
+    // seeds/updates the produce's harvest row — hence still required here, while
+    // the farmer's produce form drops it in favour of per-pick logging.
     if (!form.harvest_date) { setError('Harvest date & time is required.'); return }
     const shelfNum = parseInt(form.shelf_life_days, 10)
     if (!form.shelf_life_days || !Number.isFinite(shelfNum) || shelfNum <= 0) {
@@ -292,7 +294,7 @@ export default function ListingForm({
         <Field label="Brix (sweetness)">
           <input value={form.brix} onChange={set('brix')} type="number" min="0" step="0.1" className={inputCls} />
         </Field>
-        <Field label="Harvest date & time *">
+        <Field label="Latest harvest date & time *">
           <input value={form.harvest_date} onChange={set('harvest_date')} type="datetime-local" required className={inputCls} />
         </Field>
         <Field label="Shelf life (days) *">

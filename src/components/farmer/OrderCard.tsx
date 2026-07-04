@@ -154,16 +154,17 @@ export default function OrderCard({
   const isAfterHarvest = (iso: string) =>
     !harvestAt || (!!iso && new Date(iso).getTime() >= new Date(harvestAt).getTime())
 
-  // Local (not UTC) "now" so the picker still allows today in IST evenings.
-  // Minimum selectable pickup/delivery date-time. For a pre-book (future) harvest
-  // the minimum is the harvest time itself; otherwise "now". Computed once on mount.
+  // Local (not UTC) "now" so the picker still allows today in IST evenings. This
+  // is the ONLY hard floor on the picker (no past pickups). The harvest-time
+  // constraint is deliberately NOT baked into `min`: a native min silently clamps
+  // an earlier pick up to the harvest time, so the farmer never learns why their
+  // date "jumped". Instead we let them choose freely and surface isAfterHarvest()
+  // as an inline validation message (the confirm button stays disabled meanwhile).
   const [nowLocalMin] = useState(() => {
     const d = new Date()
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
     return d.toISOString().slice(0, 16)
   })
-  const harvestLocalMin = harvestAt ? toLocalInput(harvestAt) : ''
-  const minDateTime = harvestLocalMin && harvestLocalMin > nowLocalMin ? harvestLocalMin : nowLocalMin
 
   // Error shown when the farmer tries to schedule before the harvest.
   const [dateError, setDateError] = useState('')
@@ -395,7 +396,7 @@ export default function OrderCard({
             <input
               type="datetime-local"
               value={toLocalInput(fulfillmentDate)}
-              min={minDateTime}
+              min={nowLocalMin}
               onChange={(e) => {
                 const iso = localToIso(e.target.value)
                 if (iso && !isAfterHarvest(iso)) {
@@ -439,7 +440,7 @@ export default function OrderCard({
               <input
                 type="datetime-local"
                 value={toLocalInput(newDate)}
-                min={minDateTime}
+                min={nowLocalMin}
                 onChange={(e) => {
                   const iso = localToIso(e.target.value)
                   setNewDate(iso)

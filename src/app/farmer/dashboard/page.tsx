@@ -1698,17 +1698,19 @@ function ProduceListingForm({
   const [harvestFreqCount] = useState(
     editData?.harvest_frequency_count != null ? String(editData.harvest_frequency_count) : '',
   )
-  // Harvest date & time for this listing (stored as a full timestamp so the
-  // time is preserved). datetime-local wants LOCAL yyyy-MM-ddThh:mm, so convert
-  // the stored UTC ISO string back to that shape for the input.
-  const [harvestDate, setHarvestDate] = useState(() => {
+  // Harvest date & time is no longer set on the produce itself — it now lives
+  // per-pick in the harvests model (HarvestManager below). We still read any
+  // existing value so a save preserves it rather than wiping the column; there
+  // is no input or setter (like availFrom / harvestFreq above).
+  const [harvestDate] = useState(() => {
     if (!editData?.harvest_date) return ''
     const d = new Date(editData.harvest_date)
     if (isNaN(d.getTime())) return ''
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
     return d.toISOString().slice(0, 16)
   })
-  // Shelf life (days) — how long this harvest stays fresh.
+  // Shelf life (days) — how long this produce stays fresh. A produce-level
+  // property (the harvest just records when + how much).
   const [shelfLifeDays, setShelfLifeDays] = useState(
     editData?.shelf_life_days != null ? String(editData.shelf_life_days) : '',
   )
@@ -1846,12 +1848,9 @@ function ProduceListingForm({
       setError(tx.priceRequired)
       return
     }
-    // Harvest date/time and shelf life are mandatory — they drive the freshness
-    // clock buyers rely on, so a listing can't go live without them.
-    if (!harvestDate) {
-      setError(L('Harvest date & time is required.', 'కోత తేదీ & సమయం తప్పనిసరి.'))
-      return
-    }
+    // Shelf life is mandatory — it drives the freshness label buyers rely on.
+    // (Harvest date/time is now per-pick in the harvests model, not on the
+    // produce, so it's no longer required here.)
     const shelfNum = parseInt(shelfLifeDays, 10)
     if (!shelfLifeDays || !Number.isFinite(shelfNum) || shelfNum <= 0) {
       setError(L('Shelf life (days) is required.', 'తాజా (రోజులు) తప్పనిసరి.'))
@@ -2119,19 +2118,8 @@ function ProduceListingForm({
         {/* Availability range + harvesting frequency removed — the harvests
             model (per-pick date/time + shelf life) supersedes them. */}
 
-        {/* Harvest date & time + shelf life (required) for this listing */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {L('Harvest date & time', 'కోత తేదీ & సమయం')} <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="datetime-local"
-            required
-            value={harvestDate}
-            onChange={(e) => setHarvestDate(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
-          />
-        </div>
+        {/* Shelf life (required) for this listing. Harvest date & time is set
+            per-pick in the harvests model (HarvestManager below), not here. */}
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
             {L('Shelf life (days)', 'తాజా (రోజులు)')} <span className="text-red-500">*</span>
@@ -2152,7 +2140,12 @@ function ProduceListingForm({
             with its own date, shelf life and qty). Only when editing an existing
             produce, since a harvest needs a saved produce to attach to. */}
         {isEdit && editData && (
-          <HarvestManager listingId={editData.id} farmerId={farmerId} unit={unit} />
+          <HarvestManager
+            listingId={editData.id}
+            farmerId={farmerId}
+            unit={unit}
+            produceShelfLife={shelfLifeDays ? parseInt(shelfLifeDays, 10) : null}
+          />
         )}
 
         {/* Farming method */}
@@ -2795,7 +2788,7 @@ function ManageListingsModal({
    its own sellable product powering the consumer "Today's Harvest" feed and the
    "Harvested 2h ago" clock. This whole panel used to be a separate button on the
    produce card; it now lives inside Edit. */
-function HarvestManager({ listingId, farmerId, unit }: { listingId: string; farmerId: string; unit?: string | null }) {
+function HarvestManager({ listingId, farmerId, unit, produceShelfLife }: { listingId: string; farmerId: string; unit?: string | null; produceShelfLife?: number | null }) {
   const { L } = useLang()
   const nowLocal = () => {
     const d = new Date()
@@ -2811,7 +2804,6 @@ function HarvestManager({ listingId, farmerId, unit }: { listingId: string; farm
     return d.toISOString().slice(0, 16)
   }
   const [harvestedAt, setHarvestedAt] = useState(nowLocal())
-  const [shelfLife, setShelfLife] = useState('')
   const [approxQty, setApproxQty] = useState('')
   const [savingHarvest, setSavingHarvest] = useState(false)
   const [harvestMsg, setHarvestMsg] = useState('')
@@ -2821,7 +2813,6 @@ function HarvestManager({ listingId, farmerId, unit }: { listingId: string; farm
   const [harvestsLoaded, setHarvestsLoaded] = useState(false)
   const [editingHarvestId, setEditingHarvestId] = useState<string | null>(null)
   const [editAt, setEditAt] = useState('')
-  const [editShelf, setEditShelf] = useState('')
   const [editQty, setEditQty] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const [editErr, setEditErr] = useState('')
@@ -2844,16 +2835,13 @@ function HarvestManager({ listingId, farmerId, unit }: { listingId: string; farm
     setHarvestMsg('')
     const when = new Date(harvestedAt)
     if (isNaN(when.getTime())) { setHarvestErr(L('Pick a valid harvest date & time.', 'సరైన కోత తేదీ & సమయం ఎంచుకోండి.')); return }
-    const shelfNum = parseInt(shelfLife, 10)
-    if (!shelfLife || !Number.isFinite(shelfNum) || shelfNum <= 0) {
-      setHarvestErr(L('Shelf life (days) is required.', 'తాజా (రోజులు) తప్పనిసరి.')); return
-    }
     setSavingHarvest(true)
+    // Shelf life is not logged per-harvest — it's a produce-level property, so
+    // the consumer freshness label falls back to the listing's shelf_life_days.
     const { error: err } = await supabase.from('harvests').insert({
       produce_listing_id: listingId,
       farmer_id: farmerId,
       harvested_at: when.toISOString(),
-      shelf_life_days: shelfNum,
       approx_quantity: approxQty ? Number(approxQty) : null,
       // The quantity entered is this harvest's sellable stock: each harvest is
       // its own product with its own inventory (decremented as buyers order).
@@ -2863,7 +2851,7 @@ function HarvestManager({ listingId, farmerId, unit }: { listingId: string; farm
     setSavingHarvest(false)
     if (err) { setHarvestErr(err.message); return }
     setHarvestMsg(L('Harvest logged ✓', 'కోత నమోదైంది ✓'))
-    setShelfLife(''); setApproxQty(''); setHarvestedAt(nowLocal())
+    setApproxQty(''); setHarvestedAt(nowLocal())
     void loadHarvests()
     setTimeout(() => setHarvestMsg(''), 1400)
   }
@@ -2872,7 +2860,6 @@ function HarvestManager({ listingId, farmerId, unit }: { listingId: string; farm
     setEditingHarvestId(h.id)
     setEditErr('')
     setEditAt(toLocalInput(h.harvested_at))
-    setEditShelf(h.shelf_life_days != null ? String(h.shelf_life_days) : '')
     setEditQty(h.approx_quantity != null ? String(h.approx_quantity) : '')
   }
 
@@ -2881,14 +2868,9 @@ function HarvestManager({ listingId, farmerId, unit }: { listingId: string; farm
     setEditErr('')
     const when = new Date(editAt)
     if (isNaN(when.getTime())) { setEditErr(L('Pick a valid harvest date & time.', 'సరైన కోత తేదీ & సమయం ఎంచుకోండి.')); return }
-    const editShelfNum = parseInt(editShelf, 10)
-    if (!editShelf || !Number.isFinite(editShelfNum) || editShelfNum <= 0) {
-      setEditErr(L('Shelf life (days) is required.', 'తాజా (రోజులు) తప్పనిసరి.')); return
-    }
     setSavingEdit(true)
     const { error: err } = await supabase.from('harvests').update({
       harvested_at: when.toISOString(),
-      shelf_life_days: editShelfNum,
       approx_quantity: editQty ? Number(editQty) : null,
       // Editing the quantity resets this harvest's sellable stock to the new
       // amount (the farmer is stating what's actually available now).
@@ -2920,25 +2902,14 @@ function HarvestManager({ listingId, farmerId, unit }: { listingId: string; farm
           className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
         />
       </div>
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <label className="text-[11px] font-semibold text-gray-600">{L('Shelf life (days)', 'తాజా (రోజులు)')} <span className="text-red-500">*</span></label>
-          <input
-            type="number" inputMode="numeric" min={0} placeholder="e.g. 5"
-            value={shelfLife}
-            onChange={(e) => setShelfLife(e.target.value)}
-            className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-          />
-        </div>
-        <div className="flex-1">
-          <label className="text-[11px] font-semibold text-gray-600">{L('Qty for sale', 'అమ్మకానికి పరిమాణం')} ({unit || 'kg'})</label>
-          <input
-            type="number" inputMode="decimal" min={0} placeholder="e.g. 20"
-            value={approxQty}
-            onChange={(e) => setApproxQty(e.target.value)}
-            className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-          />
-        </div>
+      <div>
+        <label className="text-[11px] font-semibold text-gray-600">{L('Qty for sale', 'అమ్మకానికి పరిమాణం')} ({unit || 'kg'})</label>
+        <input
+          type="number" inputMode="decimal" min={0} placeholder="e.g. 20"
+          value={approxQty}
+          onChange={(e) => setApproxQty(e.target.value)}
+          className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+        />
       </div>
       {harvestErr && <p className="text-[11px] text-red-600 font-semibold">{harvestErr}</p>}
       {harvestMsg && <p className="text-[11px] text-green-700 font-semibold">{harvestMsg}</p>}
@@ -2969,25 +2940,14 @@ function HarvestManager({ listingId, farmerId, unit }: { listingId: string; farm
                       className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
                   </div>
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <label className="text-[11px] font-semibold text-gray-600">{L('Shelf life (days)', 'తాజా (రోజులు)')} <span className="text-red-500">*</span></label>
-                      <input
-                        type="number" inputMode="numeric" min={0} placeholder="e.g. 5"
-                        value={editShelf}
-                        onChange={(e) => setEditShelf(e.target.value)}
-                        className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <label className="text-[11px] font-semibold text-gray-600">{L('Qty for sale', 'అమ్మకానికి పరిమాణం')} ({unit || 'kg'})</label>
-                      <input
-                        type="number" inputMode="decimal" min={0} placeholder="e.g. 20"
-                        value={editQty}
-                        onChange={(e) => setEditQty(e.target.value)}
-                        className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                      />
-                    </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-600">{L('Qty for sale', 'అమ్మకానికి పరిమాణం')} ({unit || 'kg'})</label>
+                    <input
+                      type="number" inputMode="decimal" min={0} placeholder="e.g. 20"
+                      value={editQty}
+                      onChange={(e) => setEditQty(e.target.value)}
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
                   </div>
                   {editErr && <p className="text-[11px] text-red-600 font-semibold">{editErr}</p>}
                   <div className="flex gap-2">
@@ -3013,9 +2973,9 @@ function HarvestManager({ listingId, farmerId, unit }: { listingId: string; farm
                       🌾 {harvestClock(h.harvested_at, L)}
                     </p>
                     <p className="text-[11px] text-gray-500">
-                      {h.shelf_life_days != null
-                        ? (freshnessLabel(h.harvested_at, h.shelf_life_days, L) ?? `${L('Shelf life', 'తాజా')}: ${h.shelf_life_days} ${L('days', 'రోజులు')}`)
-                        : L('No shelf life set', 'తాజా రోజులు లేవు')}
+                      {/* Freshness uses the produce's shelf life (per-harvest
+                          shelf life is no longer collected). */}
+                      {freshnessLabel(h.harvested_at, produceShelfLife ?? null, L) ?? harvestClock(h.harvested_at, L)}
                       {h.approx_quantity != null && <> · {h.approx_quantity} {h.unit || unit || 'kg'}</>}
                     </p>
                   </div>
