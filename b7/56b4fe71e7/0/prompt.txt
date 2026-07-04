@@ -1,0 +1,19 @@
+Improved Prompt:
+"Read through the entire codebase of this project, including all source files, configuration files, and documentation.
+Based on your analysis, generate a list of the top 30 interview questions (ranging from basic to medium difficulty) that an interviewer might ask about this project, specifically covering:
+
+Overall architecture – how the project is structured and why
+Vercel – deployment process, environment variables, serverless functions (if used)
+GitHub – version control workflow, branching strategy used in this project
+GoDaddy – domain configuration, DNS setup, how it connects to the deployed app
+Razorpay – payment gateway integration, how payments are initiated/verified/handled in the code
+Fast2SMS – OTP flow implementation, how OTP is sent/verified in the code
+
+For each question:
+
+Provide the answer in simple, easy-to-understand English
+Give a detailed explanation (not just one line) so I can understand the concept thoroughly, not just memorize it
+Reference actual code/files from this project where relevant, so my answer sounds authentic and specific to what I built
+Where useful, mention common follow-up questions an interviewer might ask on the same topic
+
+Format the output as a numbered list (Q1–Q30), grouped loosely by topic (Architecture / Vercel / GitHub / GoDaddy / Razorpay / Fast2SMS), so it's easy to study section by section."
