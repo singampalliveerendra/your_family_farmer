@@ -1,0 +1,1 @@
+During adding a produce the farmer has the option to select between "Pickup only", "I will Courier", "Both". Depending on the produce it should allow the consumers to select between them. Right now it allows irrespective of farmer's selection in the produce fix this
