@@ -302,6 +302,11 @@ export function CartSheet({
   // DELIVERY_FEE_RUPEES is charged once per cart (per farmer group at checkout)
   // and collected by the rider in cash on delivery, regardless of payment method.
   const [deliveryType, setDeliveryType] = useState<'self_pickup' | 'home_delivery'>('self_pickup')
+  // Per-produce fulfillment the farmer allowed ('pickup' | 'courier' | 'both'),
+  // keyed by listingId and fetched fresh at checkout. Constrains which delivery
+  // options the consumer may pick, so a "Pickup only" produce can't be ordered
+  // for home delivery and vice-versa. Missing/legacy rows fall back to 'both'.
+  const [deliveryModes, setDeliveryModes] = useState<Record<string, string>>({})
   // Home delivery (the farmer ships it to the buyer) needs a destination
   // address; self-pickup does not.
   const needsAddress = deliveryType === 'home_delivery'
@@ -460,6 +465,23 @@ export function CartSheet({
       })
   }, [items])
 
+  // Fetch each produce's allowed fulfillment mode (delivery_mode) so the
+  // delivery choice below can be limited to what the farmer permits per produce.
+  useEffect(() => {
+    const listingIds = [...new Set(items.map((i) => i.listingId).filter(Boolean))]
+    if (listingIds.length === 0) { setDeliveryModes({}); return }
+    supabase
+      .from('produce_listings')
+      .select('id, delivery_mode')
+      .in('id', listingIds)
+      .then(({ data }) => {
+        if (!data) return
+        const map: Record<string, string> = {}
+        for (const l of data) map[l.id] = (l.delivery_mode as string | null) ?? 'both'
+        setDeliveryModes(map)
+      })
+  }, [items])
+
   useEffect(() => {
     setName(info.name)
     setPhone(info.phone)
@@ -480,10 +502,31 @@ export function CartSheet({
   }, {})
   const farmerGroups = Object.values(byFarmer)
 
+  // Which delivery options the whole cart permits, from each produce's
+  // farmer-set delivery_mode. Self-pickup needs EVERY item to allow pickup
+  // ('pickup' or 'both'); home delivery needs EVERY item to allow courier
+  // ('courier' or 'both'). A cart mixing a pickup-only and a courier-only
+  // produce permits neither — that's flagged as a conflict below.
+  const modeOf = (it: CartItem) => deliveryModes[it.listingId] ?? 'both'
+  const canSelfPickup = items.length > 0 && items.every((it) => modeOf(it) !== 'courier')
+  const canHomeDelivery = items.length > 0 && items.every((it) => modeOf(it) !== 'pickup')
+  const deliveryConflict = items.length > 0 && !canSelfPickup && !canHomeDelivery
+
+  // Keep the selected delivery type within what the cart permits: if the
+  // current pick isn't allowed but the other one is, switch to it.
+  useEffect(() => {
+    if (deliveryConflict) return
+    if (deliveryType === 'self_pickup' && !canSelfPickup && canHomeDelivery) {
+      setDeliveryType('home_delivery')
+    } else if (deliveryType === 'home_delivery' && !canHomeDelivery && canSelfPickup) {
+      setDeliveryType('self_pickup')
+    }
+  }, [deliveryType, canSelfPickup, canHomeDelivery, deliveryConflict])
+
   const baseDetailsMissing = !name.trim() || phone.replace(/\D/g, '').length < 10
   const deliveryDetailsMissing = needsAddress
     && (deliveryAddress.trim().length < 10 || !deliveryCity.trim() || !/^\d{6}$/.test(deliveryPincode.trim()))
-  const detailsMissing = baseDetailsMissing || deliveryDetailsMissing
+  const detailsMissing = baseDetailsMissing || deliveryDetailsMissing || deliveryConflict
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -1240,37 +1283,64 @@ export function CartSheet({
                 <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
                   {L('How will you receive your order?', 'ఎలా అందుకుంటారు?')}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setDeliveryType('self_pickup')}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-sm font-bold transition-colors ${
-                    deliveryType === 'self_pickup'
-                      ? 'border-green-600 bg-green-50 text-green-900'
-                      : 'border-gray-200 bg-white text-gray-700'
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="text-base">🚶</span>
-                    {L('I will pick up', 'నేను తీసుకుంటాను')}
-                  </span>
-                  {deliveryType === 'self_pickup' && <span className="text-green-600 text-base">✓</span>}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeliveryType('home_delivery')}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-sm font-bold transition-colors ${
-                    deliveryType === 'home_delivery'
-                      ? 'border-blue-600 bg-blue-50 text-blue-900'
-                      : 'border-gray-200 bg-white text-gray-700'
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="text-base">🛵</span>
-                    {L('Home delivery', 'ఇంటికి డెలివరీ')}
-                  </span>
-                  {deliveryType === 'home_delivery' && <span className="text-blue-600 text-base">✓</span>}
-                </button>
-                {deliveryType === 'home_delivery' && (
+                {deliveryConflict ? (
+                  <p className="text-[11px] text-red-700 bg-red-50 rounded-xl px-3 py-2 leading-snug">
+                    {L(
+                      'Some items are pickup-only and others are delivery-only, so they can\'t go in one order. Please order them separately.',
+                      'కొన్ని వస్తువులు పికప్ మాత్రమే, మరికొన్ని డెలివరీ మాత్రమే — ఒకే ఆర్డర్‌లో కుదరదు. వేర్వేరుగా ఆర్డర్ చేయండి.',
+                    )}
+                  </p>
+                ) : (
+                  <>
+                    {canSelfPickup && (
+                      <button
+                        type="button"
+                        onClick={() => setDeliveryType('self_pickup')}
+                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-sm font-bold transition-colors ${
+                          deliveryType === 'self_pickup'
+                            ? 'border-green-600 bg-green-50 text-green-900'
+                            : 'border-gray-200 bg-white text-gray-700'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="text-base">🚶</span>
+                          {L('I will pick up', 'నేను తీసుకుంటాను')}
+                        </span>
+                        {deliveryType === 'self_pickup' && <span className="text-green-600 text-base">✓</span>}
+                      </button>
+                    )}
+                    {canHomeDelivery && (
+                      <button
+                        type="button"
+                        onClick={() => setDeliveryType('home_delivery')}
+                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-sm font-bold transition-colors ${
+                          deliveryType === 'home_delivery'
+                            ? 'border-blue-600 bg-blue-50 text-blue-900'
+                            : 'border-gray-200 bg-white text-gray-700'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="text-base">🛵</span>
+                          {L('Home delivery', 'ఇంటికి డెలివరీ')}
+                        </span>
+                        {deliveryType === 'home_delivery' && <span className="text-blue-600 text-base">✓</span>}
+                      </button>
+                    )}
+                    {/* When the farmer allows only one method for these items,
+                        say so instead of showing a lone "choice". */}
+                    {canSelfPickup && !canHomeDelivery && (
+                      <p className="text-[11px] text-gray-500 leading-snug">
+                        {L('This farmer offers pickup only for these items.', 'ఈ వస్తువులకు రైతు పికప్ మాత్రమే అందిస్తారు.')}
+                      </p>
+                    )}
+                    {canHomeDelivery && !canSelfPickup && (
+                      <p className="text-[11px] text-gray-500 leading-snug">
+                        {L('This farmer offers home delivery only for these items.', 'ఈ వస్తువులకు రైతు హోమ్ డెలివరీ మాత్రమే అందిస్తారు.')}
+                      </p>
+                    )}
+                  </>
+                )}
+                {!deliveryConflict && deliveryType === 'home_delivery' && (
                   <p className="text-[11px] text-blue-700 bg-blue-50 rounded-xl px-3 py-2 leading-snug">
                     {L(
                       'The farmer ships it to your address. Confirm receipt on your order page once it arrives.',
