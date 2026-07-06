@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "c9ca61d60dea",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 7,
+  "files_touched": [
+    "src/app/consumer/harvest/[harvestId]/page.tsx",
+    "src/app/consumer/page.tsx",
+    "src/app/consumer/produce/[id]/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/components/consumer/FreshHarvestsTable.tsx",
+    "src/components/consumer/GlobalNav.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c9/ca61d60dea/0/metadata.json",
+      "transcript": "/c9/ca61d60dea/0/full.jsonl",
+      "content_hash": "/c9/ca61d60dea/0/content_hash.txt",
+      "prompt": "/c9/ca61d60dea/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 5240,
+    "cache_creation_tokens": 57702,
+    "cache_read_tokens": 2167952,
+    "output_tokens": 23430,
+    "api_call_count": 48
+  }
+}

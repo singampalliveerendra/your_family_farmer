@@ -1,0 +1,25 @@
+[Image #1]Change "Harvested On" to "Harvest Date Time" in the Harvest Detail screen for Consumer.
+
+---
+
+[Image #2]Move the location beside "My Orders" button on Consumer Dashboard.. right side
+
+---
+
+[Image #3] remove this and separate this keep setting option in top right in that show option like login as farmer and for deluvery also so for consumer look like plain the consumer did not see any farmer and delivery in open page did you underatnd my point explain now
+
+---
+
+[Image #4] see here the slide bar not looking clear its merged under the image
+
+---
+
+Reword the Consumer Dashboard title to "Fresh from your local farmers" and subtitle to "Straight from the farm. No Middlemen"
+
+---
+
+Add a title to Farmer Dashboard "Your Harvest. Your Price. Your Consumer"
+
+---
+
+Change Cart Button on the Fresh Harvests lists to + and -.[Image #5]
