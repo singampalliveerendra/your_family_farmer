@@ -426,6 +426,9 @@ export default function FarmerDashboard() {
             </button>
           </div>
         </div>
+        <h2 className="text-white text-lg sm:text-xl font-extrabold leading-snug mt-4">
+          {L('Your Harvest. Your Price. Your Consumer', 'మీ కోత. మీ ధర. మీ కొనుగోలుదారు')}
+        </h2>
       </div>
 
       <div className="px-4 -mt-5 space-y-4">

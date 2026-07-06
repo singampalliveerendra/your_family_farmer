@@ -268,9 +268,9 @@ export default function HarvestDetailPage() {
               ))}
             </div>
             {gallery.length > 1 && (
-              <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 pointer-events-none">
+              <div className="absolute bottom-7 left-0 right-0 flex justify-center gap-1.5 pointer-events-none drop-shadow">
                 {gallery.map((_, i) => (
-                  <span key={i} className={`h-1.5 rounded-full transition-all ${i === activeImg ? 'w-4 bg-white' : 'w-1.5 bg-white/60'}`} />
+                  <span key={i} className={`h-1.5 rounded-full transition-all ${i === activeImg ? 'w-4 bg-white' : 'w-1.5 bg-white/70'}`} />
                 ))}
               </div>
             )}
@@ -379,7 +379,7 @@ export default function HarvestDetailPage() {
             <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">🌾 {L('Harvest', 'కోత')}</p>
             <p className="text-sm font-bold text-green-800 leading-snug mt-0.5">⏱ {harvestClock(harvest.harvested_at, L)}</p>
             <p className="text-sm text-gray-600 leading-snug mt-0.5">
-              {L('Harvested on', 'కోసిన తేదీ')}: {new Date(harvest.harvested_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              {L('Harvest Date Time', 'కోత తేదీ సమయం')}: {new Date(harvest.harvested_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
             </p>
             {harvestShelf != null && (
               <p className="text-sm text-gray-600 leading-snug mt-0.5">

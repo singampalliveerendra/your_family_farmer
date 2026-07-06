@@ -42,7 +42,7 @@ type Variant = 'fresh' | 'upcoming'
 function HarvestTable({ variant }: { variant: Variant }) {
   const { lang, L } = useLang()
   const router = useRouter()
-  const { addItem, cart } = useCart()
+  const { addItem, setQty, cart } = useCart()
   const { requireAuth } = useConsumerAuth()
   const [rows, setRows] = useState<HarvestRow[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -155,7 +155,7 @@ function HarvestTable({ variant }: { variant: Variant }) {
           <tr className="text-[10px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
             <th className="font-bold px-4 py-2">{L('Harvest', 'కోత')}</th>
             <th className="font-bold px-4 py-2 text-right">{whenLabel}</th>
-            <th className="w-10" aria-hidden="true"></th>
+            <th className="w-[92px]" aria-hidden="true"></th>
           </tr>
         </thead>
         <tbody>
@@ -181,31 +181,44 @@ function HarvestTable({ variant }: { variant: Variant }) {
                     ⏱ {harvestClock(r.harvested_at, L)}
                   </span>
                 </td>
-                {/* Add-to-cart — adds THIS harvest (keyed by harvest id, so the
-                    fresh and upcoming rows don't mirror each other). stopPropagation
-                    so it doesn't also open the details row. */}
+                {/* Quantity stepper — adds/adjusts THIS harvest (keyed by harvest
+                    id, so the fresh and upcoming rows don't mirror each other).
+                    Shows a single + until it's in the cart, then − qty +.
+                    stopPropagation so taps don't also open the details row. */}
                 <td className="pr-3 pl-1 py-3 text-right align-middle">
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); void addHarvestToCart(r) }}
-                    disabled={!!adding[r.id]}
-                    aria-label={L('Add to cart', 'బుట్టలో వేయండి')}
-                    className={`inline-flex items-center justify-center w-8 h-8 rounded-full active:scale-95 disabled:opacity-50 ${
-                      cart[r.id] ? 'bg-green-600 text-white' : 'bg-green-50 text-green-700'
-                    }`}
-                  >
-                    {adding[r.id] ? (
-                      <span className="text-xs leading-none">…</span>
-                    ) : cart[r.id] ? (
-                      <span className="text-sm leading-none">✓</span>
-                    ) : (
-                      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <circle cx="9" cy="20" r="1.4" />
-                        <circle cx="18" cy="20" r="1.4" />
-                        <path d="M2.5 3h2l2.2 12.1a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.2L21 7H6" />
-                      </svg>
-                    )}
-                  </button>
+                  {cart[r.id] ? (
+                    <span className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setQty(r.id, (cart[r.id]?.qty ?? 1) - 1) }}
+                        aria-label={L('Remove one', 'ఒకటి తీసివేయండి')}
+                        className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-50 text-green-700 text-lg leading-none active:scale-95"
+                      >
+                        −
+                      </button>
+                      <span className="text-sm font-bold text-gray-900 w-4 text-center tabular-nums">
+                        {cart[r.id]?.qty ?? 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setQty(r.id, (cart[r.id]?.qty ?? 0) + 1) }}
+                        aria-label={L('Add one', 'ఒకటి జోడించండి')}
+                        className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-600 text-white text-lg leading-none active:scale-95"
+                      >
+                        +
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); void addHarvestToCart(r) }}
+                      disabled={!!adding[r.id]}
+                      aria-label={L('Add to cart', 'బుట్టలో వేయండి')}
+                      className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-green-50 text-green-700 text-lg leading-none active:scale-95 disabled:opacity-50"
+                    >
+                      {adding[r.id] ? <span className="text-xs leading-none">…</span> : '+'}
+                    </button>
+                  )}
                 </td>
               </tr>
             )

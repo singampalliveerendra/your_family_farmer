@@ -13,21 +13,15 @@ type ActiveTab = 'consumer' | 'farmer' | 'delivery' | 'moderator'
 type LocationControl = { name: string; onClick: () => void }
 
 export default function GlobalNav({
-  activeTab = 'consumer',
   location,
 }: {
+  // Kept for backward-compat with callers that still pass it; the role tabs
+  // were replaced by the ⚙️ RoleMenu, so it no longer drives any highlight.
   activeTab?: ActiveTab
   location?: LocationControl
 }) {
-  const { tx, L } = useLang()
+  const { L } = useLang()
   const { state, consumer, openAuth, logout, suspendedReason, dismissSuspension } = useConsumerAuth()
-
-  const tabs = [
-    { key: 'consumer' as const, href: '/consumer', label: tx.consumerNav },
-    { key: 'farmer' as const, href: '/farmer/dashboard', label: tx.farmerNav },
-    { key: 'delivery' as const, href: '/rider', label: tx.deliveryNav },
-    { key: 'moderator' as const, href: '#', label: tx.moderatorNav, disabled: true },
-  ]
 
   return (
     <nav className="sticky top-0 z-50 bg-green-900 shadow-lg">
@@ -67,36 +61,11 @@ export default function GlobalNav({
             </button>
           )}
           <LanguageToggle />
+          {/* Role switcher — tucked into a ⚙️ menu so consumers see a plain
+              shop, and Farmer/Delivery sign-in stays available but out of the
+              way (top-right). */}
+          <RoleMenu />
         </div>
-      </div>
-
-      {/* Role tabs */}
-      <div className="flex">
-        {tabs.map((tab) => {
-          const isActive = tab.key === activeTab
-
-          if (tab.disabled) {
-            return (
-              <span key={tab.key} className="flex-1 text-center py-2.5 text-xs text-green-700 font-medium">
-                {tab.label}
-              </span>
-            )
-          }
-
-          return (
-            <Link
-              key={tab.key}
-              href={tab.href}
-              className={`flex-1 text-center py-2.5 text-xs font-bold transition-colors ${
-                isActive
-                  ? 'bg-green-700 text-white border-b-2 border-green-300'
-                  : 'text-green-300 hover:text-white'
-              }`}
-            >
-              {tab.label}
-            </Link>
-          )
-        })}
       </div>
 
       {/* Suspension banner — shown when this account has been suspended by a
@@ -120,6 +89,71 @@ export default function GlobalNav({
         </div>
       )}
     </nav>
+  )
+}
+
+function RoleMenu() {
+  const { L } = useLang()
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDocClick = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onEsc)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onEsc)
+    }
+  }, [open])
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={L('Settings', 'సెట్టింగ్‌లు')}
+        className="text-base leading-none text-green-100 bg-green-800 active:bg-green-700 rounded-full w-8 h-8 flex items-center justify-center"
+      >
+        <span aria-hidden>⚙️</span>
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 text-sm z-50"
+        >
+          <p className="px-4 py-2 text-[11px] text-gray-500 leading-tight border-b border-gray-100 mb-1">
+            {L('Switch role', 'పాత్ర మార్చండి')}
+          </p>
+          <Link
+            href="/consumer"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-2.5 text-gray-800 active:bg-gray-100"
+          >
+            {L('🛒 Shop as Consumer', 'కొనుగోలుదారుగా')}
+          </Link>
+          <Link
+            href="/farmer/dashboard"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-2.5 text-gray-800 active:bg-gray-100"
+          >
+            {L('🧑‍🌾 Login as Farmer', 'రైతుగా లాగిన్')}
+          </Link>
+          <Link
+            href="/rider"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-2.5 text-gray-800 active:bg-gray-100"
+          >
+            {L('🛵 Login as Delivery', 'డెలివరీగా లాగిన్')}
+          </Link>
+        </div>
+      )}
+    </div>
   )
 }
 

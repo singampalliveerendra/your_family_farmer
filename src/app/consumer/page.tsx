@@ -336,10 +336,7 @@ export default function ConsumerPage() {
   return (
     <main className="min-h-screen bg-[#f8f8f8] pb-12">
       <RoleGateModal />
-      <GlobalNav
-        activeTab="consumer"
-        location={{ name: consumerLocationName, onClick: () => setShowLocationSheet(true) }}
-      />
+      <GlobalNav activeTab="consumer" />
 
       {/* ── Hero ─────────────────────────────── */}
       <div className="bg-green-900">
@@ -348,15 +345,23 @@ export default function ConsumerPage() {
               always fully visible. (The top-bar logo keeps the "Go Grameen"
               brand; this marketing title lives here, not squeezed into the nav.) */}
           <h1 className="text-2xl sm:text-4xl font-extrabold text-white leading-snug">
-            {L('Fresh from your local farmer', 'మీ స్థానిక రైతు నుండి తాజా ఆహారం')}
+            {L('Fresh from your local farmers', 'మీ స్థానిక రైతుల నుండి తాజా ఆహారం')}
           </h1>
           <p className="text-green-400 text-sm mt-1">
-            {L('Straight from farm · No middlemen', 'నేరుగా పొలం నుండి · మధ్యవర్తులు లేరు')}
+            {L('Straight from the farm. No Middlemen', 'నేరుగా పొలం నుండి. మధ్యవర్తులు లేరు')}
           </p>
 
-          {/* My Orders quick link (only when logged in) */}
-          <div className="mt-5">
+          {/* My Orders quick link (only when logged in) + location on the right */}
+          <div className="mt-5 flex items-center gap-2">
             <MyOrdersChip />
+            <button
+              onClick={() => setShowLocationSheet(true)}
+              aria-label={L('Set location', 'లొకేషన్ పెట్టండి')}
+              className="ml-auto inline-flex items-center gap-1 text-xs font-bold text-green-100 bg-green-800 active:bg-green-700 rounded-full px-3 py-2 leading-tight max-w-[160px]"
+            >
+              <span aria-hidden>📍</span>
+              <span className="truncate">{consumerLocationName || L('Set location', 'లొకేషన్ పెట్టండి')}</span>
+            </button>
           </div>
         </div>
       </div>
