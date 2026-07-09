@@ -131,6 +131,12 @@ export async function POST(req: NextRequest) {
   const price2Qty = toNum(b.price_tier_2_qty)
   const price3 = toNum(b.price_tier_3_price)
 
+  // Delivery method (pickup | courier | both). Charge & radius only apply when
+  // the farmer offers courier — null for pickup-only, matching the farmer form.
+  const deliveryModeRaw = String(b.delivery_mode ?? 'pickup')
+  const deliveryMode = (['pickup', 'courier', 'both'] as const).includes(deliveryModeRaw as 'pickup' | 'courier' | 'both')
+    ? deliveryModeRaw : 'pickup'
+
   const insert: Record<string, unknown> = {
     farmer_id,
     name,
@@ -142,6 +148,9 @@ export async function POST(req: NextRequest) {
     description: String(b.description ?? '').trim() || null,
     brix: toNum(b.brix),
     soil_organic_carbon: toNum(b.soil_organic_carbon),
+    delivery_mode: deliveryMode,
+    delivery_charge: deliveryMode === 'pickup' ? null : toNum(b.delivery_charge),
+    delivery_radius_km: deliveryMode === 'pickup' ? null : toNum(b.delivery_radius_km),
     image_url: (typeof b.image_url === 'string' && b.image_url) ? b.image_url : null,
     availability_from: String(b.availability_from ?? '').trim() || null,
     availability_to: String(b.availability_to ?? '').trim() || null,

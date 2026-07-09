@@ -16,12 +16,24 @@ export type Harvest = {
 type Tr = (en: string, te: string) => string
 const en: Tr = (e) => e
 
+// Local midnight (start of the calendar day) for a given time, so day-level
+// differences are counted by the calendar — "yesterday" means the previous
+// calendar day — not by elapsed 24-hour chunks. Without this, a pick from the
+// 5th at 4pm viewed on the 7th at 10am (42h) would round to 1 → "yesterday",
+// when a person reading the dates expects "2 days ago".
+function startOfLocalDay(ms: number): number {
+  const d = new Date(ms)
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+
 // "just now" / "12 min ago" / "2 hours ago" / "yesterday" / "3 days ago".
 // For a future harvest (farmer logged an upcoming pick) → "in 2 hours" etc.
 function relTime(iso: string, L: Tr): string {
   const then = new Date(iso).getTime()
   if (isNaN(then)) return ''
-  const diffMs = Date.now() - then
+  const now = Date.now()
+  const diffMs = now - then
   const future = diffMs < 0
   const mins = Math.floor(Math.abs(diffMs) / 60000)
 
@@ -32,11 +44,18 @@ function relTime(iso: string, L: Tr): string {
       : `${n} ${L(unitEn, unitTe)} ${L('ago', 'క్రితం')}`
 
   if (mins < 60) return fmt(mins, mins === 1 ? 'min' : 'mins', 'నిమి')
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return fmt(hrs, hrs === 1 ? 'hour' : 'hours', 'గం')
-  const days = Math.floor(hrs / 24)
-  if (days === 1) return future ? L('tomorrow', 'రేపు') : L('yesterday', 'నిన్న')
-  return fmt(days, 'days', 'రోజులు')
+
+  // Day buckets are counted by calendar days, not 24-hour spans. Within the
+  // same calendar day we still show hours ("5 hours ago"); once the date rolls
+  // over it's "yesterday", "2 days ago", etc.
+  const dayDiff = Math.round((startOfLocalDay(now) - startOfLocalDay(then)) / 86_400_000)
+  if (dayDiff === 0) {
+    const hrs = Math.floor(mins / 60)
+    return fmt(hrs, hrs === 1 ? 'hour' : 'hours', 'గం')
+  }
+  if (dayDiff === 1) return L('yesterday', 'నిన్న')
+  if (dayDiff === -1) return L('tomorrow', 'రేపు')
+  return fmt(Math.abs(dayDiff), 'days', 'రోజులు')
 }
 
 // The headline clock shown on a harvest, e.g. "🌾 Harvested 2 hours ago".
@@ -49,11 +68,13 @@ export function harvestClock(harvestedAt: string, L: Tr = en): string {
     : `${L('Harvested', 'కోసింది')} ${rel}`
 }
 
-// Whole days (rounded up) a harvest has been off the plant. Day 0 = picked today.
+// Calendar days a harvest has been off the plant. Day 0 = picked today, 1 =
+// yesterday, etc. Counted by calendar date (not elapsed 24-hour chunks) so it
+// stays consistent with the "Harvested N days ago" clock above.
 export function harvestAgeDays(harvestedAt: string): number {
-  const diffMs = Date.now() - new Date(harvestedAt).getTime()
-  if (isNaN(diffMs) || diffMs < 0) return 0
-  return Math.floor(diffMs / 86_400_000)
+  const then = new Date(harvestedAt).getTime()
+  if (isNaN(then) || then > Date.now()) return 0
+  return Math.max(0, Math.round((startOfLocalDay(Date.now()) - startOfLocalDay(then)) / 86_400_000))
 }
 
 // Freshness from shelf life: days left before it spoils, and whether it's past.

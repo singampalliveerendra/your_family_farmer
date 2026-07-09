@@ -268,7 +268,7 @@ export default function FarmerOrderDetailPage() {
                   fee applied) and the total the buyer pays. */}
               <div className="pt-2 border-t border-gray-100 space-y-1">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-500">{L('Item total', 'వస్తువుల ధర')}</span>
+                  <span className="text-gray-500">{L('Your Price', 'మీ ధర')}</span>
                   <span className="font-semibold text-gray-900">₹{order.total_price ?? 0}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">

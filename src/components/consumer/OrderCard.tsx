@@ -27,6 +27,9 @@ export type ConsumerOrder = {
   decline_reason: string | null
   payment_proof_path: string | null
   created_at: string
+  // Pickup/delivery date & time the farmer scheduled for this order (null until
+  // the farmer sets/confirms it).
+  fulfillment_date?: string | null
   farmer_id: string
   farmer?: {
     name: string
@@ -253,6 +256,20 @@ export default function OrderCard({
           ) : order.pickup_location ? (
             <p className="text-xs text-gray-500">📍 {tx.pickedUpAt}: {order.pickup_location}</p>
           ) : null}
+
+          {/* Scheduled pickup/delivery date & time (from the order summary),
+              shown here in the list so the buyer sees when to expect it without
+              opening the order. Hidden once declined/cancelled. */}
+          {order.fulfillment_date && order.status !== 'declined' && order.status !== 'cancelled' && (
+            <p className="text-xs text-green-700 font-semibold">
+              📅 {order.delivery_type === 'home_delivery'
+                ? L('Delivery', 'డెలివరీ')
+                : L('Pickup', 'పికప్')}: {new Date(order.fulfillment_date).toLocaleString('en-IN', {
+                  day: 'numeric', month: 'short', year: 'numeric',
+                  hour: '2-digit', minute: '2-digit',
+                })}
+            </p>
+          )}
 
           <p className="text-[11px] text-gray-400">
             {new Date(order.created_at).toLocaleDateString('en-IN', {

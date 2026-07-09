@@ -379,6 +379,18 @@ export default function FarmerDashboard() {
   // the farmer suspends/resumes from the inline produce list below.
   const activeListings = listings.filter((l) => l.status === 'available').length
 
+  // Overall rating across ALL of this farmer's harvests — a review-count-weighted
+  // mean (a harvest with more reviews pulls proportionally harder) so it matches
+  // the single number a buyer would infer from the whole catalogue. Only harvests
+  // that actually carry reviews contribute; with none, we hide the badge rather
+  // than show a misleading 0.0.
+  const ratedListings = listings.filter((l) => (l.review_count ?? 0) > 0 && l.rating_avg != null)
+  const totalReviews = ratedListings.reduce((sum, l) => sum + (l.review_count ?? 0), 0)
+  const overallRating =
+    totalReviews > 0
+      ? ratedListings.reduce((sum, l) => sum + (l.rating_avg ?? 0) * (l.review_count ?? 0), 0) / totalReviews
+      : null
+
   const profileComplete = isProfileComplete(farmer)
   const displayName = farmer!.name?.trim() || tx.welcome
 
@@ -391,6 +403,17 @@ export default function FarmerDashboard() {
         </div>
         <div className="flex items-start justify-between">
           <div>
+            {/* Overall rating across all harvests, sits above the dashboard title. */}
+            {overallRating != null && (
+              <div className="flex items-center gap-1 mb-1">
+                <span className="text-amber-400 text-sm leading-none">★</span>
+                <span className="text-white text-sm font-bold leading-none">{overallRating.toFixed(1)}</span>
+                <span className="text-green-400 text-[11px] leading-none">
+                  ({totalReviews}{' '}
+                  {totalReviews === 1 ? L('review', 'సమీక్ష') : L('reviews', 'సమీక్షలు')})
+                </span>
+              </div>
+            )}
             <p className="text-green-400 text-xs font-semibold mb-0.5 uppercase tracking-wide">
               {tx.farmerDashboard}
             </p>

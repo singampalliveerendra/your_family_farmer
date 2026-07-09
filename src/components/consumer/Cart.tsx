@@ -298,18 +298,16 @@ export function CartSheet({
   const [email, setEmail] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'upi'>('upi')
   const [showMorePayment, setShowMorePayment] = useState(false)
-  // Delivery preference (per checkout). For home_delivery, a flat
-  // DELIVERY_FEE_RUPEES is charged once per cart (per farmer group at checkout)
-  // and collected by the rider in cash on delivery, regardless of payment method.
-  const [deliveryType, setDeliveryType] = useState<'self_pickup' | 'home_delivery'>('self_pickup')
+  // Delivery preference is now chosen PER harvest line (keyed by cartKeyOf), so
+  // one checkout can mix pickup and delivery items. For home_delivery, a flat
+  // DELIVERY_FEE_RUPEES is charged once per farmer group and collected by the
+  // rider in cash on delivery, regardless of payment method.
+  const [deliveryByItem, setDeliveryByItem] = useState<Record<string, 'self_pickup' | 'home_delivery'>>({})
   // Per-produce fulfillment the farmer allowed ('pickup' | 'courier' | 'both'),
   // keyed by listingId and fetched fresh at checkout. Constrains which delivery
-  // options the consumer may pick, so a "Pickup only" produce can't be ordered
-  // for home delivery and vice-versa. Missing/legacy rows fall back to 'both'.
+  // options the consumer may pick per item, so a "Pickup only" produce can't be
+  // ordered for home delivery and vice-versa. Missing/legacy rows fall back to 'both'.
   const [deliveryModes, setDeliveryModes] = useState<Record<string, string>>({})
-  // Home delivery (the farmer ships it to the buyer) needs a destination
-  // address; self-pickup does not.
-  const needsAddress = deliveryType === 'home_delivery'
   const [deliveryAddress, setDeliveryAddress] = useState('')
   const [deliveryCity, setDeliveryCity] = useState('')
   const [deliveryLandmark, setDeliveryLandmark] = useState('')
@@ -502,31 +500,48 @@ export function CartSheet({
   }, {})
   const farmerGroups = Object.values(byFarmer)
 
-  // Which delivery options the whole cart permits, from each produce's
-  // farmer-set delivery_mode. Self-pickup needs EVERY item to allow pickup
-  // ('pickup' or 'both'); home delivery needs EVERY item to allow courier
-  // ('courier' or 'both'). A cart mixing a pickup-only and a courier-only
-  // produce permits neither — that's flagged as a conflict below.
+  // Per-item fulfillment permissions from each produce's farmer-set
+  // delivery_mode. A produce allows pickup unless it's courier-only, and allows
+  // home delivery unless it's pickup-only. Every produce allows at least one, so
+  // there's no cart-wide conflict any more — each harvest picks independently.
   const modeOf = (it: CartItem) => deliveryModes[it.listingId] ?? 'both'
-  const canSelfPickup = items.length > 0 && items.every((it) => modeOf(it) !== 'courier')
-  const canHomeDelivery = items.length > 0 && items.every((it) => modeOf(it) !== 'pickup')
-  const deliveryConflict = items.length > 0 && !canSelfPickup && !canHomeDelivery
+  const canPickupItem = (it: CartItem) => modeOf(it) !== 'courier'
+  const canDeliverItem = (it: CartItem) => modeOf(it) !== 'pickup'
+  // The chosen (or defaulted) fulfillment for a line. Defaults to pickup when
+  // allowed, else home delivery.
+  const deliveryOf = (it: CartItem): 'self_pickup' | 'home_delivery' =>
+    deliveryByItem[cartKeyOf(it)] ?? (canPickupItem(it) ? 'self_pickup' : 'home_delivery')
 
-  // Keep the selected delivery type within what the cart permits: if the
-  // current pick isn't allowed but the other one is, switch to it.
+  // Seed each item's default choice once its allowed modes are known, keep any
+  // still-valid existing choice, and prune choices for items no longer in cart.
   useEffect(() => {
-    if (deliveryConflict) return
-    if (deliveryType === 'self_pickup' && !canSelfPickup && canHomeDelivery) {
-      setDeliveryType('home_delivery')
-    } else if (deliveryType === 'home_delivery' && !canHomeDelivery && canSelfPickup) {
-      setDeliveryType('self_pickup')
-    }
-  }, [deliveryType, canSelfPickup, canHomeDelivery, deliveryConflict])
+    setDeliveryByItem((prev) => {
+      const next: Record<string, 'self_pickup' | 'home_delivery'> = {}
+      let changed = false
+      const keys = new Set(items.map(cartKeyOf))
+      for (const it of items) {
+        const key = cartKeyOf(it)
+        const current = prev[key]
+        const valid =
+          current === 'home_delivery' ? canDeliverItem(it)
+          : current === 'self_pickup' ? canPickupItem(it)
+          : false
+        next[key] = valid ? current! : (canPickupItem(it) ? 'self_pickup' : 'home_delivery')
+        if (next[key] !== current) changed = true
+      }
+      for (const k of Object.keys(prev)) if (!keys.has(k)) changed = true
+      return changed ? next : prev
+    })
+  }, [items, deliveryModes])
+
+  // Address form is needed as soon as any line is home delivery.
+  const anyDelivery = items.some((it) => deliveryOf(it) === 'home_delivery')
+  const needsAddress = anyDelivery
 
   const baseDetailsMissing = !name.trim() || phone.replace(/\D/g, '').length < 10
   const deliveryDetailsMissing = needsAddress
     && (deliveryAddress.trim().length < 10 || !deliveryCity.trim() || !/^\d{6}$/.test(deliveryPincode.trim()))
-  const detailsMissing = baseDetailsMissing || deliveryDetailsMissing || deliveryConflict
+  const detailsMissing = baseDetailsMissing || deliveryDetailsMissing
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -541,6 +556,10 @@ export function CartSheet({
     paymentMethod: 'upi' | 'cod' | 'razorpay',
   ): Promise<{ ok: true; orderIds: string[]; total: number } | { ok: false; error: string }> => {
     const f = group[0]
+    // Whether this farmer's order has any home-delivery line — decides if we
+    // send the address. Pickup location is always sent; the API stamps it on
+    // pickup rows only.
+    const groupHasDelivery = group.some((it) => deliveryOf(it) === 'home_delivery')
     const r = await fetch('/api/orders/place', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -548,14 +567,18 @@ export function CartSheet({
       body: JSON.stringify({
         farmerId: f.farmerId,
         paymentMethod,
-        pickupLocation: deliveryType === 'self_pickup' ? (pickupByFarmer[f.farmerId] || null) : null,
-        items: group.map((it) => ({ listingId: it.listingId, harvestId: it.harvestId, qty: it.qty })),
-        deliveryType,
-        deliveryAddress: needsAddress ? deliveryAddress.trim() : null,
-        deliveryCity: needsAddress ? deliveryCity.trim() : null,
-        deliveryLandmark: needsAddress ? deliveryLandmark.trim() : null,
-        deliveryPincode: needsAddress ? deliveryPincode.trim() : null,
-        deliveryAltPhone: needsAddress ? deliveryAltPhone.replace(/\D/g, '').slice(-10) : null,
+        pickupLocation: pickupByFarmer[f.farmerId] || null,
+        items: group.map((it) => ({
+          listingId: it.listingId,
+          harvestId: it.harvestId,
+          qty: it.qty,
+          deliveryType: deliveryOf(it),
+        })),
+        deliveryAddress: groupHasDelivery ? deliveryAddress.trim() : null,
+        deliveryCity: groupHasDelivery ? deliveryCity.trim() : null,
+        deliveryLandmark: groupHasDelivery ? deliveryLandmark.trim() : null,
+        deliveryPincode: groupHasDelivery ? deliveryPincode.trim() : null,
+        deliveryAltPhone: groupHasDelivery ? deliveryAltPhone.replace(/\D/g, '').slice(-10) : null,
         idempotencyKey: getIdempotencyKey(f.farmerId),
       }),
     }).catch(() => null)
@@ -604,7 +627,7 @@ export function CartSheet({
         unit: it.unit,
         pricePerKg: it.pricePerKg,
       })),
-      pickupLocation: deliveryType === 'self_pickup' ? (pickupByFarmer[f.farmerId] || undefined) : undefined,
+      pickupLocation: group.some((it) => deliveryOf(it) === 'self_pickup') ? (pickupByFarmer[f.farmerId] || undefined) : undefined,
     })
     setPaidDone(true)
     clearFarmer(f.farmerId)
@@ -660,7 +683,7 @@ export function CartSheet({
         unit: it.unit,
         pricePerKg: it.pricePerKg,
       })),
-      pickupLocation: deliveryType === 'self_pickup' ? (pickupByFarmer[f.farmerId] || undefined) : undefined,
+      pickupLocation: group.some((it) => deliveryOf(it) === 'self_pickup') ? (pickupByFarmer[f.farmerId] || undefined) : undefined,
     })
   }
 
@@ -802,6 +825,148 @@ export function CartSheet({
       setPayingOnline(null)
       showToast('Payment failed. Your order was not placed — please try again.')
       void abandonOrders()
+    })
+    rzp.open()
+  }
+
+  // Combined online flow (Razorpay) across EVERY farmer in the cart: place all
+  // orders, then collect ONE payment for the combined total into the platform's
+  // Razorpay account (the platform later settles each farmer). This is how a
+  // multi-farmer cart pays once — pickup is still chosen per farmer above, and
+  // the single delivery address is entered once at the end.
+  const handleRazorpayOrderAll = async () => {
+    if (detailsMissing) return
+    // Every farmer that needs a named pickup point must have one chosen.
+    const pickupMissing = farmerGroups.some((g) => {
+      const f = g[0]
+      const groupHasPickup = g.some((it) => deliveryOf(it) === 'self_pickup')
+      return groupHasPickup && (f.farmerPickupLocations?.length ?? 0) > 0 && !pickupByFarmer[f.farmerId]
+    })
+    if (pickupMissing) { showToast(L('Please choose a pickup point for each farmer.', 'ప్రతి రైతుకు పికప్ స్థలం ఎంచుకోండి.')); return }
+
+    saveInfo({ name: name.trim(), phone: phone.trim() })
+    setPayingOnline('all')
+    const buyerPhone = phone.replace(/\D/g, '').slice(-10)
+
+    // Cancel a set of placed-but-unpaid orders and release their stock.
+    const abandon = (ids: string[]) =>
+      fetch('/api/orders/razorpay/abandon', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderIds: ids }),
+      }).catch(() => {})
+
+    // 1. Place every farmer's orders (status pending), gathering all ids and the
+    //    running subtotal. If any group fails, undo the ones already placed.
+    const allOrderIds: string[] = []
+    let subtotal = 0
+    for (const group of farmerGroups) {
+      const result = await placeOrderViaApi(group, 'razorpay')
+      if (!result.ok) {
+        if (allOrderIds.length) await abandon(allOrderIds)
+        setPayingOnline(null)
+        showToast(result.error)
+        return
+      }
+      allOrderIds.push(...result.orderIds)
+      subtotal += result.total
+    }
+
+    // 2. Load Checkout and create ONE Razorpay order spanning every id.
+    const [scriptOk, createRes] = await Promise.all([
+      loadRazorpayScript(),
+      fetch('/api/orders/razorpay/create', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderIds: allOrderIds }),
+      })
+        .then((r) => r.json().catch(() => null))
+        .catch(() => null),
+    ])
+
+    if (!scriptOk || !window.Razorpay) {
+      await abandon(allOrderIds)
+      setPayingOnline(null)
+      showToast('Could not load the payment screen. Check your connection.')
+      return
+    }
+    if (!createRes?.ok) {
+      await abandon(allOrderIds)
+      setPayingOnline(null)
+      showToast(createRes?.error ?? 'Could not start payment. Please try again.')
+      return
+    }
+
+    const chargedTotal = Math.round((createRes.amount ?? subtotal * 100) / 100)
+    const multi = farmerGroups.length > 1
+    const summary: UpiPaymentState = {
+      farmerName: multi ? `${farmerGroups.length} ${L('farmers', 'రైతులు')}` : farmerGroups[0][0].farmerName,
+      farmerVillage: multi ? '' : farmerGroups[0][0].farmerVillage,
+      farmerPhone: '',
+      upiId: '',
+      amount: chargedTotal,
+      platformFee: Math.max(0, chargedTotal - subtotal),
+      orderIds: allOrderIds,
+      farmerId: 'all',
+      buyerName: name.trim(),
+      buyerPhone,
+      items: items.map((it) => ({
+        name: it.name, variety: it.variety, emoji: it.emoji,
+        qty: it.qty, unit: it.unit, pricePerKg: it.pricePerKg,
+      })),
+    }
+
+    let settled = false
+    const rzp = new window.Razorpay({
+      key: createRes.keyId,
+      amount: createRes.amount,
+      currency: createRes.currency,
+      name: 'YourFamilyFarmer',
+      description: multi ? `Order from ${farmerGroups.length} farmers` : 'YourFamilyFarmer order',
+      order_id: createRes.razorpayOrderId,
+      prefill: { name: name.trim(), contact: buyerPhone },
+      theme: { color: '#15803d' },
+      modal: {
+        ondismiss: () => {
+          if (settled) return
+          setPayingOnline(null)
+          showToast('Payment cancelled. Your order was not placed.')
+          void abandon(allOrderIds)
+        },
+      },
+      handler: async (res) => {
+        settled = true
+        const vr = await fetch('/api/orders/razorpay/verify', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            razorpayOrderId: res.razorpay_order_id,
+            razorpayPaymentId: res.razorpay_payment_id,
+            razorpaySignature: res.razorpay_signature,
+          }),
+        })
+          .then((r) => r.json().catch(() => null))
+          .catch(() => null)
+
+        setPayingOnline(null)
+        if (!vr?.ok) {
+          showToast(vr?.error ?? 'Payment could not be verified. Please contact support.')
+          return
+        }
+        clear() // whole cart paid in one go
+        setOnlinePaid(true)
+        setUpiScreen({ ...summary, transactionId: res.razorpay_payment_id })
+        setPaidDone(true)
+      },
+    })
+    rzp.on('payment.failed', () => {
+      if (settled) return
+      setPayingOnline(null)
+      showToast('Payment failed. Your order was not placed — please try again.')
+      void abandon(allOrderIds)
     })
     rzp.open()
   }
@@ -1216,9 +1381,7 @@ export function CartSheet({
           <div className="flex-1 min-w-0">
             <h2 className="font-extrabold text-gray-900 text-lg">{L('Your cart', 'మీ బుట్ట')}</h2>
             <p className="text-xs text-gray-500">
-              {deliveryType === 'home_delivery'
-                ? L('Home delivery', 'ఇంటికి డెలివరీ')
-                : L('Self pickup from farm', 'పొలం నుండి స్వీయ పికప్')}
+              {L('Choose pickup or delivery per item', 'ప్రతి వస్తువుకు పికప్ లేదా డెలివరీ')}
             </p>
           </div>
           {!fullPage && (
@@ -1272,166 +1435,338 @@ export function CartSheet({
                   </div>
                 </div>
                 <p className="text-[11px] text-gray-500 leading-snug">
-                  {L('The farmer needs this to confirm pickup time.', 'పికప్ సమయం కోసం రైతుకు ఇది అవసరం.')}
+                  {L('Order status will be sent.', 'ఆర్డర్ స్థితి పంపబడుతుంది.')}
                 </p>
               </div>
 
-              {/* Delivery choice — pickup-self (free) or home delivery. The
-                  delivery charge is collected by the owner manually for now,
-                  so we don't add a fee here. */}
-              <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
-                <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
-                  {L('How will you receive your order?', 'ఎలా అందుకుంటారు?')}
-                </p>
-                {deliveryConflict ? (
-                  <p className="text-[11px] text-red-700 bg-red-50 rounded-xl px-3 py-2 leading-snug">
-                    {L(
-                      'Some items are pickup-only and others are delivery-only, so they can\'t go in one order. Please order them separately.',
-                      'కొన్ని వస్తువులు పికప్ మాత్రమే, మరికొన్ని డెలివరీ మాత్రమే — ఒకే ఆర్డర్‌లో కుదరదు. వేర్వేరుగా ఆర్డర్ చేయండి.',
-                    )}
-                  </p>
-                ) : (
-                  <>
-                    {canSelfPickup && (
-                      <button
-                        type="button"
-                        onClick={() => setDeliveryType('self_pickup')}
-                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-sm font-bold transition-colors ${
-                          deliveryType === 'self_pickup'
-                            ? 'border-green-600 bg-green-50 text-green-900'
-                            : 'border-gray-200 bg-white text-gray-700'
-                        }`}
-                      >
-                        <span className="flex items-center gap-2">
-                          <span className="text-base">🚶</span>
-                          {L('I will pick up', 'నేను తీసుకుంటాను')}
-                        </span>
-                        {deliveryType === 'self_pickup' && <span className="text-green-600 text-base">✓</span>}
-                      </button>
-                    )}
-                    {canHomeDelivery && (
-                      <button
-                        type="button"
-                        onClick={() => setDeliveryType('home_delivery')}
-                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-sm font-bold transition-colors ${
-                          deliveryType === 'home_delivery'
-                            ? 'border-blue-600 bg-blue-50 text-blue-900'
-                            : 'border-gray-200 bg-white text-gray-700'
-                        }`}
-                      >
-                        <span className="flex items-center gap-2">
-                          <span className="text-base">🛵</span>
-                          {L('Home delivery', 'ఇంటికి డెలివరీ')}
-                        </span>
-                        {deliveryType === 'home_delivery' && <span className="text-blue-600 text-base">✓</span>}
-                      </button>
-                    )}
-                    {/* When the farmer allows only one method for these items,
-                        say so instead of showing a lone "choice". */}
-                    {canSelfPickup && !canHomeDelivery && (
-                      <p className="text-[11px] text-gray-500 leading-snug">
-                        {L('This farmer offers pickup only for these items.', 'ఈ వస్తువులకు రైతు పికప్ మాత్రమే అందిస్తారు.')}
-                      </p>
-                    )}
-                    {canHomeDelivery && !canSelfPickup && (
-                      <p className="text-[11px] text-gray-500 leading-snug">
-                        {L('This farmer offers home delivery only for these items.', 'ఈ వస్తువులకు రైతు హోమ్ డెలివరీ మాత్రమే అందిస్తారు.')}
-                      </p>
-                    )}
-                  </>
-                )}
-                {!deliveryConflict && deliveryType === 'home_delivery' && (
-                  <p className="text-[11px] text-blue-700 bg-blue-50 rounded-xl px-3 py-2 leading-snug">
-                    {L(
-                      'The farmer ships it to your address. Confirm receipt on your order page once it arrives.',
-                      'రైతు మీ చిరునామాకు పంపుతారు. అందిన తర్వాత మీ ఆర్డర్ పేజీలో ధృవీకరించండి.',
-                    )}
-                  </p>
-                )}
-              </div>
-
-              {/* Address form — needed for home delivery and farmer courier */}
-              {needsAddress && (
-                <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
-                  <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
-                    {L('Delivery address', 'డెలివరీ చిరునామా')}
-                  </p>
-                  <div>
-                    <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                      Full address (door no, street, area)
-                    </label>
-                    <textarea
-                      value={deliveryAddress}
-                      onChange={(e) => setDeliveryAddress(e.target.value.slice(0, 400))}
-                      rows={3}
-                      placeholder="H.No 12-3, Main Road, Anand Nagar"
-                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none resize-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                      {L('City / Town', 'నగరం / పట్టణం')}
-                    </label>
-                    <input
-                      type="text"
-                      value={deliveryCity}
-                      onChange={(e) => setDeliveryCity(e.target.value.slice(0, 100))}
-                      placeholder={L('e.g. Guntur', 'ఉదా. గుంటూరు')}
-                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                      {L('Landmark (optional)', 'గుర్తు')}
-                    </label>
-                    <input
-                      type="text"
-                      value={deliveryLandmark}
-                      onChange={(e) => setDeliveryLandmark(e.target.value.slice(0, 200))}
-                      placeholder="Near the temple"
-                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                      {L('PIN code', 'పిన్ కోడ్')}
-                    </label>
-                    <input
-                      type="tel"
-                      inputMode="numeric"
-                      value={deliveryPincode}
-                      onChange={(e) => setDeliveryPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      maxLength={6}
-                      placeholder="522001"
-                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                      Alternate phone (optional)
-                    </label>
-                    <div className="flex gap-2">
-                      <span className="flex items-center px-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 font-medium">
-                        +91
+              {/* Farmer groups */}
+              {farmerGroups.map((group) => {
+                const f = group[0]
+                const total = group.reduce(
+                  (s, it) => s + (it.pricePerKg ?? 0) * it.qty,
+                  0,
+                )
+                const groupHasDelivery = group.some((it) => deliveryOf(it) === 'home_delivery')
+                const groupHasPickup = group.some((it) => deliveryOf(it) === 'self_pickup')
+                return (
+                  <div
+                    key={f.farmerId}
+                    className="border border-gray-200 rounded-2xl overflow-hidden"
+                  >
+                    <div className="bg-green-50 px-4 py-3 border-b border-green-100 flex items-center justify-between">
+                      <div className="min-w-0">
+                        <p className="font-extrabold text-green-900 truncate">
+                          🧑‍🌾 {f.farmerName}
+                        </p>
+                        <p className="text-xs text-green-700">📍 {f.farmerVillage}</p>
+                      </div>
+                      <span className={`text-[10px] font-bold text-white px-2 py-1 rounded-full whitespace-nowrap ${groupHasDelivery ? 'bg-blue-600' : 'bg-green-700'}`}>
+                        {groupHasDelivery && groupHasPickup ? '🛵 Pickup + Delivery' : groupHasDelivery ? '🛵 Delivery' : 'Pickup'}
                       </span>
+                    </div>
+
+                    <div className="p-3 space-y-2">
+                      {group.map((it) => {
+                        const key = cartKeyOf(it)
+                        const choice = deliveryOf(it)
+                        const pickupOk = canPickupItem(it)
+                        const deliverOk = canDeliverItem(it)
+                        return (
+                        <div key={key} className="space-y-1.5">
+                          <div className="flex items-center gap-3">
+                          <div className="w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center text-xl flex-shrink-0">
+                            {it.emoji ?? '🌿'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm text-gray-900 truncate">
+                              {localizeName(it.name, lang)}
+                            </p>
+                            {it.pricePerKg && (
+                              <>
+                                <p className="text-xs text-gray-500">₹{it.pricePerKg}/{it.unit || 'kg'} × {it.qty}</p>
+                                <span className="inline-block mt-1 text-sm font-extrabold text-green-800 bg-green-100 px-2 py-0.5 rounded-md">
+                                  ₹{it.pricePerKg * it.qty}
+                                </span>
+                                {(() => {
+                                  const itemFee = computePlatformFee(it.pricePerKg * it.qty, platformFeePercent)
+                                  if (itemFee <= 0) return null
+                                  return (
+                                    <p className="text-[10px] text-gray-400 mt-0.5">
+                                      + ₹{itemFee} {L('platform fee', 'ప్లాట్‌ఫామ్ ఫీజు')}
+                                    </p>
+                                  )
+                                })()}
+                              </>
+                            )}
+                            {getActiveTier(it.qty, it).isDiscount && (
+                              <p className="text-[10px] font-semibold text-green-700 mt-0.5">
+                                {L('Bulk price applied', 'బల్క్ ధర వర్తింపు')}
+                              </p>
+                            )}
+                          </div>
+                          <QtyStepper
+                            qty={it.qty}
+                            maxQty={it.stockQty}
+                            onDec={() => setQty(cartKeyOf(it), it.qty - 1)}
+                            onInc={() => {
+                              if (it.stockQty != null && it.qty >= it.stockQty) {
+                                showToast(L('No more stock available', 'స్టాక్ అయిపోయింది'))
+                                return
+                              }
+                              setQty(cartKeyOf(it), it.qty + 1)
+                            }}
+                          />
+                          <button
+                            onClick={() => removeItem(key)}
+                            className="text-gray-300 text-xl px-1"
+                            aria-label="Remove"
+                          >
+                            ×
+                          </button>
+                          </div>
+                          {/* Per-harvest pickup / delivery choice. Both shown
+                              always; the option the farmer doesn't offer for this
+                              produce is disabled. */}
+                          <div className="flex gap-1.5 pl-14">
+                            <button
+                              type="button"
+                              disabled={!pickupOk}
+                              onClick={() => setDeliveryByItem((p) => ({ ...p, [key]: 'self_pickup' }))}
+                              className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg border text-xs font-bold ${
+                                !pickupOk
+                                  ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'
+                                  : choice === 'self_pickup'
+                                    ? 'border-green-600 bg-green-50 text-green-800'
+                                    : 'border-gray-200 bg-white text-gray-600'
+                              }`}
+                            >
+                              🚶 {L('Pickup', 'పికప్')}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!deliverOk}
+                              onClick={() => setDeliveryByItem((p) => ({ ...p, [key]: 'home_delivery' }))}
+                              className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg border text-xs font-bold ${
+                                !deliverOk
+                                  ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'
+                                  : choice === 'home_delivery'
+                                    ? 'border-blue-600 bg-blue-50 text-blue-800'
+                                    : 'border-gray-200 bg-white text-gray-600'
+                              }`}
+                            >
+                              🛵 {L('Delivery', 'డెలివరీ')}
+                            </button>
+                          </div>
+                        </div>
+                        )
+                      })}
+
+                      {total > 0 && (() => {
+                        const dFee = groupHasDelivery ? DELIVERY_FEE_RUPEES : 0
+                        // Sum the per-item fees so the line matches the per-item
+                        // breakdown shown above (and what the server charges).
+                        const pFee = group.reduce((s, it) => s + computePlatformFee((it.pricePerKg ?? 0) * it.qty, platformFeePercent), 0)
+                        // No extra fees → keep the simple "estimated total" line.
+                        if (dFee <= 0 && pFee <= 0) {
+                          return (
+                            <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-2">
+                              <span className="text-xs text-gray-500">{L('Estimated total', 'మొత్తం')}</span>
+                              <span className="font-extrabold text-gray-900">₹{total}</span>
+                            </div>
+                          )
+                        }
+                        return (
+                          <div className="pt-2 border-t border-gray-100 mt-2 space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-500">{L('Farmer Price', 'రైతు ధర')}</span>
+                              <span className="font-semibold text-gray-800">₹{total}</span>
+                            </div>
+                            {dFee > 0 && (
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-gray-500">
+                                  {L('Delivery fee', 'డెలివరీ ఛార్జ్')}
+                                  <span className="block text-[10px] text-gray-400">{L('cash to rider', 'రైడర్‌కి నగదు')}</span>
+                                </span>
+                                <span className="font-semibold text-gray-800">₹{dFee}</span>
+                              </div>
+                            )}
+                            {pFee > 0 && (
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-gray-500">{L('Platform fee', 'ప్లాట్‌ఫామ్ ఫీజు')} ({platformFeePercent}%)</span>
+                                <span className="font-semibold text-gray-800">₹{pFee}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center justify-between pt-1 border-t border-gray-50">
+                              <span className="text-xs font-bold text-gray-700">{L('Total', 'మొత్తం')}</span>
+                              <span className="font-extrabold text-gray-900">₹{total + dFee + pFee}</span>
+                            </div>
+                          </div>
+                        )
+                      })()}
+
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* ── Delivery & pickup details — shown at the end, after the
+                    amounts, once the buyer has chosen pickup/delivery per item ── */}
+              <div className="bg-gray-50 rounded-2xl p-4 space-y-4">
+                <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
+                  {L('Delivery & pickup details', 'డెలివరీ & పికప్ వివరాలు')}
+                </p>
+
+                {/* Address — only when at least one item is home delivery */}
+                {anyDelivery && (
+                  <div className="space-y-3">
+                    <p className="text-[11px] font-extrabold text-blue-700 uppercase tracking-wide">
+                      🛵 {L('Delivery address', 'డెలివరీ చిరునామా')}
+                    </p>
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                        Full address (door no, street, area)
+                      </label>
+                      <textarea
+                        value={deliveryAddress}
+                        onChange={(e) => setDeliveryAddress(e.target.value.slice(0, 400))}
+                        rows={3}
+                        placeholder="H.No 12-3, Main Road, Anand Nagar"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none resize-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                        {L('City / Town', 'నగరం / పట్టణం')}
+                      </label>
+                      <input
+                        type="text"
+                        value={deliveryCity}
+                        onChange={(e) => setDeliveryCity(e.target.value.slice(0, 100))}
+                        placeholder={L('e.g. Guntur', 'ఉదా. గుంటూరు')}
+                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                        {L('Landmark (optional)', 'గుర్తు')}
+                      </label>
+                      <input
+                        type="text"
+                        value={deliveryLandmark}
+                        onChange={(e) => setDeliveryLandmark(e.target.value.slice(0, 200))}
+                        placeholder="Near the temple"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                        {L('PIN code', 'పిన్ కోడ్')}
+                      </label>
                       <input
                         type="tel"
                         inputMode="numeric"
-                        value={deliveryAltPhone}
-                        onChange={(e) => setDeliveryAltPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                        maxLength={10}
-                        placeholder="Family member / spouse"
-                        className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+                        value={deliveryPincode}
+                        onChange={(e) => setDeliveryPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        maxLength={6}
+                        placeholder="522001"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
                       />
                     </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                        Alternate phone (optional)
+                      </label>
+                      <div className="flex gap-2">
+                        <span className="flex items-center px-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 font-medium">
+                          +91
+                        </span>
+                        <input
+                          type="tel"
+                          inputMode="numeric"
+                          value={deliveryAltPhone}
+                          onChange={(e) => setDeliveryAltPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                          maxLength={10}
+                          placeholder="Family member / spouse"
+                          className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                    {deliveryDetailsMissing && (
+                      <p className="text-[11px] text-amber-700 bg-amber-50 rounded-xl px-3 py-2">
+                        Please fill the full address, city/town and a valid 6-digit pincode.
+                      </p>
+                    )}
                   </div>
-                  {deliveryDetailsMissing && (
-                    <p className="text-[11px] text-amber-700 bg-amber-50 rounded-xl px-3 py-2">
-                      Please fill the full address, city/town and a valid 6-digit pincode.
-                    </p>
-                  )}
-                </div>
-              )}
+                )}
+
+                {/* Pickup point for each farmer that has a pickup item */}
+                {farmerGroups.map((group) => {
+                  const f = group[0]
+                  if (!group.some((it) => deliveryOf(it) === 'self_pickup')) return null
+                  const hasNamed = (f.farmerPickupLocations?.length ?? 0) > 0
+                  const pickupMissing = hasNamed && !pickupByFarmer[f.farmerId]
+                  return (
+                    <div key={f.farmerId} className="space-y-1.5">
+                      <p className="text-[11px] font-extrabold text-green-700 uppercase tracking-wide">
+                        🚶 {L('Pickup', 'పికప్')}{farmerGroups.length > 1 ? ` — ${f.farmerName}` : ''}
+                      </p>
+                      {hasNamed ? (
+                        <>
+                          <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                            {L('Pickup location', 'పికప్ స్థలం')}<span className="text-red-500"> *</span>
+                          </label>
+                          <select
+                            value={pickupByFarmer[f.farmerId] ?? ''}
+                            onChange={(e) =>
+                              setPickupByFarmer((prev) => ({ ...prev, [f.farmerId]: e.target.value }))
+                            }
+                            className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none ${
+                              pickupMissing
+                                ? 'border-red-300 bg-white focus:border-red-500'
+                                : 'border-gray-200 bg-white focus:border-green-500'
+                            }`}
+                          >
+                            <option value="">{L('Select a pickup point', 'స్థలం ఎంచుకోండి')}</option>
+                            {f.farmerPickupLocations!.map((loc) => (
+                              <option key={loc} value={loc}>{loc}</option>
+                            ))}
+                          </select>
+                          {pickupMissing && (
+                            <p className="text-[11px] text-red-600 mt-1">
+                              {L('Please choose a pickup point', 'పికప్ స్థలం ఎంచుకోండి')}
+                            </p>
+                          )}
+                          {pickupByFarmer[f.farmerId] && (() => {
+                            const lines = formatPickupSlots(f.farmerPickupSlots?.[pickupByFarmer[f.farmerId]])
+                            if (lines.length === 0) return null
+                            return (
+                              <div className="mt-2 bg-green-50 border border-green-100 rounded-xl px-3 py-2">
+                                <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-1">
+                                  🕒 {L('Pickup timings', 'పికప్ సమయాలు')}
+                                </p>
+                                <ul className="space-y-0.5">
+                                  {lines.map((line, i) => (
+                                    <li key={i} className="text-[11px] text-green-800 font-medium">{line}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )
+                          })()}
+                        </>
+                      ) : (
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                          <p className="text-sm font-semibold text-gray-800">
+                            📍 {f.farmerVillage || L('At the farm', 'పొలం వద్ద')}
+                          </p>
+                          <p className="text-[11px] text-gray-600 mt-1 leading-snug">
+                            {L('The farmer will confirm the exact pickup point and timing on WhatsApp.', 'ఖచ్చితమైన పికప్ స్థలం, సమయాన్ని రైతు WhatsApp లో నిర్ధారిస్తారు.')}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
 
               {/* Payment method selection — COD only shown if at least one farmer accepts it */}
               {(() => {
@@ -1492,264 +1827,60 @@ export function CartSheet({
                 )
               })()}
 
-              {/* Farmer groups */}
-              {farmerGroups.map((group) => {
-                const f = group[0]
-                const total = group.reduce(
-                  (s, it) => s + (it.pricePerKg ?? 0) * it.qty,
-                  0,
-                )
-                const sent = sentFarmers[f.farmerId]
-                // For self-pickup, a pickup point is mandatory when the farmer
-                // offers them. It's irrelevant (and disabled) for delivery/courier.
-                const pickupRequired =
-                  deliveryType === 'self_pickup' && (f.farmerPickupLocations?.length ?? 0) > 0
-                const pickupMissing = pickupRequired && !pickupByFarmer[f.farmerId]
-                const groupDetailsMissing = detailsMissing || pickupMissing
-                return (
-                  <div
-                    key={f.farmerId}
-                    className="border border-gray-200 rounded-2xl overflow-hidden"
-                  >
-                    <div className="bg-green-50 px-4 py-3 border-b border-green-100 flex items-center justify-between">
-                      <div className="min-w-0">
-                        <p className="font-extrabold text-green-900 truncate">
-                          🧑‍🌾 {f.farmerName}
-                        </p>
-                        <p className="text-xs text-green-700">📍 {f.farmerVillage}</p>
-                      </div>
-                      <span className={`text-[10px] font-bold text-white px-2 py-1 rounded-full whitespace-nowrap ${deliveryType === 'home_delivery' ? 'bg-blue-600' : 'bg-green-700'}`}>
-                        {deliveryType === 'home_delivery' ? '🛵 Delivery' : 'Pickup'}
-                      </span>
-                    </div>
-
-                    <div className="p-3 space-y-2">
-                      {group.map((it) => (
-                        <div key={cartKeyOf(it)} className="flex items-center gap-3">
-                          <div className="w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center text-xl flex-shrink-0">
-                            {it.emoji ?? '🌿'}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-sm text-gray-900 truncate">
-                              {localizeName(it.name, lang)}
-                            </p>
-                            {it.pricePerKg && (
-                              <>
-                                <p className="text-xs text-gray-500">₹{it.pricePerKg}/{it.unit || 'kg'} × {it.qty}</p>
-                                <span className="inline-block mt-1 text-sm font-extrabold text-green-800 bg-green-100 px-2 py-0.5 rounded-md">
-                                  ₹{it.pricePerKg * it.qty}
-                                </span>
-                                {(() => {
-                                  const itemFee = computePlatformFee(it.pricePerKg * it.qty, platformFeePercent)
-                                  if (itemFee <= 0) return null
-                                  return (
-                                    <p className="text-[10px] text-gray-400 mt-0.5">
-                                      + ₹{itemFee} {L('platform fee', 'ప్లాట్‌ఫామ్ ఫీజు')}
-                                    </p>
-                                  )
-                                })()}
-                              </>
-                            )}
-                            {getActiveTier(it.qty, it).isDiscount && (
-                              <p className="text-[10px] font-semibold text-green-700 mt-0.5">
-                                {L('Bulk price applied', 'బల్క్ ధర వర్తింపు')}
-                              </p>
-                            )}
-                          </div>
-                          <QtyStepper
-                            qty={it.qty}
-                            maxQty={it.stockQty}
-                            onDec={() => setQty(cartKeyOf(it), it.qty - 1)}
-                            onInc={() => {
-                              if (it.stockQty != null && it.qty >= it.stockQty) {
-                                showToast(L('No more stock available', 'స్టాక్ అయిపోయింది'))
-                                return
-                              }
-                              setQty(cartKeyOf(it), it.qty + 1)
-                            }}
-                          />
-                          <button
-                            onClick={() => removeItem(cartKeyOf(it))}
-                            className="text-gray-300 text-xl px-1"
-                            aria-label="Remove"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-
-                      {total > 0 && (() => {
-                        const dFee = deliveryType === 'home_delivery' ? DELIVERY_FEE_RUPEES : 0
-                        // Sum the per-item fees so the line matches the per-item
-                        // breakdown shown above (and what the server charges).
-                        const pFee = group.reduce((s, it) => s + computePlatformFee((it.pricePerKg ?? 0) * it.qty, platformFeePercent), 0)
-                        // No extra fees → keep the simple "estimated total" line.
-                        if (dFee <= 0 && pFee <= 0) {
-                          return (
-                            <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-2">
-                              <span className="text-xs text-gray-500">{L('Estimated total', 'మొత్తం')}</span>
-                              <span className="font-extrabold text-gray-900">₹{total}</span>
-                            </div>
-                          )
-                        }
-                        return (
-                          <div className="pt-2 border-t border-gray-100 mt-2 space-y-1">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-gray-500">{L('Farmer Price', 'రైతు ధర')}</span>
-                              <span className="font-semibold text-gray-800">₹{total}</span>
-                            </div>
-                            {dFee > 0 && (
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-gray-500">
-                                  {L('Delivery fee', 'డెలివరీ ఛార్జ్')}
-                                  <span className="block text-[10px] text-gray-400">{L('cash to rider', 'రైడర్‌కి నగదు')}</span>
-                                </span>
-                                <span className="font-semibold text-gray-800">₹{dFee}</span>
-                              </div>
-                            )}
-                            {pFee > 0 && (
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-gray-500">{L('Platform fee', 'ప్లాట్‌ఫామ్ ఫీజు')} ({platformFeePercent}%)</span>
-                                <span className="font-semibold text-gray-800">₹{pFee}</span>
-                              </div>
-                            )}
-                            <div className="flex items-center justify-between pt-1 border-t border-gray-50">
-                              <span className="text-xs font-bold text-gray-700">{L('Total', 'మొత్తం')}</span>
-                              <span className="font-extrabold text-gray-900">₹{total + dFee + pFee}</span>
-                            </div>
-                          </div>
-                        )
-                      })()}
-
-                      {f.farmerPickupLocations && f.farmerPickupLocations.length > 0 && (
-                        <div className="pt-2">
-                          <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                            {L('Pickup location', 'పికప్ స్థలం')}
-                            {deliveryType === 'self_pickup' && <span className="text-red-500"> *</span>}
-                          </label>
-                          <select
-                            value={pickupByFarmer[f.farmerId] ?? ''}
-                            disabled={deliveryType !== 'self_pickup'}
-                            onChange={(e) =>
-                              setPickupByFarmer((prev) => ({
-                                ...prev,
-                                [f.farmerId]: e.target.value,
-                              }))
-                            }
-                            className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none ${
-                              deliveryType !== 'self_pickup'
-                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
-                                : pickupMissing
-                                  ? 'border-red-300 bg-white focus:border-red-500'
-                                  : 'border-gray-200 bg-white focus:border-green-500'
-                            }`}
-                          >
-                            <option value="">{L('Select a pickup point', 'స్థలం ఎంచుకోండి')}</option>
-                            {f.farmerPickupLocations.map((loc) => (
-                              <option key={loc} value={loc}>{loc}</option>
-                            ))}
-                          </select>
-                          {deliveryType !== 'self_pickup' ? (
-                            <p className="text-[11px] text-gray-400 mt-1">
-                              {L('Not needed for delivery', 'డెలివరీకి అవసరం లేదు')}
-                            </p>
-                          ) : pickupMissing ? (
-                            <p className="text-[11px] text-red-600 mt-1">
-                              {L('Please choose a pickup point', 'పికప్ స్థలం ఎంచుకోండి')}
-                            </p>
-                          ) : null}
-
-                          {/* Timings for the chosen pickup point, if the farmer set any. */}
-                          {deliveryType === 'self_pickup' && pickupByFarmer[f.farmerId] && (() => {
-                            const lines = formatPickupSlots(f.farmerPickupSlots?.[pickupByFarmer[f.farmerId]])
-                            if (lines.length === 0) return null
-                            return (
-                              <div className="mt-2 bg-green-50 border border-green-100 rounded-xl px-3 py-2">
-                                <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-1">
-                                  🕒 {L('Pickup timings', 'పికప్ సమయాలు')}
-                                </p>
-                                <ul className="space-y-0.5">
-                                  {lines.map((line, i) => (
-                                    <li key={i} className="text-[11px] text-green-800 font-medium">{line}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )
-                          })()}
-                        </div>
-                      )}
-
-                      {/* Fallback when the farmer hasn't set named pickup points:
-                          self-pickup must still tell the buyer WHERE to go, so we
-                          show the farm's village and that the farmer will confirm
-                          the exact point + timing. */}
-                      {deliveryType === 'self_pickup' && (!f.farmerPickupLocations || f.farmerPickupLocations.length === 0) && (
-                        <div className="pt-2">
-                          <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                            {L('Pickup location', 'పికప్ స్థలం')}
-                          </label>
-                          <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
-                            <p className="text-sm font-semibold text-gray-800">
-                              📍 {f.farmerVillage || L('At the farm', 'పొలం వద్ద')}
-                            </p>
-                            <p className="text-[11px] text-gray-600 mt-1 leading-snug">
-                              {L('The farmer will confirm the exact pickup point and timing on WhatsApp.', 'ఖచ్చితమైన పికప్ స్థలం, సమయాన్ని రైతు WhatsApp లో నిర్ధారిస్తారు.')}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="flex gap-2 items-start">
-                        {/* Cancel closes the cart without removing items. */}
-                        <button
-                          type="button"
-                          onClick={onClose}
-                          className="mt-1 px-4 py-3.5 rounded-xl text-sm font-bold border border-gray-300 text-gray-700 active:bg-gray-50 whitespace-nowrap"
-                        >
-                          {L('Cancel', 'రద్దు')}
-                        </button>
-                        <div className="flex-1">
-                      {(() => {
-                        const farmerCodOk = liveCodEnabled[f.farmerId] === true
-
-                        if (paymentMethod === 'upi') {
-                          // Online payment is collected by the platform's
-                          // Razorpay account, so it works for every farmer
-                          // regardless of whether they set up their own UPI.
-                          return (
-                            <button
-                              onClick={() => requireAuth(() => handleRazorpayOrderFarmer(group))}
-                              disabled={groupDetailsMissing || payingOnline === f.farmerId}
-                              className={`mt-1 w-full font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 ${
-                                groupDetailsMissing
-                                  ? 'bg-gray-200 text-gray-500'
-                                  : 'bg-blue-600 text-white active:bg-blue-700 disabled:opacity-50'
-                              }`}
-                            >
-                              {payingOnline === f.farmerId
-                                ? 'Opening payment...'
-                                : `💳 Order & Pay ₹${(() => {
-                                    const sub = Math.round(group.reduce((s, it) => s + (it.pricePerKg ?? 0) * it.qty, 0))
-                                    const fee = group.reduce((s, it) => s + computePlatformFee((it.pricePerKg ?? 0) * it.qty, platformFeePercent), 0)
-                                    return sub + fee
-                                  })()}`}
-                            </button>
-                          )
-                        }
-
-                        // paymentMethod === 'cod'
-                        if (!farmerCodOk) {
-                          return (
-                            <p className="mt-1 text-[12px] text-amber-700 bg-amber-50 rounded-xl px-3 py-2.5 text-center">
-                              {L('This farmer accepts UPI only. Switch above.', 'ఈ రైతు UPI మాత్రమే అంగీకరిస్తారు.')}
-                            </p>
-                          )
-                        }
-                        return (
+              {/* Place order. Online payment settles the WHOLE cart in ONE
+                  Razorpay checkout — even across farmers (funds go to the
+                  platform, which then settles each farmer), so a multi-farmer
+                  cart pays once. COD has no payment to combine, so it stays a
+                  per-farmer action. */}
+              <div className="space-y-3">
+                {paymentMethod === 'upi' ? (() => {
+                  // Cart-wide total (farmer price + platform fee) for the single
+                  // combined pay button.
+                  const cartSubtotal = Math.round(items.reduce((s, it) => s + (it.pricePerKg ?? 0) * it.qty, 0))
+                  const cartFee = items.reduce((s, it) => s + computePlatformFee((it.pricePerKg ?? 0) * it.qty, platformFeePercent), 0)
+                  const anyPickupMissing = farmerGroups.some((g) => {
+                    const f = g[0]
+                    const groupHasPickup = g.some((it) => deliveryOf(it) === 'self_pickup')
+                    return groupHasPickup && (f.farmerPickupLocations?.length ?? 0) > 0 && !pickupByFarmer[f.farmerId]
+                  })
+                  const disabled = detailsMissing || anyPickupMissing || payingOnline != null
+                  const single = farmerGroups.length === 1
+                  return (
+                    <button
+                      onClick={() => requireAuth(() => (single ? handleRazorpayOrderFarmer(farmerGroups[0]) : handleRazorpayOrderAll()))}
+                      disabled={disabled}
+                      className={`w-full font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 ${
+                        detailsMissing || anyPickupMissing
+                          ? 'bg-gray-200 text-gray-500'
+                          : 'bg-blue-600 text-white active:bg-blue-700 disabled:opacity-50'
+                      }`}
+                    >
+                      {payingOnline != null ? 'Opening payment...' : `💳 Order & Pay ₹${cartSubtotal + cartFee}`}
+                    </button>
+                  )
+                })() : (
+                  farmerGroups.map((group) => {
+                    const f = group[0]
+                    const sent = sentFarmers[f.farmerId]
+                    const groupHasPickup = group.some((it) => deliveryOf(it) === 'self_pickup')
+                    const pickupMissing =
+                      groupHasPickup && (f.farmerPickupLocations?.length ?? 0) > 0 && !pickupByFarmer[f.farmerId]
+                    const groupDetailsMissing = detailsMissing || pickupMissing
+                    const farmerCodOk = liveCodEnabled[f.farmerId] === true
+                    return (
+                      <div key={f.farmerId} className="space-y-1">
+                        {farmerGroups.length > 1 && (
+                          <p className="text-[11px] font-bold text-gray-500">🧑‍🌾 {f.farmerName}</p>
+                        )}
+                        {!farmerCodOk ? (
+                          <p className="text-[12px] text-amber-700 bg-amber-50 rounded-xl px-3 py-2.5 text-center">
+                            {L('This farmer accepts UPI only. Switch above.', 'ఈ రైతు UPI మాత్రమే అంగీకరిస్తారు.')}
+                          </p>
+                        ) : (
                           <button
                             onClick={() => requireAuth(() => handleCodOrderFarmer(group))}
                             disabled={groupDetailsMissing}
-                            className={`mt-1 w-full font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 ${
+                            className={`w-full font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 ${
                               sent
                                 ? 'bg-green-100 text-green-800'
                                 : groupDetailsMissing
@@ -1760,19 +1891,23 @@ export function CartSheet({
                             {sent ? (
                               <>✓ Order placed</>
                             ) : (
-                              <>
-                                ✓ Place order with {f.farmerName.split(' ')[0] || 'farmer'}
-                              </>
+                              <>✓ Place order with {f.farmerName.split(' ')[0] || 'farmer'}</>
                             )}
                           </button>
-                        )
-                      })()}
-                        </div>
+                        )}
                       </div>
-                    </div>
-                  </div>
-                )
-              })}
+                    )
+                  })
+                )}
+                {/* Cancel closes the cart without removing items. */}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full px-4 py-3 rounded-xl text-sm font-bold border border-gray-300 text-gray-700 active:bg-gray-50"
+                >
+                  {L('Cancel', 'రద్దు')}
+                </button>
+              </div>
 
               {farmerGroups.length > 1 && (
                 <p className="text-xs text-gray-500 text-center px-4 leading-snug">

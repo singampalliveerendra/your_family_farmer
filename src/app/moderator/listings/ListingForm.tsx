@@ -12,8 +12,9 @@ import { supabase } from '@/lib/supabase'
 // Kept at full parity with the FARMER's Edit Harvest form (moderators register
 // farmers and add/edit harvests on their behalf, so they get every field the
 // farmer has): icon, name, variety, method, category, unit, stock, brix,
-// harvest date/time, shelf life, three price tiers, photos, soil quality
-// (organic carbon, pH), pesticide result, and description.
+// harvest date/time, shelf life, delivery method (pickup/courier/both + charge
+// & radius), three price tiers, photos, soil quality (organic carbon, pH),
+// pesticide result, and description.
 
 export type ListingFormValues = {
   name: string
@@ -38,6 +39,12 @@ export type ListingFormValues = {
   availability_to: string
   harvest_frequency: string
   harvest_frequency_count: string
+  // How this produce is fulfilled: pickup only, farmer courier, or both. Mirrors
+  // the farmer form's Delivery method — the cart uses it to constrain each line's
+  // pickup/delivery choice, so it must be settable here too.
+  delivery_mode: string
+  delivery_charge: string
+  delivery_radius_km: string
 }
 
 export const EMPTY_LISTING_FORM: ListingFormValues = {
@@ -49,7 +56,14 @@ export const EMPTY_LISTING_FORM: ListingFormValues = {
   soil_organic_carbon: '', soil_ph: '', pesticide_result: '',
   availability_from: '', availability_to: '',
   harvest_frequency: '', harvest_frequency_count: '',
+  delivery_mode: 'pickup', delivery_charge: '', delivery_radius_km: '',
 }
+
+const DELIVERY_MODES = [
+  { key: 'pickup', label: 'Pickup only', icon: '🧺' },
+  { key: 'courier', label: 'Farmer courier', icon: '🛵' },
+  { key: 'both', label: 'Both', icon: '🔁' },
+] as const
 
 const EMOJIS = ['📦', '🍅', '🥬', '🥕', '🧅', '🥔', '🍆', '🌶️', '🥭', '🍌', '🍋', '🥥', '🌽', '🫛']
 const UNITS = ['kg', 'g', 'litre', 'dozen', 'piece', 'bunch']
@@ -300,6 +314,39 @@ export default function ListingForm({
         <Field label="Shelf life (days) *">
           <input value={form.shelf_life_days} onChange={set('shelf_life_days')} type="number" min="1" step="1" required className={inputCls} placeholder="e.g. 5" />
         </Field>
+      </div>
+
+      {/* Delivery method — pickup only, farmer courier, or both. Mirrors the
+          farmer's Edit Harvest form so a moderator can set it on their behalf. */}
+      <div className="border-t border-gray-100 pt-4">
+        <p className="text-sm font-extrabold text-green-800 mb-3">Delivery method</p>
+        <div className="grid grid-cols-3 gap-2">
+          {DELIVERY_MODES.map((opt) => {
+            const active = form.delivery_mode === opt.key
+            return (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, delivery_mode: opt.key }))}
+                className={`rounded-xl px-2 py-3 text-center border-2 transition-colors ${active ? 'border-green-600 bg-green-50' : 'border-gray-200 bg-white'}`}
+              >
+                <span className="block text-lg leading-none">{opt.icon}</span>
+                <span className={`block text-[11px] font-bold mt-1 leading-tight ${active ? 'text-green-800' : 'text-gray-600'}`}>{opt.label}</span>
+              </button>
+            )
+          })}
+        </div>
+        {/* Courier details — only when the farmer offers delivery. */}
+        {form.delivery_mode !== 'pickup' && (
+          <div className="grid grid-cols-2 gap-4 mt-3">
+            <Field label="Delivery charge ₹">
+              <input value={form.delivery_charge} onChange={set('delivery_charge')} type="number" min="0" className={inputCls} placeholder="e.g. 30" />
+            </Field>
+            <Field label="Delivery radius (km)">
+              <input value={form.delivery_radius_km} onChange={set('delivery_radius_km')} type="number" min="0" className={inputCls} placeholder="e.g. 10" />
+            </Field>
+          </div>
+        )}
       </div>
 
       {/* Pricing */}

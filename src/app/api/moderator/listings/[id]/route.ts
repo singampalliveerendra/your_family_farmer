@@ -176,6 +176,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const price2Qty = toPos(b.price_tier_2_qty)
   const price3 = toPos(b.price_tier_3_price)
 
+  // Delivery method (pickup | courier | both). Charge & radius only apply when
+  // the farmer offers courier — cleared for pickup-only, matching the farmer form.
+  const deliveryModeRaw = String(b.delivery_mode ?? 'pickup')
+  const deliveryMode = (['pickup', 'courier', 'both'] as const).includes(deliveryModeRaw as 'pickup' | 'courier' | 'both')
+    ? deliveryModeRaw : 'pickup'
+
   const update: Record<string, unknown> = {
     name,
     emoji: String(b.emoji ?? '📦') || '📦',
@@ -189,6 +195,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     image_url: (typeof b.image_url === 'string' && b.image_url) ? b.image_url : null,
     harvest_date: harvestDate,
     shelf_life_days: shelfLife,
+    delivery_mode: deliveryMode,
+    delivery_charge: deliveryMode === 'pickup' ? null : toNonNeg(b.delivery_charge),
+    delivery_radius_km: deliveryMode === 'pickup' ? null : toNonNeg(b.delivery_radius_km),
     availability_from: String(b.availability_from ?? '').trim() || null,
     availability_to: String(b.availability_to ?? '').trim() || null,
     harvest_frequency: String(b.harvest_frequency ?? '').trim() || null,

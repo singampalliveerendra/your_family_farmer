@@ -14,7 +14,15 @@ export const dynamic = 'force-dynamic'
 // harvestId is present when the buyer ordered a specific harvest (the
 // harvest-as-product path). Legacy produce-card orders omit it and draw from
 // the listing's own stock.
-type IncomingItem = { listingId: string; harvestId?: string; qty: number }
+// deliveryType is now chosen PER item at checkout (each harvest picks its own
+// pickup vs delivery), so a single farmer order can mix both. Absent → falls
+// back to the request-level deliveryType, then self_pickup.
+type IncomingItem = {
+  listingId: string
+  harvestId?: string
+  qty: number
+  deliveryType?: 'self_pickup' | 'home_delivery'
+}
 
 // Pragmatic email check — we only need to reject obvious junk, not enforce
 // RFC 5322. The real signal is whether the buyer can be reached.
@@ -108,11 +116,23 @@ export async function POST(req: NextRequest) {
   // self_pickup → buyer collects from the farm; home_delivery → our rider
   // brings it; courier → the farmer ships it themselves. Both delivery kinds
   // need a destination address.
-  const deliveryType =
+  //
+  // Delivery type is chosen PER item now (each harvest picks pickup vs
+  // delivery), so one farmer order can mix both. `bodyDeliveryType` is the
+  // request-level fallback for legacy/absent per-item values; per-item only
+  // carries self_pickup/home_delivery, courier stays a request-level fallback.
+  const bodyDeliveryType =
     body.deliveryType === 'home_delivery' ? 'home_delivery'
     : body.deliveryType === 'courier' ? 'courier'
     : 'self_pickup'
-  const needsAddress = deliveryType === 'home_delivery' || deliveryType === 'courier'
+  const rowDeliveryTypeOf = (it: IncomingItem): 'self_pickup' | 'home_delivery' | 'courier' =>
+    it.deliveryType === 'home_delivery' ? 'home_delivery'
+    : it.deliveryType === 'self_pickup' ? 'self_pickup'
+    : bodyDeliveryType
+  // The address form is required as soon as ANY item ships (home delivery or
+  // courier). We validate it once here for the whole batch.
+  const anyDelivery = items.some((it) => rowDeliveryTypeOf(it) !== 'self_pickup')
+  const needsAddress = anyDelivery
   let deliveryAddress: string | null = null
   let deliveryCity: string | null = null
   let deliveryLandmark: string | null = null
@@ -248,7 +268,10 @@ export async function POST(req: NextRequest) {
   // handover at the door. Self-pickup: the customer reads it to the farmer at
   // collection. Either way the whole checkout shares one code.
   const sharedHandoverOtp = generateHandoverOtp()
-  const deliveryFee = deliveryType === 'home_delivery' ? DELIVERY_FEE_RUPEES : 0
+  // One delivery fee per cart, charged when at least one item is home delivery
+  // (our rider). Stamped on the first home-delivery row below.
+  const anyHomeDelivery = items.some((it) => rowDeliveryTypeOf(it) === 'home_delivery')
+  const deliveryFee = anyHomeDelivery ? DELIVERY_FEE_RUPEES : 0
 
   // Validate first (price + ownership) before we touch any stock. Stock
   // claims happen below with the RPC so two cart submits can't oversell.
@@ -285,6 +308,13 @@ export async function POST(req: NextRequest) {
     }
     total += linePrice
 
+    // Each item carries its own fulfillment. Address fields live only on rows
+    // that ship (home delivery / courier); the pickup point lives only on
+    // pickup rows. Guests always keep their address on every row as the
+    // farmer's contact record, even for pickup.
+    const rowDeliveryType = rowDeliveryTypeOf(item)
+    const rowShips = rowDeliveryType === 'home_delivery' || rowDeliveryType === 'courier'
+
     rows.push({
       farmer_id: farmerId,
       produce_listing_id: listing.id,
@@ -297,17 +327,19 @@ export async function POST(req: NextRequest) {
       buyer_email: buyerEmail,
       consumer_id: buyerId,
       idempotency_key: idempotencyKey,
-      pickup_location: typeof pickupLocation === 'string' ? pickupLocation.slice(0, 200) : null,
+      pickup_location: rowDeliveryType === 'self_pickup' && typeof pickupLocation === 'string'
+        ? pickupLocation.slice(0, 200)
+        : null,
       status: 'pending',
       payment_method: paymentMethod,
       payment_status: 'pending',
-      delivery_type: deliveryType,
-      delivery_status: deliveryType === 'home_delivery' ? 'unassigned' : null,
-      delivery_address: deliveryAddress,
-      delivery_city: deliveryCity,
-      delivery_landmark: deliveryLandmark,
-      delivery_pincode: deliveryPincode,
-      delivery_alt_phone: deliveryAltPhone,
+      delivery_type: rowDeliveryType,
+      delivery_status: rowDeliveryType === 'home_delivery' ? 'unassigned' : null,
+      delivery_address: rowShips ? deliveryAddress : (isGuest ? deliveryAddress : null),
+      delivery_city: rowShips ? deliveryCity : null,
+      delivery_landmark: rowShips ? deliveryLandmark : null,
+      delivery_pincode: rowShips ? deliveryPincode : null,
+      delivery_alt_phone: rowShips ? deliveryAltPhone : null,
       handover_otp: sharedHandoverOtp,
       // Fee is paid once per cart, so we stamp it on the first row only.
       // sum(delivery_fee) and sum(rider_payout) over a batch === one fee.
@@ -316,9 +348,14 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  if (rows.length > 0 && deliveryFee > 0) {
-    rows[0].delivery_fee = deliveryFee
-    rows[0].rider_payout = deliveryFee
+  if (deliveryFee > 0) {
+    // Stamp the single per-cart fee on the first home-delivery row (rows[0] may
+    // be a pickup row now that types are mixed per item).
+    const feeRow = rows.find((r) => r.delivery_type === 'home_delivery')
+    if (feeRow) {
+      feeRow.delivery_fee = deliveryFee
+      feeRow.rider_payout = deliveryFee
+    }
   }
 
   // Harvest-as-product: record which harvest each line sold. rows are built 1:1
