@@ -1,0 +1,11 @@
+[Image #1] [Image #2] explain one by one in simple english in very undertandable way
+
+---
+
+do one by one and dont forgot to add simultanoues to modertaion if any changes done in farmer do for moderator too did you udnerstand 4. Edit Listing is out of sync in the Moderator module
+When a moderator edits a listing, it doesn't match what the farmer sees — some items/fields are missing. The moderator's edit screen needs to show the same complete information as the farmer's. (This is the usual farmer ↔ moderator parity issue.)
+remember this evrythime i sadi save this right
+
+---
+
+is there anything to add in moderator
