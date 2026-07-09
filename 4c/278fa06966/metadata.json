@@ -3,10 +3,20 @@
   "checkpoint_id": "4c278fa06966",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 2,
+  "checkpoints_count": 4,
   "files_touched": [
+    "src/app/api/consumer/orders/route.ts",
+    "src/app/api/moderator/listings/[id]/route.ts",
+    "src/app/api/moderator/listings/route.ts",
     "src/app/api/orders/place/route.ts",
-    "src/components/consumer/Cart.tsx"
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/farmer/dashboard/orders/[id]/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/app/moderator/listings/ListingForm.tsx",
+    "src/app/moderator/listings/[id]/edit/page.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/components/consumer/OrderCard.tsx",
+    "src/lib/harvest.ts"
   ],
   "sessions": [
     {
@@ -14,13 +24,19 @@
       "transcript": "/4c/278fa06966/0/full.jsonl",
       "content_hash": "/4c/278fa06966/0/content_hash.txt",
       "prompt": "/4c/278fa06966/0/prompt.txt"
+    },
+    {
+      "metadata": "/4c/278fa06966/1/metadata.json",
+      "transcript": "/4c/278fa06966/1/full.jsonl",
+      "content_hash": "/4c/278fa06966/1/content_hash.txt",
+      "prompt": "/4c/278fa06966/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 7652,
-    "cache_creation_tokens": 227609,
-    "cache_read_tokens": 7966687,
-    "output_tokens": 72211,
-    "api_call_count": 65
+    "input_tokens": 12446,
+    "cache_creation_tokens": 268861,
+    "cache_read_tokens": 8867993,
+    "output_tokens": 85442,
+    "api_call_count": 87
   }
 }
