@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "2dbb56b03ad7",
+  "session_id": "ses_0b55cd13affe1DC6puwFyfvfyl",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-11T08:13:33.512548694Z",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/app/api/auth/me/route.ts",
+    "src/app/farmer/complaints/page.tsx",
+    "src/app/farmer/dashboard/orders/[id]/page.tsx",
+    "src/app/farmer/dashboard/orders/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/app/farmer/login/page.tsx",
+    "src/components/farmer/OrderCard.tsx",
+    "src/components/farmer/TabSection.tsx",
+    "src/lib/farmer-session.ts"
+  ],
+  "agent": "OpenCode",
+  "model": "big-pickle",
+  "turn_id": "7d96a235feb5",
+  "checkpoint_transcript_start": 5,
+  "transcript_lines_at_start": 5,
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-11T08:13:33.51087313Z",
+    "agent_lines": 209,
+    "agent_removed": 316,
+    "human_added": 105,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 314,
+    "total_lines_changed": 630,
+    "agent_percentage": 83.33333333333334,
+    "metric_version": 2
+  }
+}
