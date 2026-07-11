@@ -7,7 +7,7 @@ import { useCart } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
-import { harvestClock } from '@/lib/harvest'
+import { harvestClock, freshnessLeftDays } from '@/lib/harvest'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
 
 // Two compact harvest tables shown above the consumer search box:
@@ -24,6 +24,9 @@ type Listing = {
   name: string
   emoji?: string | null
   status?: string | null
+  // Fallback shelf life: it's a produce-level property, so most harvests carry
+  // null and inherit it from the listing.
+  shelf_life_days?: number | null
 }
 
 type HarvestRow = {
@@ -37,7 +40,22 @@ type HarvestRow = {
 }
 
 const DAY = 86_400_000
+// Outer bound on the fetch window for fresh harvests. Nothing with a longer
+// shelf life than this can still be fresh, so a harvest older than it can be
+// left in the database — this is a query bound, not the freshness rule.
+const MAX_SHELF_LIFE_DAYS = 90
 type Variant = 'fresh' | 'upcoming'
+
+// A picked harvest is fresh while it has shelf life left. The harvest's own
+// shelf_life_days wins when set; otherwise it inherits the produce's. When
+// neither is set we can't compute freshness, so we keep the harvest rather than
+// hide a perfectly good listing over a missing number.
+function isStillFresh(r: HarvestRow): boolean {
+  const listing = Array.isArray(r.produce_listings) ? r.produce_listings[0] : r.produce_listings
+  const shelf = r.shelf_life_days ?? listing?.shelf_life_days ?? null
+  const left = freshnessLeftDays(r.harvested_at, shelf)
+  return left == null || left >= 0
+}
 
 function HarvestTable({ variant }: { variant: Variant }) {
   const { lang, L } = useLang()
@@ -55,23 +73,34 @@ function HarvestTable({ variant }: { variant: Variant }) {
     const now = Date.now()
     const base = supabase
       .from('harvests')
-      .select('id, harvested_at, produce_listing_id, stock_qty, shelf_life_days, produce_listings!inner(id, name, emoji, status)')
+      .select('id, harvested_at, produce_listing_id, stock_qty, shelf_life_days, produce_listings!inner(id, name, emoji, status, shelf_life_days)')
       .eq('produce_listings.status', 'available')
-    // Fresh = picked within the last 2 days, newest first.
+    // Fresh = already picked and still inside its shelf life, newest first.
     // Upcoming = picks in the next 7 days (pre-book), soonest first.
+    //
+    // Shelf life is what decides freshness, not a fixed age: a 30-day turmeric
+    // and a 2-day leafy green are both "fresh" for as long as the farmer says
+    // they keep. Postgres can't compare a row against its own shelf-life column
+    // through PostgREST, so we over-fetch a generous window here and let
+    // freshnessLeftDays() (the same helper behind the "3 days fresh left" label)
+    // make the call below — one definition of fresh, not two.
     const q =
       variant === 'fresh'
         ? base
-            .gte('harvested_at', new Date(now - 2 * DAY).toISOString())
+            .gte('harvested_at', new Date(now - MAX_SHELF_LIFE_DAYS * DAY).toISOString())
             .lte('harvested_at', new Date(now).toISOString())
             .order('harvested_at', { ascending: false })
         : base
             .gt('harvested_at', new Date(now).toISOString())
             .lte('harvested_at', new Date(now + 7 * DAY).toISOString())
             .order('harvested_at', { ascending: true })
-    q.limit(12).then(({ data }) => {
+    q.limit(60).then(({ data }) => {
       if (cancelled) return
-      setRows((data ?? []) as HarvestRow[])
+      const all = (data ?? []) as HarvestRow[]
+      const visible = variant === 'upcoming' ? all : all.filter(isStillFresh)
+      // Sold-out harvests aren't buyable, so they don't belong in a table whose
+      // every row has an add-to-cart button. null stock = quantity not tracked.
+      setRows(visible.filter((r) => r.stock_qty == null || r.stock_qty > 0).slice(0, 12))
       setLoaded(true)
     })
     return () => { cancelled = true }
