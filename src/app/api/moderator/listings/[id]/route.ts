@@ -159,9 +159,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const name = String(b.name ?? '').trim()
   if (!name) return NextResponse.json({ error: 'Harvest name is required.' }, { status: 400 })
 
-  // Harvest date/time + shelf life are mandatory (drive the buyer freshness clock).
+  // Shelf life is mandatory (drives the buyer freshness clock).
+  //
+  // Harvest date is OPTIONAL here. The edit form manages picks through the
+  // shared HarvestManager panel, so it omits the field; rewriting the newest
+  // harvest row from a stale form value would undo a pick the moderator just
+  // logged. Legacy callers that still send it keep the old sync behaviour.
   const harvestDate = toIso(b.harvest_date)
-  if (!harvestDate) return NextResponse.json({ error: 'Harvest date & time is required.' }, { status: 400 })
   const shelfLife = toPos(b.shelf_life_days)
   if (!shelfLife) return NextResponse.json({ error: 'Shelf life (days) is required.' }, { status: 400 })
 
@@ -193,7 +197,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     brix: toNonNeg(b.brix),
     soil_organic_carbon: toNonNeg(b.soil_organic_carbon),
     image_url: (typeof b.image_url === 'string' && b.image_url) ? b.image_url : null,
-    harvest_date: harvestDate,
     shelf_life_days: shelfLife,
     delivery_mode: deliveryMode,
     delivery_charge: deliveryMode === 'pickup' ? null : toNonNeg(b.delivery_charge),
@@ -211,6 +214,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     price_tier_3_price: price3,
     price_tier_3_qty: price3 ? ((price2Qty ?? 1) + 1) : null,
   }
+  if (harvestDate) update.harvest_date = harvestDate
 
   const { data: updated, error } = await supabase
     .from('produce_listings')
@@ -223,29 +227,31 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Parity with the farmer flow: keep this produce's harvest in sync so it stays
-  // a sellable HARVEST (with its own stock) in the Fresh/Upcoming feeds. Update
-  // the most recent harvest row; create one if none exists yet (e.g. a listing
-  // predating the harvest-as-product change). Best-effort.
-  const harvestQty = toNonNeg(b.stock_qty)
-  const { data: latest } = await supabase
-    .from('harvests')
-    .select('id')
-    .eq('produce_listing_id', id)
-    .order('harvested_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  const harvestFields = {
-    harvested_at: harvestDate,
-    shelf_life_days: shelfLife,
-    approx_quantity: harvestQty,
-    stock_qty: harvestQty,
-    unit,
+  // Only a caller that supplied a harvest date owns the harvest row. When the
+  // edit form omits it, harvests belong to HarvestManager and we leave them
+  // alone — mirroring the farmer's update-listing route, which never touches
+  // harvests either. Best-effort: a failure here must not fail the save.
+  if (harvestDate) {
+    const harvestQty = toNonNeg(b.stock_qty)
+    const { data: latest } = await supabase
+      .from('harvests')
+      .select('id')
+      .eq('produce_listing_id', id)
+      .order('harvested_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const harvestFields = {
+      harvested_at: harvestDate,
+      shelf_life_days: shelfLife,
+      approx_quantity: harvestQty,
+      stock_qty: harvestQty,
+      unit,
+    }
+    const { error: hErr } = latest
+      ? await supabase.from('harvests').update(harvestFields).eq('id', latest.id)
+      : await supabase.from('harvests').insert({ produce_listing_id: id, farmer_id: updated.farmer_id, ...harvestFields })
+    if (hErr) console.error('[YFF moderator/listings PUT] harvest sync failed:', hErr.message)
   }
-  const { error: hErr } = latest
-    ? await supabase.from('harvests').update(harvestFields).eq('id', latest.id)
-    : await supabase.from('harvests').insert({ produce_listing_id: id, farmer_id: updated.farmer_id, ...harvestFields })
-  if (hErr) console.error('[YFF moderator/listings PUT] harvest sync failed:', hErr.message)
 
   return NextResponse.json({ id: updated.id })
 }

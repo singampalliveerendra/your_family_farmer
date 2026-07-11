@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import HarvestManager from '@/components/HarvestManager'
 
 // Shared add/edit form for a farmer's harvest listing, used by both
 //   /moderator/listings/new          (mode="create")
@@ -12,9 +13,14 @@ import { supabase } from '@/lib/supabase'
 // Kept at full parity with the FARMER's Edit Harvest form (moderators register
 // farmers and add/edit harvests on their behalf, so they get every field the
 // farmer has): icon, name, variety, method, category, unit, stock, brix,
-// harvest date/time, shelf life, delivery method (pickup/courier/both + charge
-// & radius), three price tiers, photos, soil quality (organic carbon, pH),
-// pesticide result, and description.
+// shelf life, delivery method (pickup/courier/both + charge & radius), three
+// price tiers, photos, soil quality (organic carbon, pH), pesticide result,
+// and description.
+//
+// Harvest date/time differs by mode, exactly as it does for the farmer:
+//   create — one "first harvest" date seeds the produce's initial harvest row.
+//   edit   — the shared <HarvestManager> panel owns harvests, so the moderator
+//            can log MANY picks per produce instead of editing a single date.
 
 export type ListingFormValues = {
   name: string
@@ -163,11 +169,9 @@ export default function ListingForm({
     if (submitting) return
     if (mode === 'create' && !farmerId) { setError('Choose a farmer.'); return }
     if (!form.name.trim()) { setError('Harvest name is required.'); return }
-    // The moderator form has no separate harvest logger (unlike the farmer's
-    // HarvestManager), so this "Harvest date & time" field IS how a moderator
-    // seeds/updates the produce's harvest row — hence still required here, while
-    // the farmer's produce form drops it in favour of per-pick logging.
-    if (!form.harvest_date) { setError('Harvest date & time is required.'); return }
+    // Only the create flow carries a harvest date — it seeds the produce's first
+    // harvest row. In edit mode HarvestManager owns the harvests.
+    if (mode === 'create' && !form.harvest_date) { setError('Harvest date & time is required.'); return }
     const shelfNum = parseInt(form.shelf_life_days, 10)
     if (!form.shelf_life_days || !Number.isFinite(shelfNum) || shelfNum <= 0) {
       setError('Shelf life (days) is required.'); return
@@ -186,12 +190,20 @@ export default function ListingForm({
 
     const url = mode === 'edit' ? `/api/moderator/listings/${listingId}` : '/api/moderator/listings'
     const method = mode === 'edit' ? 'PUT' : 'POST'
+    // Edit mode deliberately omits harvest_date: sending it would make the API
+    // rewrite the newest harvest row, silently undoing a pick the moderator just
+    // logged in the panel below.
+    const { harvest_date, ...editableFields } = form
+    const payload = mode === 'edit'
+      ? editableFields
+      : { ...editableFields, harvest_date }
+
     const r = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
       body: JSON.stringify({
-        ...form,
+        ...payload,
         farmer_id: farmerId,
         emoji,
         image_url: allImages[0] ?? null,
@@ -308,13 +320,29 @@ export default function ListingForm({
         <Field label="Brix (sweetness)">
           <input value={form.brix} onChange={set('brix')} type="number" min="0" step="0.1" className={inputCls} />
         </Field>
-        <Field label="Latest harvest date & time *">
-          <input value={form.harvest_date} onChange={set('harvest_date')} type="datetime-local" required className={inputCls} />
-        </Field>
+        {mode === 'create' && (
+          <Field label="First harvest date & time *">
+            <input value={form.harvest_date} onChange={set('harvest_date')} type="datetime-local" required className={inputCls} />
+          </Field>
+        )}
         <Field label="Shelf life (days) *">
           <input value={form.shelf_life_days} onChange={set('shelf_life_days')} type="number" min="1" step="1" required className={inputCls} placeholder="e.g. 5" />
         </Field>
       </div>
+
+      {/* Harvest timings — the same panel the farmer gets inside their Edit
+          Harvest form, so a moderator can log many picks against one produce.
+          Edit only: a harvest needs a saved produce row to attach to. */}
+      {mode === 'edit' && listingId && farmerId && (
+        <div className="border-t border-gray-100 pt-4 max-w-md">
+          <HarvestManager
+            listingId={listingId}
+            farmerId={farmerId}
+            unit={form.unit}
+            produceShelfLife={form.shelf_life_days ? parseInt(form.shelf_life_days, 10) : null}
+          />
+        </div>
+      )}
 
       {/* Delivery method — pickup only, farmer courier, or both. Mirrors the
           farmer's Edit Harvest form so a moderator can set it on their behalf. */}
