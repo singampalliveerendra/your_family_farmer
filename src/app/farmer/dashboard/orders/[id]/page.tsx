@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
 import { isOrderPaid, isPaymentClaimed } from '@/lib/payment'
 import { harvestClock } from '@/lib/harvest'
+import { requireFarmerSession } from '@/lib/farmer-auth-client'
 
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
 
@@ -71,7 +72,6 @@ const ORDER_COLUMNS =
 export default function FarmerOrderDetailPage() {
   const params = useParams<{ id: string }>()
   const id = typeof params?.id === 'string' ? params.id : ''
-  const router = useRouter()
   const { tx, L } = useLang()
   const [order, setOrder] = useState<Order | null>(null)
   const [rider, setRider] = useState<{ name: string | null; phone: string } | null>(null)
@@ -80,35 +80,41 @@ export default function FarmerOrderDetailPage() {
 
   useEffect(() => {
     if (!id) return
-    const farmerId = localStorage.getItem('yff_farmer_id')
-    if (!farmerId) { router.replace('/farmer/login'); return }
 
     let cancelled = false
     setLoading(true)
-    // Scope the read to this farmer's own orders so the detail page can never
-    // surface another farmer's order, even via a guessed id.
-    supabase
-      .from('orders')
-      .select(ORDER_COLUMNS)
-      .eq('id', id)
-      .eq('farmer_id', farmerId)
-      .maybeSingle()
-      .then(async ({ data }) => {
-        if (cancelled) return
-        if (!data) { setNotFound(true); setLoading(false); return }
-        // Best-effort reschedule reason: the column may not exist until its
-        // migration is applied, so fetch it separately and ignore failure.
-        const { data: rs } = await supabase
-          .from('orders')
-          .select('reschedule_reason')
-          .eq('id', id)
-          .maybeSingle()
-        if (cancelled) return
-        setOrder({ ...(data as Order), reschedule_reason: (rs as { reschedule_reason?: string | null } | null)?.reschedule_reason ?? null })
-        setLoading(false)
-      })
+
+    void (async () => {
+      // Cookie-verified, so an expired session lands on the login page instead
+      // of an order page whose buttons all answer "Please log in."
+      const farmerId = await requireFarmerSession()
+      if (!farmerId || cancelled) return
+
+      // Scope the read to this farmer's own orders so the detail page can never
+      // surface another farmer's order, even via a guessed id.
+      const { data } = await supabase
+        .from('orders')
+        .select(ORDER_COLUMNS)
+        .eq('id', id)
+        .eq('farmer_id', farmerId)
+        .maybeSingle()
+      if (cancelled) return
+      if (!data) { setNotFound(true); setLoading(false); return }
+
+      // Best-effort reschedule reason: the column may not exist until its
+      // migration is applied, so fetch it separately and ignore failure.
+      const { data: rs } = await supabase
+        .from('orders')
+        .select('reschedule_reason')
+        .eq('id', id)
+        .maybeSingle()
+      if (cancelled) return
+      setOrder({ ...(data as Order), reschedule_reason: (rs as { reschedule_reason?: string | null } | null)?.reschedule_reason ?? null })
+      setLoading(false)
+    })()
+
     return () => { cancelled = true }
-  }, [id, router])
+  }, [id])
 
   // Pull the assigned rider's contact for home deliveries (mirrors the card).
   useEffect(() => {

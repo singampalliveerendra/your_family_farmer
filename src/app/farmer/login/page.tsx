@@ -1,15 +1,16 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import LanguageToggle from '@/components/LanguageToggle'
 import ForgotPasswordModal from '@/components/ForgotPasswordModal'
 import { useLang } from '@/lib/LanguageContext'
 
-export default function FarmerLoginPage() {
+function FarmerLoginInner() {
   const { L } = useLang()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
@@ -17,6 +18,16 @@ export default function FarmerLoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showForgot, setShowForgot] = useState(false)
+
+  // Set when farmerFetch/requireFarmerSession bounced the farmer here.
+  const sessionEnded = searchParams.get('reason') === 'expired'
+
+  // Return the farmer to the page they were bounced off. Only in-app farmer
+  // paths are honoured — an absolute URL here would make login an open redirect.
+  const nextPath = (): string => {
+    const next = searchParams.get('next') ?? ''
+    return next.startsWith('/farmer/') && !next.startsWith('/farmer//') ? next : '/farmer/dashboard'
+  }
 
   const digits = phone.replace(/\D/g, '').slice(-10)
   const canSubmit = digits.length === 10 && password.length >= 4
@@ -36,7 +47,7 @@ export default function FarmerLoginPage() {
     if (!res.ok) { setError(json.error ?? 'Could not log in. Please try again.'); return }
     localStorage.setItem('yff_farmer_id', json.farmerId)
     localStorage.setItem('yff_farmer_slug', json.farmerSlug)
-    router.replace('/farmer/dashboard')
+    router.replace(nextPath())
   }
 
   return (
@@ -105,6 +116,12 @@ export default function FarmerLoginPage() {
             </div>
           </div>
 
+          {sessionEnded && !error && (
+            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+              {L('Your session ended. Please log in again to continue.', 'మీ సెషన్ ముగిసింది. కొనసాగించడానికి మళ్ళీ లాగిన్ చేయండి.')}
+            </p>
+          )}
+
           {error && (
             <p className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2">{error}</p>
           )}
@@ -149,5 +166,13 @@ export default function FarmerLoginPage() {
         />
       )}
     </main>
+  )
+}
+
+export default function FarmerLoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <FarmerLoginInner />
+    </Suspense>
   )
 }

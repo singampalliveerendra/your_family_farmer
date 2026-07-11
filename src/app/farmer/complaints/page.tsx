@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useLang } from '@/lib/LanguageContext'
+import { farmerFetch, isFarmerSessionExpired } from '@/lib/farmer-auth-client'
 
 type Complaint = {
   id: string
@@ -46,7 +46,6 @@ type TabKey = 'active' | 'resolved'
 
 export default function FarmerComplaintsPage() {
   const { L } = useLang()
-  const router = useRouter()
   const [complaints, setComplaints] = useState<Complaint[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -55,21 +54,22 @@ export default function FarmerComplaintsPage() {
 
   const refresh = useCallback(async () => {
     setLoading(true); setError('')
-    const r = await fetch('/api/farmer/complaints', { credentials: 'same-origin' }).catch(() => null)
-    if (!r) { setError('Could not load. Check your connection.'); setLoading(false); return }
-    if (r.status === 401) { router.replace('/farmer/login'); return }
+    let r: Response
+    try {
+      r = await farmerFetch('/api/farmer/complaints')
+    } catch (e) {
+      if (isFarmerSessionExpired(e)) return
+      setError('Could not load. Check your connection.'); setLoading(false); return
+    }
     const json = await r.json().catch(() => ({}))
     if (!r.ok) { setError(json?.error ?? 'Could not load complaints.'); setLoading(false); return }
     setComplaints((json.complaints ?? []) as Complaint[])
     setLoading(false)
-  }, [router])
+  }, [])
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && !localStorage.getItem('yff_farmer_id')) {
-      router.replace('/farmer/login'); return
-    }
-    void refresh()
-  }, [refresh, router])
+  // No localStorage pre-check: refresh() goes through farmerFetch, which sends
+  // the farmer to login if the session cookie is gone.
+  useEffect(() => { void refresh() }, [refresh])
 
   const active = complaints.filter((c) => c.status !== 'resolved')
   const resolved = complaints.filter((c) => c.status === 'resolved')
@@ -162,14 +162,19 @@ function NewComplaint({ onClose, onCreated }: { onClose: () => void; onCreated: 
   const submit = async () => {
     if (!description.trim()) { setErr(L('Please describe the problem', 'సమస్యను వివరించండి')); return }
     setSaving(true); setErr('')
-    const r = await fetch('/api/farmer/complaints', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'same-origin',
-      body: JSON.stringify({ type, description: description.trim(), order_code: orderCode.trim() }),
-    }).catch(() => null)
+    let r: Response
+    try {
+      r = await farmerFetch('/api/farmer/complaints', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, description: description.trim(), order_code: orderCode.trim() }),
+      })
+    } catch (e) {
+      if (isFarmerSessionExpired(e)) return
+      setSaving(false); setErr('Could not submit. Try again.'); return
+    }
     setSaving(false)
-    if (!r || !r.ok) { const j = r ? await r.json().catch(() => ({})) : {}; setErr(j?.error ?? 'Could not submit. Try again.'); return }
+    if (!r.ok) { const j = await r.json().catch(() => ({})); setErr(j?.error ?? 'Could not submit. Try again.'); return }
     onCreated()
   }
 

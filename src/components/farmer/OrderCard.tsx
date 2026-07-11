@@ -122,6 +122,14 @@ export default function OrderCard({
   const isCourier = order.delivery_type === 'courier'
   const isPickup = !isDelivery && !isCourier
   const isShipped = !!order.shipped_at
+  // When the farmer marked it shipped — shown next to the "Shipped" banner so
+  // they can see how long the order has been in transit.
+  const shippedAtLabel = order.shipped_at
+    ? new Date(order.shipped_at).toLocaleString('en-IN', {
+        weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      })
+    : null
   // A home delivery is in the rider flow once a rider is assigned (delivery
   // status moved past 'unassigned'). Those stay rider-closed; home deliveries
   // with no rider are farmer-shipped, so the farmer marks them Shipped.
@@ -589,6 +597,11 @@ export default function OrderCard({
             // "remove farmer code-confirm for home delivery" card.)
             <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2.5 text-center space-y-1">
               <p className="text-[11px] font-bold text-amber-800">🚚 {L('Shipped — on the way', 'షిప్ అయింది — దారిలో')}</p>
+              {shippedAtLabel && (
+                <p className="text-[11px] font-semibold text-gray-700">
+                  {L('Shipped on', 'షిప్ చేసిన తేదీ')} {shippedAtLabel}
+                </p>
+              )}
               <p className="text-xs text-green-800 leading-snug">
                 {L('The customer will confirm delivery from their order page.', 'కస్టమర్ వారి ఆర్డర్ పేజీ నుండి డెలివరీని ధృవీకరిస్తారు.')}
               </p>
@@ -599,6 +612,11 @@ export default function OrderCard({
             // as self-pickup. Home delivery is handled above (no farmer code).
             <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2.5 space-y-2">
               <p className="text-[11px] font-bold text-amber-800 text-center">🚚 {L('Shipped — on the way', 'షిప్ అయింది — దారిలో')}</p>
+              {shippedAtLabel && (
+                <p className="text-[11px] font-semibold text-gray-700 text-center">
+                  {L('Shipped on', 'షిప్ చేసిన తేదీ')} {shippedAtLabel}
+                </p>
+              )}
               <p className="text-xs font-bold text-green-800 text-center">
                 {L('Enter the customer’s code at delivery', 'డెలివరీ సమయంలో కస్టమర్ కోడ్ నమోదు చేయండి')}
               </p>

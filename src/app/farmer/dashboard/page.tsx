@@ -11,7 +11,13 @@ import { normalizePickupSchedule, emptyPickupSlot, type PickupSchedule } from '@
 import { type FarmerOrder as Order, isResolved } from '@/components/farmer/OrderCard'
 import DemandSupplyChart from '@/components/DemandSupplyChart'
 import { type CropBalance } from '@/lib/demand-supply'
-import { harvestClock, freshnessLabel, type Harvest } from '@/lib/harvest'
+import HarvestManager from '@/components/HarvestManager'
+import {
+  clearFarmerLocalSession,
+  farmerFetch,
+  isFarmerSessionExpired,
+  requireFarmerSession,
+} from '@/lib/farmer-auth-client'
 
 type Farmer = {
   id: string
@@ -170,8 +176,10 @@ export default function FarmerDashboard() {
   const [showListings, setShowListings] = useState(false)
 
   const loadDashboard = useCallback(async () => {
-    const farmerId = localStorage.getItem('yff_farmer_id')
-    if (!farmerId) { router.replace('/farmer/login'); return }
+    // Cookie-verified: a farmer whose session died must land on the login page,
+    // not on a dashboard whose every action answers "Please log in."
+    const farmerId = await requireFarmerSession()
+    if (!farmerId) return
 
     const { data: farmerData } = await supabase
       .from('farmers')
@@ -243,7 +251,7 @@ export default function FarmerDashboard() {
     }
 
     setLoading(false)
-  }, [router])
+  }, [])
 
   useEffect(() => { loadDashboard() }, [loadDashboard])
 
@@ -358,9 +366,11 @@ export default function FarmerDashboard() {
     }
   }, [loadDashboard])
 
-  const handleLogout = () => {
-    localStorage.removeItem('yff_farmer_id')
-    localStorage.removeItem('yff_farmer_slug')
+  const handleLogout = async () => {
+    // Drop the server cookie too — clearing localStorage alone leaves a live
+    // session behind on the device.
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => null)
+    clearFarmerLocalSession()
     router.replace('/farmer/login')
   }
 
@@ -403,16 +413,21 @@ export default function FarmerDashboard() {
         </div>
         <div className="flex items-start justify-between">
           <div>
-            {/* Overall rating across all harvests, sits above the dashboard title. */}
+            {/* Overall rating across all harvests, sits above the dashboard title.
+                Tapping it opens the public profile on its Reviews tab. */}
             {overallRating != null && (
-              <div className="flex items-center gap-1 mb-1">
+              <Link
+                href={`/farmer/${farmer!.slug}?tab=reviews`}
+                className="flex items-center gap-1 mb-1 w-fit active:opacity-70"
+                aria-label={L('View all reviews', 'అన్ని సమీక్షలు చూడండి')}
+              >
                 <span className="text-amber-400 text-sm leading-none">★</span>
                 <span className="text-white text-sm font-bold leading-none">{overallRating.toFixed(1)}</span>
-                <span className="text-green-400 text-[11px] leading-none">
+                <span className="text-green-400 text-[11px] leading-none underline">
                   ({totalReviews}{' '}
                   {totalReviews === 1 ? L('review', 'సమీక్ష') : L('reviews', 'సమీక్షలు')})
                 </span>
-              </div>
+              </Link>
             )}
             <p className="text-green-400 text-xs font-semibold mb-0.5 uppercase tracking-wide">
               {tx.farmerDashboard}
@@ -1029,12 +1044,19 @@ function ProfileEditModal({
     if (newPassword !== confirmPassword) { setPwError(L('Passwords do not match', 'పాస్‌వర్డ్‌లు సరిపోలలేదు')); return }
     setPwLoading(true)
     setPwError('')
-    const res = await fetch('/api/auth/reset-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'same-origin',
-      body: JSON.stringify({ currentPassword, newPassword }),
-    })
+    let res: Response
+    try {
+      res = await farmerFetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      })
+    } catch (e) {
+      if (isFarmerSessionExpired(e)) return
+      setPwLoading(false)
+      setPwError('Network error. Please try again.')
+      return
+    }
     const json = await res.json().catch(() => ({}))
     setPwLoading(false)
     if (!res.ok) { setPwError(json.error ?? 'Could not update password.'); return }
@@ -1939,13 +1961,13 @@ function ProduceListingForm({
 
       let res: Response
       try {
-        res = await fetch('/api/farmer/update-listing', {
+        res = await farmerFetch('/api/farmer/update-listing', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'same-origin',
           body: JSON.stringify({ listingId: editData.id, payload: editPayload }),
         })
-      } catch {
+      } catch (e) {
+        if (isFarmerSessionExpired(e)) return
         setLoading(false)
         setError('Network error — is the server running?')
         return
@@ -2808,227 +2830,6 @@ function ManageListingsModal({
   )
 }
 
-/* ─── Harvest timings manager (lives inside the produce Edit form) ─────
-   A produce_listing is the template; logging a harvest records one actual pick
-   (date+time, shelf life, qty-for-sale) into the `harvests` table — each pick is
-   its own sellable product powering the consumer "Today's Harvest" feed and the
-   "Harvested 2h ago" clock. This whole panel used to be a separate button on the
-   produce card; it now lives inside Edit. */
-function HarvestManager({ listingId, farmerId, unit, produceShelfLife }: { listingId: string; farmerId: string; unit?: string | null; produceShelfLife?: number | null }) {
-  const { L } = useLang()
-  const nowLocal = () => {
-    const d = new Date()
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
-    return d.toISOString().slice(0, 16) // yyyy-MM-ddThh:mm for datetime-local
-  }
-  // datetime-local wants yyyy-MM-ddThh:mm in LOCAL time; convert a stored UTC
-  // ISO string back to that shape for the edit inputs.
-  const toLocalInput = (iso: string) => {
-    const d = new Date(iso)
-    if (isNaN(d.getTime())) return ''
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
-    return d.toISOString().slice(0, 16)
-  }
-  const [harvestedAt, setHarvestedAt] = useState(nowLocal())
-  const [approxQty, setApproxQty] = useState('')
-  const [savingHarvest, setSavingHarvest] = useState(false)
-  const [harvestMsg, setHarvestMsg] = useState('')
-  const [harvestErr, setHarvestErr] = useState('')
-
-  const [harvests, setHarvests] = useState<Harvest[]>([])
-  const [harvestsLoaded, setHarvestsLoaded] = useState(false)
-  const [editingHarvestId, setEditingHarvestId] = useState<string | null>(null)
-  const [editAt, setEditAt] = useState('')
-  const [editQty, setEditQty] = useState('')
-  const [savingEdit, setSavingEdit] = useState(false)
-  const [editErr, setEditErr] = useState('')
-
-  const loadHarvests = useCallback(async () => {
-    const { data } = await supabase
-      .from('harvests')
-      .select('id, produce_listing_id, farmer_id, harvested_at, shelf_life_days, approx_quantity, unit, notes')
-      .eq('produce_listing_id', listingId)
-      .order('harvested_at', { ascending: false })
-      .limit(20)
-    setHarvests((data ?? []) as Harvest[])
-    setHarvestsLoaded(true)
-  }, [listingId])
-
-  useEffect(() => { void loadHarvests() }, [loadHarvests])
-
-  const submitHarvest = async () => {
-    setHarvestErr('')
-    setHarvestMsg('')
-    const when = new Date(harvestedAt)
-    if (isNaN(when.getTime())) { setHarvestErr(L('Pick a valid harvest date & time.', 'సరైన కోత తేదీ & సమయం ఎంచుకోండి.')); return }
-    setSavingHarvest(true)
-    // Shelf life is not logged per-harvest — it's a produce-level property, so
-    // the consumer freshness label falls back to the listing's shelf_life_days.
-    const { error: err } = await supabase.from('harvests').insert({
-      produce_listing_id: listingId,
-      farmer_id: farmerId,
-      harvested_at: when.toISOString(),
-      approx_quantity: approxQty ? Number(approxQty) : null,
-      // The quantity entered is this harvest's sellable stock: each harvest is
-      // its own product with its own inventory (decremented as buyers order).
-      stock_qty: approxQty ? Number(approxQty) : null,
-      unit: unit ?? null,
-    })
-    setSavingHarvest(false)
-    if (err) { setHarvestErr(err.message); return }
-    setHarvestMsg(L('Harvest logged ✓', 'కోత నమోదైంది ✓'))
-    setApproxQty(''); setHarvestedAt(nowLocal())
-    void loadHarvests()
-    setTimeout(() => setHarvestMsg(''), 1400)
-  }
-
-  const startEditHarvest = (h: Harvest) => {
-    setEditingHarvestId(h.id)
-    setEditErr('')
-    setEditAt(toLocalInput(h.harvested_at))
-    setEditQty(h.approx_quantity != null ? String(h.approx_quantity) : '')
-  }
-
-  const saveEditHarvest = async () => {
-    if (!editingHarvestId) return
-    setEditErr('')
-    const when = new Date(editAt)
-    if (isNaN(when.getTime())) { setEditErr(L('Pick a valid harvest date & time.', 'సరైన కోత తేదీ & సమయం ఎంచుకోండి.')); return }
-    setSavingEdit(true)
-    const { error: err } = await supabase.from('harvests').update({
-      harvested_at: when.toISOString(),
-      approx_quantity: editQty ? Number(editQty) : null,
-      // Editing the quantity resets this harvest's sellable stock to the new
-      // amount (the farmer is stating what's actually available now).
-      stock_qty: editQty ? Number(editQty) : null,
-    }).eq('id', editingHarvestId)
-    setSavingEdit(false)
-    if (err) { setEditErr(err.message); return }
-    setEditingHarvestId(null)
-    void loadHarvests()
-  }
-
-  const deleteHarvest = async (h: Harvest) => {
-    if (!window.confirm(L('Delete this harvest? This cannot be undone.', 'ఈ కోతను తొలగించాలా? దీన్ని తిరిగి మార్చలేరు.'))) return
-    const { error: err } = await supabase.from('harvests').delete().eq('id', h.id)
-    if (err) { setHarvestErr(err.message); return }
-    if (editingHarvestId === h.id) setEditingHarvestId(null)
-    void loadHarvests()
-  }
-
-  return (
-    <div className="bg-green-50 border border-green-200 rounded-xl p-3 space-y-2.5">
-      <p className="text-xs font-bold text-green-800">🌾 {L('Harvest timings', 'కోత సమయాలు')}</p>
-      <div>
-        <label className="text-[11px] font-semibold text-gray-600">{L('Harvest date & time', 'కోత తేదీ & సమయం')}</label>
-        <input
-          type="datetime-local"
-          value={harvestedAt}
-          onChange={(e) => setHarvestedAt(e.target.value)}
-          className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-        />
-      </div>
-      <div>
-        <label className="text-[11px] font-semibold text-gray-600">{L('Qty for sale', 'అమ్మకానికి పరిమాణం')} ({unit || 'kg'})</label>
-        <input
-          type="number" inputMode="decimal" min={0} placeholder="e.g. 20"
-          value={approxQty}
-          onChange={(e) => setApproxQty(e.target.value)}
-          className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-        />
-      </div>
-      {harvestErr && <p className="text-[11px] text-red-600 font-semibold">{harvestErr}</p>}
-      {harvestMsg && <p className="text-[11px] text-green-700 font-semibold">{harvestMsg}</p>}
-      <button
-        onClick={submitHarvest}
-        disabled={savingHarvest}
-        className="w-full bg-green-700 text-white font-bold py-2 rounded-lg text-sm active:bg-green-800 disabled:opacity-50"
-      >
-        {savingHarvest ? '…' : L('Save harvest', 'సేవ్ చేయి')}
-      </button>
-
-      {/* Logged harvests — each editable (date/time, shelf life, qty). */}
-      {harvestsLoaded && harvests.length > 0 && (
-        <div className="pt-1 border-t border-green-200 space-y-2">
-          <p className="text-[11px] font-bold text-green-800 uppercase tracking-wide">
-            {L('Logged harvests', 'నమోదైన కోతలు')}
-          </p>
-          {harvests.map((h) => (
-            <div key={h.id} className="bg-white border border-green-200 rounded-lg p-2.5">
-              {editingHarvestId === h.id ? (
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-[11px] font-semibold text-gray-600">{L('Harvest date & time', 'కోత తేదీ & సమయం')}</label>
-                    <input
-                      type="datetime-local"
-                      value={editAt}
-                      onChange={(e) => setEditAt(e.target.value)}
-                      className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-semibold text-gray-600">{L('Qty for sale', 'అమ్మకానికి పరిమాణం')} ({unit || 'kg'})</label>
-                    <input
-                      type="number" inputMode="decimal" min={0} placeholder="e.g. 20"
-                      value={editQty}
-                      onChange={(e) => setEditQty(e.target.value)}
-                      className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
-                  </div>
-                  {editErr && <p className="text-[11px] text-red-600 font-semibold">{editErr}</p>}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={saveEditHarvest}
-                      disabled={savingEdit}
-                      className="flex-1 bg-green-700 text-white font-bold py-2 rounded-lg text-sm active:bg-green-800 disabled:opacity-50"
-                    >
-                      {savingEdit ? '…' : L('Save changes', 'మార్పులు సేవ్ చేయి')}
-                    </button>
-                    <button
-                      onClick={() => setEditingHarvestId(null)}
-                      className="px-4 border border-gray-300 text-gray-600 font-semibold py-2 rounded-lg text-sm"
-                    >
-                      {L('Cancel', 'రద్దు')}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-gray-800 truncate">
-                      🌾 {harvestClock(h.harvested_at, L)}
-                    </p>
-                    <p className="text-[11px] text-gray-500">
-                      {/* Freshness uses the produce's shelf life (per-harvest
-                          shelf life is no longer collected). */}
-                      {freshnessLabel(h.harvested_at, produceShelfLife ?? null, L) ?? harvestClock(h.harvested_at, L)}
-                      {h.approx_quantity != null && <> · {h.approx_quantity} {h.unit || unit || 'kg'}</>}
-                    </p>
-                  </div>
-                  <div className="flex-shrink-0 flex items-center gap-1.5">
-                    <button
-                      onClick={() => startEditHarvest(h)}
-                      className="text-xs font-bold text-green-700 border border-green-300 rounded-lg px-3 py-1.5 active:bg-green-50"
-                    >
-                      {L('Edit', 'సవరించు')}
-                    </button>
-                    <button
-                      onClick={() => deleteHarvest(h)}
-                      aria-label={L('Delete harvest', 'కోత తొలగించు')}
-                      className="text-xs font-bold text-red-600 border border-red-200 rounded-lg px-2.5 py-1.5 active:bg-red-50"
-                    >
-                      🗑
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 function ListingRowCard({
   row,

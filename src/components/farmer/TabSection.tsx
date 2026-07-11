@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useLang } from '@/lib/LanguageContext'
 import StoryTab from './tabs/StoryTab'
@@ -23,17 +23,36 @@ type Props = {
   media: Record<string, unknown>[]
 }
 
+// Stable, language-independent tab names for deep links (?tab=reviews), so the
+// farmer dashboard's rating badge can open this page straight on Reviews.
+const TAB_SLUGS = ['story', 'produce', 'quality', 'reviews', 'farm'] as const
+
 export default function TabSection({ farmer, produce, reviews, produceReviews, media }: Props) {
   const { tx, L } = useLang()
-  const [activeTab, setActiveTab] = useState(1)
   const searchParams = useSearchParams()
   const isEditMode = searchParams.get('edit') === 'true'
+
+  const linkedTab = TAB_SLUGS.indexOf(searchParams.get('tab') as (typeof TAB_SLUGS)[number])
+  // Produce (1) is the default landing tab.
+  const [activeTab, setActiveTab] = useState(linkedTab === -1 ? 1 : linkedTab)
+
+  // A deep link should land on the tab's content, not on the hero above it.
+  // Offset by the two stacked sticky bars so the tab strip stays visible.
+  const tabBarRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (linkedTab === -1 || !tabBarRef.current) return
+    const top = tabBarRef.current.getBoundingClientRect().top + window.scrollY - 53
+    window.scrollTo({ top, behavior: 'smooth' })
+    // Only on first paint of a deep link — re-running would fight the farmer
+    // once they start switching tabs by hand.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const TABS = [tx.story, tx.produce, tx.quality, tx.reviews, tx.farm]
 
   return (
     <div>
-      <div className="sticky top-[53px] z-40 bg-white border-b border-gray-200">
+      <div ref={tabBarRef} className="sticky top-[53px] z-40 bg-white border-b border-gray-200">
         <div className="flex overflow-x-auto scrollbar-hide">
           {TABS.map((tab, i) => (
             <button

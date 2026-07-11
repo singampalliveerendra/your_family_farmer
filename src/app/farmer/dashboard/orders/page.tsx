@@ -9,6 +9,7 @@ import OrderCard, { type FarmerOrder as Order, isResolved } from '@/components/f
 import { DeclineReasonSheet, DeclineSuccessSheet } from '@/components/farmer/DeclineSheets'
 import { ordersInReportWindow } from '@/lib/orderReport'
 import OrderReportSheet from '@/components/farmer/OrderReportSheet'
+import { farmerFetch, isFarmerSessionExpired, requireFarmerSession } from '@/lib/farmer-auth-client'
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'shipped' | 'completed' | 'declined' | 'cancelled'
 type TimeFilter = 'today' | 'week' | 'month' | 'all'
@@ -36,7 +37,6 @@ function bucketOf(o: Order): Exclude<StatusFilter, 'all'> {
 }
 
 function OrdersPageInner() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const { tx, L } = useLang()
   const [orders, setOrders] = useState<Order[]>([])
@@ -69,8 +69,10 @@ function OrdersPageInner() {
 
   // Silent refresh keeps the spinner only for the very first load.
   const load = useCallback(async (silent = false) => {
-    const farmerId = localStorage.getItem('yff_farmer_id')
-    if (!farmerId) { router.replace('/farmer/login'); return }
+    // Verified against the session cookie, not just localStorage: without this
+    // an expired session renders a full orders list whose every button 401s.
+    const farmerId = await requireFarmerSession()
+    if (!farmerId) return
     setFarmerId(farmerId)
 
     if (!silent) setLoading(true)
@@ -85,7 +87,7 @@ function OrdersPageInner() {
 
     setOrders((data ?? []) as Order[])
     setLoading(false)
-  }, [router])
+  }, [])
 
   useEffect(() => { load() }, [load])
 
@@ -186,14 +188,12 @@ function OrdersPageInner() {
   const handleMarkShipped = async (orderId: string) => {
     setProcessingOrderId(orderId)
     try {
-      const res = await fetch(`/api/farmer/orders/${orderId}/ship`, {
-        method: 'POST',
-        credentials: 'same-origin',
-      })
+      const res = await farmerFetch(`/api/farmer/orders/${orderId}/ship`, { method: 'POST' })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) { alert(json.error || L('Could not mark shipped. Please try again.', 'షిప్ చేయడం సాధ్యం కాలేదు. మళ్ళీ ప్రయత్నించండి.')); return }
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, shipped_at: json.shipped_at ?? new Date().toISOString() } : o)))
-    } catch {
+    } catch (e) {
+      if (isFarmerSessionExpired(e)) return
       alert(L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.'))
     } finally {
       setProcessingOrderId(null)
@@ -206,9 +206,8 @@ function OrdersPageInner() {
   const handleConfirmPickup = async (orderId: string, otp: string): Promise<string | null> => {
     setProcessingOrderId(orderId)
     try {
-      const res = await fetch(`/api/farmer/orders/${orderId}/confirm-pickup`, {
+      const res = await farmerFetch(`/api/farmer/orders/${orderId}/confirm-pickup`, {
         method: 'POST',
-        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ otp }),
       })
@@ -216,7 +215,8 @@ function OrdersPageInner() {
       if (!res.ok) return json.error || L('Could not confirm pickup. Please try again.', 'తీసుకోబడిందని ధృవీకరించడం సాధ్యం కాలేదు. మళ్ళీ ప్రయత్నించండి.')
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, collected_at: json.collected_at ?? new Date().toISOString() } : o)))
       return null
-    } catch {
+    } catch (e) {
+      if (isFarmerSessionExpired(e)) return null
       return L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.')
     } finally {
       setProcessingOrderId(null)
@@ -228,9 +228,8 @@ function OrdersPageInner() {
   const handleConfirmDelivery = async (orderId: string, otp: string): Promise<string | null> => {
     setProcessingOrderId(orderId)
     try {
-      const res = await fetch(`/api/farmer/orders/${orderId}/deliver`, {
+      const res = await farmerFetch(`/api/farmer/orders/${orderId}/deliver`, {
         method: 'POST',
-        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ otp }),
       })
@@ -238,7 +237,8 @@ function OrdersPageInner() {
       if (!res.ok) return json.error || L('Could not confirm delivery. Please try again.', 'డెలివరీ ధృవీకరించడం సాధ్యం కాలేదు. మళ్ళీ ప్రయత్నించండి.')
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, received_at: json.received_at ?? new Date().toISOString() } : o)))
       return null
-    } catch {
+    } catch (e) {
+      if (isFarmerSessionExpired(e)) return null
       return L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.')
     } finally {
       setProcessingOrderId(null)
@@ -249,14 +249,15 @@ function OrdersPageInner() {
   const handleAcknowledgeCancel = async (orderId: string) => {
     setProcessingOrderId(orderId)
     try {
-      const res = await fetch(`/api/farmer/orders/${orderId}/acknowledge`, { method: 'POST', credentials: 'same-origin' })
+      const res = await farmerFetch(`/api/farmer/orders/${orderId}/acknowledge`, { method: 'POST' })
       if (res.ok) {
         setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, acknowledged_at: new Date().toISOString() } : o)))
       } else {
         const json = await res.json().catch(() => ({}))
         alert(json.error || L('Could not update. Please try again.', 'నవీకరించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
       }
-    } catch {
+    } catch (e) {
+      if (isFarmerSessionExpired(e)) return
       alert(L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.'))
     } finally {
       setProcessingOrderId(null)
@@ -267,9 +268,8 @@ function OrdersPageInner() {
     const declined = decliningOrder
     setProcessingOrderId(orderId)
     try {
-      const res = await fetch(`/api/farmer/orders/${orderId}/decline`, {
+      const res = await farmerFetch(`/api/farmer/orders/${orderId}/decline`, {
         method: 'POST',
-        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason }),
       })
@@ -302,7 +302,8 @@ function OrdersPageInner() {
         refundInitiated,
       })
       setDecliningOrder(null)
-    } catch {
+    } catch (e) {
+      if (isFarmerSessionExpired(e)) return
       alert(L('Network error. Please try again.', 'నెట్‌వర్క్ సమస్య. మళ్ళీ ప్రయత్నించండి.'))
     } finally {
       setProcessingOrderId(null)

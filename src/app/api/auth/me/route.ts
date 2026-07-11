@@ -1,6 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { getFarmerSessionFromRequest, clearFarmerSessionCookie } from '@/lib/farmer-session'
+import {
+  getFarmerSessionFromRequest,
+  clearFarmerSessionCookie,
+  refreshFarmerSessionCookie,
+} from '@/lib/farmer-session'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -26,5 +30,9 @@ export async function GET(req: NextRequest) {
     return res
   }
 
-  return NextResponse.json({ farmer })
+  // Every farmer page calls this on load, so it is the natural place to keep an
+  // active farmer's session alive.
+  const res = NextResponse.json({ farmer })
+  refreshFarmerSessionCookie(res, session)
+  return res
 }

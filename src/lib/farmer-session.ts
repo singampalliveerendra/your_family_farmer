@@ -6,6 +6,10 @@ import { getSessionSecret } from '@/lib/session'
 // consumer or rider token can't be replayed against farmer endpoints.
 const COOKIE_NAME = 'yff_farmer'
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000
+// Slide the 30-day expiry once a token is a day old, so a farmer who uses the
+// dashboard at all never gets logged out mid-order. Re-issuing on every request
+// would be wasteful; a day of granularity is plenty.
+const REFRESH_AFTER_MS = 24 * 60 * 60 * 1000
 
 function b64url(buf: Buffer): string {
   return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
@@ -60,6 +64,12 @@ export function setFarmerSessionCookie(res: NextResponse, farmerId: string): voi
     path: '/',
     maxAge: Math.floor(TOKEN_TTL_MS / 1000),
   })
+}
+
+/** Re-issue the cookie with a fresh 30-day window if it is older than a day. */
+export function refreshFarmerSessionCookie(res: NextResponse, session: FarmerSessionPayload): void {
+  if (Date.now() - session.issuedAt < REFRESH_AFTER_MS) return
+  setFarmerSessionCookie(res, session.farmerId)
 }
 
 export function clearFarmerSessionCookie(res: NextResponse): void {
