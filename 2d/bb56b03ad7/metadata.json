@@ -3,7 +3,7 @@
   "checkpoint_id": "2dbb56b03ad7",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 2,
+  "checkpoints_count": 3,
   "files_touched": [
     "src/app/api/auth/logout/route.ts",
     "src/app/api/auth/me/route.ts",
@@ -23,13 +23,19 @@
       "transcript": "/2d/bb56b03ad7/0/full.jsonl",
       "content_hash": "/2d/bb56b03ad7/0/content_hash.txt",
       "prompt": "/2d/bb56b03ad7/0/prompt.txt"
+    },
+    {
+      "metadata": "/2d/bb56b03ad7/1/metadata.json",
+      "transcript": "/2d/bb56b03ad7/1/full.jsonl",
+      "content_hash": "/2d/bb56b03ad7/1/content_hash.txt",
+      "prompt": "/2d/bb56b03ad7/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 10048,
-    "cache_creation_tokens": 152004,
-    "cache_read_tokens": 12412696,
-    "output_tokens": 71652,
-    "api_call_count": 129
+    "input_tokens": 20421,
+    "cache_creation_tokens": 276833,
+    "cache_read_tokens": 14612795,
+    "output_tokens": 92021,
+    "api_call_count": 169
   }
 }
