@@ -21,11 +21,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: rider } = await supabase
     .from('delivery_boys')
-    .select('id, status')
+    .select('id, status, service_pincodes')
     .eq('id', session.riderId)
-    .maybeSingle()
+    .maybeSingle() as { data: { id: string; status: string; service_pincodes: string[] | null } | null }
   if (!rider || rider.status !== 'active') {
     return NextResponse.json({ error: 'Account not active.' }, { status: 403 })
+  }
+
+  // Coverage gate. The job list only *shows* orders in the rider's pincodes —
+  // it doesn't stop anyone from POSTing an arbitrary order id, and accepting
+  // reveals the buyer's name, phone and street. So re-check coverage here,
+  // where it actually counts. A rider with no pincodes on file covers nothing.
+  const covered = (rider.service_pincodes ?? []).filter((p) => /^\d{6}$/.test(p))
+  if (covered.length === 0) {
+    return NextResponse.json(
+      { error: 'No service area on file. Ask the moderator to set your pincodes.' },
+      { status: 403 },
+    )
+  }
+
+  const { data: target } = await supabase
+    .from('orders')
+    .select('id, delivery_pincode')
+    .eq('id', id)
+    .maybeSingle() as { data: { id: string; delivery_pincode: string | null } | null }
+  if (!target) return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
+  if (!target.delivery_pincode || !covered.includes(target.delivery_pincode)) {
+    return NextResponse.json({ error: 'This delivery is outside your service area.' }, { status: 403 })
   }
 
   // Optimistic-lock claim — only succeeds if the order is still unclaimed and

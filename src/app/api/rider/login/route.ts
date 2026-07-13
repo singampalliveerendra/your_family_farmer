@@ -54,9 +54,18 @@ export async function POST(req: NextRequest) {
     return bad('Wrong password.', 401)
   }
 
-  // Lifecycle gate — suspended accounts can't log in; everyone else is active.
+  // Lifecycle gate. Only an approved (active) rider gets a session — a session
+  // is what lets you see and accept real orders, and an accepted order exposes
+  // the buyer's name, phone and address. Everything else is turned away with a
+  // message that says where it stands.
   if (rider.status === 'suspended') {
-    return bad('Your account is suspended. Contact the owner.', 403)
+    return bad('Your account is suspended. Contact the moderator.', 403)
+  }
+  if (rider.status === 'rejected') {
+    return bad('Your application was not approved. Contact the moderator.', 403)
+  }
+  if (rider.status !== 'active') {
+    return bad('Your application is still being reviewed. We will call you once it is approved.', 403)
   }
 
   await supabase

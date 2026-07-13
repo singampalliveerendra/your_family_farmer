@@ -109,8 +109,11 @@ export async function POST(req: NextRequest) {
       id_proof_path: path,
       service_areas: serviceAreas,
       service_pincodes: servicePincodes,
-      status: 'active',
-      activated_at: new Date().toISOString(),
+      // Applications are vetted before they go live. A moderator checks the
+      // details and the uploaded ID photo, then approves — see
+      // /api/moderator/riders. Never insert 'active' here: an active rider can
+      // accept a real order, which hands them a buyer's home address.
+      status: 'pending_approval',
     })
     .select('id')
     .single()
@@ -122,5 +125,5 @@ export async function POST(req: NextRequest) {
     return bad(insertErr?.message || 'Could not save your application. Please try again.', 500)
   }
 
-  return NextResponse.json({ ok: true, status: 'active' })
+  return NextResponse.json({ ok: true, status: 'pending_approval' })
 }

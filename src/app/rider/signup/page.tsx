@@ -80,13 +80,13 @@ export default function RiderSignupPage() {
     return (
       <main className="min-h-screen bg-gray-50 flex flex-col">
         <div className="bg-green-900 px-4 pt-8 pb-12">
-          <h1 className="text-white text-2xl font-extrabold">{L('Account created', 'ఖాతా సృష్టించబడింది')}</h1>
+          <h1 className="text-white text-2xl font-extrabold">{L('Application received', 'దరఖాస్తు అందింది')}</h1>
         </div>
         <div className="bg-white rounded-2xl shadow-md mx-4 -mt-6 p-6 space-y-3 max-w-md w-full mx-auto text-center">
-          <div className="text-5xl">✅</div>
-          <p className="font-extrabold text-gray-900">You&apos;re all set!</p>
+          <div className="text-5xl">📋</div>
+          <p className="font-extrabold text-gray-900">Thanks — we&apos;ll review it.</p>
           <p className="text-sm text-gray-600 leading-snug">
-            {L('Log in with your phone and password to start picking deliveries.', 'డెలివరీలు తీసుకోవడం ప్రారంభించడానికి మీ ఫోన్ మరియు పాస్‌వర్డ్‌తో లాగిన్ అవ్వండి.')}
+            {L('Our moderator will check your details and ID, then call you. You can log in and start picking deliveries once your application is approved.', 'మా మోడరేటర్ మీ వివరాలు మరియు గుర్తింపు పత్రాన్ని తనిఖీ చేసి మీకు కాల్ చేస్తారు. మీ దరఖాస్తు ఆమోదించబడిన తర్వాత మీరు లాగిన్ అయి డెలివరీలు తీసుకోవచ్చు.')}
           </p>
           <div className="pt-4">
             <Link

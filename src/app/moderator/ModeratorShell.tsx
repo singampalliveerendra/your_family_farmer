@@ -13,6 +13,7 @@ const NAV: NavItem[] = [
   { label: 'Escalations', href: '/moderator/escalations', ready: true },
   { label: 'Listings', href: '/moderator/listings', ready: true },
   { label: 'Consumers', href: '/moderator/consumers', ready: true },
+  { label: 'Delivery riders', href: '/moderator/riders', ready: true },
   { label: 'Delivery agents', href: '/moderator/agents', ready: true },
   { label: 'Price management', href: '/moderator/prices', ready: true },
   { label: 'Supply & demand', href: '/moderator/supply', ready: true },
