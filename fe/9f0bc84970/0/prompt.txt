@@ -1,0 +1,21 @@
+the client wants to enable delivery rider option again we done this befor right . assaign aa rider and allthe flow have ypu remember
+
+---
+
+explain the flow in simple how we have to build
+
+---
+
+okay and what about rider registration
+
+---
+
+the moderatior have to confirm the delivery boy after checking all his details
+
+---
+
+the delivery boy only get the order in that narby based on the region right
+
+---
+
+so continue building

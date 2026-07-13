@@ -1,0 +1,34 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "fe9f0bc84970",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "scripts/rider-approval-migration.sql",
+    "src/app/api/moderator/riders/[id]/route.ts",
+    "src/app/api/moderator/riders/route.ts",
+    "src/app/api/rider/login/route.ts",
+    "src/app/api/rider/orders/[id]/accept/route.ts",
+    "src/app/api/rider/orders/route.ts",
+    "src/app/api/rider/register/route.ts",
+    "src/app/moderator/ModeratorShell.tsx",
+    "src/app/moderator/riders/page.tsx",
+    "src/app/rider/signup/page.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/fe/9f0bc84970/0/metadata.json",
+      "transcript": "/fe/9f0bc84970/0/full.jsonl",
+      "content_hash": "/fe/9f0bc84970/0/content_hash.txt",
+      "prompt": "/fe/9f0bc84970/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 155,
+    "cache_creation_tokens": 145643,
+    "cache_read_tokens": 5446803,
+    "output_tokens": 46373,
+    "api_call_count": 73
+  }
+}

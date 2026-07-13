@@ -1,0 +1,68 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "fe9f0bc84970",
+  "session_id": "ade89475-235a-4399-a6f0-056d832935cd",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-13T10:07:35.809193485Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "scripts/rider-approval-migration.sql",
+    "src/app/api/moderator/riders/[id]/route.ts",
+    "src/app/api/moderator/riders/route.ts",
+    "src/app/api/rider/login/route.ts",
+    "src/app/api/rider/orders/[id]/accept/route.ts",
+    "src/app/api/rider/orders/route.ts",
+    "src/app/api/rider/register/route.ts",
+    "src/app/moderator/ModeratorShell.tsx",
+    "src/app/moderator/riders/page.tsx",
+    "src/app/rider/signup/page.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "cf1ea070a0ec",
+  "token_usage": {
+    "input_tokens": 155,
+    "cache_creation_tokens": 145643,
+    "cache_read_tokens": 5446803,
+    "output_tokens": 46373,
+    "api_call_count": 73
+  },
+  "session_metrics": {
+    "turn_count": 6
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-13T10:07:35.792479323Z",
+    "agent_lines": 632,
+    "agent_removed": 32,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 632,
+    "total_lines_changed": 664,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 9,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 9,
+      "user_lines_removed": 0,
+      "agent_lines_added": 632,
+      "agent_lines_removed": 32,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9
+      }
+    }
+  ]
+}
