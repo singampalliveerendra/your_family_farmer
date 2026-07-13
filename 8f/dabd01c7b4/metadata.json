@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "8fdabd01c7b4",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "scripts/cod-deposit-migration.sql",
+    "src/app/api/consumer/orders/[id]/cancel/route.ts",
+    "src/app/api/consumer/orders/route.ts",
+    "src/app/api/cron/reconcile-payments/route.ts",
+    "src/app/api/farmer/orders/[id]/decline/route.ts",
+    "src/app/api/orders/place/route.ts",
+    "src/app/api/orders/razorpay/abandon/route.ts",
+    "src/app/api/orders/razorpay/create/route.ts",
+    "src/app/api/orders/razorpay/verify/route.ts",
+    "src/app/api/orders/razorpay/webhook/route.ts",
+    "src/app/api/rider/orders/[id]/deliver/route.ts",
+    "src/app/api/rider/orders/route.ts",
+    "src/app/consumer/orders/page.tsx",
+    "src/app/rider/dashboard/page.tsx",
+    "src/components/consumer/CancelOrderModal.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/components/consumer/OrderCard.tsx",
+    "src/components/farmer/OrderCard.tsx",
+    "src/lib/cod.ts",
+    "src/lib/payment.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/8f/dabd01c7b4/0/metadata.json",
+      "transcript": "/8f/dabd01c7b4/0/full.jsonl",
+      "content_hash": "/8f/dabd01c7b4/0/content_hash.txt",
+      "prompt": "/8f/dabd01c7b4/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 205,
+    "cache_creation_tokens": 104681,
+    "cache_read_tokens": 17834975,
+    "output_tokens": 57478,
+    "api_call_count": 103
+  }
+}

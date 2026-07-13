@@ -1,0 +1,80 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "8fdabd01c7b4",
+  "session_id": "ade89475-235a-4399-a6f0-056d832935cd",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-13T11:12:46.666199433Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "scripts/cod-deposit-migration.sql",
+    "src/app/api/consumer/orders/[id]/cancel/route.ts",
+    "src/app/api/consumer/orders/route.ts",
+    "src/app/api/cron/reconcile-payments/route.ts",
+    "src/app/api/farmer/orders/[id]/decline/route.ts",
+    "src/app/api/orders/place/route.ts",
+    "src/app/api/orders/razorpay/abandon/route.ts",
+    "src/app/api/orders/razorpay/create/route.ts",
+    "src/app/api/orders/razorpay/verify/route.ts",
+    "src/app/api/orders/razorpay/webhook/route.ts",
+    "src/app/api/rider/orders/[id]/deliver/route.ts",
+    "src/app/api/rider/orders/route.ts",
+    "src/app/consumer/orders/page.tsx",
+    "src/app/rider/dashboard/page.tsx",
+    "src/components/consumer/CancelOrderModal.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/components/consumer/OrderCard.tsx",
+    "src/components/farmer/OrderCard.tsx",
+    "src/lib/cod.ts",
+    "src/lib/payment.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "752481b6ce1d",
+  "checkpoint_transcript_start": 445,
+  "transcript_lines_at_start": 445,
+  "token_usage": {
+    "input_tokens": 205,
+    "cache_creation_tokens": 104681,
+    "cache_read_tokens": 17834975,
+    "output_tokens": 57478,
+    "api_call_count": 103
+  },
+  "session_metrics": {
+    "turn_count": 8
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-13T11:12:46.615532967Z",
+    "agent_lines": 655,
+    "agent_removed": 42,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 655,
+    "total_lines_changed": 697,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 9,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 9,
+      "user_lines_removed": 0,
+      "agent_lines_added": 655,
+      "agent_lines_removed": 42,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9
+      }
+    }
+  ]
+}
