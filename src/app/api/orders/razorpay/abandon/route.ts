@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
+import { hasMoneyIn } from '@/lib/payment'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -44,7 +45,11 @@ export async function POST(req: NextRequest) {
     // got paid — we must never cancel an order the buyer actually paid for.
     if (order.consumer_id !== session.consumerId) continue
     if (order.status !== 'pending') continue
-    if (order.payment_status === 'paid') continue
+    // Never cancel an order the buyer actually paid for. That includes a COD
+    // order whose DEPOSIT was captured: the payment sheet can fire a late
+    // dismiss after a successful capture, and cancelling then would take the
+    // buyer's deposit and void their order.
+    if (hasMoneyIn(order.payment_status)) continue
 
     // Return the reserved stock before flipping the row, mirroring a cancel.
     // Harvest orders return the harvest's stock; legacy orders the listing's.

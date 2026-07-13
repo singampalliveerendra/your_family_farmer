@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
   // confirm they belong to this consumer before flipping them to paid.
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, consumer_id')
+    .select('id, consumer_id, payment_method')
     .eq('razorpay_order_id', razorpayOrderId)
 
   if (!orders || orders.length === 0) {
@@ -71,11 +71,19 @@ export async function POST(req: NextRequest) {
   // failure here just leaves the label null — it never blocks marking paid.
   const methodLabel = await fetchPaymentMethodLabel(razorpayPaymentId)
 
+  // On a COD order this payment is the DEPOSIT, not the whole bill — the buyer
+  // still owes cod_balance_due in cash at the door. Marking it 'paid' would
+  // tell the farmer the money is all in and let the rider close the order
+  // without collecting anything. 'deposit_paid' becomes 'completed' only when
+  // the cash is actually taken (see /api/rider/orders/[id]/deliver).
+  const isCod = orders.some((o) => (o as { payment_method?: string | null }).payment_method === 'cod')
+  const now = new Date().toISOString()
+
   const { error } = await supabase
     .from('orders')
     .update({
-      payment_status: 'paid',
-      paid_at: new Date().toISOString(),
+      payment_status: isCod ? 'deposit_paid' : 'paid',
+      ...(isCod ? { cod_deposit_paid_at: now } : { paid_at: now }),
       razorpay_payment_id: razorpayPaymentId,
       ...(methodLabel ? { payment_method_detail: methodLabel } : {}),
     })

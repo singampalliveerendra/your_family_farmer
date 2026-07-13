@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
-import { isOrderPaid, isPaymentClaimed as isPaymentClaimed_ } from '@/lib/payment'
+import { isOrderPaid, isPaymentClaimed as isPaymentClaimed_, isDepositPaid, cashDue } from '@/lib/payment'
 import { harvestClock } from '@/lib/harvest'
 
 export type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
@@ -39,6 +39,10 @@ export type FarmerOrder = {
   status: 'pending' | 'approved' | 'declined' | 'cancelled'
   payment_method?: string | null
   payment_status: string | null
+  // Part-paid COD. cod_deposit is what the buyer already paid online (and
+  // forfeits on cancel); cod_balance_due is the cash still owed at handover.
+  cod_deposit?: number | null
+  cod_balance_due?: number | null
   utr_number?: string | null
   decline_reason: string | null
   refund_status?: string | null
@@ -211,6 +215,11 @@ export default function OrderCard({
   const isUpi = order.payment_method === 'upi'
   const isPaid = isOrderPaid(order.payment_status)
   const isPaymentClaimed = isPaymentClaimed_(order.payment_status)
+  // Part-paid COD: the buyer has already put money down and forfeits it if they
+  // walk away, which is exactly what the farmer wants to know before they go
+  // and harvest for this order.
+  const hasDeposit = isDepositPaid(order.payment_status)
+  const balanceDue = cashDue(order)
 
   // Buyer cancelled this order. It doesn't need the approve/decline/fulfillment
   // machinery — just a clear "cancelled by buyer" notice and an Acknowledge tap
@@ -317,9 +326,13 @@ export default function OrderCard({
             <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
               {isCod && (
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
-                  isPaid ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                  isPaid ? 'bg-green-100 text-green-800'
+                  : hasDeposit ? 'bg-blue-100 text-blue-800'
+                  : 'bg-amber-100 text-amber-800'
                 }`}>
-                  {isPaid ? `✓ ${tx.paymentReceived}` : tx.codBadge}
+                  {isPaid ? `✓ ${tx.paymentReceived}`
+                    : hasDeposit ? `🔒 Deposit paid · ₹${balanceDue} on delivery`
+                    : tx.codBadge}
                 </span>
               )}
               {isUpi && (

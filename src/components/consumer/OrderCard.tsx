@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
+import { cashDue } from '@/lib/payment'
 import type { MyReview } from '@/components/consumer/ProduceReviewBox'
 
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
@@ -23,6 +24,10 @@ export type ConsumerOrder = {
   status: 'pending' | 'approved' | 'declined' | 'cancelled'
   payment_method: string | null
   payment_status: string | null
+  // Part-paid COD: what was prepaid online (forfeited on a buyer cancel), and
+  // the cash still owed at handover.
+  cod_deposit?: number | null
+  cod_balance_due?: number | null
   refund_status: string | null
   decline_reason: string | null
   payment_proof_path: string | null
@@ -184,6 +189,15 @@ export default function OrderCard({
       : tx.statusPending
 
   const paymentBadge = () => {
+    // Part-paid COD: the deposit is in and the rest is owed in cash. Tell the
+    // buyer the exact figure so they have it ready when the rider knocks.
+    const due = cashDue(order)
+    if (due > 0) {
+      return {
+        label: L(`💵 ₹${due} cash on delivery`, `💵 డెలివరీకి ₹${due} నగదు`),
+        cls: 'bg-amber-100 text-amber-800',
+      }
+    }
     if (!order.payment_method || order.payment_method === 'cod') return null
     // Online payments now go through Razorpay.
     if (order.payment_method === 'razorpay' && order.payment_status === 'paid') {

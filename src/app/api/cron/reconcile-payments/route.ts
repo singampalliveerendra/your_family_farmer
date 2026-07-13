@@ -57,10 +57,28 @@ export async function GET(req: NextRequest) {
       const payments = await fetchOrderPayments(rzpId)
       const captured = payments.find((p) => p.status === 'captured')
       if (captured) {
+        // Split by payment method, exactly as the webhook does. On a COD order
+        // the captured payment is only the DEPOSIT — the buyer still owes cash
+        // at the door. Writing a blanket 'paid' here would overwrite
+        // 'deposit_paid' and let the rider close the order without collecting
+        // the balance, silently losing the farmer their money.
+        const { error: codErr } = await supabase
+          .from('orders')
+          .update({
+            payment_status: 'deposit_paid',
+            cod_deposit_paid_at: new Date().toISOString(),
+            razorpay_payment_id: captured.id,
+          })
+          .eq('razorpay_order_id', rzpId)
+          .eq('payment_method', 'cod')
+          .not('payment_status', 'in', '("deposit_paid","completed","paid")')
+        if (codErr) errors.push(`${rzpId} (cod): ${codErr.message}`)
+
         const { error: updErr } = await supabase
           .from('orders')
           .update({ payment_status: 'paid', razorpay_payment_id: captured.id })
           .eq('razorpay_order_id', rzpId)
+          .neq('payment_method', 'cod')
           .neq('payment_status', 'paid')
         if (updErr) errors.push(`${rzpId}: ${updErr.message}`)
         else reconciled += 1

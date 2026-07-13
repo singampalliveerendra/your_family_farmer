@@ -235,6 +235,10 @@ type UpiPaymentState = {
   // Platform fee (moderator commission) included in `amount`, shown as a
   // breakdown line on the success screen so the total stays transparent.
   platformFee?: number
+  // Part-paid COD: `amount` is the deposit just paid online, and this is what
+  // the buyer still owes the rider in cash at the door. Undefined on a
+  // fully-prepaid order.
+  codBalanceDue?: number
   // Razorpay payment id (online) or the buyer-entered UTR (manual UPI). Shown on
   // the success screen as the Transaction ID.
   transactionId?: string
@@ -337,6 +341,8 @@ export function CartSheet({
   const [liveQrUrls, setLiveQrUrls] = useState<Record<string, string>>({})
   // Live COD acceptance per farmer (default false until fetched)
   const [liveCodEnabled, setLiveCodEnabled] = useState<Record<string, boolean>>({})
+  // Percent of a COD order the buyer prepays online. 0 = old full-cash COD.
+  const [codDepositPercent, setCodDepositPercent] = useState(0)
   const [showUpiAppFallback, setShowUpiAppFallback] = useState(false)
   const [utrNote, setUtrNote] = useState('')
   // Mandatory payment screenshot upload (UPI flow)
@@ -463,6 +469,22 @@ export function CartSheet({
       })
   }, [items])
 
+  // Part-paid COD: how much of the bill the buyer prepays online. Read here only
+  // to DISCLOSE the amount before they commit — the server recomputes it at
+  // placement and is the authority. 0 (or an unmigrated column) means the old
+  // full-cash COD, and nothing extra is shown.
+  useEffect(() => {
+    supabase
+      .from('platform_settings')
+      .select('cod_deposit_percent')
+      .eq('id', 1)
+      .maybeSingle()
+      .then(({ data }) => {
+        const pct = Number(data?.cod_deposit_percent)
+        setCodDepositPercent(Number.isFinite(pct) && pct > 0 ? pct : 0)
+      })
+  }, [])
+
   // Fetch each produce's allowed fulfillment mode (delivery_mode) so the
   // delivery choice below can be limited to what the farmer permits per produce.
   useEffect(() => {
@@ -554,7 +576,10 @@ export function CartSheet({
   const placeOrderViaApi = async (
     group: CartItem[],
     paymentMethod: 'upi' | 'cod' | 'razorpay',
-  ): Promise<{ ok: true; orderIds: string[]; total: number } | { ok: false; error: string }> => {
+  ): Promise<
+    | { ok: true; orderIds: string[]; total: number; codDeposit: number; codBalanceDue: number }
+    | { ok: false; error: string }
+  > => {
     const f = group[0]
     // Whether this farmer's order has any home-delivery line — decides if we
     // send the address. Pickup location is always sent; the API stamps it on
@@ -587,7 +612,136 @@ export function CartSheet({
     if (!r.ok || !json?.ok) return { ok: false, error: json?.error ?? 'Could not place order.' }
     // Order saved — drop the key so a genuinely new order later gets a fresh one.
     delete idempotencyKeys.current[f.farmerId]
-    return { ok: true, orderIds: json.orderIds, total: json.total }
+    return {
+      ok: true,
+      orderIds: json.orderIds,
+      total: json.total,
+      codDeposit: Number(json.codDeposit) || 0,
+      codBalanceDue: Number(json.codBalanceDue) || 0,
+    }
+  }
+
+  // Collect the COD deposit online. The orders are already placed (status
+  // pending, payment_status pending) — this charges the deposit and, on
+  // success, /api/orders/razorpay/verify moves them to 'deposit_paid' with the
+  // balance still owed in cash. If the buyer bails out of the payment sheet the
+  // orders are abandoned exactly like a failed prepaid order, so we never leave
+  // a confirmed order the buyer never paid a deposit on.
+  const payCodDeposit = async (
+    group: CartItem[],
+    placed: { orderIds: string[]; total: number; codDeposit: number; codBalanceDue: number },
+  ) => {
+    const f = group[0]
+    const buyerPhone = phone.replace(/\D/g, '').slice(-10)
+    setPayingOnline(f.farmerId)
+
+    const [scriptOk, createRes] = await Promise.all([
+      loadRazorpayScript(),
+      fetch('/api/orders/razorpay/create', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderIds: placed.orderIds }),
+      })
+        .then((r) => r.json().catch(() => null))
+        .catch(() => null),
+    ])
+
+    const abandonOrders = async () => {
+      await fetch('/api/orders/razorpay/abandon', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderIds: placed.orderIds }),
+      }).catch(() => {})
+    }
+
+    if (!scriptOk || !window.Razorpay) {
+      setPayingOnline(null)
+      showToast('Could not load the payment screen. Check your connection.')
+      void abandonOrders()
+      return
+    }
+    if (!createRes?.ok) {
+      setPayingOnline(null)
+      showToast(createRes?.error ?? 'Could not start the deposit payment. Please try again.')
+      void abandonOrders()
+      return
+    }
+
+    const summary: UpiPaymentState = {
+      farmerName: f.farmerName,
+      farmerVillage: f.farmerVillage,
+      farmerPhone: f.farmerPhone,
+      upiId: '',
+      amount: placed.codDeposit,
+      codBalanceDue: placed.codBalanceDue,
+      orderIds: placed.orderIds,
+      farmerId: f.farmerId,
+      buyerName: name.trim(),
+      buyerPhone,
+      items: group.map((it) => ({
+        name: it.name,
+        variety: it.variety,
+        emoji: it.emoji,
+        qty: it.qty,
+        unit: it.unit,
+        pricePerKg: it.pricePerKg,
+      })),
+    }
+
+    let settled = false
+    const rzp = new window.Razorpay({
+      key: createRes.keyId,
+      amount: createRes.amount,
+      currency: createRes.currency,
+      name: f.farmerName,
+      description: `Deposit — ₹${placed.codBalanceDue} due in cash on delivery`,
+      order_id: createRes.razorpayOrderId,
+      prefill: { name: name.trim(), contact: buyerPhone },
+      theme: { color: '#15803d' },
+      modal: {
+        ondismiss: () => {
+          if (settled) return
+          setPayingOnline(null)
+          showToast('Deposit not paid. Your order was not placed.')
+          void abandonOrders()
+        },
+      },
+      handler: async (res) => {
+        settled = true
+        const vr = await fetch('/api/orders/razorpay/verify', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            razorpayOrderId: res.razorpay_order_id,
+            razorpayPaymentId: res.razorpay_payment_id,
+            razorpaySignature: res.razorpay_signature,
+          }),
+        })
+          .then((r) => r.json().catch(() => null))
+          .catch(() => null)
+
+        setPayingOnline(null)
+        if (!vr?.ok) {
+          showToast(vr?.error ?? 'Deposit could not be verified. Please contact support.')
+          return
+        }
+        clearFarmer(f.farmerId)
+        setSentFarmers((s) => ({ ...s, [f.farmerId]: true }))
+        setOnlinePaid(true)
+        setUpiScreen({ ...summary, transactionId: res.razorpay_payment_id })
+        setPaidDone(true)
+      },
+    })
+    rzp.on('payment.failed', () => {
+      if (settled) return
+      setPayingOnline(null)
+      showToast('Deposit payment failed. Your order was not placed — please try again.')
+      void abandonOrders()
+    })
+    rzp.open()
   }
 
   // COD flow: save order via server endpoint. Farmer is alerted via realtime
@@ -602,6 +756,19 @@ export function CartSheet({
       showToast(result.error)
       return
     }
+
+    // Part-paid COD: the buyer prepays a deposit online and pays the rest in
+    // cash at the door. Collect that deposit now, through the same Razorpay
+    // flow as a fully-prepaid order — /api/orders/razorpay/create charges only
+    // cod_deposit because these rows are payment_method 'cod'.
+    //
+    // If the deposit is switched off (0%), fall through to the old cash-only
+    // confirmation below and nothing is charged.
+    if (result.codDeposit > 0) {
+      await payCodDeposit(group, result)
+      return
+    }
+
     setSentFarmers((s) => ({ ...s, [f.farmerId]: true }))
     // Show the "Order placed!" success screen (cash variant) — same screen the
     // UPI / online flows use. Without this the cart just empties and the buyer
@@ -1808,7 +1975,17 @@ export function CartSheet({
                         >
                           <span className="flex items-center gap-2">
                             <span className="text-base">💵</span>
-                            {L('Cash on Delivery', 'నగదు చెల్లింపు')}
+                            <span className="text-left">
+                              {L('Cash on Delivery', 'నగదు చెల్లింపు')}
+                              {codDepositPercent > 0 && (
+                                <span className="block text-[10px] font-semibold text-gray-500">
+                                  {L(
+                                    `Pay ${codDepositPercent}% now, rest in cash`,
+                                    `ఇప్పుడు ${codDepositPercent}% చెల్లించండి, మిగతాది నగదు`,
+                                  )}
+                                </span>
+                              )}
+                            </span>
                           </span>
                           {paymentMethod === 'cod' && (
                             <span className="text-green-600 text-base">✓</span>
@@ -1894,6 +2071,17 @@ export function CartSheet({
                               <>✓ Place order with {f.farmerName.split(' ')[0] || 'farmer'}</>
                             )}
                           </button>
+                        )}
+                        {/* The deposit is forfeited if the buyer cancels. That is
+                            the point of it, but it must be said plainly BEFORE
+                            they pay — not discovered at cancellation. */}
+                        {farmerCodOk && !sent && codDepositPercent > 0 && (
+                          <p className="text-[11px] text-gray-500 leading-snug px-1">
+                            {L(
+                              `You'll pay a ${codDepositPercent}% deposit online now and the rest in cash on delivery. The deposit is not refunded if you cancel, but is refunded in full if the farmer cannot fulfil your order.`,
+                              `మీరు ఇప్పుడు ${codDepositPercent}% డిపాజిట్ ఆన్‌లైన్‌లో చెల్లిస్తారు, మిగతాది డెలివరీ సమయంలో నగదు. మీరు రద్దు చేస్తే డిపాజిట్ తిరిగి ఇవ్వబడదు; రైతు ఆర్డర్ పూర్తి చేయలేకపోతే పూర్తిగా తిరిగి ఇవ్వబడుతుంది.`,
+                            )}
+                          </p>
                         )}
                       </div>
                     )

@@ -53,12 +53,33 @@ export async function POST(req: NextRequest) {
 
   try {
     if (event.event === 'payment.captured' && razorpayOrderId) {
-      // Mark paid only if not already — keeps the webhook idempotent against
+      // Two updates, split by payment method, because a captured payment means
+      // different things. On a COD order the capture is only the DEPOSIT — the
+      // buyer still owes cash at the door — so it lands on 'deposit_paid'. A
+      // blanket 'paid' here would overwrite deposit_paid and let the rider
+      // close the order without collecting the balance.
+      //
+      // Each update is guarded so the webhook stays idempotent against
       // Razorpay's retries and against a browser /verify that already ran.
+      const now = new Date().toISOString()
+
+      const { error: codErr } = await supabase
+        .from('orders')
+        .update({
+          payment_status: 'deposit_paid',
+          cod_deposit_paid_at: now,
+          razorpay_payment_id: razorpayPaymentId ?? null,
+        })
+        .eq('razorpay_order_id', razorpayOrderId)
+        .eq('payment_method', 'cod')
+        .not('payment_status', 'in', '("deposit_paid","completed","paid")')
+      if (codErr) console.error('[YFF] webhook captured (cod) update failed:', codErr.message)
+
       const { error } = await supabase
         .from('orders')
-        .update({ payment_status: 'paid', razorpay_payment_id: razorpayPaymentId ?? null })
+        .update({ payment_status: 'paid', paid_at: now, razorpay_payment_id: razorpayPaymentId ?? null })
         .eq('razorpay_order_id', razorpayOrderId)
+        .neq('payment_method', 'cod')
         .neq('payment_status', 'paid')
       if (error) console.error('[YFF] webhook captured update failed:', error.message)
     } else if (event.event === 'payment.failed' && razorpayOrderId) {

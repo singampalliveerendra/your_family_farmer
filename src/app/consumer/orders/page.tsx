@@ -28,7 +28,7 @@ export default function ConsumerOrdersPage() {
   const [cancelBusy, setCancelBusy] = useState(false)
   // After a successful cancel, show the animated confirmation with the refund
   // breakdown (the platform fee is withheld on a buyer cancel).
-  const [cancelledInfo, setCancelledInfo] = useState<{ wasPaid: boolean; refundAmount?: number; platformFeeWithheld?: number; refundFailed?: boolean } | null>(null)
+  const [cancelledInfo, setCancelledInfo] = useState<{ wasPaid: boolean; refundAmount?: number; platformFeeWithheld?: number; refundFailed?: boolean; depositForfeited?: number } | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -98,6 +98,11 @@ export default function ConsumerOrdersPage() {
         refundAmount: typeof json?.refundAmount === 'number' ? json.refundAmount : undefined,
         platformFeeWithheld: typeof json?.platformFeeWithheld === 'number' ? json.platformFeeWithheld : undefined,
         refundFailed: json?.refundFailed === true,
+        // Cancelling a part-paid COD order costs the buyer their deposit. Say so
+        // — they must never discover it from a bank statement.
+        depositForfeited: typeof json?.depositForfeited === 'number' && json.depositForfeited > 0
+          ? json.depositForfeited
+          : undefined,
       })
       await refresh()
     } else {
@@ -260,6 +265,7 @@ export default function ConsumerOrdersPage() {
           refundAmount={cancelledInfo.refundAmount}
           platformFeeWithheld={cancelledInfo.platformFeeWithheld}
           refundFailed={cancelledInfo.refundFailed}
+          depositForfeited={cancelledInfo.depositForfeited}
           onClose={() => setCancelledInfo(null)}
         />
       )}

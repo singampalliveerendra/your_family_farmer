@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getRiderSessionFromRequest } from '@/lib/rider-session'
 import { rateLimit } from '@/lib/rate-limit'
+import { cashDue } from '@/lib/payment'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -48,9 +49,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: order } = await supabase
     .from('orders')
-    .select('id, delivery_boy_id, delivery_status, handover_otp')
+    .select('id, delivery_boy_id, delivery_status, handover_otp, payment_status, cod_balance_due')
     .eq('id', id)
-    .maybeSingle()
+    .maybeSingle() as {
+      data: {
+        id: string; delivery_boy_id: string | null; delivery_status: string | null
+        handover_otp: string | null; payment_status: string | null; cod_balance_due: number | null
+      } | null
+    }
 
   if (!order) return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
   if (order.delivery_boy_id !== session.riderId) {
@@ -63,9 +69,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Wrong code. Ask the customer to read it again.' }, { status: 401 })
   }
 
+  // Part-paid COD: the deposit came in online, the rest is cash at the door.
+  // The rider must confirm they actually took it — the correct handover code
+  // only proves they reached the right customer, not that money changed hands.
+  // Collecting it flips the order to fully paid ('completed').
+  const balanceDue = cashDue(order)
+  if (balanceDue > 0) {
+    const collected = (body && (body as { cashCollected?: unknown }).cashCollected) === true
+    if (!collected) {
+      return NextResponse.json(
+        { error: `Collect ₹${balanceDue} in cash from the customer, then confirm.`, cashDue: balanceDue },
+        { status: 409 },
+      )
+    }
+  }
+
+  const now = new Date().toISOString()
   const { data: updated, error } = await supabase
     .from('orders')
-    .update({ delivery_status: 'delivered', delivered_at: new Date().toISOString() })
+    .update({
+      delivery_status: 'delivered',
+      delivered_at: now,
+      ...(balanceDue > 0
+        ? {
+          payment_status: 'completed',
+          paid_at: now,
+          cash_collected_at: now,
+          cash_collected_by: session.riderId,
+          cod_balance_due: 0,
+        }
+        : {}),
+    })
     .eq('id', id)
     .eq('delivery_boy_id', session.riderId)
     .eq('delivery_status', 'out_for_delivery')

@@ -38,12 +38,13 @@ export async function POST(req: NextRequest) {
   type OrderRow = {
     id: string; consumer_id: string | null; total_price: number | null
     payment_status: string | null; razorpay_order_id: string | null; platform_fee?: number | null
+    payment_method?: string | null; cod_deposit?: number | null
   }
   let orders: OrderRow[] | null
   {
     const withFee = await supabase
       .from('orders')
-      .select('id, consumer_id, total_price, payment_status, razorpay_order_id, platform_fee')
+      .select('id, consumer_id, total_price, payment_status, razorpay_order_id, platform_fee, payment_method, cod_deposit')
       .in('id', orderIds)
     if (withFee.error) {
       const noFee = await supabase
@@ -72,18 +73,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Please log in.' }, { status: 401 })
     }
   }
-  // Don't let an already-paid batch be charged a second time.
-  if (orders.some((o) => o.payment_status === 'paid')) {
+  // Don't let an already-paid batch be charged a second time. 'deposit_paid'
+  // counts here too: the deposit is in, and the rest is owed in cash — it must
+  // never be charged online a second time.
+  if (orders.some((o) => o.payment_status === 'paid' || o.payment_status === 'deposit_paid')) {
     return NextResponse.json({ error: 'These orders are already paid.' }, { status: 409 })
   }
 
-  // Authoritative amount: sum the product line totals stored at placement, plus
-  // the platform fee (the moderator commission, charged on top). Delivery fee is
-  // intentionally excluded — it's collected as cash by the rider, matching the
-  // existing UX. Razorpay works in paise.
-  const subtotalRupees = orders.reduce((s, o) => s + (Number(o.total_price) || 0), 0)
-  const platformFeeRupees = orders.reduce((s, o) => s + (Number(o.platform_fee) || 0), 0)
-  const totalRupees = subtotalRupees + platformFeeRupees
+  // Authoritative amount, always read from the DB and never from the client.
+  //
+  // Part-paid COD charges the DEPOSIT only — the balance is cash at the door.
+  // Everything else charges produce + platform fee (the moderator commission,
+  // on top). Delivery fee is excluded from both: the rider collects it as cash.
+  // Razorpay works in paise.
+  const isCod = orders.some((o) => o.payment_method === 'cod')
+  const depositRupees = orders.reduce((s, o) => s + (Number(o.cod_deposit) || 0), 0)
+
+  let totalRupees: number
+  if (isCod && depositRupees > 0) {
+    totalRupees = depositRupees
+  } else if (isCod) {
+    // COD placed before the deposit migration (or with the deposit turned off):
+    // there is nothing to collect online.
+    return NextResponse.json({ error: 'This order is cash on delivery — nothing to pay now.' }, { status: 409 })
+  } else {
+    const subtotalRupees = orders.reduce((s, o) => s + (Number(o.total_price) || 0), 0)
+    const platformFeeRupees = orders.reduce((s, o) => s + (Number(o.platform_fee) || 0), 0)
+    totalRupees = subtotalRupees + platformFeeRupees
+  }
+
   if (totalRupees <= 0) return NextResponse.json({ error: 'Invalid order total.' }, { status: 400 })
   const amountPaise = Math.round(totalRupees * 100)
 

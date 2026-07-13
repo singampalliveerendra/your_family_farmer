@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
 import { refundPayment } from '@/lib/razorpay'
+import { isDepositPaid } from '@/lib/payment'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: order, error: loadErr } = await supabase
     .from('orders')
-    .select('id, farmer_id, status, quantity, total_price, delivery_fee, platform_fee, produce_listing_id, harvest_id, payment_method, payment_status, razorpay_payment_id, order_code, shipped_at, collected_at, received_at')
+    .select('id, farmer_id, status, quantity, total_price, delivery_fee, platform_fee, cod_deposit, produce_listing_id, harvest_id, payment_method, payment_status, razorpay_payment_id, order_code, shipped_at, collected_at, received_at')
     .eq('id', id)
     .maybeSingle()
 
@@ -77,20 +78,33 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // 2. Refund if the buyer actually paid.
   const update: Record<string, unknown> = { status: 'declined', decline_reason: reason || null }
 
-  const paidByRazorpay = order.payment_status === 'paid' && !!order.razorpay_payment_id
+  // A part-paid COD order carries 'deposit_paid', not 'paid' — but the deposit
+  // was a real Razorpay capture and this is the farmer's decision, not the
+  // buyer's, so it must be refunded in full. (A BUYER cancel forfeits it
+  // instead; that asymmetry is the whole point of the deposit.) Without this,
+  // declining would silently keep the buyer's money.
+  const depositPaid = isDepositPaid(order.payment_status)
+  const paidByRazorpay =
+    (order.payment_status === 'paid' || depositPaid) && !!order.razorpay_payment_id
   const paidByOther =
     order.payment_status === 'completed' ||
     order.payment_status === 'payment_claimed' ||
     order.payment_status === 'pending_confirmation'
 
-  // Full amount the buyer paid against THIS order row: the produce price plus
-  // the delivery and platform fees, which are stamped on the cart's first row
-  // only (0 on the rest). Summed across all declined rows this can never exceed
-  // the captured total, so partial refunds stay safe.
-  const refundRupees =
-    (Number(order.total_price) || 0) +
-    (Number(order.delivery_fee) || 0) +
-    (Number(order.platform_fee) || 0)
+  // Full amount the buyer actually paid against THIS order row.
+  //
+  // Part-paid COD: only the deposit ever reached us — the balance was cash the
+  // rider never collected, so there is nothing else to give back.
+  //
+  // Otherwise: the produce price plus the delivery and platform fees, which are
+  // stamped on the cart's first row only (0 on the rest). Summed across all
+  // declined rows this can never exceed the captured total, so partial refunds
+  // stay safe.
+  const refundRupees = depositPaid
+    ? Math.max(0, Number(order.cod_deposit) || 0)
+    : (Number(order.total_price) || 0) +
+      (Number(order.delivery_fee) || 0) +
+      (Number(order.platform_fee) || 0)
 
   if (paidByRazorpay) {
     const amountPaise = Math.round(refundRupees * 100)

@@ -34,6 +34,9 @@ type MyOrder = {
   buyer_phone: string | null
   payment_method: string | null
   payment_status: string | null
+  // Part-paid COD: rupees to collect in cash at the door. 0/null when the
+  // buyer already paid in full online.
+  cod_balance_due: number | null
   delivery_status: DeliveryStatus
   delivery_address: string | null
   delivery_city: string | null
@@ -173,9 +176,24 @@ export default function RiderDashboardPage() {
       setOtpError((m) => ({ ...m, [id]: L('Enter the 4-digit code from the customer.', 'కస్టమర్ నుండి 4-అంకెల కోడ్ నమోదు చేయండి') }))
       return
     }
+
+    // Part-paid COD: the buyer prepaid a deposit and owes the rest in cash. The
+    // handover code only proves we reached the right customer — it says nothing
+    // about the money — so the rider confirms the cash separately, and the
+    // server refuses to close the order without it.
+    const order = mine.find((o) => o.id === id)
+    const due = Number(order?.cod_balance_due) || 0
+    if (due > 0) {
+      const ok = confirm(L(
+        `Collect ₹${due} in cash from the customer now.\n\nOnly press OK once you have the money in hand.`,
+        `కస్టమర్ నుండి ఇప్పుడు ₹${due} నగదు తీసుకోండి.\n\nడబ్బు చేతికి అందిన తర్వాతే OK నొక్కండి.`,
+      ))
+      if (!ok) return
+    }
+
     setOtpError((m) => ({ ...m, [id]: '' }))
     setBusyId(id)
-    const res = await callOrderAction(id, 'deliver', { otp })
+    const res = await callOrderAction(id, 'deliver', { otp, ...(due > 0 ? { cashCollected: true } : {}) })
     setBusyId(null)
     if (!res.ok) {
       setOtpError((m) => ({ ...m, [id]: res.error }))
@@ -468,7 +486,20 @@ function MyOrderCard({
           </span>
         </div>
 
-        {isCod && (
+        {/* Part-paid COD: the buyer already prepaid a deposit online, so the
+            rider must collect the BALANCE, not the full price. Falls back to the
+            full amount for legacy COD orders placed before deposits existed
+            (cod_balance_due null). Getting this wrong over-charges the customer
+            at the door. */}
+        {isCod && (order.cod_balance_due ?? 0) > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs">
+            <span className="font-bold text-amber-900">💵 {L('Collect', 'వసూలు')} ₹{order.cod_balance_due}</span> {L('in cash from the customer.', 'కస్టమర్ నుండి నగదు తీసుకోండి.')}
+            <span className="block text-[10px] text-amber-800 mt-0.5">
+              {L('They already paid a deposit online — take only this balance.', 'వారు ఇప్పటికే ఆన్‌లైన్‌లో డిపాజిట్ చెల్లించారు — ఈ బ్యాలెన్స్ మాత్రమే తీసుకోండి.')}
+            </span>
+          </div>
+        )}
+        {isCod && order.cod_balance_due == null && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs">
             <span className="font-bold text-amber-900">💵 {L('Collect', 'వసూలు')} ₹{(order.total_price ?? 0) + (order.delivery_fee ?? 0)}</span> {L('in cash from the customer', 'కస్టమర్ నుండి నగదు తీసుకోండి')}
             {(order.delivery_fee ?? 0) > 0 && L(` (₹${order.total_price ?? 0} harvest + ₹${order.delivery_fee} delivery)`, ` (₹${order.total_price ?? 0} కోత + ₹${order.delivery_fee} డెలివరీ)`)}

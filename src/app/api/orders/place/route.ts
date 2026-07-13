@@ -7,6 +7,7 @@ import { getTierPrice } from '@/lib/pricing'
 import { normalizePhone } from '@/lib/phone'
 import { DELIVERY_FEE_RUPEES } from '@/lib/delivery-fee'
 import { getPlatformFeePercent, computePlatformFee } from '@/lib/platform-fee'
+import { getCodDepositPercent, computeCodSplit } from '@/lib/cod'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -385,6 +386,31 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Part-paid COD — the buyer prepays a deposit online and owes the rest in
+  // cash at handover. Stamped per row for the same reason as platform_fee: a
+  // single-line cancel then forfeits (or a decline refunds) exactly that
+  // line's own deposit. /api/orders/razorpay/create charges the sum of these
+  // rather than the full total, and the rider collects cod_balance_due at the
+  // door. depositPercent is 0 until the migration runs, which leaves COD
+  // behaving exactly as it does today.
+  let codDeposit = 0
+  if (paymentMethod === 'cod') {
+    const depositPercent = await getCodDepositPercent(supabase)
+    if (depositPercent > 0) {
+      for (const r of rows) {
+        const split = computeCodSplit(
+          Number(r.total_price) || 0,
+          Number(r.platform_fee) || 0,
+          Number(r.delivery_fee) || 0,
+          depositPercent,
+        )
+        r.cod_deposit = split.deposit
+        r.cod_balance_due = split.balanceDue
+        codDeposit += split.deposit
+      }
+    }
+  }
+
   // Atomic stock claim. decrement_stock returns false if the listing went
   // below zero (or vanished). On any failure we revert prior claims so we
   // don't leak inventory.
@@ -442,6 +468,10 @@ export async function POST(req: NextRequest) {
     deliveryFee,
     platformFee,
     grandTotal: total + deliveryFee + platformFee,
+    // Part-paid COD. codDeposit is what Razorpay will charge now; the rest is
+    // cash at handover. Both 0 on a fully-prepaid order.
+    codDeposit,
+    codBalanceDue: codDeposit > 0 ? (total + deliveryFee + platformFee) - codDeposit : 0,
     // Guests get a short-lived token bound to these orders so they can finish
     // the Razorpay create/verify pair without a session cookie.
     ...(isGuest ? { guestToken: createGuestOrderToken(orderIds) } : {}),

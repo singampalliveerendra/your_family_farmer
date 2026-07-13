@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
-import { isOrderPaid, isPaymentClaimed } from '@/lib/payment'
+import { isOrderPaid, isPaymentClaimed, isDepositPaid } from '@/lib/payment'
 import type { ConsumerOrder } from '@/components/consumer/OrderCard'
 
 // Animated "Order cancelled" confirmation, shown after a buyer cancels — mirrors
@@ -14,6 +14,7 @@ export function CancelSuccessSheet({
   refundAmount,
   platformFeeWithheld,
   refundFailed = false,
+  depositForfeited,
   onClose,
 }: {
   wasPaid: boolean
@@ -22,10 +23,14 @@ export function CancelSuccessSheet({
   // The automatic gateway refund couldn't be processed — the order is still
   // cancelled, but the refund will be settled manually.
   refundFailed?: boolean
+  // Part-paid COD: the deposit the buyer just lost by cancelling. Shown plainly
+  // — they must not find out from a bank statement.
+  depositForfeited?: number
   onClose: () => void
 }) {
   const { L } = useLang()
   const showFeeBreakdown = wasPaid && (platformFeeWithheld ?? 0) > 0
+  const forfeited = depositForfeited ?? 0
   return (
     <div className="fixed inset-0 z-[130] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 text-center space-y-3">
@@ -63,6 +68,21 @@ export function CancelSuccessSheet({
                   </p>
                 </div>
               )}
+            </>
+          ) : forfeited > 0 ? (
+            <>
+              <p className="text-sm text-gray-600 leading-snug">
+                {L('Your order has been cancelled. The farmer has been notified.', 'మీ ఆర్డర్ రద్దు చేయబడింది. రైతుకు తెలియజేయబడింది.')}
+              </p>
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-left space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">{L('Deposit (not refunded)', 'డిపాజిట్ (తిరిగి ఇవ్వబడదు)')}</span>
+                  <span className="font-extrabold text-red-600">₹{forfeited}</span>
+                </div>
+                <p className="text-[11px] text-gray-500 leading-snug pt-1">
+                  {L('You cancelled after the farmer had already set this harvest aside for you, so the deposit is not refunded. Nothing more is owed.', 'రైతు ఈ కోతను మీ కోసం పక్కన పెట్టిన తర్వాత మీరు రద్దు చేశారు, కాబట్టి డిపాజిట్ తిరిగి ఇవ్వబడదు. ఇక ఏమీ చెల్లించనవసరం లేదు.')}
+                </p>
+              </div>
             </>
           ) : (
             <p className="text-sm text-gray-600 leading-snug">
@@ -110,6 +130,12 @@ export default function CancelOrderModal({
   const refundAmount = Math.max(0, Number(order.total_price) || 0)
   const platformFeeWithheld = Math.max(0, Number(order.platform_fee) || 0)
 
+  // Part-paid COD: cancelling costs the buyer their deposit outright. Warn them
+  // here, while they can still back out — not on the screen afterwards.
+  const depositAtRisk = isDepositPaid(order.payment_status)
+    ? Math.max(0, Number(order.cod_deposit) || 0)
+    : 0
+
   const presets = [
     L('Ordered by mistake', 'పొరపాటున ఆర్డర్ చేశాను'),
     L('Found it cheaper elsewhere', 'వేరే చోట చౌకగా దొరికింది'),
@@ -127,6 +153,17 @@ export default function CancelOrderModal({
             {L('Please tell the farmer why. If you have already paid, you will be refunded automatically.', 'రైతుకు కారణం చెప్పండి. మీరు ఇప్పటికే చెల్లించి ఉంటే, డబ్బు ఆటోమేటిక్‌గా తిరిగి వస్తుంది.')}
           </p>
         </div>
+
+        {depositAtRisk > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+            <p className="text-xs font-bold text-amber-900">
+              {L(`You will lose your ₹${depositAtRisk} deposit`, `మీరు మీ ₹${depositAtRisk} డిపాజిట్ కోల్పోతారు`)}
+            </p>
+            <p className="text-[11px] text-amber-800 leading-snug mt-0.5">
+              {L('The farmer has set this harvest aside for you. If you cancel now, the deposit is not refunded.', 'రైతు ఈ కోతను మీ కోసం పక్కన పెట్టారు. ఇప్పుడు రద్దు చేస్తే డిపాజిట్ తిరిగి ఇవ్వబడదు.')}
+            </p>
+          </div>
+        )}
 
         {/* "Are you sure?" warning — cancelling can't be undone. */}
         <div className="bg-amber-50 border border-amber-300 rounded-xl px-3 py-2.5">

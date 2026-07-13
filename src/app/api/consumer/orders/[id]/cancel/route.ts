@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
 import { refundPayment } from '@/lib/razorpay'
+import { isDepositPaid } from '@/lib/payment'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: order, error: loadErr } = await supabase
     .from('orders')
-    .select('id, consumer_id, status, quantity, total_price, platform_fee, produce_listing_id, harvest_id, payment_status, razorpay_payment_id, created_at, order_code, shipped_at, collected_at, received_at, delivery_status')
+    .select('id, consumer_id, status, quantity, total_price, platform_fee, cod_deposit, produce_listing_id, harvest_id, payment_status, razorpay_payment_id, created_at, order_code, shipped_at, collected_at, received_at, delivery_status')
     .eq('id', id)
     .maybeSingle()
 
@@ -92,6 +93,22 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const platformFeeWithheld = Math.max(0, Number(order.platform_fee) || 0)
   const refundAmount = Math.max(0, Number(order.total_price) || 0)
 
+  // Part-paid COD: the deposit is forfeited when the BUYER cancels. That is the
+  // entire reason it exists — on full COD a buyer could walk away from a
+  // confirmed order having risked nothing, after the farmer had already
+  // harvested for it. Refunding it here would make the deposit pointless.
+  //
+  // A farmer decline/cancel is the opposite case and DOES refund it in full —
+  // see /api/farmer/orders/[id]/decline. Note deposit_paid is deliberately
+  // absent from paidByRazorpay/paidByOther above, so no refund call is made.
+  const depositForfeited = isDepositPaid(order.payment_status)
+    ? Math.max(0, Number(order.cod_deposit) || 0)
+    : 0
+  if (depositForfeited > 0) {
+    update.deposit_forfeited_at = new Date().toISOString()
+    update.cod_balance_due = 0
+  }
+
   if (paidByRazorpay) {
     const amountPaise = Math.round(refundAmount * 100)
     if (amountPaise > 0) {
@@ -133,5 +150,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     refundFailed: update.refund_status === 'failed',
     refundAmount,
     platformFeeWithheld,
+    // The buyer must be told plainly what the cancellation cost them.
+    depositForfeited,
   })
 }
