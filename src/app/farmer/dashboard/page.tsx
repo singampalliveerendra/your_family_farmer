@@ -615,19 +615,27 @@ export default function FarmerDashboard() {
         </Link>
 
         {/* Individual crop requests raised by consumers in this farmer's area */}
-        {demandRequests.length > 0 && (
-          <div className="bg-amber-50 rounded-2xl border-2 border-amber-200 p-4">
+        <div className="bg-amber-50 rounded-2xl border-2 border-amber-200 p-4">
             <h2 className="font-extrabold text-gray-900 text-base leading-tight flex items-center gap-2">
               <span>📣</span>
               {L('Crop requests near you', 'మీ ప్రాంతంలో పంట అభ్యర్థనలు')}
-              <span className="ml-auto text-xs font-bold text-amber-800 bg-amber-200 rounded-full px-2 py-0.5">
-                {demandRequests.length}
-              </span>
+              {demandRequests.length > 0 && (
+                <span className="ml-auto text-xs font-bold text-amber-800 bg-amber-200 rounded-full px-2 py-0.5">
+                  {demandRequests.length}
+                </span>
+              )}
             </h2>
             <p className="text-xs text-gray-600 mt-0.5 mb-3">
               {L('Buyers asked for these. Call them if you can supply.',
                  'కొనుగోలుదారులు వీటిని అడిగారు. మీరు సరఫరా చేయగలిగితే కాల్ చేయండి.')}
             </p>
+
+            {demandRequests.length === 0 && (
+              <p className="text-center text-gray-500 text-sm py-4">
+                {L('No crop requests in your area yet.',
+                   'మీ ప్రాంతంలో ఇంకా పంట అభ్యర్థనలు లేవు.')}
+              </p>
+            )}
 
             <div className="space-y-2">
               {demandRequests.map((r) => (
@@ -672,8 +680,7 @@ export default function FarmerDashboard() {
                 </div>
               ))}
             </div>
-          </div>
-        )}
+        </div>
 
         {/* Demand vs supply chart for the area */}
         <div className="bg-white rounded-2xl border border-gray-100 p-4">
