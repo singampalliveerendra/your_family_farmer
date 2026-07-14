@@ -11,21 +11,21 @@
 
 -- Region
 INSERT INTO public.regions (slug, name) VALUES
-  ('test-region', 'Test Region')
+  ('tadepalligudem', 'Tadepalligudem')
 ON CONFLICT (slug) DO NOTHING;
 
 -- Moderator — login with phone 9000000001 / staging123
 INSERT INTO public.moderators (name, phone, password_hash, region_slug) VALUES
   ('Staging Moderator', '9000000001',
    'eba5aa59df32d92081a69140f9ef3d13:45770266d938adc1bb61e680f64a273f7817514c9137ca173eefa30a4964040874f330233712e781c456722ea1b414bad3eb4bc13d16463b4c849090a0f4f00f',
-   'test-region')
+   'tadepalligudem')
 ON CONFLICT (phone) DO NOTHING;
 
 -- Farmers — login with phone 9000000011 / 9000000012, password staging123
 INSERT INTO public.farmers (id, slug, name, phone, method, region_slug, password_hash) VALUES
-  ('11111111-1111-4111-8111-111111111111', 'test-farmer-ravi', 'Ravi (Test)', '9000000011', 'natural', 'test-region',
+  ('11111111-1111-4111-8111-111111111111', 'test-farmer-ravi', 'Ravi (Test)', '9000000011', 'natural', 'tadepalligudem',
    '84f94275d5070df90403c77d921f485c:998af913142ee5504fa37268297ec25f92b2723c3c60e20ea1df41385e547a6d168827f2bbb66f5f83d0536e4fc01e3969a57fe347cb5697367ef185fd32fc0c'),
-  ('22222222-2222-4222-8222-222222222222', 'test-farmer-lakshmi', 'Lakshmi (Test)', '9000000012', 'natural', 'test-region',
+  ('22222222-2222-4222-8222-222222222222', 'test-farmer-lakshmi', 'Lakshmi (Test)', '9000000012', 'natural', 'tadepalligudem',
    'c0b862695c2d44cdc3b7222365460043:39a56f5dd7171c970e788339f01e7adb6c5061feae1273e2c4d552085c47ab38f18a47de8a546220a455f81a7cd6f88f1761d8cb009a5c64ade88ed26d77ad2e')
 ON CONFLICT (slug) DO NOTHING;
 
