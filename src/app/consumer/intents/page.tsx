@@ -6,6 +6,7 @@ import { useLang } from '@/lib/LanguageContext'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { supabase } from '@/lib/supabase'
+import { todayInIndia, isPastDate } from '@/lib/date'
 
 type Intent = {
   id: string
@@ -61,6 +62,10 @@ export default function ConsumerIntentsPage() {
 
   const saveEdit = async (id: string) => {
     if (!draft.crop.trim()) { setError(L('Crop name is required.', 'పంట పేరు అవసరం.')); return }
+    if (isPastDate(draft.date)) {
+      setError(L('Needed-by date cannot be in the past.', 'కావలసిన తేదీ గతంలో ఉండకూడదు.'))
+      return
+    }
     setSavingId(id)
     setError('')
     const patch = {
@@ -181,6 +186,7 @@ export default function ConsumerIntentsPage() {
                   <input
                     type="date"
                     value={draft.date}
+                    min={todayInIndia()}
                     onChange={(e) => setDraft((d) => ({ ...d, date: e.target.value }))}
                     className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
                   />

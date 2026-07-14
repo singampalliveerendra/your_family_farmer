@@ -50,6 +50,20 @@ type Farmer = {
   cod_enabled: boolean | null
 }
 
+// An open crop request raised by a consumer in this farmer's area. The chart
+// below only shows totals; farmers also need the individual asks — with a phone
+// number — because the consumer form promises "they'll reach out when available".
+type DemandRequest = {
+  id: string
+  crop_name: string
+  quantity_kg: number | null
+  needed_by_date: string | null
+  delivery_location: string | null
+  requester_name: string | null
+  requester_phone: string | null
+  created_at: string
+}
+
 // Demand-vs-supply rows for the area chart come from /api/demand-supply.
 
 type ListingRow = {
@@ -168,6 +182,7 @@ export default function FarmerDashboard() {
   const [approvedCount, setApprovedCount] = useState(0)
   const [totalRevenue, setTotalRevenue] = useState(0)
   const [supplyDemand, setSupplyDemand] = useState<CropBalance[]>([])
+  const [demandRequests, setDemandRequests] = useState<DemandRequest[]>([])
   const [monthlyRevenue, setMonthlyRevenue] = useState(0)
   const [monthlyOrderCount, setMonthlyOrderCount] = useState(0)
   const [weeklyEarnings, setWeeklyEarnings] = useState<number[]>([0, 0, 0, 0])
@@ -249,6 +264,15 @@ export default function FarmerDashboard() {
     } else {
       setSupplyDemand([])
     }
+
+    // The individual open requests behind those demand bars.
+    const { data: intents } = await supabase
+      .from('demand_intents')
+      .select('id, crop_name, quantity_kg, needed_by_date, delivery_location, requester_name, requester_phone, created_at')
+      .eq('region_slug', farmerData.region_slug)
+      .eq('fulfilled', false)
+      .order('created_at', { ascending: false })
+    setDemandRequests((intents ?? []) as DemandRequest[])
 
     setLoading(false)
   }, [])
@@ -589,6 +613,67 @@ export default function FarmerDashboard() {
             {L('Open', 'తెరవండి')} →
           </span>
         </Link>
+
+        {/* Individual crop requests raised by consumers in this farmer's area */}
+        {demandRequests.length > 0 && (
+          <div className="bg-amber-50 rounded-2xl border-2 border-amber-200 p-4">
+            <h2 className="font-extrabold text-gray-900 text-base leading-tight flex items-center gap-2">
+              <span>📣</span>
+              {L('Crop requests near you', 'మీ ప్రాంతంలో పంట అభ్యర్థనలు')}
+              <span className="ml-auto text-xs font-bold text-amber-800 bg-amber-200 rounded-full px-2 py-0.5">
+                {demandRequests.length}
+              </span>
+            </h2>
+            <p className="text-xs text-gray-600 mt-0.5 mb-3">
+              {L('Buyers asked for these. Call them if you can supply.',
+                 'కొనుగోలుదారులు వీటిని అడిగారు. మీరు సరఫరా చేయగలిగితే కాల్ చేయండి.')}
+            </p>
+
+            <div className="space-y-2">
+              {demandRequests.map((r) => (
+                <div key={r.id} className="bg-white rounded-xl border border-amber-100 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-bold text-gray-900 text-sm truncate">
+                        {r.crop_name}
+                        {r.quantity_kg != null && (
+                          <span className="font-normal text-gray-600"> — {r.quantity_kg} kg</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {r.requester_name || L('Buyer', 'కొనుగోలుదారు')}
+                        {r.delivery_location && ` · ${r.delivery_location}`}
+                      </p>
+                      {r.needed_by_date && (
+                        <p className="text-xs text-amber-800 mt-0.5">
+                          {L('Needed by', 'కావలసిన తేదీ')} {r.needed_by_date}
+                        </p>
+                      )}
+                    </div>
+                    {r.requester_phone && (
+                      <div className="flex gap-1.5 flex-shrink-0">
+                        <a
+                          href={`tel:${r.requester_phone}`}
+                          className="bg-green-700 text-white rounded-lg px-3 py-2 text-xs font-bold"
+                        >
+                          {L('Call', 'కాల్')}
+                        </a>
+                        <a
+                          href={`https://wa.me/91${r.requester_phone.replace(/\D/g, '').slice(-10)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-white border border-green-700 text-green-700 rounded-lg px-3 py-2 text-xs font-bold"
+                        >
+                          WhatsApp
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Demand vs supply chart for the area */}
         <div className="bg-white rounded-2xl border border-gray-100 p-4">

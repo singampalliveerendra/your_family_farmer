@@ -10,13 +10,31 @@ import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import ShareButton from '@/components/consumer/ShareButton'
 import FreshHarvestsTable, { UpcomingHarvestsTable } from '@/components/consumer/FreshHarvestsTable'
 import { supabase } from '@/lib/supabase'
-import { haversineKm, nearestTown, formatDistance, farmerCoords } from '@/lib/location'
+import { haversineKm, nearestTown, formatDistance, farmerCoords, townByName } from '@/lib/location'
+import { todayInIndia, isPastDate } from '@/lib/date'
 import LocationSearch from '@/components/LocationSearch'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
 import { harvestClock, freshnessLabel } from '@/lib/harvest'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
+
+const DEFAULT_REGION = 'tadepalligudem'
+
+// Which region's farmers should see a demand intent.
+//
+// The consumer's saved location is free text, so slugging it directly minted
+// regions that no farmer belongs to ("gajuwaka") and the intent became invisible
+// to everyone. Resolve it against the known towns instead, and fall back to the
+// default region when it doesn't match one — better that a real farmer sees the
+// request than that it vanishes.
+function intentRegionSlug(): string {
+  const saved = typeof localStorage === 'undefined'
+    ? null
+    : localStorage.getItem('yff_consumer_location_name')
+  const town = townByName(saved)
+  return town ? town.name.toLowerCase().replace(/\s+/g, '') : DEFAULT_REGION
+}
 
 type Farmer = {
   id: string
@@ -1133,6 +1151,11 @@ function DemandIntentBanner() {
       setError(L('Please fill crop name, your name, and phone number.', 'పంట పేరు, మీ పేరు, ఫోన్ నంబర్ నింపండి.'))
       return
     }
+    // The min= on the input only guards the picker; a typed date can still be past.
+    if (isPastDate(date)) {
+      setError(L('Needed-by date cannot be in the past.', 'కావలసిన తేదీ గతంలో ఉండకూడదు.'))
+      return
+    }
     setLoading(true)
     setError('')
     const { supabase: sb } = await import('@/lib/supabase')
@@ -1144,7 +1167,7 @@ function DemandIntentBanner() {
       requester_name: name.trim(),
       requester_phone: phone.trim(),
       consumer_id: consumer?.id ?? null,
-      region_slug: localStorage.getItem('yff_consumer_location_name')?.toLowerCase().replace(/\s+/g, '') || 'tadepalligudem',
+      region_slug: intentRegionSlug(),
     })
     setLoading(false)
     if (err) { setError(err.message); return }
@@ -1218,6 +1241,7 @@ function DemandIntentBanner() {
               <input
                 type="date"
                 value={date}
+                min={todayInIndia()}
                 onChange={(e) => setDate(e.target.value)}
                 className="border border-amber-200 rounded-xl px-3 py-3 text-sm bg-white focus:border-amber-500 focus:outline-none"
               />
