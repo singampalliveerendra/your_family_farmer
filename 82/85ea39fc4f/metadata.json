@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "8285ea39fc4f",
+  "strategy": "manual-commit",
+  "branch": "staging",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/app/consumer/intents/page.tsx",
+    "src/app/consumer/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/lib/date.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/82/85ea39fc4f/0/metadata.json",
+      "transcript": "/82/85ea39fc4f/0/full.jsonl",
+      "content_hash": "/82/85ea39fc4f/0/content_hash.txt",
+      "prompt": "/82/85ea39fc4f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 100,
+    "cache_creation_tokens": 42860,
+    "cache_read_tokens": 8160667,
+    "output_tokens": 28256,
+    "api_call_count": 46
+  }
+}

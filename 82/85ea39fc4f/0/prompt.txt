@@ -1,0 +1,112 @@
+[Image #19] where is the staging url
+
+---
+
+its done but i didnt underatand anything that we done in vercel i want to learn that what we have done exactly
+
+---
+
+but if change any code in testing and after deploying . iwill sent to clint and conform that change in main production ttooo so how it works
+
+---
+
+but in testing site i need all the user data that we used before
+
+---
+
+the data we have tested till now that all fake donw by me like i create dtha login of farmer consumer and moderator and delivery i want that logins in testings for now to test for future right and also want ll produces too
+
+---
+
+veerendra@DESKTOP-A42QL39:~/farmer/yourfamilyfarmer$ git push -u origin main
+[entire] Pushing entire/checkpoints/v1 to origin...... done
+Branch 'main' set up to track remote branch 'main' from 'origin'.
+Everything up-to-date
+veerendra@DESKTOP-A42QL39:~/farmer/yourfamilyfarmer$ git push -u origin staging
+Branch 'staging' set up to track remote branch 'staging' from 'origin'.
+Everything up-to-date
+veerendra@DESKTOP-A42QL39:~/farmer/yourfamilyfarmer$
+
+---
+
+what about putting a testing website as a main production wesite for users and main one to testing website (is it a good idea ?)
+
+---
+
+Deployments
+3EDXbotx8
+
+Deployment
+Logs
+Resources
+Source
+Open Graph
+Deployment Details
+Build Failed
+Command "npm run vercel-build" exited with 1
+Created
+github/singampalliveerendra
+singampalliveerendra
+42m ago
+Status
+Error
+Stale
+Duration
+21s
+42m ago
+Environment
+Preview
+Domains
+your-family-farmer-git-en-3fcc0a-singampalliveerendras-projects.vercel.app
+your-family-farmer-9n3mnk8wb-singampalliveerendras-projects.vercel.app
+Source
+entire/checkpoints/v1
+183224c
+Checkpoint: 46997276ad71
+
+Deployment Settings
+4 Recommendations
+Build Logs
+21s
+24 lines
+
+1
+
+1
+Find in logs
+CtrlF
+14:00:42.123 
+Running build in Washington, D.C., USA (East) – iad1
+14:00:42.124 
+Build machine configuration: 2 cores, 8 GB
+14:00:42.225 
+Cloning github.com/singampalliveerendra/your_family_farmer (Branch: entire/checkpoints/v1, Commit: 183224c)
+14:00:58.066 
+Cloning completed: 15.841s
+14:00:58.352 
+Restored build cache from previous deployment (CNkcpwVUYqunUfttEN5VW8mzKbp1)
+14:00:58.575 
+Running "vercel build"
+14:00:58.597 
+Vercel CLI 55.0.0
+14:00:59.073 
+Your application is being built using `next build`. If you need to define a different build step, please create a `vercel-build` script in your `package.json` (e.g. `{ "scripts": { "vercel-build": "npm run prepare && next build" } }`).
+14:00:59.076 
+Installing dependencies...
+14:01:00.131 
+14:01:00.132 
+up to date in 926ms
+14:01:00.160 
+Detected Next.js version: 16.2.6
+14:01:00.166 
+Running "npm run vercel-build"
+14:01:00.265 
+14:01:00.266 
+> vercel-build
+14:01:00.266 
+> next build
+whats this
+
+---
+
+[Image #22] [Image #23] the farmers didint getting the raised intents and also in adding raise intent we can also privous date also in raise intent we diidnt need previous dat right so fix that
