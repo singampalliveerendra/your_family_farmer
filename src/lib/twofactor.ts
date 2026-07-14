@@ -4,6 +4,17 @@
 
 const BASE = 'https://2factor.in/API/V1'
 
+// On the staging/test site (any Vercel Preview build) we must never text a real
+// phone — a tester typing a stranger's number would otherwise SMS that stranger.
+// Instead the OTP flow is short-circuited: any number "receives" the fixed code
+// below, so the login journey is still testable end to end.
+const STAGING_OTP = '123456'
+const STAGING_SESSION = 'staging-otp-session'
+
+function isStaging(): boolean {
+  return process.env.VERCEL_ENV === 'preview'
+}
+
 function apiKey(): string | null {
   return process.env.TWOFACTOR_API_KEY || null
 }
@@ -20,6 +31,8 @@ export type SendResult =
  * template, 2factor falls back to delivering the OTP as a VOICE CALL — so this
  * env var is what makes OTPs arrive as a text message. */
 export async function sendOtp(phone: string): Promise<SendResult> {
+  if (isStaging()) return { ok: true, sessionId: STAGING_SESSION }
+
   const key = apiKey()
   if (!key) return { ok: false, error: 'OTP service not configured (TWOFACTOR_API_KEY missing).' }
 
@@ -43,6 +56,10 @@ export type VerifyResult = { ok: boolean; reason?: string }
 
 /** Verifies the user-entered OTP against a 2factor session id. */
 export async function verifyOtp(sessionId: string, otp: string): Promise<VerifyResult> {
+  if (isStaging()) {
+    return otp === STAGING_OTP ? { ok: true } : { ok: false, reason: 'mismatch' }
+  }
+
   const key = apiKey()
   if (!key) return { ok: false, reason: 'not_configured' }
 

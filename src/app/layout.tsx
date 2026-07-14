@@ -3,6 +3,7 @@ import "./globals.css";
 import { LanguageProvider } from "@/lib/LanguageContext";
 import { ConsumerAuthProvider } from "@/lib/ConsumerAuthContext";
 import SplashScreen from "@/components/SplashScreen";
+import StagingBanner from "@/components/StagingBanner";
 
 export const metadata: Metadata = {
   title: "Go Grameen — Your Family Farmer",
@@ -35,6 +36,7 @@ export default function RootLayout({
           }}
         />
         <SplashScreen />
+        <StagingBanner />
         <LanguageProvider>
           <ConsumerAuthProvider>{children}</ConsumerAuthProvider>
         </LanguageProvider>
