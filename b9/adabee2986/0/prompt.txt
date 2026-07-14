@@ -1,0 +1,1 @@
+after pushing in staged how shpuld i test . i didnt have any farmer login and consumer login should i create now accounts is fine ?

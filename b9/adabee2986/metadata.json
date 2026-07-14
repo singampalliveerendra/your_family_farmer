@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "b9adabee2986",
+  "strategy": "manual-commit",
+  "branch": "staging",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "scripts/staging-fix-region.sql"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b9/adabee2986/0/metadata.json",
+      "transcript": "/b9/adabee2986/0/full.jsonl",
+      "content_hash": "/b9/adabee2986/0/content_hash.txt",
+      "prompt": "/b9/adabee2986/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 3718,
+    "cache_read_tokens": 601640,
+    "output_tokens": 1793,
+    "api_call_count": 3
+  }
+}
