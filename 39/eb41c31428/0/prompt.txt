@@ -1,0 +1,100 @@
+you can run mcp right
+
+---
+
+you can run using mcp right
+
+---
+
+okay i created anotgher databes right in that you dididnt have any mcp connection right
+
+---
+
+push to staging and tell me exact command to push in staging
+
+---
+
+now push to main and tell me the exact command
+
+---
+
+testing done
+
+---
+
+⚠️
+TEST SITE — fake data, test payments. Not the real Go Grameen.
+
+
+EN
+తె
+Farmer Dashboard
+
+vinay
+Complete your profile to get started
+
++91 7601059161
+
+Incomplete
+Edit profile
+Logout
+Your Harvest. Your Price. Your Consumer
+🔕
+Notifications blocked
+
+Enable notifications in your browser settings to get alerted on new orders.
+
+×
+📝
+Complete your profile
+Your profile helps buyers find you
+
+Fill details
+0
+Today's orders
+View
+→
+
+0
+Active listings
+Manage
+→
+0
+Approved this week
+View all
+→
+—
+Revenue (₹)
+Earnings this month
+No approved orders this month yet.
+
+Orders
+View, filter & manage all your orders
+
+Open →
+Demand vs Supply
+What your area wants vs what farmers are growing
+
+Demand
+Supply
+kg
+Rice (Test)
+0
+100
+Tomatoes (Test)
+0
+50
+Brinjal (Test)
+0
+30
+Complete your profile before adding harvests
+Farm Photos
+Visible on your public profile
+
++
+Add Photo
+📷
+
+No farm photos yet
+
+Add photos of your farm, fields, and harvests whwre the farmer can see  intents
