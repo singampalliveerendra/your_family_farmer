@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "46997276ad71",
+  "strategy": "manual-commit",
+  "branch": "staging",
+  "checkpoints_count": 27,
+  "files_touched": [
+    "scripts/staging-schema.sql",
+    "scripts/staging-seed.sql",
+    "src/app/layout.tsx",
+    "src/components/StagingBanner.tsx",
+    "src/lib/twofactor.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/46/997276ad71/0/metadata.json",
+      "transcript": "/46/997276ad71/0/full.jsonl",
+      "content_hash": "/46/997276ad71/0/content_hash.txt",
+      "prompt": "/46/997276ad71/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 238,
+    "cache_creation_tokens": 109326,
+    "cache_read_tokens": 8503961,
+    "output_tokens": 67889,
+    "api_call_count": 93
+  }
+}
