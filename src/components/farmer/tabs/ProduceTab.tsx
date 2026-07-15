@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
@@ -349,11 +350,17 @@ function ProduceCard({
   onDelete?: () => void
 }) {
   const { tx, lang, L } = useLang()
-  const [added, setAdded] = useState(false)
-  // #12 — all photos for this produce (cover first). Tapping opens a lightbox.
+  const { cart, setQty } = useCart()
+  // Once this produce is in the cart we show a − qty + stepper instead of the
+  // Add button, so buyers can adjust the amount inline (cart key = item.id).
+  const inCart = cart[item.id]
+  const atMax = inCart?.stockQty != null && inCart.qty >= inCart.stockQty
+  // Tapping the photo or name opens the full produce detail page (big hero image
+  // + harvest clock + reviews), the same page consumers reach from the grid.
+  const detailHref = `/consumer/produce/${item.id}`
+  // #12 — all photos for this produce (cover first).
   const gallery = (item.image_urls && item.image_urls.length ? item.image_urls : (item.image_url ? [item.image_url] : []))
     .filter(Boolean) as string[]
-  const [lightbox, setLightbox] = useState(false)
 
   const bgColors: Record<string, string> = {
     '🍅': 'bg-red-100', '🥬': 'bg-green-100', '🥭': 'bg-orange-100',
@@ -366,8 +373,6 @@ function ProduceCard({
   const handleAdd = () => {
     if (!onAddToCart) return
     onAddToCart(1)
-    setAdded(true)
-    setTimeout(() => setAdded(false), 1500)
   }
 
   return (
@@ -375,19 +380,18 @@ function ProduceCard({
       <div className="flex gap-3 p-3">
         {gallery.length ? (
           // #12 — inline swipeable strip: swipe right-to-left to see the rest of
-          // the photos without leaving the card; a tap opens the full lightbox.
+          // the photos without leaving the card; a tap opens the detail page.
           <div className="relative w-14 h-14 flex-shrink-0">
             <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-100 flex overflow-x-auto snap-x snap-mandatory scrollbar-hide">
               {gallery.map((url) => (
-                <button
+                <Link
                   key={url}
-                  type="button"
-                  onClick={() => setLightbox(true)}
+                  href={detailHref}
                   className="snap-center shrink-0 w-14 h-14"
-                  aria-label={L('View photos', 'ఫోటోలు చూడండి')}
+                  aria-label={L('View details', 'వివరాలు చూడండి')}
                 >
                   <img src={url} alt={item.name} loading="lazy" className="w-14 h-14 object-cover" />
-                </button>
+                </Link>
               ))}
             </div>
             {gallery.length > 1 && (
@@ -397,16 +401,16 @@ function ProduceCard({
             )}
           </div>
         ) : (
-          <div className={`${bg} rounded-xl w-14 h-14 flex items-center justify-center text-3xl flex-shrink-0`}>
+          <Link href={detailHref} className={`${bg} rounded-xl w-14 h-14 flex items-center justify-center text-3xl flex-shrink-0`}>
             {emoji}
-          </div>
+          </Link>
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <div>
-              <h3 className="font-bold text-gray-900 text-sm">{localizeName(item.name, lang)}</h3>
+            <Link href={detailHref} className="min-w-0">
+              <h3 className="font-bold text-gray-900 text-sm hover:underline">{localizeName(item.name, lang)}</h3>
               {item.variety && <p className="text-xs text-gray-500">{localizeName(item.variety, lang)}</p>}
-            </div>
+            </Link>
             {item.stock_qty !== undefined && (
               <span className="text-xs text-gray-500 flex-shrink-0">{item.stock_qty} {tx.stockLeft}</span>
             )}
@@ -477,23 +481,36 @@ function ProduceCard({
 
       <div className="px-3 pb-3 pt-2 space-y-2">
         {onAddToCart && (
-          <button
-            onClick={handleAdd}
-            className={`flex items-center justify-center gap-2 w-full font-bold py-3.5 rounded-xl text-base transition-colors ${
-              added
-                ? 'bg-green-100 text-green-800'
-                : 'bg-green-700 text-white active:bg-green-800'
-            }`}
-          >
-            {added ? (
-              <>{L('✓ Added to cart', 'బుట్టకు చేర్చబడింది')}</>
-            ) : (
-              <>
-                <span className="text-xl leading-none">+</span>
-                {L('Add to cart', 'బుట్టకు చేర్చండి')}
-              </>
-            )}
-          </button>
+          inCart ? (
+            <div className="flex items-center justify-between w-full bg-green-50 border border-green-200 rounded-xl p-1.5">
+              <button
+                onClick={() => setQty(item.id, inCart.qty - 1)}
+                aria-label={L('Decrease', 'తగ్గించు')}
+                className="w-11 h-11 rounded-lg bg-white border border-green-300 text-green-800 text-2xl font-bold leading-none flex items-center justify-center active:scale-95"
+              >
+                −
+              </button>
+              <span className="font-extrabold text-green-900 text-base tabular-nums">
+                {inCart.qty} {L('kg in cart', 'కేజీ బుట్టలో')}
+              </span>
+              <button
+                onClick={() => setQty(item.id, inCart.qty + 1)}
+                disabled={atMax}
+                aria-label={L('Increase', 'పెంచు')}
+                className="w-11 h-11 rounded-lg bg-green-700 text-white text-2xl font-bold leading-none flex items-center justify-center active:scale-95 disabled:opacity-40"
+              >
+                +
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleAdd}
+              className="flex items-center justify-center gap-2 w-full font-bold py-3.5 rounded-xl text-base bg-green-700 text-white active:bg-green-800 transition-colors"
+            >
+              <span className="text-xl leading-none">+</span>
+              {L('Add to cart', 'బుట్టకు చేర్చండి')}
+            </button>
+          )
         )}
         {onDelete && (
           <button
@@ -504,33 +521,6 @@ function ProduceCard({
           </button>
         )}
       </div>
-
-      {/* #12 — photo lightbox: all images in a horizontal swipe, tap to close */}
-      {lightbox && gallery.length > 0 && (
-        <div
-          onClick={() => setLightbox(false)}
-          className="fixed inset-0 z-[200] bg-black/90 flex items-center"
-          role="dialog"
-        >
-          <div className="w-full flex gap-3 overflow-x-auto snap-x snap-mandatory px-4">
-            {gallery.map((url) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={url}
-                src={url}
-                alt={item.name}
-                className="snap-center w-[88vw] max-h-[80vh] object-contain flex-shrink-0 rounded-2xl mx-auto"
-              />
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() => setLightbox(false)}
-            className="absolute top-4 right-4 bg-white/90 text-gray-800 rounded-full w-9 h-9 flex items-center justify-center text-lg font-bold"
-            aria-label="Close"
-          >×</button>
-        </div>
-      )}
     </div>
   )
 }

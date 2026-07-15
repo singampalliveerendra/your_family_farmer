@@ -58,13 +58,23 @@ export async function POST(req: NextRequest) {
 
   const farmer = farmers?.[0]
 
-  // Anti-enumeration: same generic error whether the phone exists or not.
   const wrongCreds = NextResponse.json(
     { error: tr(lang, 'Wrong phone or password.', 'తప్పు ఫోన్ లేదా పాస్‌వర్డ్.') },
     { status: 401 },
   )
 
-  if (!farmer) return wrongCreds
+  // No farmer account for this number: point them to registration instead of
+  // the misleading "wrong password". `notRegistered` lets the login page show a
+  // sign-up prompt.
+  if (!farmer) {
+    return NextResponse.json(
+      {
+        error: tr(lang, 'No account found for this number. Please create an account first.', 'ఈ నంబర్‌కు ఖాతా కనబడలేదు. దయచేసి ముందు ఖాతా సృష్టించండి.'),
+        notRegistered: true,
+      },
+      { status: 401 },
+    )
+  }
 
   // Farmers without a password must complete OTP login first — we no longer
   // accept the first password they type as their permanent password (that

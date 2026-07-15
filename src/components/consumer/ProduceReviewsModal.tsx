@@ -28,6 +28,16 @@ export default function ProduceReviewsModal({
   const [count, setCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
+  // Lock the page behind the sheet while it's open. Without this the background
+  // keeps scrolling and the mobile browser's dynamic toolbar shifts, so the
+  // fixed overlay no longer reaches the visible bottom — leaving a gap where the
+  // page peeks below the sheet.
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
   useEffect(() => {
     let alive = true
     fetch(`/api/produce-reviews?listing_id=${listingId}`)
@@ -46,7 +56,7 @@ export default function ProduceReviewsModal({
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto"
+        className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[85dvh] overflow-y-auto overscroll-contain"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 bg-white flex items-center justify-between px-4 py-3 border-b border-gray-100">
@@ -57,7 +67,7 @@ export default function ProduceReviewsModal({
           <button onClick={onClose} className="text-gray-400 text-3xl leading-none p-1">×</button>
         </div>
 
-        <div className="p-4 space-y-3">
+        <div className="p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-3">
           {avg != null && count > 0 && (
             <div className="flex items-center gap-3 bg-green-50 border border-green-100 rounded-xl px-4 py-3">
               <p className="text-3xl font-extrabold text-gray-900">{avg.toFixed(1)}</p>

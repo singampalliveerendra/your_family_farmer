@@ -57,6 +57,8 @@ type ProduceListing = {
   image_url?: string
   image_urls?: string[] | null
   method?: string
+  category?: string | null
+  description?: string | null
   status: string
   price_tier_1_price?: number
   price_tier_1_qty?: number
@@ -108,6 +110,38 @@ type WithDist = ProduceListing & { distKm: number | null; distApprox: boolean }
 // used by the "Freshest first" sort; `key` is the React/cart key.
 type DisplayCard = { item: WithDist; harvest?: GridHarvest; key: string; sortAt: number }
 
+// Keyword fallback for categorising older listings that don't have an explicit
+// `category` set. Kept in sync with /api/produce/search so the client-side
+// filter (below) matches what the server would have returned — but instantly,
+// with no network round-trip.
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  vegetables: [
+    'tomato', 'capsicum', 'brinjal', 'eggplant', 'bean', 'pea', 'pumpkin',
+    'gourd', 'onion', 'potato', 'garlic', 'carrot', 'radish', 'cucumber',
+    'okra', 'ladyfinger', 'drumstick', 'ridge gourd', 'bottle gourd', 'chilli',
+    'pepper', 'bitter gourd', 'cluster bean', 'snake gourd',
+  ],
+  fruits: [
+    'mango', 'banana', 'papaya', 'guava', 'pomegranate', 'orange', 'lime',
+    'lemon', 'coconut', 'tamarind', 'jackfruit', 'sapota', 'fig', 'grapes',
+    'watermelon', 'muskmelon', 'pineapple', 'custard apple',
+  ],
+  grains: [
+    'rice', 'wheat', 'jowar', 'bajra', 'ragi', 'maize', 'corn', 'dal',
+    'lentil', 'chickpea', 'groundnut', 'sesame', 'turmeric', 'ginger',
+    'pulses', 'toor', 'moong', 'urad', 'chana',
+  ],
+  leafy: [
+    'spinach', 'methi', 'fenugreek', 'coriander', 'mint', 'curry',
+    'amaranth', 'sorrel', 'moringa', 'drumstick leaves', 'palak',
+  ],
+  spices: [
+    'turmeric', 'ginger', 'chilli', 'pepper', 'cardamom', 'clove',
+    'cinnamon', 'cumin', 'coriander seed', 'mustard', 'fenugreek seed',
+    'tamarind', 'curry leaf', 'garlic', 'nutmeg', 'fennel', 'asafoetida',
+  ],
+}
+
 const CATEGORIES = [
   { key: 'all',        en: 'All',             te: 'అన్నీ' },
   { key: 'vegetables', en: 'Vegetables',      te: 'కూరగాయలు' },
@@ -152,7 +186,6 @@ export default function ConsumerPage() {
   // becomes its own card; the newest also drives the fallback clock. Best-effort
   // from the `harvests` table.
   const [harvestsByListing, setHarvestsByListing] = useState<Record<string, GridHarvest[]>>({})
-  const [filtered, setFiltered]       = useState<ProduceListing[]>([])
   const [search, setSearch]           = useState('')
   const [method, setMethod]           = useState('all')
   const [category, setCategory]       = useState('all')
@@ -161,7 +194,6 @@ export default function ConsumerPage() {
   const [farmerFilter, setFarmerFilter] = useState('all')
   const [loading, setLoading]         = useState(true)
   const [farmerCount, setFarmerCount] = useState(0)
-  const searchAbortRef = useRef<AbortController | null>(null)
 
   // Consumer location
   const [consumerLat, setConsumerLat]           = useState<number | null>(null)
@@ -182,7 +214,6 @@ export default function ConsumerPage() {
       const avArr = Array.isArray(av) ? av : []
       const csArr = Array.isArray(cs) ? cs : []
       setAvailable(avArr)
-      setFiltered(avArr)
       setComingSoon(csArr)
       setFarmerCount(new Set(avArr.map((p) => p.farmer_id)).size)
 
@@ -228,30 +259,35 @@ export default function ConsumerPage() {
     }
   }, [fetchData])
 
-  const doSearch = useCallback(async () => {
-    if (!search && method === 'all' && category === 'all') {
-      setFiltered(available)
-      return
+  // Search/method/category filtering, done entirely client-side over the
+  // already-loaded `available` list. Everything needed (name, variety,
+  // description, method, category) comes back from /api/produce, so switching
+  // categories is instant — no debounce, no network round-trip, no stale flash
+  // of the previous category while a request is in flight.
+  const filtered = useMemo<ProduceListing[]>(() => {
+    let items = available
+    const q = search.trim().toLowerCase()
+    if (q) {
+      items = items.filter(
+        (p) =>
+          p.name?.toLowerCase().includes(q) ||
+          p.variety?.toLowerCase().includes(q) ||
+          p.description?.toLowerCase().includes(q)
+      )
     }
-    searchAbortRef.current?.abort()
-    searchAbortRef.current = new AbortController()
-    try {
-      const p = new URLSearchParams()
-      if (search)              p.set('q', search)
-      if (method !== 'all')    p.set('method', method)
-      if (category !== 'all')  p.set('category', category)
-      const res = await fetch(`/api/produce/search?${p}`, { cache: 'no-store', signal: searchAbortRef.current.signal })
-      const data = await res.json().catch(() => [])
-      setFiltered(Array.isArray(data) ? data : [])
-    } catch (e) {
-      if ((e as Error).name !== 'AbortError') { /* silent */ }
+    if (method !== 'all') {
+      items = items.filter((p) => p.method?.toLowerCase().includes(method.toLowerCase()))
     }
-  }, [search, method, category, available])
-
-  useEffect(() => {
-    const t = setTimeout(doSearch, 300)
-    return () => clearTimeout(t)
-  }, [doSearch])
+    if (category !== 'all') {
+      const keywords = CATEGORY_KEYWORDS[category] ?? []
+      items = items.filter((p) =>
+        p.category
+          ? p.category === category
+          : keywords.some((kw) => p.name?.toLowerCase().includes(kw))
+      )
+    }
+    return items
+  }, [available, search, method, category])
 
   // Load consumer location from localStorage
   useEffect(() => {
@@ -1125,7 +1161,7 @@ function LocationBottomSheet({
 /* ─── Demand intent banner ──────────────────────────────────── */
 function DemandIntentBanner() {
   const { L } = useLang()
-  const { consumer } = useConsumerAuth()
+  const { consumer, openAuth } = useConsumerAuth()
   const [open, setOpen] = useState(false)
   const [crop, setCrop] = useState('')
   const [qty, setQty] = useState('')
@@ -1147,6 +1183,12 @@ function DemandIntentBanner() {
   }, [consumer])
 
   const handleSubmit = async () => {
+    // Raising an intent requires a logged-in consumer so it's tied to their
+    // account (and appears on My Intents). Prompt login instead of inserting.
+    if (!consumer) {
+      openAuth()
+      return
+    }
     if (!crop.trim() || !name.trim() || !phone.trim()) {
       setError(L('Please fill crop name, your name, and phone number.', 'పంట పేరు, మీ పేరు, ఫోన్ నంబర్ నింపండి.'))
       return
@@ -1231,20 +1273,30 @@ function DemandIntentBanner() {
               className="w-full border border-amber-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-amber-500 focus:outline-none"
             />
             <div className="grid grid-cols-2 gap-2">
-              <input
-                type="number"
-                placeholder={L('Quantity (kg)', 'పరిమాణం')}
-                value={qty}
-                onChange={(e) => setQty(e.target.value)}
-                className="border border-amber-200 rounded-xl px-3 py-3 text-sm bg-white focus:border-amber-500 focus:outline-none"
-              />
-              <input
-                type="date"
-                value={date}
-                min={todayInIndia()}
-                onChange={(e) => setDate(e.target.value)}
-                className="border border-amber-200 rounded-xl px-3 py-3 text-sm bg-white focus:border-amber-500 focus:outline-none"
-              />
+              <div>
+                <label className="block text-xs font-medium text-amber-800 mb-1 ml-1">
+                  {L('Quantity (kg)', 'పరిమాణం')}
+                </label>
+                <input
+                  type="number"
+                  placeholder={L('e.g. 5', 'ఉదా. 5')}
+                  value={qty}
+                  onChange={(e) => setQty(e.target.value)}
+                  className="w-full min-w-0 border border-amber-200 rounded-xl px-3 py-3 text-sm text-gray-800 bg-white focus:border-amber-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-amber-800 mb-1 ml-1">
+                  {L('Needed by', 'కావలసిన తేదీ')}
+                </label>
+                <input
+                  type="date"
+                  value={date}
+                  min={todayInIndia()}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full min-w-0 border border-amber-200 rounded-xl px-3 py-3 text-sm text-gray-800 bg-white focus:border-amber-500 focus:outline-none"
+                />
+              </div>
             </div>
             <input
               type="text"

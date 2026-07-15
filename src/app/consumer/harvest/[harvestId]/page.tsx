@@ -436,7 +436,7 @@ export default function HarvestDetailPage() {
         )}
       </div>
 
-      <CartFab />
+      <CartFab raised />
 
       {showReviews && (
         <ProduceReviewsModal listingId={item.id} produceName={item.name} onClose={() => setShowReviews(false)} />

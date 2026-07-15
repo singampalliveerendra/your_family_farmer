@@ -472,7 +472,7 @@ export default function ProduceDetailPage() {
         )}
       </div>
 
-      <CartFab />
+      <CartFab raised />
 
       {showReviews && (
         <ProduceReviewsModal listingId={item.id} produceName={item.name} onClose={() => setShowReviews(false)} />

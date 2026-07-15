@@ -66,13 +66,23 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Anti-enumeration: same generic error whether the phone exists or not.
   const wrongCreds = NextResponse.json(
     { error: tr(lang, 'Wrong phone or password.', 'తప్పు ఫోన్ లేదా పాస్‌వర్డ్.') },
     { status: 401 },
   )
 
-  if (!user) return wrongCreds
+  // No account for this number: nudge the user to register instead of the
+  // misleading "wrong password" (they simply haven't signed up yet). `notRegistered`
+  // lets the UI switch to the Sign-up tab.
+  if (!user) {
+    return NextResponse.json(
+      {
+        error: tr(lang, 'No account found for this number. Please sign up first.', 'ఈ నంబర్‌కు ఖాతా కనబడలేదు. దయచేసి ముందు సైన్ అప్ చేయండి.'),
+        notRegistered: true,
+      },
+      { status: 401 },
+    )
+  }
   if (!user.password_hash || !verifyPassword(password, user.password_hash)) return wrongCreds
 
   // Suspended accounts can't sign in. Checked only after a correct password so

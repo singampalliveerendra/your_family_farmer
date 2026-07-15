@@ -184,7 +184,7 @@ function HarvestTable({ variant }: { variant: Variant }) {
           <tr className="text-[10px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
             <th className="font-bold px-4 py-2">{L('Harvest', 'కోత')}</th>
             <th className="font-bold px-4 py-2 text-right">{whenLabel}</th>
-            <th className="w-[92px]" aria-hidden="true"></th>
+            <th className="w-[84px]" aria-hidden="true"></th>
           </tr>
         </thead>
         <tbody>
@@ -197,7 +197,7 @@ function HarvestTable({ variant }: { variant: Variant }) {
                 onClick={() => router.push(`/consumer/harvest/${r.id}`)}
                 className="border-b border-gray-50 last:border-0 cursor-pointer active:bg-green-50"
               >
-                <td className="pl-4 pr-2 py-3">
+                <td className="pl-4 pr-2 py-3 max-w-0">
                   <span className="flex items-center gap-1.5 min-w-0">
                     <span className="text-lg shrink-0">{item.emoji || '🌿'}</span>
                     <span className="text-sm font-bold text-gray-900 truncate">
@@ -214,14 +214,14 @@ function HarvestTable({ variant }: { variant: Variant }) {
                     id, so the fresh and upcoming rows don't mirror each other).
                     Shows a single + until it's in the cart, then − qty +.
                     stopPropagation so taps don't also open the details row. */}
-                <td className="pr-3 pl-1 py-3 text-right align-middle">
+                <td className="pr-2 pl-1 py-3 text-right align-middle">
                   {cart[r.id] ? (
-                    <span className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <span className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setQty(r.id, (cart[r.id]?.qty ?? 1) - 1) }}
                         aria-label={L('Remove one', 'ఒకటి తీసివేయండి')}
-                        className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-50 text-green-700 text-lg leading-none active:scale-95"
+                        className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-50 text-green-700 text-base leading-none active:scale-95"
                       >
                         −
                       </button>
@@ -232,7 +232,7 @@ function HarvestTable({ variant }: { variant: Variant }) {
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setQty(r.id, (cart[r.id]?.qty ?? 0) + 1) }}
                         aria-label={L('Add one', 'ఒకటి జోడించండి')}
-                        className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-600 text-white text-lg leading-none active:scale-95"
+                        className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-600 text-white text-base leading-none active:scale-95"
                       >
                         +
                       </button>

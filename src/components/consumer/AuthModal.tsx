@@ -47,6 +47,12 @@ export default function AuthModal() {
     setLoading(false)
     if (!result.ok) {
       if (result.suspended) setSuspended({ reason: result.suspendedReason ?? null })
+      else if (result.notRegistered) {
+        // Number isn't registered — move them to Sign up (name/phone/password
+        // are kept) and show the prompt there instead of a credential error.
+        setMode('register')
+        setError(result.error)
+      }
       else setError(result.error)
     }
     // On success the provider closes the modal and re-runs the queued action

@@ -14,7 +14,7 @@ type LoginPayload = { phone: string; password: string }
 type RegisterPayload = { name: string; phone: string; password: string }
 type AuthResult =
   | { ok: true }
-  | { ok: false; error: string; suspended?: boolean; suspendedReason?: string | null }
+  | { ok: false; error: string; suspended?: boolean; suspendedReason?: string | null; notRegistered?: boolean }
 
 type ConsumerAuthContextValue = {
   state: AuthState
@@ -170,7 +170,7 @@ export function ConsumerAuthProvider({ children }: { children: ReactNode }) {
           suspendedReason: (json.suspendedReason as string | null) ?? null,
         }
       }
-      return { ok: false, error: json?.error ?? 'Login failed.' }
+      return { ok: false, error: json?.error ?? 'Login failed.', notRegistered: json?.notRegistered === true }
     }
     handleAuthSuccess(json.consumer)
     return { ok: true }

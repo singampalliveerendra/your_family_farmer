@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import LanguageToggle from '@/components/LanguageToggle'
@@ -15,6 +15,12 @@ export default function FarmerSignupPage() {
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // Prefill the phone when arriving from the login page's "no account" prompt.
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get('phone')
+    if (p) setPhone(p.replace(/\D/g, '').slice(0, 10))
+  }, [])
 
   const digits = phone.replace(/\D/g, '').slice(-10)
   const canSubmit = name.trim().length > 0 && digits.length === 10 && password.length >= 6
@@ -41,7 +47,7 @@ export default function FarmerSignupPage() {
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
       <div className="absolute top-4 right-4">
-        <LanguageToggle />
+        <LanguageToggle variant="light" />
       </div>
 
       <div className="w-full max-w-sm">

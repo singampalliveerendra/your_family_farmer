@@ -17,6 +17,9 @@ function FarmerLoginInner() {
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // True when the entered number has no farmer account — we show a sign-up prompt
+  // instead of the generic "wrong phone or password" error.
+  const [notRegistered, setNotRegistered] = useState(false)
   const [showForgot, setShowForgot] = useState(false)
 
   // Set when farmerFetch/requireFarmerSession bounced the farmer here.
@@ -36,6 +39,7 @@ function FarmerLoginInner() {
     if (!canSubmit) return
     setLoading(true)
     setError('')
+    setNotRegistered(false)
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -44,7 +48,11 @@ function FarmerLoginInner() {
     })
     const json = await res.json().catch(() => ({}))
     setLoading(false)
-    if (!res.ok) { setError(json.error ?? 'Could not log in. Please try again.'); return }
+    if (!res.ok) {
+      if (json.notRegistered) { setNotRegistered(true); return }
+      setError(json.error ?? 'Could not log in. Please try again.')
+      return
+    }
     localStorage.setItem('yff_farmer_id', json.farmerId)
     localStorage.setItem('yff_farmer_slug', json.farmerSlug)
     router.replace(nextPath())
@@ -53,7 +61,7 @@ function FarmerLoginInner() {
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
       <div className="absolute top-4 right-4">
-        <LanguageToggle />
+        <LanguageToggle variant="light" />
       </div>
 
       <div className="w-full max-w-sm">
@@ -122,8 +130,25 @@ function FarmerLoginInner() {
             </p>
           )}
 
-          {error && (
+          {error && !notRegistered && (
             <p className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2">{error}</p>
+          )}
+
+          {notRegistered && (
+            <div className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-2">
+              <p className="font-semibold">
+                {L('No account found for this number.', 'ఈ నంబర్‌కు ఖాతా కనబడలేదు.')}
+              </p>
+              <p className="text-amber-800">
+                {L('Please create an account first, then log in.', 'దయచేసి ముందు ఖాతా సృష్టించి, ఆపై లాగిన్ చేయండి.')}
+              </p>
+              <Link
+                href={`/farmer/signup?phone=${digits}`}
+                className="inline-block bg-amber-600 text-white font-bold px-4 py-2 rounded-lg active:bg-amber-700"
+              >
+                {L('Create an account', 'ఖాతా సృష్టించండి')}
+              </Link>
+            </div>
           )}
 
           <button

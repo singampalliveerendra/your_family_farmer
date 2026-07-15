@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
 
 type Media = {
@@ -19,6 +20,16 @@ export default function FarmMediaTab({ media }: { media: Record<string, unknown>
   const photos = list.filter((m) => m.type === 'photo')
   const videos = list.filter((m) => m.type === 'video')
 
+  // Tapping a real farm photo opens it full-screen; placeholders aren't clickable.
+  const [lightbox, setLightbox] = useState<Media | null>(null)
+  useEffect(() => {
+    if (!lightbox) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightbox(null) }
+    window.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = '' }
+  }, [lightbox])
+
   const gridItems = photos.length > 0
     ? photos
     : PHOTO_PLACEHOLDERS.map((emoji, i) => ({ id: String(i), type: 'photo' as const, url: '', caption: emoji }))
@@ -31,7 +42,14 @@ export default function FarmMediaTab({ media }: { media: Record<string, unknown>
           {gridItems.slice(0, 12).map((item, i) => (
             <div key={item.id ?? i} className="aspect-square bg-green-50 rounded-lg flex items-center justify-center overflow-hidden relative border border-gray-100">
               {item.url ? (
-                <img src={item.url} alt={item.caption ?? ''} className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => setLightbox(item)}
+                  className="w-full h-full"
+                  aria-label={L('View full photo', 'పూర్తి ఫోటో చూడండి')}
+                >
+                  <img src={item.url} alt={item.caption ?? ''} className="w-full h-full object-cover" />
+                </button>
               ) : (
                 <span className="text-3xl">{item.caption}</span>
               )}
@@ -68,6 +86,23 @@ export default function FarmMediaTab({ media }: { media: Record<string, unknown>
 
       {list.length === 0 && (
         <p className="text-xs text-gray-400 text-center py-4">{tx.mediaComingSoon}</p>
+      )}
+
+      {/* Full-screen photo lightbox */}
+      {lightbox?.url && (
+        <button
+          type="button"
+          onClick={() => setLightbox(null)}
+          className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4"
+          aria-label={L('Close photo', 'ఫోటో మూసివేయండి')}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightbox.url}
+            alt={lightbox.caption ?? ''}
+            className="max-w-full max-h-full rounded-2xl object-contain shadow-2xl"
+          />
+        </button>
       )}
     </div>
   )

@@ -248,7 +248,9 @@ type UpiPaymentState = {
 // The cart now lives on its own full-screen route (/consumer/cart) instead of a
 // bottom-sheet overlay, so it reads like a proper checkout page (Flipkart /
 // Blinkit style). The FAB just navigates there.
-export function CartFab() {
+// `raised` lifts the FAB above a page's own fixed bottom action bar (the produce
+// and harvest detail pages have one) so the two don't overlap/merge.
+export function CartFab({ raised = false }: { raised?: boolean }) {
   const { count } = useCart()
   const { L } = useLang()
   const router = useRouter()
@@ -263,11 +265,16 @@ export function CartFab() {
 
   if (count === 0) return null
 
+  // Bottom bar is ~64px tall; add it (plus a gap) when raised.
+  const bottomExpr = raised
+    ? 'calc(max(24px, env(safe-area-inset-bottom, 24px)) + 76px)'
+    : 'max(24px, env(safe-area-inset-bottom, 24px))'
+
   return (
     <button
       onClick={() => router.push('/consumer/cart')}
-      className="fixed bottom-6 right-4 z-[60] bg-green-700 active:bg-green-800 text-white rounded-full shadow-2xl flex items-center gap-2 pl-4 pr-5 py-3.5"
-      style={{ bottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}
+      className="fixed right-4 z-[60] bg-green-700 active:bg-green-800 text-white rounded-full shadow-2xl flex items-center gap-2 pl-4 pr-5 py-3.5"
+      style={{ bottom: bottomExpr }}
       aria-label="View cart"
     >
       <CartIcon />
