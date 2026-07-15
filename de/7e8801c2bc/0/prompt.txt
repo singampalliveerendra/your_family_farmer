@@ -1,0 +1,49 @@
+[Image #1]while Checking  reviews there is a  gap at bottom. did you see that
+
+---
+
+some times
+
+---
+
+[Image #2]unable to see the date text and also when i click submit before login the submit is sent and when clicking view intents then asking login so please fix this , so keep it like when i click submit it have to ask login did you underatnd
+
+---
+
+[Image #3]the turmeric is in english so change to telugu when user click telugu everything have to change
+
+---
+
+[Image #4]when i click farm photo it have show full screen image
+
+---
+
+[Image #5] did you undersand
+
+---
+
+[Image #6] it have to show like this
+
+---
+
+[Image #7]iam unable to see + option in freash harvest near you
+
+---
+
+[Image #8]In this login page, telugu language and settings buttons not visible check it
+
+---
+
+[Image #9]Farmer login and consumer login, without registration while user enter details first time it is showing like this instead of please register before login or some other message which is related. first explain what you understand
+
+---
+
+[Image #10] review is not uploding evey if entered full nnumbers
+
+---
+
+[Image #11]the icons are merged
+
+---
+
+[Image #12]need increment and decrent like +, _ understand?

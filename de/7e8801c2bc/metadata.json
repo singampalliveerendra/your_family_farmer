@@ -1,0 +1,40 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "de7e8801c2bc",
+  "strategy": "manual-commit",
+  "branch": "staging",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "src/app/api/auth/login/route.ts",
+    "src/app/api/consumer/login/route.ts",
+    "src/app/consumer/harvest/[harvestId]/page.tsx",
+    "src/app/consumer/page.tsx",
+    "src/app/consumer/produce/[id]/page.tsx",
+    "src/app/farmer/login/page.tsx",
+    "src/app/farmer/signup/page.tsx",
+    "src/components/consumer/AuthModal.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/components/consumer/FreshHarvestsTable.tsx",
+    "src/components/consumer/ProduceReviewsModal.tsx",
+    "src/components/farmer/tabs/FarmMediaTab.tsx",
+    "src/components/farmer/tabs/ProduceTab.tsx",
+    "src/lib/ConsumerAuthContext.tsx",
+    "src/lib/localizeName.ts",
+    "src/lib/produceNamesTe.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/de/7e8801c2bc/0/metadata.json",
+      "transcript": "/de/7e8801c2bc/0/full.jsonl",
+      "content_hash": "/de/7e8801c2bc/0/content_hash.txt",
+      "prompt": "/de/7e8801c2bc/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 274,
+    "cache_creation_tokens": 180405,
+    "cache_read_tokens": 16664934,
+    "output_tokens": 98826,
+    "api_call_count": 148
+  }
+}
