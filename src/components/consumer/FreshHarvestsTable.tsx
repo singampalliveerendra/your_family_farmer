@@ -7,7 +7,7 @@ import { useCart, EditableQty } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
-import { harvestClock, freshnessLeftDays } from '@/lib/harvest'
+import { harvestRelTime, freshnessLeftDays } from '@/lib/harvest'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
 
 // Two compact harvest tables shown above the consumer search box:
@@ -179,12 +179,19 @@ function HarvestTable({ variant }: { variant: Variant }) {
         <span className="text-[11px] text-gray-500 whitespace-nowrap">{hint}</span>
       </div>
 
-      <table className="w-full text-left border-collapse">
+      {/* Two columns, with the harvest time stacked under the name rather than
+          beside it. Measured at a 390px viewport (a 358px card): real names need
+          34–142px of text ("Ladies Finger" 107, "Pasupu / Turmeric" 142) and the
+          stepper needs 122px at its widest ("− 100 kg +"). Those don't fit
+          alongside a time column too, and the name was the column that lost —
+          hence the old "To…". Stacked, the name gets ~188px and always fits.
+          table-fixed so the stepper keeps its width instead of the browser
+          handing it to whichever cell asks loudest. */}
+      <table className="w-full text-left border-collapse table-fixed">
         <thead>
           <tr className="text-[10px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
             <th className="font-bold px-4 py-2">{L('Harvest', 'కోత')}</th>
-            <th className="font-bold px-4 py-2 text-right">{whenLabel}</th>
-            <th className="w-[84px]" aria-hidden="true"></th>
+            <th className="w-[122px]" aria-hidden="true"></th>
           </tr>
         </thead>
         <tbody>
@@ -197,17 +204,19 @@ function HarvestTable({ variant }: { variant: Variant }) {
                 onClick={() => router.push(`/consumer/harvest/${r.id}`)}
                 className="border-b border-gray-50 last:border-0 cursor-pointer active:bg-green-50"
               >
-                <td className="pl-4 pr-2 py-3 max-w-0">
+                <td className="pl-4 pr-2 py-3">
                   <span className="flex items-center gap-1.5 min-w-0">
                     <span className="text-lg shrink-0">{item.emoji || '🌿'}</span>
                     <span className="text-sm font-bold text-gray-900 truncate">
                       {localizeName(item.name, lang)}
                     </span>
                   </span>
-                </td>
-                <td className="px-2 py-3 text-right align-middle">
-                  <span className={`text-[11px] font-semibold whitespace-nowrap ${variant === 'fresh' ? 'text-green-700' : 'text-blue-700'}`}>
-                    ⏱ {harvestClock(r.harvested_at, L)}
+                  {/* Bare relative time ("2 days ago"), not harvestClock's full
+                      "Harvested 2 days ago" — this line sits under the name where
+                      the prefix reads as noise. The detail page keeps the long
+                      form. Indented past the emoji to line up with the name. */}
+                  <span className={`block pl-[26px] text-[11px] font-semibold ${variant === 'fresh' ? 'text-green-700' : 'text-blue-700'}`}>
+                    ⏱ {harvestRelTime(r.harvested_at, L)}
                   </span>
                 </td>
                 {/* Quantity stepper — adds/adjusts THIS harvest (keyed by harvest

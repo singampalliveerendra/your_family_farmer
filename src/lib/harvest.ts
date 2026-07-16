@@ -29,7 +29,10 @@ function startOfLocalDay(ms: number): number {
 
 // "just now" / "12 min ago" / "2 hours ago" / "yesterday" / "3 days ago".
 // For a future harvest (farmer logged an upcoming pick) → "in 2 hours" etc.
-function relTime(iso: string, L: Tr): string {
+// Exported bare (without the "Harvested" prefix harvestClock adds) for the
+// compact harvest tables, where the column header already says When/Expected
+// and the width is needed for the harvest name.
+export function harvestRelTime(iso: string, L: Tr = en): string {
   const then = new Date(iso).getTime()
   if (isNaN(then)) return ''
   const now = Date.now()
@@ -60,7 +63,7 @@ function relTime(iso: string, L: Tr): string {
 
 // The headline clock shown on a harvest, e.g. "🌾 Harvested 2 hours ago".
 export function harvestClock(harvestedAt: string, L: Tr = en): string {
-  const rel = relTime(harvestedAt, L)
+  const rel = harvestRelTime(harvestedAt, L)
   if (!rel) return ''
   const future = new Date(harvestedAt).getTime() > Date.now()
   return future
