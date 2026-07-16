@@ -1,0 +1,74 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "a0d43f1a031d",
+  "session_id": "8977c145-c136-4201-a593-17018afcdd61",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-16T05:34:20.569015288Z",
+  "branch": "staging",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "src/app/consumer/harvest/[harvestId]/page.tsx",
+    "src/app/consumer/page.tsx",
+    "src/app/consumer/produce/[id]/page.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/components/consumer/FreshHarvestsTable.tsx",
+    "src/components/farmer/tabs/ProduceTab.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "528cf9462b77",
+  "token_usage": {
+    "input_tokens": 106,
+    "cache_creation_tokens": 77659,
+    "cache_read_tokens": 3752735,
+    "output_tokens": 29522,
+    "api_call_count": 57
+  },
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-16T05:34:20.533830672Z",
+    "agent_lines": 268,
+    "agent_removed": 126,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 268,
+    "total_lines_changed": 394,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 9,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 9,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 9,
+      "user_lines_removed": 0,
+      "agent_lines_added": 111,
+      "agent_lines_removed": 18,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9
+      }
+    }
+  ]
+}

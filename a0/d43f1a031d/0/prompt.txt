@@ -1,0 +1,15 @@
+have we merged the code ?
+
+---
+
+[Image #1] in farmer profile also add +, - [Image #2]
+
+---
+
+commit and push to stage and merge
+
+---
+
+[Image #3] In the Add to Cart section and on the Cart page, the quantity should be editable by clicking on the quantity field. For example, if the quantity is 1 kg, the user should be able to click on it and enter the desired quantity using the keyboard.
+
+The current issue is that if a customer wants to order 50 kg, they have to click the + button 49 times, which is time-consuming and provides a poor user experience. Please make the quantity field directly editable so users can type the required quantity.
