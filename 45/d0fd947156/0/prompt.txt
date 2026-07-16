@@ -1,0 +1,37 @@
+[Image #1] [Image #2] [Image #3] for testing site
+
+---
+
+what query should i exactly paste in supabase
+
+---
+
+done
+
+---
+
+should we have to deploy anything
+
+---
+
+[Image #4]TEST: Today's Harvests lists in Consumer Dashboard doesn't show the name of the harvest properly. It is cut off. why
+
+---
+
+.
+
+---
+
+Harvest Pause and Suspend both are same. we can retain one and remove another for a Farmer Harvest management.
+
+---
+
+what should i add in supabase
+
+---
+
+TEST: Today's Harvests lists in Consumer Dashboard doesn't show the name of the harvest properly. It is cut off.[Image #5]
+
+---
+
+okay commit and push and merge
