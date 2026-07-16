@@ -398,11 +398,6 @@ export default function FarmerDashboard() {
     router.replace('/farmer/login')
   }
 
-  // Quick suspend/resume from the dashboard's inline produce list. Mirrors the
-  // Manage Listings modal: flips 'suspended_by_farmer' ⇄ 'available'.
-  // Uses the anon client + RLS UPDATE policy, the same public-write model as the
-  // Add/Delete produce flows. .select('id') confirms a row actually changed —
-  // without an UPDATE policy the write would silently match 0 rows.
   if (loading) return <LoadingScreen />
   if (notFound) return <FarmerNotFound onLogout={handleLogout} />
 
@@ -2774,14 +2769,15 @@ function ManageListingsModal({
   // Pause hides a listing from consumers without deleting it; Resume brings it
   // back. Unlike Delete this is fully reversible. We flip the status between
   // 'paused' and 'available' — consumer queries only ever show 'available'.
+  //
+  // This is the farmer's only take-down. There used to be a second button,
+  // Suspend ('suspended_by_farmer'), that did exactly the same thing; it was
+  // removed because two identical controls only raised the question of which to
+  // press, and "suspend" already means a *moderator* take-down ('suspended')
+  // elsewhere in the app. Legacy rows are migrated to 'paused' by
+  // scripts/remove-farmer-suspend-migration.sql.
   const handleTogglePause = (row: ListingRow) =>
     setListingStatus(row, row.status === 'paused' ? 'available' : 'paused')
-
-  // Suspend is a second, independent reversible take-down (status
-  // 'suspended_by_farmer'), distinct from Pause and from a moderator suspension.
-  // Like Pause it hides the listing from buyers; Resume returns it to available.
-  const handleToggleSuspend = (row: ListingRow) =>
-    setListingStatus(row, row.status === 'suspended_by_farmer' ? 'available' : 'suspended_by_farmer')
 
   const handleDelete = async (row: ListingRow) => {
     if (!confirm(tx.confirmDelete.replace('{name}', row.name))) return
@@ -2858,7 +2854,6 @@ function ManageListingsModal({
               onDelete={() => handleDelete(row)}
               onEdit={() => setEditingRow(row)}
               onTogglePause={() => handleTogglePause(row)}
-              onToggleSuspend={() => handleToggleSuspend(row)}
             />
           ))}
         </div>
@@ -2930,7 +2925,6 @@ function ListingRowCard({
   onDelete,
   onEdit,
   onTogglePause,
-  onToggleSuspend,
 }: {
   row: ListingRow
   farmerId: string
@@ -2938,13 +2932,11 @@ function ListingRowCard({
   onDelete: () => void
   onEdit: () => void
   onTogglePause: () => void
-  onToggleSuspend: () => void
 }) {
   const { tx, L } = useLang()
   const emoji = row.emoji ?? '🌿'
 
   const isPaused = row.status === 'paused'
-  const isSuspended = row.status === 'suspended_by_farmer'
   const statusLabel =
     row.status === 'available'
       ? tx.availableLabel
@@ -2952,8 +2944,6 @@ function ListingRowCard({
       ? tx.comingSoon
       : row.status === 'paused'
       ? L('Paused by farmer', 'రైతు నిలిపివేశారు')
-      : row.status === 'suspended_by_farmer'
-      ? L('Suspended by you', 'మీరు నిలిపివేశారు')
       : row.status === 'suspended'
       ? L('Suspended', 'నిలిపివేయబడింది')
       : row.status === 'sold_out'
@@ -2966,16 +2956,12 @@ function ListingRowCard({
       ? 'bg-amber-100 text-amber-800'
       : row.status === 'paused'
       ? 'bg-purple-100 text-purple-800'
-      : row.status === 'suspended_by_farmer'
-      ? 'bg-red-100 text-red-800'
       : row.status === 'suspended'
       ? 'bg-orange-100 text-orange-800'
       : 'bg-gray-100 text-gray-700'
-  // Farmer can pause/resume their own active or sold-out listings (not
-  // moderator-suspended or coming-soon ones). Pause and Suspend are mutually
-  // exclusive states, so each control hides while the other is active.
+  // Farmer can pause/resume their own active or sold-out listings, but not ones
+  // a moderator suspended or that are still coming soon.
   const canPause = row.status === 'available' || row.status === 'sold_out' || row.status === 'paused'
-  const canSuspend = row.status === 'available' || row.status === 'sold_out' || row.status === 'suspended_by_farmer'
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
@@ -3024,35 +3010,20 @@ function ListingRowCard({
 
       <div className="px-3 pb-3 space-y-2">
 
-        {/* Pause / Suspend — two independent reversible hide-from-buyers
-            controls, both distinct from Delete. Only the relevant one shows
-            once a listing is already paused or suspended. */}
-        {(canPause || canSuspend) && (
+        {/* Pause — the farmer's reversible hide-from-buyers control, distinct
+            from Delete. Flips to Resume once the listing is paused. */}
+        {canPause && (
           <div className="flex gap-2">
-            {canPause && (
-              <button
-                onClick={onTogglePause}
-                className={`flex-1 font-bold py-2.5 rounded-xl text-sm border ${
-                  isPaused
-                    ? 'border-green-600 text-green-700 active:bg-green-50'
-                    : 'border-purple-300 text-purple-700 active:bg-purple-50'
-                }`}
-              >
-                {isPaused ? L('▶ Resume', 'తిరిగి చూపించు') : L('⏸ Pause', 'అమ్మకం ఆపండి')}
-              </button>
-            )}
-            {canSuspend && (
-              <button
-                onClick={onToggleSuspend}
-                className={`flex-1 font-bold py-2.5 rounded-xl text-sm border ${
-                  isSuspended
-                    ? 'border-green-600 text-green-700 active:bg-green-50'
-                    : 'border-red-300 text-red-600 active:bg-red-50'
-                }`}
-              >
-                {isSuspended ? L('▶ Resume', 'తిరిగి చూపించు') : L('⛔ Suspend', 'నిలిపివేయి')}
-              </button>
-            )}
+            <button
+              onClick={onTogglePause}
+              className={`flex-1 font-bold py-2.5 rounded-xl text-sm border ${
+                isPaused
+                  ? 'border-green-600 text-green-700 active:bg-green-50'
+                  : 'border-purple-300 text-purple-700 active:bg-purple-50'
+              }`}
+            >
+              {isPaused ? L('▶ Resume', 'తిరిగి చూపించు') : L('⏸ Pause', 'అమ్మకం ఆపండి')}
+            </button>
           </div>
         )}
         <div className="flex gap-2">
