@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
-import { useCart } from '@/components/consumer/Cart'
+import { useCart, EditableQty } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
 
@@ -490,9 +490,14 @@ function ProduceCard({
               >
                 −
               </button>
-              <span className="font-extrabold text-green-900 text-base tabular-nums">
-                {inCart.qty} {L('kg in cart', 'కేజీ బుట్టలో')}
-              </span>
+              <EditableQty
+                qty={inCart.qty}
+                unit={L('kg in cart', 'కేజీ బుట్టలో')}
+                max={inCart.stockQty}
+                onChange={(n) => setQty(item.id, n)}
+                inputClassName="font-extrabold text-green-900 text-base"
+                unitClassName="font-extrabold text-green-900 text-base"
+              />
               <button
                 onClick={() => setQty(item.id, inCart.qty + 1)}
                 disabled={atMax}

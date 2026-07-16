@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import GlobalNav from '@/components/consumer/GlobalNav'
-import { CartFab, useCart } from '@/components/consumer/Cart'
+import { CartFab, useCart, EditableQty } from '@/components/consumer/Cart'
 import MyOrdersChip from '@/components/consumer/MyOrdersChip'
 import RoleGateModal from '@/components/consumer/RoleGateModal'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
@@ -920,9 +920,14 @@ function ProduceCard({ item, harvest, distanceKm, distanceApprox }: { item: Prod
               >
                 −
               </button>
-              <span className="font-extrabold text-green-900 text-sm">
-                {inCart.qty} {unit}
-              </span>
+              <EditableQty
+                qty={inCart.qty}
+                unit={unit}
+                max={liveStock}
+                onChange={(n) => { setQty(cartKey, n); setStockMsg('') }}
+                inputClassName="font-extrabold text-green-900 text-sm"
+                unitClassName="font-extrabold text-green-900 text-sm"
+              />
               <button
                 onClick={handleInc}
                 disabled={atMax}

@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation'
 import { useLang } from '@/lib/LanguageContext'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
-import { useCart, CartFab } from '@/components/consumer/Cart'
+import { useCart, CartFab, EditableQty } from '@/components/consumer/Cart'
 import { supabase } from '@/lib/supabase'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
 import { localizeName } from '@/lib/localizeName'
@@ -430,7 +430,14 @@ export default function HarvestDetailPage() {
         ) : (
           <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl h-12 px-3">
             <button onClick={() => { setQty(harvest.id, inCart.qty - 1); setStockMsg('') }} className="w-9 h-9 rounded-lg bg-white border border-green-300 text-green-800 text-xl font-bold" aria-label="Decrease">−</button>
-            <span className="font-extrabold text-green-900">{inCart.qty} {unit}</span>
+            <EditableQty
+              qty={inCart.qty}
+              unit={unit}
+              max={liveStock}
+              onChange={(n) => { setQty(harvest.id, n); setStockMsg('') }}
+              inputClassName="font-extrabold text-green-900 text-base"
+              unitClassName="font-extrabold text-green-900"
+            />
             <button onClick={handleInc} disabled={atMax} className={`w-9 h-9 rounded-lg text-xl font-bold ${atMax ? 'bg-gray-200 text-gray-400' : 'bg-green-700 text-white'}`} aria-label="Increase">+</button>
           </div>
         )}

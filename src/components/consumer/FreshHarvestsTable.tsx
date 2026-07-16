@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { useCart } from '@/components/consumer/Cart'
+import { useCart, EditableQty } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
@@ -225,9 +225,14 @@ function HarvestTable({ variant }: { variant: Variant }) {
                       >
                         −
                       </button>
-                      <span className="text-sm font-bold text-gray-900 w-4 text-center tabular-nums">
-                        {cart[r.id]?.qty ?? 1}
-                      </span>
+                      <EditableQty
+                        qty={cart[r.id]?.qty ?? 1}
+                        unit="kg"
+                        max={cart[r.id]?.stockQty}
+                        onChange={(n) => setQty(r.id, n)}
+                        inputClassName="text-sm font-bold text-gray-900"
+                        unitClassName="text-sm font-bold text-gray-900"
+                      />
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setQty(r.id, (cart[r.id]?.qty ?? 0) + 1) }}

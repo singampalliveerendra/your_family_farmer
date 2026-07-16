@@ -1681,6 +1681,8 @@ export function CartSheet({
                           <QtyStepper
                             qty={it.qty}
                             maxQty={it.stockQty}
+                            unit={it.unit || 'kg'}
+                            onSet={(n) => setQty(cartKeyOf(it), n)}
                             onDec={() => setQty(cartKeyOf(it), it.qty - 1)}
                             onInc={() => {
                               if (it.stockQty != null && it.qty >= it.stockQty) {
@@ -2124,15 +2126,77 @@ export function CartSheet({
   )
 }
 
+// A tap-to-type quantity field. Shows the current qty (e.g. "50 kg") but the
+// number is an editable input, so a buyer wanting 50 kg types it instead of
+// pressing + forty-nine times. Commits on blur / Enter, clamped to [1, max].
+// The unit label sits outside the input and inherits the caller's text styling.
+export function EditableQty({
+  qty,
+  unit = 'kg',
+  max,
+  onChange,
+  inputClassName = '',
+  unitClassName = '',
+}: {
+  qty: number
+  unit?: string
+  max?: number | null
+  onChange: (n: number) => void
+  inputClassName?: string
+  unitClassName?: string
+}) {
+  const [text, setText] = useState(String(qty))
+  const focused = useRef(false)
+  // Keep the field in sync with the cart when the change came from elsewhere
+  // (− / + buttons, another card), but never clobber what the user is typing.
+  useEffect(() => {
+    if (!focused.current) setText(String(qty))
+  }, [qty])
+
+  const commit = () => {
+    let n = Math.floor(Number(text))
+    if (!Number.isFinite(n) || n < 1) n = 1
+    if (max != null && n > max) n = max
+    setText(String(n))
+    if (n !== qty) onChange(n)
+  }
+
+  return (
+    <span
+      className="inline-flex items-baseline gap-1"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={text}
+        aria-label="Quantity"
+        onFocus={(e) => { focused.current = true; e.currentTarget.select() }}
+        onChange={(e) => setText(e.target.value.replace(/[^0-9]/g, ''))}
+        onBlur={() => { focused.current = false; commit() }}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur() }}
+        style={{ width: `${Math.max(String(text).length, 1) + 1}ch`, borderBottom: '1px dotted currentColor' }}
+        className={`text-center bg-transparent outline-none p-0 ${inputClassName}`}
+      />
+      <span className={unitClassName}>{unit}</span>
+    </span>
+  )
+}
+
 function QtyStepper({
   qty,
   onDec,
   onInc,
+  onSet,
+  unit = 'kg',
   maxQty,
 }: {
   qty: number
   onDec: () => void
   onInc: () => void
+  onSet: (n: number) => void
+  unit?: string
   maxQty?: number
 }) {
   const atMax = maxQty != null && qty >= maxQty
@@ -2145,8 +2209,8 @@ function QtyStepper({
       >
         −
       </button>
-      <span className="w-10 text-center font-bold text-sm text-gray-900">
-        {qty}
+      <span className="w-16 text-center font-bold text-sm text-gray-900 flex items-center justify-center">
+        <EditableQty qty={qty} unit={unit} max={maxQty} onChange={onSet} />
       </span>
       <button
         onClick={onInc}
