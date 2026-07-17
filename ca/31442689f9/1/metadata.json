@@ -1,0 +1,99 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "ca31442689f9",
+  "session_id": "7a7560cd-7f37-4205-98fd-0532ced999e8",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-17T10:13:29.976637039Z",
+  "branch": "staging",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "src/app/farmer/dashboard/orders/[id]/page.tsx",
+    "src/app/farmer/dashboard/orders/page.tsx",
+    "src/components/farmer/OrderCard.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "56765665e6d2",
+  "token_usage": {
+    "input_tokens": 1384,
+    "cache_creation_tokens": 70361,
+    "cache_read_tokens": 503781,
+    "output_tokens": 7628,
+    "api_call_count": 14
+  },
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-17T10:13:29.967493054Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 39,
+    "human_removed": 47,
+    "total_committed": 0,
+    "total_lines_changed": 86,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 472,
+      "user_lines_removed": 62,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9,
+        "scripts/staging-moderator-kapil.sql": 40,
+        "src/app/api/farmer/orders/riders/route.ts": 67,
+        "src/app/farmer/dashboard/orders/[id]/page.tsx": 59,
+        "src/app/farmer/dashboard/orders/page.tsx": 1,
+        "src/components/farmer/OrderCard.tsx": 106,
+        "src/lib/delivery.ts": 136,
+        "src/lib/farmer-riders.ts": 54
+      },
+      "user_removed_per_file": {
+        "src/app/farmer/dashboard/orders/[id]/page.tsx": 28,
+        "src/app/farmer/dashboard/orders/page.tsx": 1,
+        "src/components/farmer/OrderCard.tsx": 33
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 48,
+      "user_lines_removed": 24,
+      "agent_lines_added": 412,
+      "agent_lines_removed": 64,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9,
+        "src/app/farmer/dashboard/orders/[id]/page.tsx": 36,
+        "src/components/farmer/OrderCard.tsx": 3
+      },
+      "user_removed_per_file": {
+        "src/app/farmer/dashboard/orders/[id]/page.tsx": 18,
+        "src/components/farmer/OrderCard.tsx": 6
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 9,
+      "user_lines_removed": 0,
+      "agent_lines_added": 439,
+      "agent_lines_removed": 76,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 9,
+      "user_lines_removed": 0,
+      "agent_lines_added": 439,
+      "agent_lines_removed": 76,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9
+      }
+    }
+  ]
+}

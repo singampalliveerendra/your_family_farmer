@@ -1,0 +1,13 @@
+how do you handle if server gets more requests at a time and whats the capacity of you webapp
+
+---
+
+total how many lines of code is there in thi webapp
+
+---
+
+next.js ?
+
+---
+
+what is .tsx, .ts
