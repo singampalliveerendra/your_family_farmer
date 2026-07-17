@@ -1,0 +1,63 @@
+for testing website the client need account for moderator with all access so create a aaccount for moderator and send the user name and apssword name kapil
+
+---
+
+7893074271
+
+---
+
+could you please change the password
+
+---
+
+should we commit and push to main [Image #1]
+
+---
+
+showing too many attempts try after 15 min so please refresh that
+
+---
+
+Phone number
+7893074271
+Password
+••••••••••••••••
+Wrong phone or password.
+
+Log in
+
+---
+
+1. When the raider accepts the delivery, the farmer order status changed to Home Delivery- Rider Assigned. But the message is wrong “You’ll see their contact here when assigned.” 2. When the rider says Marked Pickup. On the farmer order, it shows Home Delivery - Picked up which is correct. But the message is wrong. “A delivery boy will pickup the order. You’ll see their contact here when assigned” It shows picked up for consumer.3. When the rider says Out for delivery. The farmer order status Home Delivery - Out for Delivery is updated and correct. However the message is wrong. “A delivery boy will pickup the order. You’ll see their contact here when assigned” It shows picked up for consumer.4. To Do
+
+
+
+
+When the rider say Delivered, it is being updated for the consumer showing all the status like Order Placed->Rider Assigned->Picked up->Out for Delivery->Delivered. But for a farmer it shows progress as Order Placed->Payment Received->Approved by out only Shipped and Delivered are disabled.
+
+When the rider say Delivered, it is being updated for the consumer showing all the status like Order Placed->Rider Assigned->Picked up->Out for Delivery->Delivered. But for a farmer it shows progress as Order Placed->Payment Received->Approved by out only Shipped and Delivered are disabled.
+
+Add
+
+Add
+
+Labels
+
+Dates
+
+Checklist
+
+Members
+Description
+Edit
+Not status is being updated on the order progress for farner
+
+Accept the delivery
+
+Pickedup
+
+Marked as delivered. explain in very simple thatw what you understad in neat way before doing
+
+---
+
+do both and need very accurate flow and the rider easy to underatnd and with more detail do everythiung tht client said and more work also no problem
