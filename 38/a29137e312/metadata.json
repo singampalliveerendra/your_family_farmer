@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "38a29137e312",
+  "strategy": "manual-commit",
+  "branch": "staging",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "scripts/staging-moderator-kapil.sql"
+  ],
+  "sessions": [
+    {
+      "metadata": "/38/a29137e312/0/metadata.json",
+      "transcript": "/38/a29137e312/0/full.jsonl",
+      "content_hash": "/38/a29137e312/0/content_hash.txt",
+      "prompt": "/38/a29137e312/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 239,
+    "cache_creation_tokens": 174877,
+    "cache_read_tokens": 12392019,
+    "output_tokens": 77757,
+    "api_call_count": 128
+  }
+}
