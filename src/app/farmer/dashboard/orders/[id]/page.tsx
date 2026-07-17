@@ -8,8 +8,15 @@ import { useLang } from '@/lib/LanguageContext'
 import { isOrderPaid, isPaymentClaimed } from '@/lib/payment'
 import { harvestClock } from '@/lib/harvest'
 import { requireFarmerSession } from '@/lib/farmer-auth-client'
-
-type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
+import { useFarmerRiders } from '@/lib/farmer-riders'
+import {
+  type DeliveryStatus,
+  deliveryReached,
+  farmerDeliveryStage,
+  formatStageAt,
+  isHandedOver,
+  isRiderFlow,
+} from '@/lib/delivery'
 
 function isOnlinePayment(method: string | null | undefined): boolean {
   return method === 'razorpay' || method === 'upi'
@@ -74,7 +81,6 @@ export default function FarmerOrderDetailPage() {
   const id = typeof params?.id === 'string' ? params.id : ''
   const { tx, L } = useLang()
   const [order, setOrder] = useState<Order | null>(null)
-  const [rider, setRider] = useState<{ name: string | null; phone: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
 
@@ -116,22 +122,12 @@ export default function FarmerOrderDetailPage() {
     return () => { cancelled = true }
   }, [id])
 
-  // Pull the assigned rider's contact for home deliveries (mirrors the card).
-  useEffect(() => {
-    const riderId = order?.delivery_boy_id ?? null
-    if (!riderId) { setRider(null); return }
-    let cancelled = false
-    supabase
-      .from('delivery_boys')
-      .select('name, phone')
-      .eq('id', riderId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (cancelled || !data) return
-        setRider({ name: data.name ?? null, phone: data.phone as string })
-      })
-    return () => { cancelled = true }
-  }, [order?.delivery_boy_id])
+  // Assigned rider's contact for home deliveries (mirrors the card). Read via
+  // the farmer API, not straight from delivery_boys: that table is service-role
+  // only, so the anon client this page uses gets an empty result every time —
+  // which is why the rider's number never used to show up here.
+  const riders = useFarmerRiders()
+  const rider = order?.delivery_boy_id ? riders[order.id] ?? null : null
 
   const fmt = (iso?: string | null) =>
     iso ? new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''
@@ -141,10 +137,22 @@ export default function FarmerOrderDetailPage() {
   // the money has changed hands — cash is taken at pickup, and an online order
   // would never be shipped unpaid. So a delivered order is settled regardless
   // of whether payment_status was explicitly flipped to 'completed'.
-  const isDelivered = !!order?.received_at || !!order?.collected_at
+  // A rider-closed home delivery never stamps received_at (the rider's route
+  // sets delivery_status + delivered_at), so it has to count here too — else a
+  // COD order the rider already delivered still reads "Payment Pending".
+  const isDelivered = !!order && isHandedOver(order)
   const isPaid = isOrderPaid(order?.payment_status) || isDelivered
   const isDelivery = order?.delivery_type === 'home_delivery'
   const isCourier = order?.delivery_type === 'courier'
+  // Home delivery that a rider has actually taken on. Home deliveries with no
+  // rider are farmer-fulfilled, so they follow the farmer's Shipped flow — the
+  // same rule the orders list uses to decide which buttons to show.
+  const riderFlow = !!order && isRiderFlow(order)
+  const riderStage = farmerDeliveryStage(
+    order ?? {},
+    rider?.name?.trim() || L('The delivery boy', 'డెలివరీ బాయ్'),
+    L,
+  )
   // Self-pickup: the buyer collects from the farm, so the dispatch milestone
   // reads "Picked up" rather than the courier/delivery wording "Shipped".
   const isPickup = !!order && !isDelivery && !isCourier
@@ -175,25 +183,51 @@ export default function FarmerOrderDetailPage() {
     return o.payment_method
   }
 
-  // Fulfilment milestones — mirrors the consumer's tracker exactly so both
-  // sides stay in sync: Order placed → (Payment received) → Approved → Shipped
-  // → Delivered. The old rider flow (assigned / picked-up / out-for-delivery)
-  // is gone: every order now moves farmer-taps-Shipped → buyer-taps-Delivered,
-  // regardless of pickup / courier / home delivery.
+  // Fulfilment milestones. Two different tails, because two different things can
+  // actually move an order:
+  //
+  //   rider flow (home delivery, rider assigned)
+  //     … → Approved → Rider assigned → Picked up → Out for delivery → Delivered
+  //     Driven by delivery_status + the rider's own timestamps. The rider never
+  //     stamps shipped_at/received_at, so keying the tail off those columns left
+  //     "Shipped" and "Delivered" greyed out forever even after the rider had
+  //     delivered — the farmer's tracker simply never moved.
+  //
+  //   farmer flow (self-pickup, courier, home delivery with no rider)
+  //     … → Approved → (Shipped) → Delivered / Collected
+  //     The farmer taps Shipped, the buyer confirms receipt. Self-pickup has no
+  //     in-transit step, so "Collected" is its only handover milestone.
+  //
+  // Both mirror what the buyer sees on their side, so neither party is looking
+  // at a tracker the other would disagree with.
   const milestones: { label: string; at: string | null; done: boolean }[] = order
     ? (() => {
         const approved = order.status === 'approved'
-        const delivered = !!order.received_at || !!order.collected_at
         const paidOnline = isOnlinePayment(order.payment_method) && isOrderPaid(order.payment_status)
-        return [
+
+        const head = [
           { label: L('Order placed', 'ఆర్డర్ వచ్చింది'), at: order.created_at, done: true },
           ...(paidOnline
             ? [{ label: L('Payment received', 'చెల్లింపు అందింది'), at: order.paid_at, done: true }]
             : []),
+        ]
+
+        if (riderFlow) {
+          const reached = (s: DeliveryStatus) => deliveryReached(order.delivery_status, s)
+          return [
+            ...head,
+            { label: L('Approved by you', 'మీరు ఆమోదించారు'), at: order.confirmed_at, done: approved || reached('assigned') },
+            { label: L('Rider assigned', 'రైడర్ కేటాయించారు'), at: order.assigned_at, done: reached('assigned') },
+            { label: L('Picked up from you', 'మీ వద్ద నుండి తీసుకెళ్లారు'), at: order.picked_up_at, done: reached('picked_up') },
+            { label: L('Out for delivery', 'డెలివరీకి బయలుదేరారు'), at: order.out_for_delivery_at, done: reached('out_for_delivery') },
+            { label: L('Delivered to buyer', 'కొనుగోలుదారుకు అందింది'), at: order.delivered_at || order.received_at, done: reached('delivered') },
+          ]
+        }
+
+        const delivered = !!order.received_at || !!order.collected_at
+        return [
+          ...head,
           { label: L('Approved by you', 'మీరు ఆమోదించారు'), at: order.confirmed_at, done: approved || delivered },
-          // Self-pickup has no in-transit step — the buyer just collects from the
-          // farm, so "Collected" is the only handover milestone. Courier/delivery
-          // still show "Shipped" before "Delivered".
           ...(isPickup
             ? []
             : [{ label: L('Shipped', 'షిప్ చేశారు'), at: order.shipped_at, done: !!order.shipped_at }]),
@@ -366,11 +400,26 @@ export default function FarmerOrderDetailPage() {
                   ⚠️ {L('Date change reason (shown to buyer)', 'తేదీ మార్పు కారణం (కొనుగోలుదారుకు చూపబడుతుంది)')}: {order.reschedule_reason}
                 </p>
               )}
-              {rider && (
-                <div className="border-t border-gray-100 pt-2 mt-1">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase">{L('Delivery boy', 'డెలివరీ బాయ్')}</p>
-                  <p className="text-sm font-bold text-gray-900">{rider.name || 'Rider'}</p>
-                  <a href={`tel:${rider.phone}`} className="text-xs font-semibold text-blue-700">📞 {rider.phone}</a>
+              {/* Rider panel. Shown on every home delivery — not only once the
+                  contact has loaded — so the farmer always knows whether anyone
+                  has taken the order, and what that person is doing right now. */}
+              {isDelivery && order.status !== 'declined' && order.status !== 'cancelled' && (
+                <div className="border-t border-gray-100 pt-2 mt-1 space-y-1">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">
+                    {L('Delivery boy', 'డెలివరీ బాయ్')}
+                    {riderStage.at ? ` · ${formatStageAt(riderStage.at)}` : ''}
+                  </p>
+                  {rider ? (
+                    <>
+                      <p className="text-sm font-bold text-gray-900">{rider.name || L('Rider', 'రైడర్')}</p>
+                      <a href={`tel:${rider.phone}`} className="text-xs font-semibold text-blue-700">
+                        📞 {rider.phone}
+                      </a>
+                    </>
+                  ) : (
+                    <p className="text-sm font-bold text-gray-500">{riderStage.title}</p>
+                  )}
+                  <p className="text-xs text-gray-600 leading-snug">{riderStage.body}</p>
                 </div>
               )}
             </div>

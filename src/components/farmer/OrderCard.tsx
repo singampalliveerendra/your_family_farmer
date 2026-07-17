@@ -1,13 +1,21 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
+import { useFarmerRiders } from '@/lib/farmer-riders'
+import {
+  type DeliveryStatus,
+  farmerDeliveryStage,
+  formatStageAt,
+  isRiderFlow,
+} from '@/lib/delivery'
 import { isOrderPaid, isPaymentClaimed as isPaymentClaimed_, isDepositPaid, cashDue } from '@/lib/payment'
 import { harvestClock } from '@/lib/harvest'
 
-export type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
+// Re-exported so existing importers keep working; the flow itself lives in
+// @/lib/delivery, shared with the farmer order-detail page.
+export type { DeliveryStatus }
 
 type HarvestRef = { harvested_at: string; shelf_life_days?: number | null }
 
@@ -52,6 +60,15 @@ export type FarmerOrder = {
   delivery_type?: 'self_pickup' | 'home_delivery' | 'courier' | null
   delivery_status?: DeliveryStatus | null
   delivery_boy_id?: string | null
+  // Rider-flow milestones, stamped by the rider's own routes (never by the
+  // farmer): accept → assigned_at, pickup → picked_up_at, out-for-delivery →
+  // out_for_delivery_at, deliver → delivered_at. The farmer's shipped_at /
+  // received_at stay null on a rider order, so these are the only timestamps
+  // that tell the farmer where their produce actually is.
+  assigned_at?: string | null
+  picked_up_at?: string | null
+  out_for_delivery_at?: string | null
+  delivered_at?: string | null
   fulfillment_date?: string | null
   collected_at?: string | null
   shipped_at?: string | null
@@ -137,9 +154,7 @@ export default function OrderCard({
   // A home delivery is in the rider flow once a rider is assigned (delivery
   // status moved past 'unassigned'). Those stay rider-closed; home deliveries
   // with no rider are farmer-shipped, so the farmer marks them Shipped.
-  const riderAssigned = isDelivery
-    && order.delivery_status != null
-    && order.delivery_status !== 'unassigned'
+  const riderAssigned = isRiderFlow(order)
   const isApproved = order.status === 'approved'
   // Stored as a full timestamp (timestamptz ISO). The schedule carries a time,
   // not just a date, so the picker is a datetime-local.
@@ -735,58 +750,60 @@ export default function OrderCard({
 }
 
 /* ─── Home-delivery rider tag ──────────────────────────────── */
+// What the farmer sees on a home delivery once a rider is in the picture. The
+// wording tracks delivery_status, so it says what is actually happening right
+// now — an assigned rider is coming to the farm, a picked-up order has already
+// left it. (It used to print one fixed "you'll see their contact when assigned"
+// line at every stage, which was wrong from the moment a rider accepted.)
+//
+// Rider contact comes from /api/farmer/orders/riders, not from a direct
+// delivery_boys read: that table is service-role only, so the farmer's anon key
+// silently gets nothing back — which is exactly why the contact never appeared.
 function DeliveryTagForFarmer({ order }: { order: FarmerOrder }) {
-  const [rider, setRider] = useState<{ name: string | null; phone: string } | null>(null)
-  const riderId = order.delivery_boy_id ?? null
+  const { L } = useLang()
+  const riders = useFarmerRiders()
+  const rider = order.delivery_boy_id ? riders[order.id] ?? null : null
+  const ds: DeliveryStatus = order.delivery_status ?? 'unassigned'
 
-  useEffect(() => {
-    if (!riderId) { setRider(null); return }
-    let cancelled = false
-    supabase
-      .from('delivery_boys')
-      .select('name, phone')
-      .eq('id', riderId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (cancelled || !data) return
-        setRider({ name: data.name ?? null, phone: data.phone as string })
-      })
-    return () => { cancelled = true }
-  }, [riderId])
+  // Used inside the explanation lines. Falls back to a neutral noun while the
+  // contact fetch is in flight, or when the rider has no name on file, so the
+  // sentence still reads properly.
+  const who = rider?.name?.trim() || L('The delivery boy', 'డెలివరీ బాయ్')
 
-  const statusText = (() => {
-    switch (order.delivery_status) {
-      case 'assigned': return 'Rider assigned'
-      case 'picked_up': return 'Picked up'
-      case 'out_for_delivery': return 'Out for delivery'
-      case 'delivered': return 'Delivered'
-      default: return 'Waiting for rider'
-    }
-  })()
+  const stage = farmerDeliveryStage(order, who, L)
+  const atLabel = formatStageAt(stage.at)
 
   return (
     <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 mt-1 space-y-1.5">
       <p className="text-[10px] font-bold text-blue-800 uppercase tracking-wide">
-        🛵 Home delivery · {statusText}
+        🛵 {L('Home delivery', 'ఇంటికి డెలివరీ')} · {stage.title}
+        {atLabel ? ` · ${atLabel}` : ''}
       </p>
-      {rider ? (
+
+      {rider && (
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-xs font-bold text-gray-900 truncate">{rider.name || 'Rider'}</p>
-            <p className="text-[11px] text-gray-500">For pickup coordination</p>
+            <p className="text-xs font-bold text-gray-900 truncate">
+              {rider.name || L('Rider', 'రైడర్')}
+            </p>
+            <p className="text-[11px] text-gray-500">
+              {ds === 'assigned'
+                ? L('Coming to collect', 'తీసుకెళ్లడానికి వస్తున్నారు')
+                : ds === 'delivered'
+                  ? L('Completed this delivery', 'ఈ డెలివరీ పూర్తి చేశారు')
+                  : L('Carrying your order', 'మీ ఆర్డర్ తీసుకెళ్తున్నారు')}
+            </p>
           </div>
           <a
             href={`tel:${rider.phone}`}
             className="bg-blue-600 text-white font-bold text-xs px-3 py-2 rounded-xl whitespace-nowrap active:bg-blue-700"
           >
-            📞 Call · {rider.phone}
+            📞 {L('Call', 'కాల్')} · {rider.phone}
           </a>
         </div>
-      ) : (
-        <p className="text-[11px] text-blue-700">
-          A delivery boy will pick up the order. You&apos;ll see their contact here when assigned.
-        </p>
       )}
+
+      <p className="text-[11px] text-blue-700">{stage.body}</p>
     </div>
   )
 }
