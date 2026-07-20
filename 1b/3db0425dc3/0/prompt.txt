@@ -1,0 +1,48 @@
+i share this repo to my friend he want run the  website so tell me the process in easy way in step by step
+
+---
+
+This document explores ways to calculate delivery charge for the consumer receiving harvests from a single farmer or multiple farmers as part of the same checkout process. 
+There could be multiple harvests from a single farmer as well. 
+
+Case1: 1 Harvest and 1 Farmer. A fixed charge of Rs. 30/- is added to the cost of the order. 
+
+Case2: 2 Harvests from the same Farmer. Again a fixed charge of Rs.30/- is added to the cost of the order. 
+
+Case3: 1 Harvest from 1 Farmer and Harvest from 2nd Farmer in the same checkout. Since the delivery boy will collect the harvests from 2 farmers an additional Rs.15/- will be added to the overall cost and it turns out to be Rs.45/-. The same for each additional farmer a Rs.15/- will be added. 
+
+Now the real complexity comes what if the farmer rejects the order or the consumer cancels the order. 
+
+Farmer Rejection/User Cancellation 
+Case 4: If there is only 1 item and the farmer rejects the item, then we must refund the entire delivery charge of Rs30/-
+
+Case 5: If there are multiple items ordered at once, and the farmer rejects one of the items, then we do not need to refund the delivery charge.
+
+Case 6: If the order contains 2 farmers and 1 item each for them. Then if one farmer rejects then the extra Rs.15/- collected should be refunded.
+
+Rs. 30/- and Rs.15/- can be variable. So, give the moderator provision to update these charges. First one is Delivery Base Charge, second one is additional delivery charge.
+
+For customer and consumer, the delivery charge should be visible clearly.
+
+Cancellation is not allowed once the delivery date is set and approved by the farmer. 
+Cancellation is not allowed once the Pickup date is set and approved by the farmer. 
+Farmers also cannot reject the order.
+
+
+Group all the items of a consumer order that needs to be delivered on the same day into one delivery. 
+If the delivery contains items from different farmers so be it, it should have the same delivery date and consumer. 
+
+
+
+
+
+
+ need changes from this  did you find that
+
+---
+
+where should i add migration in staging or main ?
+
+---
+
+in main you can add query by using mcp

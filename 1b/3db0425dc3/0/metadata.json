@@ -1,0 +1,121 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "1b3db0425dc3",
+  "session_id": "6c04e0b0-2233-4a8f-8cb7-d22b856283e0",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-20T11:51:23.200649812Z",
+  "branch": "staging",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "src/app/api/consumer/orders/[id]/cancel/route.ts",
+    "src/app/api/consumer/orders/[id]/route.ts",
+    "src/app/api/farmer/orders/[id]/decline/route.ts",
+    "src/app/api/orders/place/route.ts",
+    "src/app/api/orders/razorpay/create/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/moderator/page.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/components/consumer/OrderCard.tsx",
+    "src/components/farmer/OrderCard.tsx",
+    "src/lib/delivery-fee.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "3d8183fcb308",
+  "token_usage": {
+    "input_tokens": 69,
+    "cache_creation_tokens": 71039,
+    "cache_read_tokens": 2283782,
+    "output_tokens": 25248,
+    "api_call_count": 37
+  },
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-20T11:51:23.17850799Z",
+    "agent_lines": 0,
+    "agent_removed": 53,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 51,
+    "total_committed": 42,
+    "total_lines_changed": 104,
+    "agent_percentage": 50.96153846153846,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 733,
+      "user_lines_removed": 51,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9,
+        "scripts/delivery-charge-migration.sql": 39,
+        "src/app/api/consumer/orders/[id]/cancel/route.ts": 50,
+        "src/app/api/consumer/orders/[id]/route.ts": 1,
+        "src/app/api/farmer/orders/[id]/decline/route.ts": 61,
+        "src/app/api/moderator/delivery-fee/route.ts": 73,
+        "src/app/api/orders/place/route.ts": 49,
+        "src/app/api/orders/razorpay/create/route.ts": 10,
+        "src/app/consumer/orders/[id]/page.tsx": 8,
+        "src/app/moderator/page.tsx": 108,
+        "src/components/consumer/Cart.tsx": 64,
+        "src/lib/delivery-fee.ts": 185,
+        "src/lib/delivery-refund.ts": 76
+      },
+      "user_removed_per_file": {
+        "src/app/api/consumer/orders/[id]/cancel/route.ts": 2,
+        "src/app/api/consumer/orders/[id]/route.ts": 1,
+        "src/app/api/farmer/orders/[id]/decline/route.ts": 16,
+        "src/app/api/orders/place/route.ts": 10,
+        "src/app/api/orders/razorpay/create/route.ts": 7,
+        "src/app/consumer/orders/[id]/page.tsx": 1,
+        "src/components/consumer/Cart.tsx": 7,
+        "src/lib/delivery-fee.ts": 7
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 9,
+      "user_lines_removed": 0,
+      "agent_lines_added": 724,
+      "agent_lines_removed": 51,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 9,
+      "user_lines_removed": 0,
+      "agent_lines_added": 766,
+      "agent_lines_removed": 104,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 9,
+      "user_lines_removed": 0,
+      "agent_lines_added": 766,
+      "agent_lines_removed": 104,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9
+      }
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 9,
+      "user_lines_removed": 0,
+      "agent_lines_added": 766,
+      "agent_lines_removed": 104,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9
+      }
+    }
+  ]
+}
