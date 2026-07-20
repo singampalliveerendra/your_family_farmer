@@ -121,7 +121,115 @@ export default function ModeratorDashboard() {
 
       {/* Platform fee — global commission added on top of every consumer order */}
       <PlatformFeeCard />
+
+      {/* Delivery charge — base per checkout + extra for each additional farmer */}
+      <DeliveryChargeCard />
     </ModeratorShell>
+  )
+}
+
+function DeliveryChargeCard() {
+  const [base, setBase] = useState('')
+  const [extra, setExtra] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  useEffect(() => {
+    fetch('/api/moderator/delivery-fee', { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j?.base != null) setBase(String(j.base))
+        if (j?.extra != null) setExtra(String(j.extra))
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true))
+  }, [])
+
+  const save = async () => {
+    const b = Number(base)
+    const e = Number(extra)
+    if (!Number.isFinite(b) || b < 0 || !Number.isFinite(e) || e < 0) {
+      setMsg('Enter valid charges (0 or more).')
+      return
+    }
+    setSaving(true); setMsg('')
+    try {
+      const r = await fetch('/api/moderator/delivery-fee', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ base: b, extra: e }),
+      })
+      const j = await r.json().catch(() => ({}))
+      setMsg(r.ok ? '✓ Saved — applies to all new checkouts.' : (j.error || 'Could not save.'))
+    } catch {
+      setMsg('Network error. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="mt-7 bg-white rounded-2xl border border-gray-100 p-4 shadow-sm max-w-md">
+      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Delivery charge</p>
+      <p className="text-xs text-gray-500 mb-3">
+        One delivery charge per checkout: the <b>base charge</b> plus the{' '}
+        <b>additional charge</b> for each farmer beyond the first (the rider makes an
+        extra pickup stop). Shown to the buyer at checkout.
+      </p>
+      <div className="space-y-3">
+        <label className="flex items-center justify-between gap-3">
+          <span className="text-sm font-semibold text-gray-700">Delivery base charge</span>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step={5}
+              value={base}
+              onChange={(e) => { setBase(e.target.value); setMsg('') }}
+              disabled={!loaded}
+              className="w-28 border border-gray-200 rounded-xl pl-7 pr-3 py-2.5 text-sm font-semibold focus:border-green-600 focus:outline-none disabled:opacity-50"
+              placeholder="30"
+            />
+          </div>
+        </label>
+        <label className="flex items-center justify-between gap-3">
+          <span className="text-sm font-semibold text-gray-700">Additional charge / extra farmer</span>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step={5}
+              value={extra}
+              onChange={(e) => { setExtra(e.target.value); setMsg('') }}
+              disabled={!loaded}
+              className="w-28 border border-gray-200 rounded-xl pl-7 pr-3 py-2.5 text-sm font-semibold focus:border-green-600 focus:outline-none disabled:opacity-50"
+              placeholder="15"
+            />
+          </div>
+        </label>
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <button
+          onClick={save}
+          disabled={saving || !loaded}
+          className="bg-green-800 text-white text-sm font-bold px-5 py-2.5 rounded-xl active:bg-green-900 disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        {loaded && (base !== '' || extra !== '') && (
+          <span className="text-xs text-gray-400">
+            2 farmers = ₹{(Number(base) || 0) + (Number(extra) || 0)}
+          </span>
+        )}
+      </div>
+      {msg && <p className={`text-xs mt-2 font-semibold ${msg.startsWith('✓') ? 'text-green-700' : 'text-red-600'}`}>{msg}</p>}
+    </div>
   )
 }
 

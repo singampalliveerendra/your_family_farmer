@@ -5,7 +5,7 @@ import { getConsumerSessionFromRequest } from '@/lib/session'
 import { createGuestOrderToken } from '@/lib/guest-order-token'
 import { getTierPrice } from '@/lib/pricing'
 import { normalizePhone } from '@/lib/phone'
-import { DELIVERY_FEE_RUPEES } from '@/lib/delivery-fee'
+import { getDeliveryCharges } from '@/lib/delivery-fee'
 import { getPlatformFeePercent, computePlatformFee } from '@/lib/platform-fee'
 import { getCodDepositPercent, computeCodSplit } from '@/lib/cod'
 
@@ -75,6 +75,14 @@ export async function POST(req: NextRequest) {
         deliveryPincode?: string | null
         deliveryAltPhone?: string | null
         idempotencyKey?: string | null
+        // Multi-farmer checkout: a shared id linking this farmer's batch to the
+        // other farmers' batches, and this farmer's position in the checkout.
+        // deliveryChargeApplies is the whole-cart gate (does ANY line ship by
+        // our rider); deliveryFarmerIndex is 0 for the first farmer (who carries
+        // the base charge) and ≥1 for each additional farmer (who carries extra).
+        checkoutId?: string | null
+        deliveryChargeApplies?: boolean
+        deliveryFarmerIndex?: number
         guest?: { name?: string; email?: string; phone?: string } | null
       }
     | null
@@ -85,6 +93,19 @@ export async function POST(req: NextRequest) {
   const idempotencyKey = typeof body.idempotencyKey === 'string' && UUID_RE.test(body.idempotencyKey)
     ? body.idempotencyKey
     : null
+  // Shared checkout id linking this farmer's batch to the other farmers' batches
+  // of the same multi-farmer checkout. Optional (legacy clients omit it).
+  const checkoutId = typeof body.checkoutId === 'string' && UUID_RE.test(body.checkoutId)
+    ? body.checkoutId
+    : null
+  // Whether the delivery charge applies to this checkout at all (client-computed
+  // across every farmer's lines: true when ANY line ships by our rider).
+  const deliveryChargeApplies = body.deliveryChargeApplies === true
+  // This farmer's position in the checkout: 0 = first farmer (base charge), ≥1 =
+  // an additional farmer (extra charge). Clamped; only the sign/zero matters.
+  const deliveryFarmerIndex = Number.isFinite(body.deliveryFarmerIndex) && Number(body.deliveryFarmerIndex) > 0
+    ? 1
+    : 0
 
   if (!farmerId || !UUID_RE.test(farmerId)) return bad('Invalid farmer.')
   if (paymentMethod !== 'upi' && paymentMethod !== 'cod' && paymentMethod !== 'razorpay') {
@@ -269,10 +290,20 @@ export async function POST(req: NextRequest) {
   // handover at the door. Self-pickup: the customer reads it to the farmer at
   // collection. Either way the whole checkout shares one code.
   const sharedHandoverOtp = generateHandoverOtp()
-  // One delivery fee per cart, charged when at least one item is home delivery
-  // (our rider). Stamped on the first home-delivery row below.
+  // This farmer's share of the checkout's single delivery charge. The whole
+  // checkout is charged base + extra × (farmers − 1); we collect it across the
+  // farmers' separate batches by stamping `base` on the first farmer and `extra`
+  // on each additional one. `deliveryChargeApplies` is the whole-cart gate (does
+  // ANY line, at any farmer, ship by our rider). When a single farmer checks out
+  // the old way (no checkoutId sent), we fall back to that farmer's own lines.
+  const { base: deliveryBase, extra: deliveryExtra } = await getDeliveryCharges(supabase)
   const anyHomeDelivery = items.some((it) => rowDeliveryTypeOf(it) === 'home_delivery')
-  const deliveryFee = anyHomeDelivery ? DELIVERY_FEE_RUPEES : 0
+  const chargeGate = checkoutId ? deliveryChargeApplies : anyHomeDelivery
+  const deliveryFee = !chargeGate
+    ? 0
+    : deliveryFarmerIndex === 0
+      ? Math.max(0, Math.round(deliveryBase))
+      : Math.max(0, Math.round(deliveryExtra))
 
   // Validate first (price + ownership) before we touch any stock. Stock
   // claims happen below with the RPC so two cart submits can't oversell.
@@ -342,20 +373,28 @@ export async function POST(req: NextRequest) {
       delivery_pincode: rowShips ? deliveryPincode : null,
       delivery_alt_phone: rowShips ? deliveryAltPhone : null,
       handover_otp: sharedHandoverOtp,
-      // Fee is paid once per cart, so we stamp it on the first row only.
-      // sum(delivery_fee) and sum(rider_payout) over a batch === one fee.
+      // Links this row to the other farmers' batches of the same checkout, so
+      // decline/cancel can count the remaining farmers and refund the delivery
+      // drop. NULL for single-farmer legacy checkouts.
+      checkout_id: checkoutId,
+      // This farmer's delivery share is stamped on one row below (0 elsewhere).
+      // sum(delivery_fee) over a batch === this farmer's share of the charge.
       delivery_fee: 0,
+      delivery_fee_refunded: 0,
       rider_payout: 0,
     })
   }
 
   if (deliveryFee > 0) {
-    // Stamp the single per-cart fee on the first home-delivery row (rows[0] may
-    // be a pickup row now that types are mixed per item).
-    const feeRow = rows.find((r) => r.delivery_type === 'home_delivery')
+    // Stamp this farmer's delivery share on one row. Prefer a home-delivery row
+    // (the rider earns it as rider_payout); but with "every farmer counts",
+    // a pickup-only farmer in a delivery checkout still owes `extra`, so fall
+    // back to the first row — with no rider_payout, since no rider serves it.
+    const deliveryRow = rows.find((r) => r.delivery_type === 'home_delivery')
+    const feeRow = deliveryRow ?? rows[0]
     if (feeRow) {
       feeRow.delivery_fee = deliveryFee
-      feeRow.rider_payout = deliveryFee
+      feeRow.rider_payout = deliveryRow ? deliveryFee : 0
     }
   }
 

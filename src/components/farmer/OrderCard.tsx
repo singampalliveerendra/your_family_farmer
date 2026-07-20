@@ -607,15 +607,13 @@ export default function OrderCard({
             )}
           </>
         ) : isDelivery && riderAssigned ? (
-          // Approved home-delivery in the rider flow: the farmer can still
-          // cancel; the rider closes it out at the door.
-          <button
-            onClick={onDecline}
-            disabled={processing}
-            className="w-full border-2 border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
-          >
-            {processing ? tx.declining : `✕ ${tx.decline}`}
-          </button>
+          // Approved home-delivery in the rider flow: the date is set and agreed,
+          // so the farmer can no longer decline. The rider closes it at the door.
+          <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2.5 text-center">
+            <p className="text-xs text-green-800 leading-snug">
+              {L('Approved — a rider will collect and deliver this order.', 'ఆమోదించబడింది — రైడర్ ఈ ఆర్డర్‌ను తీసుకొని డెలివరీ చేస్తారు.')}
+            </p>
+          </div>
         ) : isShipped ? (
           isDelivery ? (
             // Shipped HOME DELIVERY: the farmer does NOT confirm delivery. A
@@ -706,34 +704,19 @@ export default function OrderCard({
                 {L('Ask the customer to read the 4-digit code from their order page.', 'కస్టమర్‌ను వారి ఆర్డర్ పేజీలోని 4-అంకెల కోడ్ చదవమని అడగండి.')}
               </p>
             </div>
-            <button
-              onClick={onDecline}
-              disabled={processing}
-              className="w-full border-2 border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
-            >
-              {processing ? tx.declining : `✕ ${tx.decline}`}
-            </button>
           </>
         ) : (
           // Approved courier / farmer-driven home delivery (rider deliveries were
-          // handled above). The farmer marks it Shipped (trust-based dispatch);
-          // the BUYER then confirms receipt from their order page, which closes it.
-          <>
-            <button
-              onClick={onMarkShipped}
-              disabled={processing}
-              className="w-full bg-amber-600 text-white font-bold py-2.5 rounded-xl text-sm active:bg-amber-700 disabled:opacity-50"
-            >
-              {processing ? '…' : L('🚚 Mark Shipped', '🚚 షిప్ చేయబడింది')}
-            </button>
-            <button
-              onClick={onDecline}
-              disabled={processing}
-              className="w-full border-2 border-red-300 text-red-600 font-bold py-2.5 rounded-xl text-sm active:bg-red-50 disabled:opacity-50"
-            >
-              {processing ? tx.declining : `✕ ${tx.decline}`}
-            </button>
-          </>
+          // handled above). The date is set and agreed, so the farmer can no
+          // longer decline — they mark it Shipped (trust-based dispatch); the
+          // BUYER then confirms receipt from their order page, which closes it.
+          <button
+            onClick={onMarkShipped}
+            disabled={processing}
+            className="w-full bg-amber-600 text-white font-bold py-2.5 rounded-xl text-sm active:bg-amber-700 disabled:opacity-50"
+          >
+            {processing ? '…' : L('🚚 Mark Shipped', '🚚 షిప్ చేయబడింది')}
+          </button>
         )}
         {isCod && !isPaid && (
           <button

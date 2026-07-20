@@ -8,7 +8,7 @@ import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
 import { compressImage } from '@/lib/imageCompress'
-import { DELIVERY_FEE_RUPEES } from '@/lib/delivery-fee'
+import { DEFAULT_DELIVERY_BASE_FEE, DEFAULT_DELIVERY_EXTRA_FEE } from '@/lib/delivery-fee'
 import { computePlatformFee } from '@/lib/platform-fee'
 import { formatPickupSlots, type PickupSchedule } from '@/lib/pickup-slots'
 
@@ -311,8 +311,10 @@ export function CartSheet({
   const [showMorePayment, setShowMorePayment] = useState(false)
   // Delivery preference is now chosen PER harvest line (keyed by cartKeyOf), so
   // one checkout can mix pickup and delivery items. For home_delivery, a flat
-  // DELIVERY_FEE_RUPEES is charged once per farmer group and collected by the
-  // rider in cash on delivery, regardless of payment method.
+  // The delivery charge is one figure for the whole checkout: a base charge plus
+  // an extra charge for each farmer beyond the first (each is another rider
+  // pickup stop). It's charged with the order (prepaid / in the COD deposit) so
+  // it can be refunded if an order is declined or cancelled.
   const [deliveryByItem, setDeliveryByItem] = useState<Record<string, 'self_pickup' | 'home_delivery'>>({})
   // Per-produce fulfillment the farmer allowed ('pickup' | 'courier' | 'both'),
   // keyed by listingId and fetched fresh at checkout. Constrains which delivery
@@ -341,6 +343,19 @@ export function CartSheet({
           : `${Date.now()}-${Math.random().toString(16).slice(2)}`
     }
     return idempotencyKeys.current[farmerId]
+  }
+  // One checkout id shared by every farmer's batch in this checkout, so the
+  // server can link them and refund the delivery charge across farmers. Created
+  // lazily on the first order placed; reset when the cart empties (new checkout).
+  const checkoutIdRef = useRef<string | null>(null)
+  const getCheckoutId = (): string => {
+    if (!checkoutIdRef.current) {
+      checkoutIdRef.current =
+        (typeof crypto !== 'undefined' && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    }
+    return checkoutIdRef.current
   }
   const [paidDone, setPaidDone] = useState(false)
   // Live UPI IDs and QR codes fetched from DB — always up to date, overrides stale cart data
@@ -380,6 +395,31 @@ export function CartSheet({
         if (Number.isFinite(p) && p > 0) setPlatformFeePercent(p)
       })
   }, [])
+
+  // Moderator-set delivery charges. base is charged once per checkout; extra is
+  // added for each farmer beyond the first. Read for display only — the server
+  // is authoritative at placement. Falls back to the launch defaults.
+  const [deliveryBase, setDeliveryBase] = useState(DEFAULT_DELIVERY_BASE_FEE)
+  const [deliveryExtra, setDeliveryExtra] = useState(DEFAULT_DELIVERY_EXTRA_FEE)
+  useEffect(() => {
+    supabase
+      .from('platform_settings')
+      .select('delivery_base_fee, delivery_extra_fee')
+      .eq('id', 1)
+      .maybeSingle()
+      .then(({ data }) => {
+        const b = Number(data?.delivery_base_fee)
+        const e = Number(data?.delivery_extra_fee)
+        if (Number.isFinite(b) && b >= 0) setDeliveryBase(b)
+        if (Number.isFinite(e) && e >= 0) setDeliveryExtra(e)
+      })
+  }, [])
+
+  // A fresh checkout (empty cart → new items) must get a new checkout id, so an
+  // abandoned checkout's id is never reused by the next one.
+  useEffect(() => {
+    if (items.length === 0) checkoutIdRef.current = null
+  }, [items.length])
 
   // Refs for use inside event listeners (avoids stale closures)
   const upiScreenRef = useRef<UpiPaymentState | null>(null)
@@ -592,6 +632,10 @@ export function CartSheet({
     // send the address. Pickup location is always sent; the API stamps it on
     // pickup rows only.
     const groupHasDelivery = group.some((it) => deliveryOf(it) === 'home_delivery')
+    // This farmer's position in the checkout — index 0 carries the base delivery
+    // charge, the rest carry the additional charge. anyDelivery is the whole-cart
+    // gate (does ANY line, at any farmer, ship by our rider).
+    const farmerIndex = farmerGroups.findIndex((g) => g[0].farmerId === f.farmerId)
     const r = await fetch('/api/orders/place', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -612,6 +656,9 @@ export function CartSheet({
         deliveryPincode: groupHasDelivery ? deliveryPincode.trim() : null,
         deliveryAltPhone: groupHasDelivery ? deliveryAltPhone.replace(/\D/g, '').slice(-10) : null,
         idempotencyKey: getIdempotencyKey(f.farmerId),
+        checkoutId: getCheckoutId(),
+        deliveryChargeApplies: anyDelivery,
+        deliveryFarmerIndex: farmerIndex < 0 ? 0 : farmerIndex,
       }),
     }).catch(() => null)
     if (!r) return { ok: false, error: 'Network error. Please try again.' }
@@ -1614,7 +1661,7 @@ export function CartSheet({
               </div>
 
               {/* Farmer groups */}
-              {farmerGroups.map((group) => {
+              {farmerGroups.map((group, gi) => {
                 const f = group[0]
                 const total = group.reduce(
                   (s, it) => s + (it.pricePerKg ?? 0) * it.qty,
@@ -1738,7 +1785,11 @@ export function CartSheet({
                       })}
 
                       {total > 0 && (() => {
-                        const dFee = groupHasDelivery ? DELIVERY_FEE_RUPEES : 0
+                        // This farmer's share of the one checkout delivery charge:
+                        // base for the first farmer, extra for each additional one.
+                        // Charged whenever ANY line in the checkout is home delivery.
+                        const dFee = anyDelivery ? (gi === 0 ? deliveryBase : deliveryExtra) : 0
+                        const isExtraFarmer = gi > 0
                         // Sum the per-item fees so the line matches the per-item
                         // breakdown shown above (and what the server charges).
                         const pFee = group.reduce((s, it) => s + computePlatformFee((it.pricePerKg ?? 0) * it.qty, platformFeePercent), 0)
@@ -1760,8 +1811,14 @@ export function CartSheet({
                             {dFee > 0 && (
                               <div className="flex items-center justify-between text-xs">
                                 <span className="text-gray-500">
-                                  {L('Delivery fee', 'డెలివరీ ఛార్జ్')}
-                                  <span className="block text-[10px] text-gray-400">{L('cash to rider', 'రైడర్‌కి నగదు')}</span>
+                                  {isExtraFarmer
+                                    ? L('Extra farmer delivery', 'అదనపు రైతు డెలివరీ')
+                                    : L('Delivery charge', 'డెలివరీ ఛార్జ్')}
+                                  {isExtraFarmer && (
+                                    <span className="block text-[10px] text-gray-400">
+                                      {L('added stop for this farmer', 'ఈ రైతు కోసం అదనపు స్టాప్')}
+                                    </span>
+                                  )}
                                 </span>
                                 <span className="font-semibold text-gray-800">₹{dFee}</span>
                               </div>

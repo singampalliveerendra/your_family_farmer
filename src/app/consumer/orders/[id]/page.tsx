@@ -24,6 +24,7 @@ type Order = {
   unit: string | null
   total_price: number | null
   platform_fee: number | null
+  delivery_fee: number | null
   pickup_location: string | null
   status: 'pending' | 'approved' | 'declined' | 'cancelled'
   payment_method: string | null
@@ -342,12 +343,18 @@ export default function OrderDetailsPage() {
                   <span className="text-gray-500">{L('Platform fee collected', 'వసూలు చేసిన ప్లాట్‌ఫామ్ ఫీజు')}</span>
                   <span className="font-semibold text-gray-900">₹{Number(order.platform_fee) || 0}</span>
                 </div>
+                {(Number(order.delivery_fee) || 0) > 0 && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">{L('Delivery charge', 'డెలివరీ ఛార్జ్')}</span>
+                    <span className="font-semibold text-gray-900">₹{Number(order.delivery_fee) || 0}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between pt-1 border-t border-gray-100">
                   <span className="text-sm font-bold text-gray-900">
                     {isOrderPaid(order.payment_status) ? L('Total paid', 'మొత్తం చెల్లించారు') : L('Total', 'మొత్తం')}
                   </span>
                   <span className="text-sm font-extrabold text-green-700">
-                    ₹{(Number(order.total_price) || 0) + (Number(order.platform_fee) || 0)}
+                    ₹{(Number(order.total_price) || 0) + (Number(order.platform_fee) || 0) + (Number(order.delivery_fee) || 0)}
                   </span>
                 </div>
                 {order.refund_status && order.refund_status !== 'failed' && (

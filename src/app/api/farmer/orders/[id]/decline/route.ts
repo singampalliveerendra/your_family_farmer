@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
 import { refundPayment } from '@/lib/razorpay'
 import { isDepositPaid } from '@/lib/payment'
+import { getDeliveryCharges, planDeliveryRefund, type RefundOrderRow } from '@/lib/delivery-fee'
+import { applySiblingDeliveryRefunds, REFUND_ORDER_COLS } from '@/lib/delivery-refund'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -37,7 +39,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: order, error: loadErr } = await supabase
     .from('orders')
-    .select('id, farmer_id, status, quantity, total_price, delivery_fee, platform_fee, cod_deposit, produce_listing_id, harvest_id, payment_method, payment_status, razorpay_payment_id, order_code, shipped_at, collected_at, received_at')
+    .select('id, farmer_id, status, quantity, total_price, delivery_fee, delivery_fee_refunded, platform_fee, cod_deposit, produce_listing_id, harvest_id, payment_method, payment_status, razorpay_payment_id, checkout_id, order_code, shipped_at, collected_at, received_at')
     .eq('id', id)
     .maybeSingle()
 
@@ -46,13 +48,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (order.farmer_id !== session.farmerId) {
     return NextResponse.json({ error: 'Not your order.' }, { status: 403 })
   }
-  // A farmer can decline/cancel an order while it is still pending OR approved
-  // but not yet fulfilled — the OrderCard offers Decline in both states (e.g.
-  // the crop is damaged after the farmer already approved). Once it has been
-  // shipped, picked up or received it's too late. Rejecting anything already
-  // declined/cancelled also keeps a double-tap from refunding twice.
-  if (order.status !== 'pending' && order.status !== 'approved') {
-    return NextResponse.json({ error: 'This order can no longer be declined.' }, { status: 409 })
+  // A farmer can decline an order ONLY while it is still pending. Once the farmer
+  // approves it, the delivery/pickup date is set and agreed, so the order is a
+  // commitment the farmer can no longer reject (mirrors the buyer losing the
+  // ability to cancel at the same point). Blocking anything past pending also
+  // keeps a double-tap on an already-declined/cancelled order from refunding twice.
+  if (order.status !== 'pending') {
+    return NextResponse.json(
+      { error: 'This order can no longer be declined — it has already been approved with a set delivery/pickup date.' },
+      { status: 409 },
+    )
   }
   if (order.shipped_at || order.collected_at || order.received_at) {
     return NextResponse.json(
@@ -91,23 +96,55 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     order.payment_status === 'payment_claimed' ||
     order.payment_status === 'pending_confirmation'
 
-  // Full amount the buyer actually paid against THIS order row.
+  // The non-delivery amount the buyer paid against THIS order row.
   //
-  // Part-paid COD: only the deposit ever reached us — the balance was cash the
-  // rider never collected, so there is nothing else to give back.
+  // Part-paid COD: only the deposit ever reached us — the balance (which is
+  // where most of the delivery charge sits) was cash the rider never collected,
+  // so the deposit is the whole of what we can give back and delivery is not
+  // coordinated separately below.
   //
-  // Otherwise: the produce price plus the delivery and platform fees, which are
-  // stamped on the cart's first row only (0 on the rest). Summed across all
-  // declined rows this can never exceed the captured total, so partial refunds
-  // stay safe.
-  const refundRupees = depositPaid
+  // Otherwise: the produce price plus this row's platform fee. The delivery
+  // charge is handled by planDeliveryRefund, because when the farmer drops out
+  // of a multi-farmer checkout the charge only falls by ONE farmer's worth, not
+  // this whole row's stamped fee — and any base still owed may sit on a sibling.
+  const itemPlatformRefund = depositPaid
     ? Math.max(0, Number(order.cod_deposit) || 0)
-    : (Number(order.total_price) || 0) +
-      (Number(order.delivery_fee) || 0) +
-      (Number(order.platform_fee) || 0)
+    : (Number(order.total_price) || 0) + (Number(order.platform_fee) || 0)
+
+  // Work out the delivery-charge refund across the whole checkout (pure — no
+  // writes yet). Skipped for the deposit path (delivery there was cash/in-deposit)
+  // and when nothing was captured.
+  let deliveryPlan: ReturnType<typeof planDeliveryRefund> = { owed: 0, allocations: [] }
+  let currentDeliveryAmount = 0
+  let currentDeliveryRefundedTotal: number | null = null
+  if (!depositPaid && (paidByRazorpay || paidByOther)) {
+    const charges = await getDeliveryCharges(supabase)
+    let siblings: RefundOrderRow[] = [{
+      id: order.id,
+      farmer_id: order.farmer_id,
+      status: order.status,
+      delivery_fee: order.delivery_fee,
+      delivery_fee_refunded: order.delivery_fee_refunded,
+      payment_status: order.payment_status,
+      razorpay_payment_id: order.razorpay_payment_id,
+    }]
+    if (order.checkout_id) {
+      const { data: sibRows } = await supabase
+        .from('orders').select(REFUND_ORDER_COLS).eq('checkout_id', order.checkout_id)
+      if (sibRows && sibRows.length) siblings = sibRows as RefundOrderRow[]
+    }
+    deliveryPlan = planDeliveryRefund(siblings, order.id, charges)
+    const cur = deliveryPlan.allocations.find((a) => a.orderId === order.id)
+    currentDeliveryAmount = cur?.amount ?? 0
+    currentDeliveryRefundedTotal = cur?.newRefundedTotal ?? null
+  }
+
+  // Refund the buyer for THIS order: produce + platform + this order's own slice
+  // of the delivery drop, in one gateway call.
+  const currentRefund = itemPlatformRefund + currentDeliveryAmount
 
   if (paidByRazorpay) {
-    const amountPaise = Math.round(refundRupees * 100)
+    const amountPaise = Math.round(currentRefund * 100)
     if (amountPaise > 0) {
       try {
         const refund = await refundPayment({
@@ -121,7 +158,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         update.refunded_at = new Date().toISOString()
       } catch (e) {
         // Refund failed at Razorpay. Don't silently swallow it — keep the
-        // order pending so the farmer can retry, and surface the error.
+        // order pending so the farmer can retry, and surface the error. We have
+        // not touched any sibling yet, so nothing is left half-done.
         console.error('[YFF] razorpay refund failed:', e)
         return NextResponse.json(
           { error: 'Could not issue the refund. The order was not declined — please try again.' },
@@ -131,15 +169,25 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
   } else if (paidByOther) {
     // Non-Razorpay paid (UPI/manual): flag for manual refund, recording the
-    // full amount owed so whoever settles it knows the figure.
+    // amount owed so whoever settles it knows the figure.
     update.refund_status = 'initiated'
-    if (refundRupees > 0) update.refund_amount = Math.round(refundRupees)
+    if (currentRefund > 0) update.refund_amount = Math.round(currentRefund)
   }
+  // Record how much of this row's delivery fee has now been given back, so a
+  // later sibling cancellation can't refund it twice.
+  if (currentDeliveryRefundedTotal != null) update.delivery_fee_refunded = currentDeliveryRefundedTotal
 
   const { error: updErr } = await supabase.from('orders').update(update).eq('id', id)
   if (updErr) {
     console.error('[YFF] decline update failed:', updErr.message)
     return NextResponse.json({ error: 'Could not decline the order. Please try again.' }, { status: 500 })
+  }
+
+  // The buyer's own refund is done and the order is declined. Now settle any
+  // delivery refund that lands on SIBLING orders' payments (e.g. residual base
+  // on an already-cancelled row). Best-effort: logged, never blocks the decline.
+  if (deliveryPlan.allocations.some((a) => a.orderId !== order.id)) {
+    await applySiblingDeliveryRefunds(supabase, deliveryPlan, order.id)
   }
 
   return NextResponse.json({

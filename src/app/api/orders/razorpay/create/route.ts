@@ -38,13 +38,13 @@ export async function POST(req: NextRequest) {
   type OrderRow = {
     id: string; consumer_id: string | null; total_price: number | null
     payment_status: string | null; razorpay_order_id: string | null; platform_fee?: number | null
-    payment_method?: string | null; cod_deposit?: number | null
+    payment_method?: string | null; cod_deposit?: number | null; delivery_fee?: number | null
   }
   let orders: OrderRow[] | null
   {
     const withFee = await supabase
       .from('orders')
-      .select('id, consumer_id, total_price, payment_status, razorpay_order_id, platform_fee, payment_method, cod_deposit')
+      .select('id, consumer_id, total_price, payment_status, razorpay_order_id, platform_fee, payment_method, cod_deposit, delivery_fee')
       .in('id', orderIds)
     if (withFee.error) {
       const noFee = await supabase
@@ -82,10 +82,12 @@ export async function POST(req: NextRequest) {
 
   // Authoritative amount, always read from the DB and never from the client.
   //
-  // Part-paid COD charges the DEPOSIT only — the balance is cash at the door.
-  // Everything else charges produce + platform fee (the moderator commission,
-  // on top). Delivery fee is excluded from both: the rider collects it as cash.
-  // Razorpay works in paise.
+  // Part-paid COD charges the DEPOSIT only — the balance is cash at the door
+  // (and the deposit split already folds in this batch's delivery share, see
+  // computeCodSplit). Everything else charges produce + platform fee (the
+  // moderator commission) + the delivery charge, so the buyer prepays delivery
+  // and it can be refunded if the order is declined/cancelled. Razorpay works
+  // in paise.
   const isCod = orders.some((o) => o.payment_method === 'cod')
   const depositRupees = orders.reduce((s, o) => s + (Number(o.cod_deposit) || 0), 0)
 
@@ -99,7 +101,8 @@ export async function POST(req: NextRequest) {
   } else {
     const subtotalRupees = orders.reduce((s, o) => s + (Number(o.total_price) || 0), 0)
     const platformFeeRupees = orders.reduce((s, o) => s + (Number(o.platform_fee) || 0), 0)
-    totalRupees = subtotalRupees + platformFeeRupees
+    const deliveryFeeRupees = orders.reduce((s, o) => s + (Number(o.delivery_fee) || 0), 0)
+    totalRupees = subtotalRupees + platformFeeRupees + deliveryFeeRupees
   }
 
   if (totalRupees <= 0) return NextResponse.json({ error: 'Invalid order total.' }, { status: 400 })

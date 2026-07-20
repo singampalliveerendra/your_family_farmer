@@ -98,7 +98,10 @@ export const canBuyerCancel = (o: {
   received_at?: string | null
   delivery_status?: DeliveryStatus | null
 }) =>
-  (o.status === 'pending' || o.status === 'approved')
+  // Only while still pending — once the farmer approves, the delivery/pickup
+  // date is set and the order is locked (matches the cancel API). The remaining
+  // guards are belt-and-braces: a pending order should never carry them.
+  o.status === 'pending'
   && !o.shipped_at
   && !o.collected_at
   && !o.received_at
