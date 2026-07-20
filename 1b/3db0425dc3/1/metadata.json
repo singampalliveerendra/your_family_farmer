@@ -1,0 +1,60 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "1b3db0425dc3",
+  "session_id": "b6577fe7-68cf-4607-bdd4-71d04060cfcc",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-20T11:51:23.688557096Z",
+  "branch": "staging",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "scripts/delivery-charge-migration.sql",
+    "src/app/api/consumer/orders/[id]/cancel/route.ts",
+    "src/app/api/consumer/orders/[id]/route.ts",
+    "src/app/api/farmer/orders/[id]/decline/route.ts",
+    "src/app/api/moderator/delivery-fee/route.ts",
+    "src/app/api/orders/place/route.ts",
+    "src/app/api/orders/razorpay/create/route.ts",
+    "src/app/consumer/orders/[id]/page.tsx",
+    "src/app/moderator/page.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/lib/delivery-fee.ts",
+    "src/lib/delivery-refund.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8",
+  "turn_id": "0f3cc6ae1bd4",
+  "token_usage": {
+    "input_tokens": 676,
+    "cache_creation_tokens": 170111,
+    "cache_read_tokens": 10674933,
+    "output_tokens": 93509,
+    "api_call_count": 85
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-20T11:51:23.660920946Z",
+    "agent_lines": 745,
+    "agent_removed": 69,
+    "human_added": 21,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 766,
+    "total_lines_changed": 870,
+    "agent_percentage": 93.5632183908046,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 9,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 9
+      }
+    }
+  ]
+}

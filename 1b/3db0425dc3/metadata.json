@@ -3,11 +3,13 @@
   "checkpoint_id": "1b3db0425dc3",
   "strategy": "manual-commit",
   "branch": "staging",
-  "checkpoints_count": 4,
+  "checkpoints_count": 5,
   "files_touched": [
+    "scripts/delivery-charge-migration.sql",
     "src/app/api/consumer/orders/[id]/cancel/route.ts",
     "src/app/api/consumer/orders/[id]/route.ts",
     "src/app/api/farmer/orders/[id]/decline/route.ts",
+    "src/app/api/moderator/delivery-fee/route.ts",
     "src/app/api/orders/place/route.ts",
     "src/app/api/orders/razorpay/create/route.ts",
     "src/app/consumer/orders/[id]/page.tsx",
@@ -15,7 +17,8 @@
     "src/components/consumer/Cart.tsx",
     "src/components/consumer/OrderCard.tsx",
     "src/components/farmer/OrderCard.tsx",
-    "src/lib/delivery-fee.ts"
+    "src/lib/delivery-fee.ts",
+    "src/lib/delivery-refund.ts"
   ],
   "sessions": [
     {
@@ -23,13 +26,19 @@
       "transcript": "/1b/3db0425dc3/0/full.jsonl",
       "content_hash": "/1b/3db0425dc3/0/content_hash.txt",
       "prompt": "/1b/3db0425dc3/0/prompt.txt"
+    },
+    {
+      "metadata": "/1b/3db0425dc3/1/metadata.json",
+      "transcript": "/1b/3db0425dc3/1/full.jsonl",
+      "content_hash": "/1b/3db0425dc3/1/content_hash.txt",
+      "prompt": "/1b/3db0425dc3/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 69,
-    "cache_creation_tokens": 71039,
-    "cache_read_tokens": 2283782,
-    "output_tokens": 25248,
-    "api_call_count": 37
+    "input_tokens": 745,
+    "cache_creation_tokens": 241150,
+    "cache_read_tokens": 12958715,
+    "output_tokens": 118757,
+    "api_call_count": 122
   }
 }
