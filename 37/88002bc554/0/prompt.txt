@@ -1,0 +1,17 @@
+where did we use razorpay api keyin our code tell me the file path
+
+---
+
+Payment Successful page should show delivery and platform fee separately. Now it shows both as platform fee.
+
+---
+
+Items that should be delivered from the same farmer are not grouped under one delivery item for rider. tell me what you understand befor edoing
+
+---
+
+A message "Collect ₹30 delivery fee in cash from the customer." is displayed when the rider accepts the delivery. This is wrong, delivery charge is already collected from the customer.
+
+---
+
+Do not show any a amount as "Your Earnings " for delivery rider . we find another way of payment for delivery oys
