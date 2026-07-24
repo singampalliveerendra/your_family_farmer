@@ -1,0 +1,9 @@
+[Image #2] when i remove this its removing and again if i refresh again the intent is shwoing
+
+---
+
+okay what about third environment for develpoing . tell me the step by step process i will learn and and do manually
+
+---
+
+make sure dont touch and nothing should me change main production okay
