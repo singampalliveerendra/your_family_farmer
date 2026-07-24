@@ -72,8 +72,19 @@ DECLARE
   v_changes    jsonb;
   v_record_id  uuid;
   v_region     text;
-  -- Never log secrets or pure-noise columns.
-  v_skip       text[] := ARRAY['password_hash', 'password', 'updated_at'];
+  -- Secrets and payout details. These are still logged as having CHANGED —
+  -- the value is replaced with '[redacted]' rather than dropped, so a
+  -- farmer editing only their bank account still leaves a trail (who/when)
+  -- without copying the account number into this table.
+  v_secret     text[] := ARRAY[
+    'password_hash', 'password',
+    'bank_account_number', 'bank_ifsc', 'upi_id', 'upi_qr_code_url',
+    'activation_code'
+  ];
+  -- Pure noise: dropped entirely, never worth a row on its own.
+  v_noise      text[] := ARRAY['updated_at'];
+  -- Combined, for the insert/delete row snapshots.
+  v_skip       text[] := v_secret || v_noise;
 BEGIN
   v_actor_type := COALESCE(NULLIF(current_setting('app.actor_type', true), ''), 'system');
   BEGIN
@@ -101,13 +112,19 @@ BEGIN
   ELSE -- UPDATE
     v_old := to_jsonb(OLD);
     v_new := to_jsonb(NEW);
-    -- Build { col: { old, new } } for every column whose value changed,
-    -- excluding the skip list.
-    SELECT jsonb_object_agg(n.key, jsonb_build_object('old', v_old -> n.key, 'new', n.value))
+    -- Build { col: { old, new } } for every column whose value changed.
+    -- Noise columns are dropped; secret columns keep their key (so the
+    -- change is on record) but have their values redacted.
+    SELECT jsonb_object_agg(
+             n.key,
+             CASE WHEN n.key = ANY (v_secret)
+                  THEN jsonb_build_object('old', '[redacted]', 'new', '[redacted]')
+                  ELSE jsonb_build_object('old', v_old -> n.key, 'new', n.value)
+             END)
       INTO v_changes
       FROM jsonb_each(v_new) AS n
       WHERE (v_old -> n.key) IS DISTINCT FROM n.value
-        AND NOT (n.key = ANY (v_skip));
+        AND NOT (n.key = ANY (v_noise));
 
     -- Nothing meaningful changed → don't write a row.
     IF v_changes IS NULL THEN
