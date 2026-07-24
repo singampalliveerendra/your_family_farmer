@@ -233,12 +233,9 @@ type UpiPaymentState = {
   buyerPhone: string
   items: Array<{ name: string; variety?: string; emoji?: string; qty: number; unit?: string; pricePerKg?: number }>
   pickupLocation?: string
-  // Platform fee (moderator commission) and delivery charge, both included in
-  // `amount` and shown as their own breakdown lines on the success screen so
-  // the total stays transparent. They are two different charges to two
-  // different parties — never fold the delivery charge into the platform fee.
+  // Platform fee (moderator commission) included in `amount`, shown as a
+  // breakdown line on the success screen so the total stays transparent.
   platformFee?: number
-  deliveryFee?: number
   // Part-paid COD: `amount` is the deposit just paid online, and this is what
   // the buyer still owes the rider in cash at the door. Undefined on a
   // fully-prepaid order.
@@ -628,11 +625,7 @@ export function CartSheet({
     group: CartItem[],
     paymentMethod: 'upi' | 'cod' | 'razorpay',
   ): Promise<
-    | {
-        ok: true; orderIds: string[]; total: number
-        platformFee: number; deliveryFee: number
-        codDeposit: number; codBalanceDue: number
-      }
+    | { ok: true; orderIds: string[]; total: number; codDeposit: number; codBalanceDue: number }
     | { ok: false; error: string }
   > => {
     const f = group[0]
@@ -678,8 +671,6 @@ export function CartSheet({
       ok: true,
       orderIds: json.orderIds,
       total: json.total,
-      platformFee: Number(json.platformFee) || 0,
-      deliveryFee: Number(json.deliveryFee) || 0,
       codDeposit: Number(json.codDeposit) || 0,
       codBalanceDue: Number(json.codBalanceDue) || 0,
     }
@@ -963,9 +954,8 @@ export function CartSheet({
 
     // Order summary kept for the success screen once payment verifies. The
     // online charge (createRes.amount, in paise) is the authoritative total the
-    // buyer pays — subtotal plus platform fee plus delivery — so show that, not
-    // the fee-less subtotal. The two fees come from the create route itself;
-    // deriving them by subtracting the subtotal would collapse both into one.
+    // buyer pays — subtotal plus the platform fee — so show that, not the
+    // fee-less subtotal, and keep the fee for the breakdown line.
     const chargedTotal = Math.round((createRes.amount ?? result.total * 100) / 100)
     const summary: UpiPaymentState = {
       farmerName: f.farmerName,
@@ -973,8 +963,7 @@ export function CartSheet({
       farmerPhone: f.farmerPhone,
       upiId: '',
       amount: chargedTotal,
-      platformFee: Math.max(0, Number(createRes.platformFee) || result.platformFee || 0),
-      deliveryFee: Math.max(0, Number(createRes.deliveryFee) || result.deliveryFee || 0),
+      platformFee: Math.max(0, chargedTotal - result.total),
       orderIds: result.orderIds,
       farmerId: f.farmerId,
       buyerName: name.trim(),
@@ -1140,8 +1129,7 @@ export function CartSheet({
       farmerPhone: '',
       upiId: '',
       amount: chargedTotal,
-      platformFee: Math.max(0, Number(createRes.platformFee) || 0),
-      deliveryFee: Math.max(0, Number(createRes.deliveryFee) || 0),
+      platformFee: Math.max(0, chargedTotal - subtotal),
       orderIds: allOrderIds,
       farmerId: 'all',
       buyerName: name.trim(),
@@ -1345,22 +1333,10 @@ export function CartSheet({
           <div className="bg-gray-50 rounded-2xl px-5 py-4 w-full text-left space-y-1">
             <p className="text-xs text-gray-500 font-medium">{cashMode ? L('Amount to pay', 'చెల్లించవలసిన మొత్తం') : L('Amount paid', 'చెల్లించిన మొత్తం')}</p>
             <p className="text-lg font-black text-green-900">₹{upiScreen.amount}</p>
-            {((upiScreen.platformFee ?? 0) > 0 || (upiScreen.deliveryFee ?? 0) > 0) && (
-              <div className="text-[11px] text-gray-500 space-y-0.5">
-                <p>{L('Includes', 'వీటితో సహా')}:</p>
-                {(upiScreen.platformFee ?? 0) > 0 && (
-                  <p className="flex justify-between">
-                    <span>{L('Platform fee', 'ప్లాట్‌ఫామ్ ఫీజు')}</span>
-                    <span className="font-semibold text-gray-700">₹{upiScreen.platformFee}</span>
-                  </p>
-                )}
-                {(upiScreen.deliveryFee ?? 0) > 0 && (
-                  <p className="flex justify-between">
-                    <span>{L('Delivery charge', 'డెలివరీ ఛార్జీ')}</span>
-                    <span className="font-semibold text-gray-700">₹{upiScreen.deliveryFee}</span>
-                  </p>
-                )}
-              </div>
+            {upiScreen.platformFee != null && upiScreen.platformFee > 0 && (
+              <p className="text-[11px] text-gray-500">
+                {L('Includes', 'వీటితో సహా')} ₹{upiScreen.platformFee} {L('platform fee', 'ప్లాట్‌ఫామ్ ఫీజు')}
+              </p>
             )}
             {!cashMode && upiScreen.transactionId && (
               <div className="pt-2">

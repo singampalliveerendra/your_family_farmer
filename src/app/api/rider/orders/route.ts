@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getRiderSessionFromRequest } from '@/lib/rider-session'
-import { groupByJob } from '@/lib/rider-jobs'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -11,7 +10,6 @@ type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_deliver
 type OrderRow = {
   id: string
   farmer_id: string
-  checkout_id: string | null
   produce_name: string | null
   quantity: number | null
   unit: string | null
@@ -30,6 +28,7 @@ type OrderRow = {
   delivery_alt_phone: string | null
   delivery_boy_id: string | null
   delivery_fee: number | null
+  rider_payout: number | null
   assigned_at: string | null
   picked_up_at: string | null
   out_for_delivery_at: string | null
@@ -38,49 +37,6 @@ type OrderRow = {
 }
 
 type Farmer = { id: string; name: string; village: string; phone: string | null; farm_address: string | null }
-
-// ── Job aggregation ──────────────────────────────────────────────────────
-// Rows come back one-per-cart-line; the rider works in jobs (see rider-jobs.ts).
-// Everything below folds a job's rows into the single card the rider sees.
-
-// The lines inside a job, listed so the rider knows what to collect.
-function itemsOf(rows: OrderRow[]) {
-  return rows.map((r) => ({
-    id: r.id,
-    produce_name: r.produce_name,
-    quantity: r.quantity,
-    unit: r.unit,
-    total_price: r.total_price,
-  }))
-}
-
-function sumOf(rows: OrderRow[], pick: (r: OrderRow) => number | null | undefined): number {
-  return rows.reduce((s, r) => s + (Number(pick(r)) || 0), 0)
-}
-
-// A job's delivery status is its LEAST advanced row. The pipeline routes move
-// every row together, so in practice they agree — but a job that was half
-// advanced before grouping existed must show the rider the step still outstanding
-// rather than claiming work is done.
-const STATUS_RANK: Record<string, number> = { assigned: 0, picked_up: 1, out_for_delivery: 2, delivered: 3 }
-function jobStatus(rows: OrderRow[]): DeliveryStatus {
-  let least = rows[0]?.delivery_status ?? 'assigned'
-  for (const r of rows) {
-    const s = r.delivery_status ?? 'assigned'
-    if ((STATUS_RANK[s] ?? 0) < (STATUS_RANK[least ?? 'assigned'] ?? 0)) least = s
-  }
-  return (least ?? 'assigned') as DeliveryStatus
-}
-
-// Earliest / latest non-null timestamp across a job.
-function earliest(rows: OrderRow[], pick: (r: OrderRow) => string | null): string | null {
-  const times = rows.map(pick).filter((t): t is string => !!t).sort()
-  return times[0] ?? null
-}
-function latest(rows: OrderRow[], pick: (r: OrderRow) => string | null): string | null {
-  const times = rows.map(pick).filter((t): t is string => !!t).sort()
-  return times[times.length - 1] ?? null
-}
 
 export async function GET(req: NextRequest) {
   const session = getRiderSessionFromRequest(req)
@@ -121,7 +77,7 @@ export async function GET(req: NextRequest) {
     const { data, error: availErr } = await supabase
       .from('orders')
       .select(
-        'id, farmer_id, checkout_id, produce_name, quantity, unit, total_price, payment_method, payment_status, delivery_pincode, delivery_status, delivery_fee, created_at',
+        'id, farmer_id, produce_name, quantity, unit, total_price, payment_method, payment_status, delivery_pincode, delivery_status, delivery_fee, rider_payout, created_at',
       )
       .eq('delivery_type', 'home_delivery')
       .eq('status', 'approved')
@@ -141,7 +97,7 @@ export async function GET(req: NextRequest) {
   const { data: mineRaw, error: mineErr } = await supabase
     .from('orders')
     .select(
-      'id, farmer_id, checkout_id, produce_name, quantity, unit, total_price, buyer_name, buyer_phone, payment_method, payment_status, cod_balance_due, delivery_status, delivery_address, delivery_city, delivery_landmark, delivery_pincode, delivery_alt_phone, delivery_boy_id, delivery_fee, assigned_at, picked_up_at, out_for_delivery_at, delivered_at, created_at',
+      'id, farmer_id, produce_name, quantity, unit, total_price, buyer_name, buyer_phone, payment_method, payment_status, cod_balance_due, delivery_status, delivery_address, delivery_city, delivery_landmark, delivery_pincode, delivery_alt_phone, delivery_boy_id, delivery_fee, rider_payout, assigned_at, picked_up_at, out_for_delivery_at, delivered_at, created_at',
     )
     .eq('delivery_boy_id', session.riderId)
     .in('delivery_status', ['assigned', 'picked_up', 'out_for_delivery'])
@@ -157,7 +113,7 @@ export async function GET(req: NextRequest) {
   const { data: historyRaw, error: historyErr } = await supabase
     .from('orders')
     .select(
-      'id, farmer_id, checkout_id, produce_name, quantity, unit, total_price, buyer_name, payment_method, delivery_status, delivery_pincode, delivery_fee, delivered_at, created_at',
+      'id, farmer_id, produce_name, quantity, unit, total_price, buyer_name, payment_method, delivery_status, delivery_pincode, delivery_fee, rider_payout, delivered_at, created_at',
     )
     .eq('delivery_boy_id', session.riderId)
     .eq('delivery_status', 'delivered')
@@ -205,89 +161,59 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  // Available jobs are public to all active riders — withhold consumer name,
+  // Available rows are public to all active riders — withhold consumer name,
   // phone, and street so a rider can't fish for personal info by browsing.
-  // `id` is the anchor row the Accept button posts to; the route re-derives the
-  // rest of the job server-side, so the client never dictates what gets claimed.
-  const available = groupByJob(availableRaw ?? []).map(({ rows }) => {
-    const head = rows[0]
-    const farmer = farmerMap[head.farmer_id] ?? null
+  const available = (availableRaw ?? []).map((o) => {
+    const farmer = farmerMap[o.farmer_id] ?? null
     return {
-      id: head.id,
-      itemCount: rows.length,
-      items: itemsOf(rows),
-      total_price: sumOf(rows, (r) => r.total_price),
-      payment_method: head.payment_method,
-      payment_status: head.payment_status,
-      delivery_pincode: head.delivery_pincode,
-      // Summed because place/route.ts stamps the farmer's whole share on one
-      // row of the batch — per row these read ₹30, ₹0, ₹0 for one ₹30 trip.
-      delivery_fee: sumOf(rows, (r) => r.delivery_fee),
-      created_at: head.created_at,
+      id: o.id,
+      produce_name: o.produce_name,
+      quantity: o.quantity,
+      unit: o.unit,
+      total_price: o.total_price,
+      payment_method: o.payment_method,
+      payment_status: o.payment_status,
+      delivery_pincode: o.delivery_pincode,
+      delivery_fee: o.delivery_fee ?? 0,
+      rider_payout: o.rider_payout ?? 0,
+      created_at: o.created_at,
       farmer: farmer
         ? { name: farmer.name, village: farmer.village, farm_address: farmer.farm_address }
         : null,
     }
   })
 
-  const mine = groupByJob(mineRaw ?? []).map(({ rows }) => {
-    const head = rows[0]
-    return {
-      id: head.id,
-      itemCount: rows.length,
-      items: itemsOf(rows),
-      total_price: sumOf(rows, (r) => r.total_price),
-      buyer_name: head.buyer_name,
-      buyer_phone: head.buyer_phone,
-      payment_method: head.payment_method,
-      payment_status: head.payment_status,
-      // Cash at the door is one figure for the whole bag, not one per line.
-      // Null only when NO row carries a balance (legacy pre-deposit COD), which
-      // is what the card's "collect the full price" fallback keys off.
-      cod_balance_due: rows.some((r) => r.cod_balance_due != null)
-        ? sumOf(rows, (r) => r.cod_balance_due)
-        : null,
-      delivery_status: jobStatus(rows),
-      delivery_address: head.delivery_address,
-      delivery_city: head.delivery_city,
-      delivery_landmark: head.delivery_landmark,
-      delivery_pincode: head.delivery_pincode,
-      delivery_alt_phone: head.delivery_alt_phone,
-      delivery_fee: sumOf(rows, (r) => r.delivery_fee),
-      assigned_at: earliest(rows, (r) => r.assigned_at),
-      picked_up_at: earliest(rows, (r) => r.picked_up_at),
-      out_for_delivery_at: earliest(rows, (r) => r.out_for_delivery_at),
-      farmer: farmerMap[head.farmer_id] ?? null,
-    }
-  })
+  const mine = (mineRaw ?? []).map((o) => ({
+    ...o,
+    farmer: farmerMap[o.farmer_id] ?? null,
+  }))
 
-  const history = groupByJob(historyRaw ?? []).map(({ rows }) => {
-    const head = rows[0]
-    const farmer = farmerMap[head.farmer_id] ?? null
+  const history = (historyRaw ?? []).map((o) => {
+    const farmer = farmerMap[o.farmer_id] ?? null
     return {
-      id: head.id,
-      itemCount: rows.length,
-      items: itemsOf(rows),
-      total_price: sumOf(rows, (r) => r.total_price),
-      buyer_name: head.buyer_name,
-      payment_method: head.payment_method,
-      delivery_pincode: head.delivery_pincode,
-      delivery_fee: sumOf(rows, (r) => r.delivery_fee),
-      delivered_at: latest(rows, (r) => r.delivered_at),
-      created_at: head.created_at,
+      id: o.id,
+      produce_name: o.produce_name,
+      quantity: o.quantity,
+      unit: o.unit,
+      total_price: o.total_price,
+      buyer_name: o.buyer_name,
+      payment_method: o.payment_method,
+      delivery_pincode: o.delivery_pincode,
+      delivery_fee: o.delivery_fee ?? 0,
+      rider_payout: o.rider_payout ?? 0,
+      delivered_at: o.delivered_at,
+      created_at: o.created_at,
       farmer: farmer ? { name: farmer.name, village: farmer.village } : null,
     }
   })
 
-  // No earnings are reported to riders. orders.rider_payout is still stamped at
-  // placement as the accounting record, but rider pay is being settled outside
-  // the app, so quoting a per-delivery figure here would promise something this
-  // system no longer decides. Deliberately absent from the payload, not just
-  // hidden in the UI.
+  const totalEarned = history.reduce((s, o) => s + (o.rider_payout ?? 0), 0)
+
   return NextResponse.json({
     available,
     mine,
     history,
+    totalEarned,
     notice: ridersPincodes.length === 0
       ? 'No service area on file. Ask the moderator to set the pincodes you cover.'
       : null,
