@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
+import { supabase } from '@/lib/supabase'
 import ComplaintModal from '@/components/consumer/ComplaintModal'
 import OrderFeedbackModal from '@/components/consumer/OrderFeedbackModal'
 import OrderCard, { ConsumerOrder as Order, isResolved, isCompleted } from '@/components/consumer/OrderCard'
@@ -12,7 +13,7 @@ import CancelOrderModal, { CancelSuccessSheet } from '@/components/consumer/Canc
 
 export default function ConsumerOrdersPage() {
   const { tx, L } = useLang()
-  const { state, openAuth } = useConsumerAuth()
+  const { state, consumer, openAuth } = useConsumerAuth()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -30,13 +31,15 @@ export default function ConsumerOrdersPage() {
   // breakdown (the platform fee is withheld on a buyer cancel).
   const [cancelledInfo, setCancelledInfo] = useState<{ wasPaid: boolean; refundAmount?: number; platformFeeWithheld?: number; refundFailed?: boolean; depositForfeited?: number } | null>(null)
 
-  const refresh = useCallback(async () => {
-    setLoading(true)
+  // `silent` skips the loading spinner — used by the realtime refetch so a live
+  // status change updates the list in the background without a visible flash.
+  const refresh = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     setError('')
     const r = await fetch('/api/consumer/orders', { credentials: 'same-origin' }).catch(() => null)
-    if (!r) { setError('Could not load orders. Check your connection.'); setLoading(false); return }
+    if (!r) { if (!silent) setError('Could not load orders. Check your connection.'); setLoading(false); return }
     const json = await r.json().catch(() => ({}))
-    if (!r.ok) { setError(json?.error ?? 'Could not load orders.'); setLoading(false); return }
+    if (!r.ok) { if (!silent) setError(json?.error ?? 'Could not load orders.'); setLoading(false); return }
     setOrders((json.orders ?? []) as Order[])
     setLoading(false)
   }, [])
@@ -46,6 +49,35 @@ export default function ConsumerOrdersPage() {
       void refresh()
     } else if (state.status === 'anonymous') {
       setLoading(false)
+    }
+  }, [state.status, refresh])
+
+  // Live order status: subscribe to changes on this buyer's own orders so a
+  // farmer/rider status update (approved, shipped, delivered, cancelled…) shows
+  // up instantly with no refresh. The channel only triggers a refetch; the data
+  // still comes from the secure /api/consumer/orders route.
+  useEffect(() => {
+    if (!consumer?.id) return
+    const channel = supabase
+      .channel(`consumer_orders_${consumer.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders', filter: `consumer_id=eq.${consumer.id}` },
+        () => { void refresh(true) },
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [consumer?.id, refresh])
+
+  // Safety net for dropped websockets on spotty 4G: refetch when the tab regains focus.
+  useEffect(() => {
+    if (state.status !== 'authenticated') return
+    const refetch = () => { if (document.visibilityState === 'visible') void refresh(true) }
+    document.addEventListener('visibilitychange', refetch)
+    window.addEventListener('focus', refetch)
+    return () => {
+      document.removeEventListener('visibilitychange', refetch)
+      window.removeEventListener('focus', refetch)
     }
   }, [state.status, refresh])
 
