@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -80,5 +81,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (error && !/duplicate key|unique/i.test(error.message)) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  const posthog = getPostHogClient()
+  if (posthog) {
+    posthog.capture({
+      distinctId: session.consumerId,
+      event: 'farmer_followed',
+      properties: { farmer_id: id },
+    })
+    await posthog.flush()
+  }
+
   return NextResponse.json({ ok: true, count: await followerCount(supabase, id), following: true })
 }

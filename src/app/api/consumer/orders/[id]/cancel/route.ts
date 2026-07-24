@@ -5,6 +5,7 @@ import { refundPayment } from '@/lib/razorpay'
 import { isDepositPaid } from '@/lib/payment'
 import { getDeliveryCharges, planDeliveryRefund, type RefundOrderRow } from '@/lib/delivery-fee'
 import { applySiblingDeliveryRefunds, REFUND_ORDER_COLS } from '@/lib/delivery-refund'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -187,6 +188,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // base on an already-cancelled row). Best-effort: logged, never blocks cancel.
   if (deliveryPlan.allocations.some((a) => a.orderId !== order.id)) {
     await applySiblingDeliveryRefunds(supabase, deliveryPlan, order.id)
+  }
+
+  const posthog = getPostHogClient()
+  if (posthog) {
+    posthog.capture({
+      distinctId: session.consumerId,
+      event: 'order_cancelled_by_consumer',
+      properties: {
+        order_id: id,
+        refund_amount: refundAmount,
+        had_razorpay_refund: !!update.refund_id,
+        refund_failed: update.refund_status === 'failed',
+      },
+    })
+    await posthog.flush()
   }
 
   return NextResponse.json({

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { hashPassword } from '@/lib/password'
 import { normalizePhone } from '@/lib/phone'
 import { rateLimit } from '@/lib/rate-limit'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -123,6 +124,16 @@ export async function POST(req: NextRequest) {
     // Best-effort: drop the just-uploaded photo so we don't leak orphan storage objects
     await supabase.storage.from('rider-id-proofs').remove([path]).catch(() => null)
     return bad(insertErr?.message || 'Could not save your application. Please try again.', 500)
+  }
+
+  const posthog = getPostHogClient()
+  if (posthog) {
+    posthog.capture({
+      distinctId: created.id,
+      event: 'rider_applied',
+      properties: { vehicle_type: vehicleType },
+    })
+    await posthog.flush()
   }
 
   return NextResponse.json({ ok: true, status: 'pending_approval' })

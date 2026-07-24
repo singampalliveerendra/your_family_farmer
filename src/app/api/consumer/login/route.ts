@@ -5,6 +5,7 @@ import { verifyPassword } from '@/lib/password'
 import { normalizePhone } from '@/lib/phone'
 import { setSessionCookie } from '@/lib/session'
 import { rateLimit } from '@/lib/rate-limit'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -103,6 +104,13 @@ export async function POST(req: NextRequest) {
     .from('consumers_auth')
     .update({ last_login_at: new Date().toISOString() })
     .eq('id', user.id)
+
+  const posthog = getPostHogClient()
+  if (posthog) {
+    posthog.identify({ distinctId: user.id })
+    posthog.capture({ distinctId: user.id, event: 'consumer_logged_in' })
+    await posthog.flush()
+  }
 
   const res = NextResponse.json({
     ok: true,

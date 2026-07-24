@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -84,6 +85,20 @@ export async function POST(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!updated?.length) return NextResponse.json({ error: 'Update failed' }, { status: 500 })
+
+  const posthog = getPostHogClient()
+  if (posthog) {
+    posthog.capture({
+      distinctId: session.farmerId,
+      event: 'listing_updated',
+      properties: {
+        listing_id: listingId,
+        new_status: updated[0].status,
+        new_stock_qty: updated[0].stock_qty,
+      },
+    })
+    await posthog.flush()
+  }
 
   // Return the resolved status/stock so the dashboard card can update instantly
   // (the form merges this into local state before the background refetch lands).

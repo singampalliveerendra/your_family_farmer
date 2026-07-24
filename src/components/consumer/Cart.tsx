@@ -12,6 +12,7 @@ import { compressImage } from '@/lib/imageCompress'
 import { DEFAULT_DELIVERY_BASE_FEE, DEFAULT_DELIVERY_EXTRA_FEE } from '@/lib/delivery-fee'
 import { computePlatformFee } from '@/lib/platform-fee'
 import { formatPickupSlots, type PickupSchedule } from '@/lib/pickup-slots'
+import posthog from 'posthog-js'
 
 // Razorpay Checkout is loaded lazily — we only pull the script the first time
 // a buyer chooses to pay online, so the rest of the catalogue stays light on
@@ -164,6 +165,15 @@ export function useCart() {
     const { price } = getActiveTier(newQty, merged)
     next[key] = { ...merged, pricePerKg: price ?? item.pricePerKg }
     writeCart(next)
+    posthog.capture('product_added_to_cart', {
+      listing_id: item.listingId,
+      harvest_id: item.harvestId ?? null,
+      farmer_id: item.farmerId,
+      product_name: item.name,
+      quantity: newQty,
+      price_per_unit: price ?? item.pricePerKg ?? null,
+      unit: item.unit ?? null,
+    })
   }, [])
 
   const setQty = useCallback((listingId: string, qty: number) => {

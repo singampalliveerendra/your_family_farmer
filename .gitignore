@@ -47,3 +47,4 @@ next-env.d.ts
 mod.md
 moderator.pdf
 GoGrameen_Moderator_Spec_v2*
+.env.local

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
 import { verifyGuestOrderToken } from '@/lib/guest-order-token'
 import { verifyPaymentSignature, fetchPaymentMethodLabel } from '@/lib/razorpay'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -92,6 +93,23 @@ export async function POST(req: NextRequest) {
   if (error) {
     console.error('[YFF] razorpay verify update failed:', error.message)
     return NextResponse.json({ error: 'Could not record payment. Please try again.' }, { status: 500 })
+  }
+
+  const distinctId = session?.consumerId ?? `guest:${razorpayOrderId}`
+  const posthog = getPostHogClient()
+  if (posthog) {
+    posthog.capture({
+      distinctId,
+      event: 'payment_verified',
+      properties: {
+        razorpay_order_id: razorpayOrderId,
+        razorpay_payment_id: razorpayPaymentId,
+        payment_method_detail: methodLabel ?? undefined,
+        order_count: orders.length,
+        is_cod: isCod,
+      },
+    })
+    await posthog.flush()
   }
 
   return NextResponse.json({ ok: true, orderIds: orders.map((o) => o.id) })

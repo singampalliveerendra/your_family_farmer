@@ -8,6 +8,7 @@ import { normalizePhone } from '@/lib/phone'
 import { getDeliveryCharges } from '@/lib/delivery-fee'
 import { getPlatformFeePercent, computePlatformFee } from '@/lib/platform-fee'
 import { getCodDepositPercent, computeCodSplit } from '@/lib/cod'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -499,6 +500,29 @@ export async function POST(req: NextRequest) {
   }
 
   const orderIds = inserted.map((r) => r.id)
+
+  const distinctId = buyerId ?? `guest:${buyerPhone}`
+  const posthog = getPostHogClient()
+  if (posthog) {
+    posthog.capture({
+      distinctId,
+      event: 'order_placed',
+      properties: {
+        farmer_id: farmerId,
+        order_count: orderIds.length,
+        item_count: items.length,
+        total,
+        delivery_fee: deliveryFee,
+        platform_fee: platformFee,
+        grand_total: total + deliveryFee + platformFee,
+        payment_method: paymentMethod,
+        is_guest: isGuest,
+        has_home_delivery: anyHomeDelivery,
+      },
+    })
+    await posthog.flush()
+  }
+
   return NextResponse.json({
     ok: true,
     orderIds,

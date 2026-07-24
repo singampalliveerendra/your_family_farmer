@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyWebhookSignature } from '@/lib/razorpay'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -82,6 +83,19 @@ export async function POST(req: NextRequest) {
         .neq('payment_method', 'cod')
         .neq('payment_status', 'paid')
       if (error) console.error('[YFF] webhook captured update failed:', error.message)
+
+      const posthog = getPostHogClient()
+      if (posthog) {
+        posthog.capture({
+          distinctId: razorpayOrderId,
+          event: 'payment_captured',
+          properties: {
+            razorpay_order_id: razorpayOrderId,
+            razorpay_payment_id: razorpayPaymentId ?? null,
+          },
+        })
+        await posthog.flush()
+      }
     } else if (event.event === 'payment.failed' && razorpayOrderId) {
       const { error } = await supabase
         .from('orders')

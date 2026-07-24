@@ -4,6 +4,7 @@ import { hashPassword } from '@/lib/password'
 import { normalizePhone } from '@/lib/phone'
 import { setSessionCookie } from '@/lib/session'
 import { rateLimit } from '@/lib/rate-limit'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -91,6 +92,13 @@ export async function POST(req: NextRequest) {
       { error: insertErr?.message || 'Could not create account. Please try again.' },
       { status: 500 },
     )
+  }
+
+  const posthog = getPostHogClient()
+  if (posthog) {
+    posthog.identify({ distinctId: created.id })
+    posthog.capture({ distinctId: created.id, event: 'consumer_registered' })
+    await posthog.flush()
   }
 
   const res = NextResponse.json({

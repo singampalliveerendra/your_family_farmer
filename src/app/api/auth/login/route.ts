@@ -5,6 +5,7 @@ import { verifyPassword } from '@/lib/password'
 import { normalizePhone } from '@/lib/phone'
 import { setFarmerSessionCookie } from '@/lib/farmer-session'
 import { rateLimit } from '@/lib/rate-limit'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -91,6 +92,13 @@ export async function POST(req: NextRequest) {
   }
 
   await supabase.from('farmers').update({ active: true }).eq('id', farmer.id)
+
+  const posthog = getPostHogClient()
+  if (posthog) {
+    posthog.identify({ distinctId: farmer.id, properties: { farmer: true, farmer_slug: farmer.slug } })
+    posthog.capture({ distinctId: farmer.id, event: 'farmer_logged_in', properties: { farmer_slug: farmer.slug } })
+    await posthog.flush()
+  }
 
   const res = NextResponse.json({ ok: true, farmerId: farmer.id, farmerSlug: farmer.slug })
   try {
