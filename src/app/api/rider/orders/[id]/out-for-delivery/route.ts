@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getRiderSessionFromRequest } from '@/lib/rider-session'
+import { resolveJobOrderIds } from '@/lib/rider-jobs'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -28,10 +29,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Account not active.' }, { status: 403 })
   }
 
+  // The whole job rides out together — one bag on one bike.
+  const jobIds = await resolveJobOrderIds(supabase, id)
+  if (!jobIds) return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
+
   const { data: updated, error } = await supabase
     .from('orders')
     .update({ delivery_status: 'out_for_delivery', out_for_delivery_at: new Date().toISOString() })
-    .eq('id', id)
+    .in('id', jobIds)
     .eq('delivery_boy_id', session.riderId)
     .eq('delivery_status', 'picked_up')
     .select('id')

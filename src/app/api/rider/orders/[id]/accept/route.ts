@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getRiderSessionFromRequest } from '@/lib/rider-session'
+import { resolveJobOrderIds } from '@/lib/rider-jobs'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -50,10 +51,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'This delivery is outside your service area.' }, { status: 403 })
   }
 
-  // Optimistic-lock claim — only succeeds if the order is still unclaimed and
-  // home-delivery + approved. Two riders tapping Accept simultaneously can't
-  // both win because the WHERE clause excludes any row that already has a
-  // delivery_boy_id.
+  // Claim the whole JOB, not just the tapped line. Every home-delivery line
+  // from this farmer in this checkout is one bag going to one door, so claiming
+  // them one at a time is how two riders end up dispatched to the same farm for
+  // the same customer — each holding half the order and sharing one handover
+  // code. The ids are re-derived server-side from the anchor row.
+  const jobIds = await resolveJobOrderIds(supabase, id)
+  if (!jobIds) return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
+
+  // Optimistic-lock claim — only rows still unclaimed, home-delivery, approved,
+  // and inside the rider's service area are taken. Two riders tapping Accept
+  // simultaneously can't both win because the WHERE clause excludes any row that
+  // already has a delivery_boy_id. Lines the farmer hasn't approved (or has
+  // declined) since the list loaded simply aren't matched.
   const now = new Date().toISOString()
   const { data: claimed, error } = await supabase
     .from('orders')
@@ -62,9 +72,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       delivery_status: 'assigned',
       assigned_at: now,
     })
-    .eq('id', id)
+    .in('id', jobIds)
     .eq('delivery_type', 'home_delivery')
     .eq('status', 'approved')
+    .in('delivery_pincode', covered)
     .is('delivery_boy_id', null)
     .select('id')
 
@@ -82,5 +93,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // of the IS NULL filter on delivery_boy_id + the status checks above already
   // makes this safe in practice.)
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, claimed: claimed.length })
 }
