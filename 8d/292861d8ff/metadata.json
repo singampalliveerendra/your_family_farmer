@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "8d292861d8ff",
+  "strategy": "manual-commit",
+  "branch": "fix/intents-rls-and-image-opt",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "next.config.ts",
+    "src/app/consumer/harvest/[harvestId]/page.tsx",
+    "src/app/consumer/page.tsx",
+    "src/app/consumer/produce/[id]/page.tsx",
+    "src/app/farmer/dashboard/page.tsx",
+    "src/components/consumer/Cart.tsx",
+    "src/components/consumer/TodaysHarvest.tsx",
+    "src/components/farmer/tabs/ProduceTab.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/8d/292861d8ff/0/metadata.json",
+      "transcript": "/8d/292861d8ff/0/full.jsonl",
+      "content_hash": "/8d/292861d8ff/0/content_hash.txt",
+      "prompt": "/8d/292861d8ff/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 239,
+    "cache_creation_tokens": 290168,
+    "cache_read_tokens": 10286032,
+    "output_tokens": 53968,
+    "api_call_count": 120
+  }
+}
