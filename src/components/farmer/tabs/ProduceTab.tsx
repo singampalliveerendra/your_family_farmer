@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
@@ -390,7 +391,7 @@ function ProduceCard({
                   className="snap-center shrink-0 w-14 h-14"
                   aria-label={L('View details', 'వివరాలు చూడండి')}
                 >
-                  <img src={url} alt={item.name} loading="lazy" className="w-14 h-14 object-cover" />
+                  <Image src={url} alt={item.name} width={56} height={56} className="w-14 h-14 object-cover" />
                 </Link>
               ))}
             </div>

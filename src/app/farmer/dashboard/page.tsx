@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import NextImage from 'next/image'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useLang } from '@/lib/LanguageContext'
 import LocationSearch from '@/components/LocationSearch'
@@ -2531,8 +2532,7 @@ function ProduceListingForm({
             <div className="flex gap-2 flex-wrap">
               {existingExtraUrls.map((url) => (
                 <div key={url} className="relative w-20 h-20">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={url} alt="" className="w-20 h-20 object-cover rounded-xl border border-gray-200" />
+                  <NextImage src={url} alt="" fill sizes="80px" className="object-cover rounded-xl border border-gray-200" />
                   <button
                     type="button"
                     onClick={() => removeExistingExtra(url)}
@@ -3200,8 +3200,7 @@ function FarmPhotosSection({ farmerId }: { farmerId: string }) {
         <div className="grid grid-cols-3 gap-1.5">
           {photos.map((photo) => (
             <div key={photo.id} className="relative aspect-square rounded-xl overflow-hidden border border-gray-100 bg-gray-50">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photo.url} alt="" className="w-full h-full object-cover" loading="lazy" />
+              <NextImage src={photo.url} alt="" fill sizes="33vw" className="object-cover" />
               <button
                 onClick={() => handleDelete(photo)}
                 disabled={deletingId === photo.id}

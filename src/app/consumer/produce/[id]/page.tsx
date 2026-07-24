@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useParams } from 'next/navigation'
 import { useLang } from '@/lib/LanguageContext'
 import LanguageToggle from '@/components/LanguageToggle'
@@ -273,8 +274,9 @@ export default function ProduceDetailPage() {
               className="flex w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide"
             >
               {gallery.map((url) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={url} src={url} alt={item.name} className="snap-center shrink-0 w-full h-72 object-cover" />
+                <div key={url} className="relative snap-center shrink-0 w-full h-72">
+                  <Image src={url} alt={item.name} fill sizes="(max-width: 640px) 100vw, 512px" className="object-cover" />
+                </div>
               ))}
             </div>
             {gallery.length > 1 && (

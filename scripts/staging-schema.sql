@@ -702,6 +702,8 @@ ALTER TABLE public.farmer_follows ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "public insert demand_intents" ON public.demand_intents FOR INSERT TO public WITH CHECK (true);
 CREATE POLICY "public read demand_intents" ON public.demand_intents FOR SELECT TO public USING (true);
+CREATE POLICY "public update demand_intents" ON public.demand_intents FOR UPDATE TO public USING (true) WITH CHECK (true);
+CREATE POLICY "public delete demand_intents" ON public.demand_intents FOR DELETE TO public USING (true);
 CREATE POLICY "farmer_follows public read" ON public.farmer_follows FOR SELECT TO public USING (true);
 CREATE POLICY "Allow insert farmers" ON public.farmers FOR INSERT TO anon WITH CHECK (true);
 CREATE POLICY "Allow update farmers" ON public.farmers FOR UPDATE TO anon USING (true) WITH CHECK (true);
