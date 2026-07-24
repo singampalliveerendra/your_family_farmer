@@ -122,6 +122,48 @@ export default function FarmerOrderDetailPage() {
     return () => { cancelled = true }
   }, [id])
 
+  // Live updates: when this order changes (buyer cancels, rider picks up /
+  // delivers, payment confirms…), refetch it instantly so the farmer sees the
+  // new status without refreshing. The read stays scoped to this farmer's own
+  // order, exactly like the initial load — realtime only triggers the refetch.
+  useEffect(() => {
+    if (!id) return
+    const reload = async () => {
+      const farmerId = await requireFarmerSession()
+      if (!farmerId) return
+      const { data } = await supabase
+        .from('orders')
+        .select(ORDER_COLUMNS)
+        .eq('id', id)
+        .eq('farmer_id', farmerId)
+        .maybeSingle()
+      if (!data) return
+      const { data: rs } = await supabase
+        .from('orders')
+        .select('reschedule_reason')
+        .eq('id', id)
+        .maybeSingle()
+      setOrder({ ...(data as Order), reschedule_reason: (rs as { reschedule_reason?: string | null } | null)?.reschedule_reason ?? null })
+    }
+    const channel = supabase
+      .channel(`farmer_order_${id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
+        () => { void reload() },
+      )
+      .subscribe()
+    // Safety net for dropped websockets on spotty 4G.
+    const onVisible = () => { if (document.visibilityState === 'visible') void reload() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      supabase.removeChannel(channel)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [id])
+
   // Assigned rider's contact for home deliveries (mirrors the card). Read via
   // the farmer API, not straight from delivery_boys: that table is service-role
   // only, so the anon client this page uses gets an empty result every time —

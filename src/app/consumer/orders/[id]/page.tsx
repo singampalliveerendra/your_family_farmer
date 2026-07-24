@@ -8,6 +8,7 @@ import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
 import { isOrderPaid, isPaymentClaimed } from '@/lib/payment'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
+import { supabase } from '@/lib/supabase'
 import ComplaintModal from '@/components/consumer/ComplaintModal'
 import ProduceReviewBox, { type MyReview } from '@/components/consumer/ProduceReviewBox'
 import { canBuyerCancel } from '@/components/consumer/OrderCard'
@@ -191,15 +192,28 @@ export default function OrderDetailsPage() {
         .catch(() => {})
     }
 
-    const timer = setInterval(silentRefresh, 5000)
+    // Realtime carries the instant updates now, so this poll is just a fallback
+    // for when the websocket drops on spotty 4G — a slower 15s is plenty.
+    const timer = setInterval(silentRefresh, 15000)
     const onVisible = () => { if (document.visibilityState === 'visible') silentRefresh() }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', silentRefresh)
+
+    // Live tracking: push status changes to this exact order instantly, no wait.
+    const channel = supabase
+      .channel(`consumer_order_${id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
+        () => { silentRefresh() },
+      )
+      .subscribe()
 
     return () => {
       clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('focus', silentRefresh)
+      supabase.removeChannel(channel)
     }
   }, [orderActive, id, state.status])
 
