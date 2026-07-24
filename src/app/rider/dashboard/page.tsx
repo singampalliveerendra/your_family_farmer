@@ -7,28 +7,17 @@ import { useLang } from '@/lib/LanguageContext'
 
 type Rider = { id: string; name: string | null; phone: string; status: string; vehicle_type: string | null; vehicle_number: string | null }
 
-// One line inside a delivery job. A job is every home-delivery line from one
-// farmer in one checkout — one pickup, one drop — so the card lists its items
-// instead of pretending each line is its own trip. `id` on the job is the
-// anchor order the action endpoints are posted to; they expand it to the rest
-// of the job server-side.
-type JobItem = {
+type AvailableOrder = {
   id: string
   produce_name: string | null
   quantity: number | null
   unit: string | null
   total_price: number | null
-}
-
-type AvailableOrder = {
-  id: string
-  itemCount: number
-  items: JobItem[]
-  total_price: number | null
   payment_method: string | null
   payment_status: string | null
   delivery_pincode: string | null
   delivery_fee: number | null
+  rider_payout: number | null
   created_at: string
   farmer: { name: string; village: string; farm_address: string | null } | null
 }
@@ -37,8 +26,9 @@ type DeliveryStatus = 'assigned' | 'picked_up' | 'out_for_delivery'
 
 type MyOrder = {
   id: string
-  itemCount: number
-  items: JobItem[]
+  produce_name: string | null
+  quantity: number | null
+  unit: string | null
   total_price: number | null
   buyer_name: string | null
   buyer_phone: string | null
@@ -54,6 +44,7 @@ type MyOrder = {
   delivery_pincode: string | null
   delivery_alt_phone: string | null
   delivery_fee: number | null
+  rider_payout: number | null
   assigned_at: string | null
   picked_up_at: string | null
   out_for_delivery_at: string | null
@@ -62,13 +53,15 @@ type MyOrder = {
 
 type HistoryOrder = {
   id: string
-  itemCount: number
-  items: JobItem[]
+  produce_name: string | null
+  quantity: number | null
+  unit: string | null
   total_price: number | null
   buyer_name: string | null
   payment_method: string | null
   delivery_pincode: string | null
   delivery_fee: number | null
+  rider_payout: number | null
   delivered_at: string | null
   created_at: string
   farmer: { name: string; village: string } | null
@@ -81,6 +74,7 @@ export default function RiderDashboardPage() {
   const [available, setAvailable] = useState<AvailableOrder[]>([])
   const [mine, setMine] = useState<MyOrder[]>([])
   const [history, setHistory] = useState<HistoryOrder[]>([])
+  const [totalEarned, setTotalEarned] = useState(0)
   const [tab, setTab] = useState<'available' | 'mine' | 'history'>('available')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -112,6 +106,7 @@ export default function RiderDashboardPage() {
     setAvailable((json.available ?? []) as AvailableOrder[])
     setMine((json.mine ?? []) as MyOrder[])
     setHistory((json.history ?? []) as HistoryOrder[])
+    setTotalEarned(typeof json.totalEarned === 'number' ? json.totalEarned : 0)
     setLoading(false)
   }, [])
 
@@ -348,9 +343,17 @@ export default function RiderDashboardPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200 rounded-2xl px-4 py-3">
-              <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wide">{L('Completed', 'పూర్తయినవి')}</p>
-              <p className="text-lg font-extrabold text-emerald-900">{history.length} {history.length === 1 ? 'delivery' : 'deliveries'}</p>
+            <div className="bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200 rounded-2xl px-4 py-3 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wide">{L('Completed', 'పూర్తయినవి')}</p>
+                <p className="text-lg font-extrabold text-emerald-900">{history.length} {history.length === 1 ? 'delivery' : 'deliveries'}</p>
+              </div>
+              {totalEarned > 0 && (
+                <div className="text-right">
+                  <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wide">{L('Earned', 'ఆదాయం')}</p>
+                  <p className="text-lg font-extrabold text-emerald-900">₹{totalEarned}</p>
+                </div>
+              )}
             </div>
             {history.map((o) => (
               <HistoryCard key={o.id} order={o} />
@@ -359,50 +362,6 @@ export default function RiderDashboardPage() {
         )}
       </div>
     </main>
-  )
-}
-
-// Header shared by all three cards. A single-line job reads exactly as it
-// always did; a multi-line job leads with the item count and lists what's in
-// the bag, because that is one collection and one handover — not N deliveries.
-function JobHeader({ order }: { order: { itemCount: number; items: JobItem[]; total_price: number | null } }) {
-  const { L } = useLang()
-  const first = order.items[0]
-
-  if (order.itemCount <= 1) {
-    return (
-      <div className="min-w-0">
-        <p className="font-extrabold text-gray-900 text-sm leading-tight">
-          {first?.produce_name || 'Order'}
-        </p>
-        <p className="text-xs text-gray-500 mt-0.5">
-          {first?.quantity ?? 0} {first?.unit || 'kg'}
-          {first?.total_price ? ` · ₹${first.total_price}` : ''}
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="min-w-0">
-      <p className="font-extrabold text-gray-900 text-sm leading-tight">
-        {order.itemCount} {L('items', 'వస్తువులు')}
-        {order.total_price ? ` · ₹${order.total_price}` : ''}
-      </p>
-      <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mt-0.5">
-        {L('One pickup · one delivery', 'ఒకే పికప్ · ఒకే డెలివరీ')}
-      </p>
-      <ul className="mt-1.5 space-y-0.5">
-        {order.items.map((it) => (
-          <li key={it.id} className="text-xs text-gray-600 flex items-baseline justify-between gap-2">
-            <span className="truncate">{it.produce_name || 'Item'}</span>
-            <span className="whitespace-nowrap text-gray-500">
-              {it.quantity ?? 0} {it.unit || 'kg'}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
   )
 }
 
@@ -421,7 +380,15 @@ function AvailableCard({
     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
       <div className="p-4 space-y-2">
         <div className="flex items-start justify-between gap-2">
-          <JobHeader order={order} />
+          <div className="min-w-0">
+            <p className="font-extrabold text-gray-900 text-sm leading-tight">
+              {order.produce_name || 'Order'}
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {order.quantity ?? 0} {order.unit || 'kg'}
+              {order.total_price ? ` · ₹${order.total_price}` : ''}
+            </p>
+          </div>
           {isCod ? (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 whitespace-nowrap">
               Collect ₹{(order.total_price ?? 0) + (order.delivery_fee ?? 0)} {L('cash', 'నగదు')}
@@ -432,6 +399,13 @@ function AvailableCard({
             </span>
           )}
         </div>
+
+        {(order.rider_payout ?? 0) > 0 && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 flex items-center justify-between">
+            <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wide">{L('Your earning', 'మీ ఆదాయం')}</span>
+            <span className="text-base font-extrabold text-emerald-900">₹{order.rider_payout}</span>
+          </div>
+        )}
 
         <div className="border-t border-gray-100 pt-2 space-y-1.5">
           <p className="text-xs">
@@ -498,7 +472,15 @@ function MyOrderCard({
     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
       <div className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
-          <JobHeader order={order} />
+          <div className="min-w-0">
+            <p className="font-extrabold text-gray-900 text-sm leading-tight">
+              {order.produce_name || 'Order'}
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {order.quantity ?? 0} {order.unit || 'kg'}
+              {order.total_price ? ` · ₹${order.total_price}` : ''}
+            </p>
+          </div>
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor} whitespace-nowrap`}>
             {statusLabel}
           </span>
@@ -524,17 +506,16 @@ function MyOrderCard({
             .
           </div>
         )}
-        {/* Prepaid order — nothing changes hands at the door. The delivery
-            charge is collected at checkout (see /api/orders/razorpay/create,
-            which adds delivery_fee to the amount charged), so asking the
-            customer for it again would charge them twice. How the rider is then
-            paid is settled outside the app and is deliberately not shown here.
-            Said positively rather than just hidden: the rider needs to know not
-            to ask. */}
-        {!isCod && (
-          <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs">
-            <span className="font-bold text-gray-800">✓ {L('Nothing to collect', 'వసూలు చేయవలసినది లేదు')}</span>{' '}
-            {L('— the customer already paid online, delivery charge included.', '— కస్టమర్ ఇప్పటికే ఆన్‌లైన్‌లో చెల్లించారు, డెలివరీ ఛార్జీతో సహా.')}
+        {!isCod && (order.delivery_fee ?? 0) > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs">
+            <span className="font-bold text-amber-900">💵 {L('Collect', 'వసూలు')} ₹{order.delivery_fee}</span> {L('delivery fee in cash from the customer.', 'డెలివరీ ఛార్జ్ కస్టమర్ నుండి నగదు తీసుకోండి.')}
+          </div>
+        )}
+
+        {(order.rider_payout ?? 0) > 0 && (
+          <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+            <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wide">{L('Your earning', 'మీ ఆదాయం')}</span>
+            <span className="text-base font-extrabold text-emerald-900">₹{order.rider_payout}</span>
           </div>
         )}
 
@@ -654,13 +635,21 @@ function HistoryCard({ order }: { order: HistoryOrder }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2">
       <div className="flex items-start justify-between gap-2">
-        <JobHeader order={order} />
+        <div className="min-w-0">
+          <p className="font-extrabold text-gray-900 text-sm leading-tight">
+            {order.produce_name || 'Order'}
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {order.quantity ?? 0} {order.unit || 'kg'}
+            {order.total_price ? ` · ₹${order.total_price}` : ''}
+          </p>
+        </div>
         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800 whitespace-nowrap">
           ✓ Delivered
         </span>
       </div>
 
-      <div className="border-t border-gray-100 pt-2 text-xs">
+      <div className="border-t border-gray-100 pt-2 flex items-center justify-between text-xs">
         <div className="min-w-0">
           {order.farmer && (
             <p className="text-gray-600 truncate">🧑‍🌾 {order.farmer.name} · {order.farmer.village}</p>
@@ -670,6 +659,12 @@ function HistoryCard({ order }: { order: HistoryOrder }) {
           )}
           <p className="text-gray-400 mt-0.5">{dateLabel}</p>
         </div>
+        {(order.rider_payout ?? 0) > 0 && (
+          <div className="text-right whitespace-nowrap">
+            <p className="text-[10px] font-bold text-emerald-800 uppercase">Earned</p>
+            <p className="text-sm font-extrabold text-emerald-900">₹{order.rider_payout}</p>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -92,13 +92,6 @@ export async function POST(req: NextRequest) {
   const depositRupees = orders.reduce((s, o) => s + (Number(o.cod_deposit) || 0), 0)
 
   let totalRupees: number
-  // The two charges that sit on top of the produce subtotal. Returned to the
-  // client so the success screen can show them as separate lines instead of
-  // lumping everything it can't account for into "platform fee". Left at 0 for
-  // a COD deposit, where the deposit already folds both in and no breakdown
-  // would be meaningful.
-  let platformFeeRupees = 0
-  let deliveryFeeRupees = 0
   if (isCod && depositRupees > 0) {
     totalRupees = depositRupees
   } else if (isCod) {
@@ -107,8 +100,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'This order is cash on delivery — nothing to pay now.' }, { status: 409 })
   } else {
     const subtotalRupees = orders.reduce((s, o) => s + (Number(o.total_price) || 0), 0)
-    platformFeeRupees = orders.reduce((s, o) => s + (Number(o.platform_fee) || 0), 0)
-    deliveryFeeRupees = orders.reduce((s, o) => s + (Number(o.delivery_fee) || 0), 0)
+    const platformFeeRupees = orders.reduce((s, o) => s + (Number(o.platform_fee) || 0), 0)
+    const deliveryFeeRupees = orders.reduce((s, o) => s + (Number(o.delivery_fee) || 0), 0)
     totalRupees = subtotalRupees + platformFeeRupees + deliveryFeeRupees
   }
 
@@ -126,8 +119,6 @@ export async function POST(req: NextRequest) {
       razorpayOrderId: existingRzpId,
       amount: amountPaise,
       currency: 'INR',
-      platformFee: platformFeeRupees,
-      deliveryFee: deliveryFeeRupees,
       reused: true,
     })
   }
@@ -161,7 +152,5 @@ export async function POST(req: NextRequest) {
     razorpayOrderId: rzpOrder.id,
     amount: amountPaise,
     currency: 'INR',
-    platformFee: platformFeeRupees,
-    deliveryFee: deliveryFeeRupees,
   })
 }
