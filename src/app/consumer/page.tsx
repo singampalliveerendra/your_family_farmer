@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import GlobalNav from '@/components/consumer/GlobalNav'
 import { CartFab, useCart, EditableQty } from '@/components/consumer/Cart'
 import MyOrdersChip from '@/components/consumer/MyOrdersChip'
@@ -249,12 +250,20 @@ export default function ConsumerPage() {
     // Background refreshes — no skeleton flash
     const onVisible = () => { if (document.visibilityState === 'visible') fetchData(true) }
     document.addEventListener('visibilitychange', onVisible)
+    // Debounce: a burst of listing writes (e.g. a moderator editing several
+    // rows back to back) should trigger one refetch, not one per row change.
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+    const scheduleRefetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => fetchData(true), 2000)
+    }
     const channel = supabase
       .channel('produce_listings_consumer')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'produce_listings' }, () => fetchData(true))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'produce_listings' }, scheduleRefetch)
       .subscribe()
     return () => {
       document.removeEventListener('visibilitychange', onVisible)
+      if (debounceTimer) clearTimeout(debounceTimer)
       supabase.removeChannel(channel)
     }
   }, [fetchData])
@@ -743,10 +752,9 @@ function ProduceCard({ item, harvest, distanceKm, distanceApprox }: { item: Prod
               <Link
                 key={url}
                 href={produceHref}
-                className="snap-center shrink-0 w-full h-40 block"
+                className="relative snap-center shrink-0 w-full h-40 block"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt={item.name} loading="lazy" className="w-full h-full object-cover" />
+                <Image src={url} alt={item.name} fill sizes="(max-width: 640px) 100vw, 400px" className="object-cover" />
               </Link>
             ))}
           </div>

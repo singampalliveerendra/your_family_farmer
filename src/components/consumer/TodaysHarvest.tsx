@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { useCart } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
@@ -156,8 +157,7 @@ export default function TodaysHarvest() {
       >
         <div className="h-24 w-full bg-green-50 flex items-center justify-center relative">
           {cover ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={cover} alt={item.name} loading="lazy" className="w-full h-full object-cover" />
+            <Image src={cover} alt={item.name} fill sizes="144px" className="object-cover" />
           ) : (
             <span className="text-4xl">{emoji}</span>
           )}

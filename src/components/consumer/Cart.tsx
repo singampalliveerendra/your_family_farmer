@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
@@ -1415,8 +1416,7 @@ export function CartSheet({
             {upiScreen.qrCodeUrl && (
               <div className="bg-white border-2 border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2">
                 <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">Scan QR Code to Pay</p>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={upiScreen.qrCodeUrl} alt="UPI QR Code" className="w-48 h-48 object-contain rounded-xl" />
+                <Image src={upiScreen.qrCodeUrl} alt="UPI QR Code" width={192} height={192} className="w-48 h-48 object-contain rounded-xl" />
                 <p className="text-[11px] text-gray-500 text-center">{L('Open any UPI app → Scan QR', 'QR స్కాన్ చేయండి')}</p>
                 <button
                   onClick={handleDownloadQR}
