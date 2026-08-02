@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { purchaseCountsFor } from '@/lib/purchaseCounts'
+import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -43,8 +44,10 @@ export async function GET(request: NextRequest) {
 
   const { data: produce } = await supabase
     .from('produce_listings')
+    // Sold-out produce still answers "does this farmer grow tomatoes?", so it
+    // stays searchable and renders greyed rather than vanishing from results.
     .select('*')
-    .eq('status', 'available')
+    .in('status', CONSUMER_VISIBLE_STATUSES)
     .order('created_at', { ascending: false })
 
   let filtered = produce ?? []

@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
 import { purchaseCountsFor } from '@/lib/purchaseCounts'
+import { normalizeUrl } from '@/lib/links'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -146,6 +147,7 @@ export async function POST(req: NextRequest) {
     variety: String(b.variety ?? '').trim() || null,
     stock_qty: toNum(b.stock_qty),
     description: String(b.description ?? '').trim() || null,
+    video_url: normalizeUrl(b.video_url as string | null | undefined),
     brix: toNum(b.brix),
     soil_organic_carbon: toNum(b.soil_organic_carbon),
     delivery_mode: deliveryMode,

@@ -13,6 +13,7 @@ import { type FarmerOrder as Order, isResolved } from '@/components/farmer/Order
 import DemandSupplyChart from '@/components/DemandSupplyChart'
 import { type CropBalance } from '@/lib/demand-supply'
 import HarvestManager from '@/components/HarvestManager'
+import { isLikelyUrl, normalizeUrl } from '@/lib/links'
 import {
   clearFarmerLocalSession,
   farmerFetch,
@@ -39,6 +40,9 @@ type Farmer = {
   story_quote: string | null
   pickup_locations: string[] | null
   farm_address: string | null
+  facebook_url?: string | null
+  instagram_url?: string | null
+  youtube_url?: string | null
   cover_photo_url: string | null
   photo_url: string | null
   pesticide_cert_url: string | null
@@ -89,6 +93,7 @@ type ListingRow = {
   soil_ph: number | null
   pesticide_result: string | null
   how_we_grow: string | null
+  video_url?: string | null
   unit: string | null
   availability_from: string | null
   availability_to: string | null
@@ -190,6 +195,17 @@ export default function FarmerDashboard() {
   const [showForm, setShowForm] = useState(false)
   const [showProfileEdit, setShowProfileEdit] = useState(false)
   const [showListings, setShowListings] = useState(false)
+
+  // ?edit=profile opens the profile modal straight away — the "Edit profile"
+  // button on the farmer's own public page links here. Read off
+  // window.location rather than useSearchParams so this page needs no Suspense
+  // boundary. The param is stripped afterwards, so a refresh (or a Back) doesn't
+  // reopen the modal the farmer just closed.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('edit') !== 'profile') return
+    setShowProfileEdit(true)
+    window.history.replaceState(null, '', window.location.pathname)
+  }, [])
 
   const loadDashboard = useCallback(async () => {
     // Cookie-verified: a farmer whose session died must land on the login page,
@@ -868,6 +884,11 @@ function ProfileEditModal({
   const [pickupLocations, setPickupLocations] = useState<string[]>(initialLocations)
   const [newPickup, setNewPickup] = useState('')
   const [farmAddress, setFarmAddress] = useState(farmer.farm_address ?? '')
+  // Social channels the farmer already runs. Stored on `farmers`; see
+  // scripts/farmer-social-links-migration.sql.
+  const [facebookUrl, setFacebookUrl]   = useState(farmer.facebook_url ?? '')
+  const [instagramUrl, setInstagramUrl] = useState(farmer.instagram_url ?? '')
+  const [youtubeUrl, setYoutubeUrl]     = useState(farmer.youtube_url ?? '')
 
   // Farm & soil details (also editable by moderators) — surfaced here so farmers
   // can fill their own WhatsApp, farm size, soil health and story from the dashboard.
@@ -1121,9 +1142,19 @@ function ProfileEditModal({
       await supabase.from('farmers').update({ soil_ph: phValue }).eq('id', farmer.id)
     }
 
+    // Social links are best-effort for the same reason: their columns don't
+    // exist until scripts/farmer-social-links-migration.sql runs, and a farmer
+    // must still be able to save their name and pickup points before then.
+    const socialPatch = {
+      facebook_url:  normalizeUrl(facebookUrl),
+      instagram_url: normalizeUrl(instagramUrl),
+      youtube_url:   normalizeUrl(youtubeUrl),
+    }
+    await supabase.from('farmers').update(socialPatch).eq('id', farmer.id)
+
     setLoading(false)
     localStorage.setItem('yff_farmer_slug', data.slug)
-    onSaved({ ...(data as Farmer), soil_ph: phValue })
+    onSaved({ ...(data as Farmer), soil_ph: phValue, ...socialPatch })
   }
 
   const handleChangePassword = async () => {
@@ -1421,6 +1452,45 @@ function ProfileEditModal({
               placeholder="H. No. 12-34, Mango Grove Road, near water tank, Anand Nagar"
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none resize-none"
             />
+          </div>
+
+          {/* Social channels. A farm page a buyer can go and look at does more
+              for trust than anything we can say about a new seller ourselves.
+              All optional — the profile shows only what's filled in. */}
+          <div>
+            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
+              {L('Your channels (optional)', 'మీ ఛానెల్‌లు')}
+            </label>
+            <p className="text-[11px] text-gray-500 mb-2 leading-snug">
+              {L('Already post about your farm? Add the links and buyers can follow you.', 'మీ పొలం గురించి పోస్ట్ చేస్తున్నారా? లింక్‌లు జోడిస్తే కొనుగోలుదారులు ఫాలో అవుతారు.')}
+            </p>
+            <div className="space-y-2">
+              {([
+                { label: 'Facebook',  icon: '📘', value: facebookUrl,  set: setFacebookUrl,  ph: 'facebook.com/yourfarm' },
+                { label: 'Instagram', icon: '📸', value: instagramUrl, set: setInstagramUrl, ph: 'instagram.com/yourfarm' },
+                { label: 'YouTube',   icon: '▶️', value: youtubeUrl,   set: setYoutubeUrl,   ph: 'youtube.com/@yourfarm' },
+              ] as const).map((row) => (
+                <div key={row.label}>
+                  <div className="flex items-center gap-2">
+                    <span className="w-8 text-center text-lg" aria-hidden>{row.icon}</span>
+                    <input
+                      type="url"
+                      inputMode="url"
+                      aria-label={row.label}
+                      value={row.value}
+                      onChange={(e) => row.set(e.target.value.slice(0, 300))}
+                      placeholder={row.ph}
+                      className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
+                    />
+                  </div>
+                  {row.value.trim() && !isLikelyUrl(row.value) && (
+                    <p className="text-[11px] text-amber-700 mt-1 ml-10">
+                      {L('That does not look like a link.', 'ఇది లింక్‌లా లేదు.')}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
 
           <div>
@@ -1866,6 +1936,7 @@ function ProduceListingForm({
   // Chemicals / pesticide info reuses the existing pesticide_result column.
   const [pesticide, setPesticide] = useState(editData?.pesticide_result ?? '')
   const [howWeGrow, setHowWeGrow] = useState(editData?.how_we_grow ?? '')
+  const [videoUrl, setVideoUrl] = useState(editData?.video_url ?? '')
   // #9 — explicit produce category (drives the consumer category filter).
   const [category, setCategory] = useState(editData?.category ?? '')
   const [unit, setUnit] = useState(editData?.unit ?? 'kg')
@@ -2071,6 +2142,7 @@ function ProduceListingForm({
         how_we_grow: howWeGrow.trim() || null,
         category: category || null,
         image_urls: allImages.length ? allImages : null,
+        video_url: normalizeUrl(videoUrl),
       }
       await supabase.from('produce_listings').update(qualityPatch).eq('id', editData.id)
       setLoading(false)
@@ -2134,6 +2206,7 @@ function ProduceListingForm({
         how_we_grow: howWeGrow.trim() || null,
         category: category || null,
         image_urls: allImages.length ? allImages : null,
+        video_url: normalizeUrl(videoUrl),
       }).eq('id', inserted.id)
     }
     setLoading(false)
@@ -2472,6 +2545,29 @@ function ProduceListingForm({
           <p className="text-right text-xs text-gray-400">{description.length}/500</p>
         </div>
 
+        {/* Video link — a link, not an upload. Farmers already post clips to
+            YouTube/Instagram/WhatsApp status; asking them to upload video over
+            rural 4G would just mean nobody uses it. Buyers get a "Watch video"
+            link on the produce page. */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            {L('Video link (optional)', 'వీడియో లింక్')}
+          </label>
+          <input
+            type="url"
+            inputMode="url"
+            placeholder="https://youtube.com/..."
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value.slice(0, 500))}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
+          />
+          {videoUrl.trim() && !isLikelyUrl(videoUrl) && (
+            <p className="text-xs text-amber-700">
+              {L('That does not look like a link. Paste the full address, starting with https://', 'ఇది లింక్‌లా లేదు. https:// తో మొదలయ్యే పూర్తి చిరునామా ఇవ్వండి.')}
+            </p>
+          )}
+        </div>
+
         {/* Produce photo */}
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
@@ -2634,6 +2730,20 @@ function ProduceListingForm({
             {loading ? (isEdit ? tx.saving : tx.publishing) : (isEdit ? tx.saveChanges : tx.publish)}
           </button>
         </div>
+
+        {/* Cancel, at the bottom where the farmer actually ends up. The only way
+            out used to be the × in the header, which meant scrolling this whole
+            form back to the top to abandon an edit. Kept on its own row — three
+            buttons abreast don't fit 390px — and styled quietly so it can't be
+            mistaken for Save. Disabled mid-save so a tap can't close the sheet
+            while the write is in flight. */}
+        <button
+          onClick={onClose}
+          disabled={loading}
+          className="w-full text-gray-500 font-semibold py-3 rounded-xl text-sm active:bg-gray-50 disabled:opacity-50"
+        >
+          {tx.cancel}
+        </button>
       </div>
 
       {/* Preview modal */}

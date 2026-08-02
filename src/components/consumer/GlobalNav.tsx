@@ -26,25 +26,33 @@ export default function GlobalNav({
   return (
     <nav className="sticky top-0 z-50 bg-green-900 shadow-lg">
       {/* Logo row */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-green-800 gap-2">
-        <Link href="/consumer" className="flex items-center gap-2.5 min-w-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-green-800 gap-1.5">
+        {/* Brand never shrinks. At 390px the right-hand cluster (greeting +
+            language toggle + ⚙️) is wide enough to squeeze this block to a few
+            pixels, which clipped the name to "Go Gram…". The brand is the one
+            thing that must always read in full, so it holds its width and the
+            greeting on the right truncates instead. */}
+        <Link href="/consumer" className="flex items-center gap-2.5 flex-shrink-0">
           <div className="w-9 h-9 bg-green-700 rounded-xl flex items-center justify-center flex-shrink-0">
             <span className="text-white font-black text-xs">GG</span>
           </div>
-          <div className="leading-tight min-w-0">
-            <span className="text-white font-bold text-sm block truncate">{L('Go Grameen', 'గో గ్రామీణ్')}</span>
-            <span className="text-green-300 text-[10px] block truncate">{L('Your Family Farmer', 'యువర్ ఫ్యామిలీ ఫార్మర్')}</span>
+          <div className="leading-tight">
+            <span className="text-white font-bold text-sm block whitespace-nowrap">{L('Go Grameen', 'గో గ్రామీణ్')}</span>
+            <span className="text-green-300 text-[10px] block whitespace-nowrap">{L('Your Family Farmer', 'యువర్ ఫ్యామిలీ ఫార్మర్')}</span>
           </div>
         </Link>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
+        {/* gap-1.5 rather than gap-2: the Telugu brand is ~30px wider than the
+            English one, and the tighter gaps are what keep the row inside
+            390px when it is rendered. */}
+        <div className="flex items-center gap-1.5 min-w-0">
           {/* Location — beside the greeting. Compact so the top bar stays tidy
               on 390px; the name truncates. */}
           {location && (
             <button
               onClick={location.onClick}
               aria-label={L('Set location', 'లొకేషన్ పెట్టండి')}
-              className="inline-flex items-center gap-1 text-[11px] font-bold text-green-100 bg-green-800 active:bg-green-700 rounded-full px-2.5 py-1.5 leading-tight max-w-[104px]"
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-green-100 bg-green-800 active:bg-green-700 rounded-full px-2.5 py-1.5 leading-tight max-w-[104px] min-w-0"
             >
               <span aria-hidden>📍</span>
               <span className="truncate">{location.name || L('Set location', 'లొకేషన్ పెట్టండి')}</span>
@@ -55,12 +63,16 @@ export default function GlobalNav({
           ) : (
             <button
               onClick={openAuth}
-              className="text-[11px] font-bold text-green-100 bg-green-800 active:bg-green-700 rounded-full px-3 py-1.5 leading-tight"
+              className="text-[11px] font-bold text-green-100 bg-green-800 active:bg-green-700 rounded-full px-3 py-1.5 leading-tight min-w-0 truncate"
             >
               {L('Login', 'లాగిన్')}
             </button>
           )}
-          <LanguageToggle />
+          {/* Toggle and ⚙️ hold their size — both are already at their minimum
+              tappable width, so the greeting is the only thing that gives. */}
+          <div className="flex-shrink-0">
+            <LanguageToggle />
+          </div>
           {/* Role switcher — tucked into a ⚙️ menu so consumers see a plain
               shop, and Farmer/Delivery sign-in stays available but out of the
               way (top-right). */}
@@ -112,7 +124,7 @@ function RoleMenu() {
   }, [open])
 
   return (
-    <div ref={wrapRef} className="relative">
+    <div ref={wrapRef} className="relative flex-shrink-0">
       <button
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
@@ -178,12 +190,14 @@ function ConsumerMenu({ name, onLogout }: { name: string | null; onLogout: () =>
   }, [open])
 
   return (
-    <div ref={wrapRef} className="relative">
+    // min-w-0 lets the greeting be the pill that gives way when the row is
+    // tight, so the brand on the left keeps its full width.
+    <div ref={wrapRef} className="relative min-w-0">
       <button
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="text-[11px] font-bold text-green-100 bg-green-800 active:bg-green-700 rounded-full px-3 py-1.5 leading-tight max-w-[104px] truncate"
+        className="w-full text-[11px] font-bold text-green-100 bg-green-800 active:bg-green-700 rounded-full px-3 py-1.5 leading-tight max-w-[104px] truncate"
       >
         Hi {firstName} ▾
       </button>

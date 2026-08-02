@@ -44,6 +44,7 @@ export type FarmerOrder = {
   buyer_name: string | null
   buyer_phone: string | null
   pickup_location: string | null
+  pickup_phone?: string | null
   status: 'pending' | 'approved' | 'declined' | 'cancelled'
   payment_method?: string | null
   payment_status: string | null
@@ -394,6 +395,14 @@ export default function OrderCard({
 
           {order.pickup_location && (
             <p className="text-xs text-gray-500">📍 {order.pickup_location}</p>
+          )}
+
+          {/* Pickup contact — whoever the buyer said would actually collect.
+              Shown only when it differs from buyer_phone, already on the card. */}
+          {order.pickup_phone && order.pickup_phone !== order.buyer_phone && (
+            <p className="text-xs text-gray-500">
+              📞 <a href={`tel:${order.pickup_phone}`} className="text-blue-700 underline">+91 {order.pickup_phone}</a>
+            </p>
           )}
 
           <p className="text-[11px] font-semibold text-green-700 pt-0.5">

@@ -46,7 +46,7 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
   const loadHarvests = useCallback(async () => {
     const { data } = await supabase
       .from('harvests')
-      .select('id, produce_listing_id, farmer_id, harvested_at, shelf_life_days, approx_quantity, unit, notes')
+      .select('id, produce_listing_id, farmer_id, harvested_at, shelf_life_days, approx_quantity, unit, notes, paused')
       .eq('produce_listing_id', listingId)
       .order('harvested_at', { ascending: false })
       .limit(20)
@@ -106,6 +106,21 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
     if (err) { setEditErr(err.message); return }
     setEditingHarvestId(null)
     void loadHarvests()
+  }
+
+  // Pause / resume — the non-destructive alternative to 🗑. A paused harvest
+  // keeps its row (and the history behind the "harvested 2h ago" clock) but
+  // vanishes from every consumer surface until the farmer resumes it.
+  const togglePause = async (h: Harvest) => {
+    const next = !h.paused
+    setHarvestErr('')
+    // Optimistic: the list is short and the round-trip on 4G is the slow part.
+    setHarvests((prev) => prev.map((x) => (x.id === h.id ? { ...x, paused: next } : x)))
+    const { error: err } = await supabase.from('harvests').update({ paused: next }).eq('id', h.id)
+    if (err) {
+      setHarvests((prev) => prev.map((x) => (x.id === h.id ? { ...x, paused: h.paused } : x)))
+      setHarvestErr(err.message)
+    }
   }
 
   const deleteHarvest = async (h: Harvest) => {
@@ -194,9 +209,16 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
                 </div>
               ) : (
                 <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
+                  {/* Paused rows dim, so the list reads at a glance as "these
+                      two are live, that one is hidden". */}
+                  <div className={`min-w-0 ${h.paused ? 'opacity-50' : ''}`}>
                     <p className="text-xs font-semibold text-gray-800 truncate">
                       🌾 {harvestClock(h.harvested_at, L)}
+                      {h.paused && (
+                        <span className="ml-1.5 text-[10px] font-bold text-amber-700 bg-amber-100 rounded-full px-1.5 py-0.5 align-middle">
+                          {L('Paused', 'నిలిపివేయబడింది')}
+                        </span>
+                      )}
                     </p>
                     <p className="text-[11px] text-gray-500">
                       {/* Freshness uses the produce's shelf life (per-harvest
@@ -204,8 +226,25 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
                       {freshnessLabel(h.harvested_at, produceShelfLife ?? null, L) ?? harvestClock(h.harvested_at, L)}
                       {h.approx_quantity != null && <> · {h.approx_quantity} {h.unit || unit || 'kg'}</>}
                     </p>
+                    {h.paused && (
+                      <p className="text-[10px] text-amber-700 leading-snug mt-0.5">
+                        {L('Hidden from buyers. Resume to sell it again.', 'కొనుగోలుదారులకు కనిపించదు. మళ్లీ అమ్మడానికి కొనసాగించండి.')}
+                      </p>
+                    )}
                   </div>
                   <div className="flex-shrink-0 flex items-center gap-1.5">
+                    {/* Pause sits before Delete so the reversible action is the
+                        one that falls under the thumb first. */}
+                    <button
+                      onClick={() => togglePause(h)}
+                      className={`text-xs font-bold border rounded-lg px-2.5 py-1.5 ${
+                        h.paused
+                          ? 'text-green-700 border-green-300 active:bg-green-50'
+                          : 'text-amber-700 border-amber-300 active:bg-amber-50'
+                      }`}
+                    >
+                      {h.paused ? L('Resume', 'కొనసాగించు') : L('Pause', 'నిలిపివేయి')}
+                    </button>
                     <button
                       onClick={() => startEditHarvest(h)}
                       className="text-xs font-bold text-green-700 border border-green-300 rounded-lg px-3 py-1.5 active:bg-green-50"

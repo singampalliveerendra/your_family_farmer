@@ -329,6 +329,9 @@ export function CartSheet({
   const [deliveryAltPhone, setDeliveryAltPhone] = useState('')
   const [sentFarmers, setSentFarmers] = useState<Record<string, boolean>>({})
   const [pickupByFarmer, setPickupByFarmer] = useState<Record<string, string>>({})
+  // Optional "who to call at the pickup point", per farmer — the pickup twin of
+  // deliveryAltPhone. Blank means the farmer just uses the account's buyer_phone.
+  const [pickupPhoneByFarmer, setPickupPhoneByFarmer] = useState<Record<string, string>>({})
   const [toast, setToast] = useState('')
   const [placingUpiOrder, setPlacingUpiOrder] = useState<string | null>(null)
   const [submittingResult, setSubmittingResult] = useState(false)
@@ -611,7 +614,18 @@ export function CartSheet({
   const baseDetailsMissing = !name.trim() || phone.replace(/\D/g, '').length < 10
   const deliveryDetailsMissing = needsAddress
     && (deliveryAddress.trim().length < 10 || !deliveryCity.trim() || !/^\d{6}$/.test(deliveryPincode.trim()))
-  const detailsMissing = baseDetailsMissing || deliveryDetailsMissing
+  // Pickup contact phone is optional, but a half-typed one is worse than none —
+  // the farmer would dial a dead number. Blank is fine; anything else must be
+  // a full 10 digits.
+  const pickupPhoneInvalid = (farmerId: string) => {
+    const digits = (pickupPhoneByFarmer[farmerId] ?? '').replace(/\D/g, '')
+    return digits.length > 0 && digits.length < 10
+  }
+  const anyPickupPhoneInvalid = farmerGroups.some((g) => {
+    const f = g[0]
+    return g.some((it) => deliveryOf(it) === 'self_pickup') && pickupPhoneInvalid(f.farmerId)
+  })
+  const detailsMissing = baseDetailsMissing || deliveryDetailsMissing || anyPickupPhoneInvalid
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -645,6 +659,7 @@ export function CartSheet({
         farmerId: f.farmerId,
         paymentMethod,
         pickupLocation: pickupByFarmer[f.farmerId] || null,
+        pickupPhone: pickupPhoneByFarmer[f.farmerId]?.replace(/\D/g, '').slice(-10) || null,
         items: group.map((it) => ({
           listingId: it.listingId,
           harvestId: it.harvestId,
@@ -1996,6 +2011,42 @@ export function CartSheet({
                           </p>
                         </div>
                       )}
+
+                      {/* Contact number for THIS pickup — the twin of the
+                          delivery "Alternate phone" above. The person who
+                          collects is often not the person who ordered (a
+                          relative, a driver), and the farmer waiting at the
+                          point needs someone reachable. Optional: left blank,
+                          the farmer falls back to the account phone. */}
+                      <div className="pt-1">
+                        <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                          {L('Pickup contact phone (optional)', 'పికప్ ఫోన్ నంబర్')}
+                        </label>
+                        <div className="flex gap-2">
+                          <span className="flex items-center px-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 font-medium">
+                            +91
+                          </span>
+                          <input
+                            type="tel"
+                            inputMode="numeric"
+                            value={pickupPhoneByFarmer[f.farmerId] ?? ''}
+                            onChange={(e) =>
+                              setPickupPhoneByFarmer((prev) => ({
+                                ...prev,
+                                [f.farmerId]: e.target.value.replace(/\D/g, '').slice(0, 10),
+                              }))
+                            }
+                            maxLength={10}
+                            placeholder={L('Who will collect', 'ఎవరు తీసుకుంటారు')}
+                            className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+                          />
+                        </div>
+                        {pickupPhoneInvalid(f.farmerId) && (
+                          <p className="text-[11px] text-red-600 mt-1">
+                            {L('Enter a 10-digit number, or leave it blank.', '10 అంకెల నంబర్ ఇవ్వండి, లేదా ఖాళీగా వదిలేయండి.')}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )
                 })}

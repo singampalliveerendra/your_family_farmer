@@ -17,7 +17,8 @@ import LocationSearch from '@/components/LocationSearch'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
-import { harvestClock, freshnessLabel } from '@/lib/harvest'
+import { harvestClock } from '@/lib/harvest'
+import { isSoldOutListing } from '@/lib/produceStatus'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
 
 const DEFAULT_REGION = 'tadepalligudem'
@@ -109,7 +110,9 @@ type WithDist = ProduceListing & { distKm: number | null; distApprox: boolean }
 // date/shelf/stock, links to the harvest page); absent → the produce template
 // (fallback when nothing has been logged). `sortAt` is the harvest date/time
 // used by the "Freshest first" sort; `key` is the React/cart key.
-type DisplayCard = { item: WithDist; harvest?: GridHarvest; key: string; sortAt: number }
+// `soldOut` mirrors what the card will render, so the sort can sink sold-out
+// tiles below the buyable ones without recomputing the rule in two places.
+type DisplayCard = { item: WithDist; harvest?: GridHarvest; key: string; sortAt: number; soldOut: boolean }
 
 // Keyword fallback for categorising older listings that don't have an explicit
 // `category` set. Kept in sync with /api/produce/search so the client-side
@@ -201,7 +204,13 @@ export default function ConsumerPage() {
   const [consumerLng, setConsumerLng]           = useState<number | null>(null)
   const [consumerLocationName, setConsumerLocationName] = useState('')
   const [showLocationSheet, setShowLocationSheet]       = useState(false)
-  const [distanceFilter, setDistanceFilter]             = useState<number | null>(null)
+  // Default to "< 25 km", not "All". The point of the app is buying from a
+  // farmer near you, and an unfiltered feed led with produce hundreds of km
+  // away that nobody was going to collect. Only bites once a location is set —
+  // without one the filter can't run at all, so a new visitor still sees
+  // everything. "All" stays one tap away, and the empty state offers to clear
+  // it when nothing is in range.
+  const [distanceFilter, setDistanceFilter]             = useState<number | null>(25)
 
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -226,6 +235,7 @@ export default function ConsumerPage() {
         const { data: hs } = await supabase
           .from('harvests')
           .select('id, produce_listing_id, harvested_at, shelf_life_days, stock_qty, unit')
+          .eq('paused', false)
           .gte('harvested_at', since)
           .order('harvested_at', { ascending: false })
           .limit(500)
@@ -377,13 +387,20 @@ export default function ConsumerPage() {
     for (const item of items) {
       const hs = harvestsByListing[item.id] ?? []
       if (hs.length) {
-        for (const h of hs) cards.push({ item, harvest: h, key: h.id, sortAt: ts(h.harvested_at) })
+        // A harvest is sold out on its own stock — the template's status says
+        // nothing about a pick that still has kilos left.
+        for (const h of hs) {
+          cards.push({ item, harvest: h, key: h.id, sortAt: ts(h.harvested_at), soldOut: h.stock_qty != null && h.stock_qty <= 0 })
+        }
       } else {
-        cards.push({ item, key: item.id, sortAt: ts(item.latest_harvested_at) })
+        cards.push({ item, key: item.id, sortAt: ts(item.latest_harvested_at), soldOut: isSoldOutListing(item) })
       }
     }
 
     cards.sort((a, b) => {
+      // Sold-out tiles stay in the feed but sink below everything buyable,
+      // whichever sort the buyer picked — they are context, not the offer.
+      if (a.soldOut !== b.soldOut) return a.soldOut ? 1 : -1
       if (sortBy === 'rating') {
         return (b.item.rating_avg ?? 0) - (a.item.rating_avg ?? 0) || (b.item.review_count ?? 0) - (a.item.review_count ?? 0)
       }
@@ -547,7 +564,10 @@ export default function ConsumerPage() {
         {loading ? (
           <LoadingSkeleton />
         ) : displayItems.length === 0 ? (
-          distanceFilter ? (
+          // Blame the distance filter only when it actually ran. It now defaults
+          // to 25 km, but with no location set nothing was filtered out, so an
+          // empty grid there means "no produce", not "none nearby".
+          distanceFilter && consumerLat && consumerLng ? (
             <DistanceEmptyState km={distanceFilter} onClear={() => setDistanceFilter(null)} />
           ) : (
             <EmptyState />
@@ -627,7 +647,8 @@ function ProduceCard({ item, harvest, distanceKm, distanceApprox }: { item: Prod
   // Clock + freshness: from THIS harvest when it's a harvest card, else the
   // produce's fallback (latest logged / Edit-form harvest date).
   const clockAt    = harvest ? harvest.harvested_at : (item.latest_harvested_at ?? null)
-  const clockShelf = harvest ? (harvest.shelf_life_days ?? item.shelf_life_days ?? null) : (item.latest_shelf_life_days ?? null)
+  // (Shelf life is no longer read here — the card shows the harvest clock only,
+  // not the freshness countdown. It still drives the Fresh Harvests shelf.)
   // Stock: the harvest carries its own; the template uses the listing's.
   const baseStock  = harvest ? (harvest.stock_qty ?? null) : (item.stock_qty ?? null)
 
@@ -657,7 +678,12 @@ function ProduceCard({ item, harvest, distanceKm, distanceApprox }: { item: Prod
 
   useEffect(() => { setLiveStock(baseStock) }, [baseStock])
 
-  const isOutOfStock = liveStock !== null && liveStock <= 0
+  // A harvest tile judges itself by the harvest's own stock — the template
+  // being 'sold_out' says nothing about a pick that still has kilos left. A
+  // template tile has no second source, so its status counts too.
+  const isOutOfStock = harvest
+    ? liveStock !== null && liveStock <= 0
+    : (liveStock !== null && liveStock <= 0) || isSoldOutListing(item)
   const atMax        = liveStock !== null && inCart != null && inCart.qty >= liveStock
 
   const handleAdd = async () => {
@@ -740,8 +766,12 @@ function ProduceCard({ item, harvest, distanceKm, distanceApprox }: { item: Prod
   return (
     <div className="bg-white rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.08)] flex flex-col h-full">
       {/* Image — fixed 160px. Multiple photos become a swipe gallery (swipe
-          right-to-left for the rest); method pill top-right, dots bottom-centre. */}
-      <div className="relative h-40 w-full flex-shrink-0">
+          right-to-left for the rest); method pill top-right, dots bottom-centre.
+          Sold out → the photo desaturates and carries a SOLD OUT ribbon, so the
+          tile reads as unavailable at a glance while still showing the crop.
+          Only the image dims: the name, farmer and price stay legible, since the
+          point of keeping the tile is that the buyer can still read it. */}
+      <div className={`relative h-40 w-full flex-shrink-0 ${isOutOfStock ? 'grayscale opacity-60' : ''}`}>
         {gallery.length ? (
           <div
             ref={galleryRef}
@@ -787,6 +817,11 @@ function ProduceCard({ item, harvest, distanceKm, distanceApprox }: { item: Prod
             }}
           />
         </div>
+        {isOutOfStock && (
+          <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 bg-black/55 text-white text-[11px] font-black tracking-widest text-center py-1 pointer-events-none">
+            {L('SOLD OUT', 'అయిపోయింది')}
+          </span>
+        )}
         {gallery.length > 1 && (
           <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 pointer-events-none">
             {gallery.map((_, i) => (
@@ -814,16 +849,19 @@ function ProduceCard({ item, harvest, distanceKm, distanceApprox }: { item: Prod
         </Link>
 
         {/* Harvest clock — "Harvested 2 hours ago", from THIS harvest (or the
-            produce's latest as a fallback). Only shows once a harvest date exists. */}
+            produce's latest as a fallback). Only shows once a harvest date exists.
+
+            Just the clock: the "51 days fresh left" / "Past best" countdown that
+            used to sit beside it is gone from every consumer surface. It read as
+            an expiry warning on produce that was perfectly good, and "Past best"
+            on a long-shelf-life crop actively put buyers off. Shelf life still
+            decides which harvests the Fresh shelf shows, and the farmer still
+            sees the countdown in HarvestManager. */}
         {clockAt && (
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-green-700 bg-green-50 rounded-full px-2 py-0.5">
               ⏱ {harvestClock(clockAt, L)}
             </span>
-            {(() => {
-              const fresh = freshnessLabel(clockAt, clockShelf, L)
-              return fresh ? <span className="text-[11px] font-semibold text-amber-700">{fresh}</span> : null
-            })()}
           </div>
         )}
 
@@ -873,18 +911,17 @@ function ProduceCard({ item, harvest, distanceKm, distanceApprox }: { item: Prod
           </span>
         </div>
 
-        {/* Stock badge */}
-        {liveStock != null && (
+        {/* Stock badge. Sold out wins even when stock_qty is null — an older
+            listing can carry the status without a number. */}
+        {(liveStock != null || isOutOfStock) && (
           <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-            {liveStock != null && (
-              <span
-                className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${
-                  liveStock === 0 ? 'bg-red-50 text-red-600' : 'bg-[#f5f5f5] text-[#666]'
-                }`}
-              >
-                {liveStock === 0 ? 'Out of stock' : `${liveStock} ${unit} left`}
-              </span>
-            )}
+            <span
+              className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${
+                isOutOfStock ? 'bg-red-50 text-red-600' : 'bg-[#f5f5f5] text-[#666]'
+              }`}
+            >
+              {isOutOfStock ? L('Sold out', 'అయిపోయింది') : `${liveStock} ${unit} left`}
+            </span>
           </div>
         )}
 
@@ -909,7 +946,7 @@ function ProduceCard({ item, harvest, distanceKm, distanceApprox }: { item: Prod
               disabled
               className="w-full h-10 bg-gray-200 text-gray-500 font-bold rounded-xl text-sm cursor-not-allowed"
             >
-              {L('Out of stock', 'అయిపోయింది')}
+              {L('Sold out', 'అయిపోయింది')}
             </button>
           ) : !inCart ? (
             <button

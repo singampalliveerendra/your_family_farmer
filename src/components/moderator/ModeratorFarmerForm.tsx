@@ -31,6 +31,9 @@ export type FarmerInitial = {
   soil_organic_carbon: string
   soil_ph: string
   water_source: string
+  facebook_url: string
+  instagram_url: string
+  youtube_url: string
   bank_account_number: string
   bank_ifsc: string
   pickup_locations: string[]
@@ -86,6 +89,7 @@ export function emptyFarmerInitial(): FarmerInitial {
     name: '', phone: '', village: '', district: '',
     method: 'natural', farm_size_acres: '', farming_since_year: '', story_quote: '',
     farm_address: '', upi_id: '', soil_organic_carbon: '', soil_ph: '', water_source: '',
+    facebook_url: '', instagram_url: '', youtube_url: '',
     bank_account_number: '', bank_ifsc: '',
     pickup_locations: [], pickup_slots: {}, cod_enabled: false,
     lat: null, lng: null, location_name: '',
@@ -114,6 +118,7 @@ export default function ModeratorFarmerForm({
     farming_since_year: initial.farming_since_year, story_quote: initial.story_quote,
     farm_address: initial.farm_address, upi_id: initial.upi_id, soil_organic_carbon: initial.soil_organic_carbon,
     soil_ph: initial.soil_ph, water_source: initial.water_source,
+    facebook_url: initial.facebook_url, instagram_url: initial.instagram_url, youtube_url: initial.youtube_url,
     bank_account_number: initial.bank_account_number, bank_ifsc: initial.bank_ifsc,
   })
   const [error, setError] = useState('')
@@ -322,6 +327,21 @@ export default function ModeratorFarmerForm({
           </select>
         </Field>
       </div>
+
+      {/* Mirrors the farmer dashboard's "Your channels" block, so a moderator
+          onboarding a farmer can capture these in the same sitting. */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Field label="Facebook">
+          <input value={form.facebook_url} onChange={set('facebook_url')} type="url" inputMode="url" placeholder="facebook.com/yourfarm" className={inputCls} />
+        </Field>
+        <Field label="Instagram">
+          <input value={form.instagram_url} onChange={set('instagram_url')} type="url" inputMode="url" placeholder="instagram.com/yourfarm" className={inputCls} />
+        </Field>
+        <Field label="YouTube">
+          <input value={form.youtube_url} onChange={set('youtube_url')} type="url" inputMode="url" placeholder="youtube.com/@yourfarm" className={inputCls} />
+        </Field>
+      </div>
+
       <Field label="How we grow">
         <textarea value={form.story_quote} onChange={set('story_quote')} rows={3} className={inputCls} />
       </Field>

@@ -10,8 +10,10 @@ import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useCart, CartFab, EditableQty } from '@/components/consumer/Cart'
 import { supabase } from '@/lib/supabase'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
+import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
 import { localizeName } from '@/lib/localizeName'
-import { harvestClock, freshnessLabel } from '@/lib/harvest'
+import { harvestClock } from '@/lib/harvest'
+import { normalizeUrl, linkHost } from '@/lib/links'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import ShareButton from '@/components/consumer/ShareButton'
 
@@ -49,6 +51,7 @@ type Listing = {
   soil_ph?: number | null
   pesticide_result?: string | null
   how_we_grow?: string | null
+  video_url?: string | null
   shelf_life_days?: number | null
   rating_avg?: number | null
   review_count?: number | null
@@ -67,6 +70,7 @@ type Harvest = {
   shelf_life_days?: number | null
   stock_qty?: number | null
   unit?: string | null
+  paused?: boolean | null
 }
 
 const METHOD_SHORT: Record<string, string> = {
@@ -108,10 +112,12 @@ export default function HarvestDetailPage() {
     setLoading(true)
     const { data: h } = await supabase
       .from('harvests')
-      .select('id, produce_listing_id, harvested_at, shelf_life_days, stock_qty, unit')
+      .select('id, produce_listing_id, harvested_at, shelf_life_days, stock_qty, unit, paused')
       .eq('id', harvestId)
       .maybeSingle()
-    if (!h) { setNotFound(true); setLoading(false); return }
+    // A paused harvest is off the market — treat a direct link to it (a shared
+    // URL, a stale tab) exactly like a harvest that no longer exists.
+    if (!h || (h as Harvest).paused) { setNotFound(true); setLoading(false); return }
     setHarvest(h as Harvest)
     setLiveStock((h as Harvest).stock_qty ?? null)
 
@@ -120,8 +126,14 @@ export default function HarvestDetailPage() {
       .select('*')
       .eq('id', (h as Harvest).produce_listing_id)
       .maybeSingle()
-    // The template must exist and still be available for the harvest to be sold.
-    if (!l || (l as Listing).status !== 'available') { setNotFound(true); setLoading(false); return }
+    // The template must exist and not be taken down. 'sold_out' is allowed
+    // through: it only describes the template's own loose stock, and this
+    // harvest carries its own stock_qty — a farmer can be out of the former
+    // while this pick still has kilos left. The CTA below reads liveStock, so
+    // an actually-empty harvest still shows "Out of stock".
+    if (!l || !CONSUMER_VISIBLE_STATUSES.includes((l as Listing).status as 'available')) {
+      setNotFound(true); setLoading(false); return
+    }
     setItem(l as Listing)
 
     const { data: f } = await supabase.from('farmers').select('*').eq('id', (l as Listing).farmer_id).maybeSingle()
@@ -222,7 +234,6 @@ export default function HarvestDetailPage() {
     tiers.push({ label: `${L('Bulk', 'బల్క్')}`, price: item.price_tier_3_price })
   }
 
-  const fresh = freshnessLabel(harvest.harvested_at, harvestShelf, L)
 
   return (
     <main className="min-h-screen bg-gray-50 pb-28">
@@ -296,7 +307,6 @@ export default function HarvestDetailPage() {
             <span className="inline-flex items-center gap-1 text-xs font-bold text-green-700 bg-green-50 rounded-full px-2.5 py-1">
               ⏱ {harvestClock(harvest.harvested_at, L)}
             </span>
-            {fresh ? <span className="text-xs font-semibold text-amber-700">{fresh}</span> : null}
           </div>
 
           {(item.review_count ?? 0) > 0 && item.rating_avg != null && (
@@ -375,8 +385,10 @@ export default function HarvestDetailPage() {
             )}
           </div>
 
-          {/* This harvest's freshness — the actual pick date/time, how fresh it
-              still is, and its shelf life, so the buyer can judge fully. */}
+          {/* This harvest's pick date/time and shelf life, so the buyer can
+              judge for themselves. The "N days fresh left" / "Past best"
+              countdown is deliberately not shown to buyers — it read as an
+              expiry warning on produce that was still perfectly good. */}
           <div>
             <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">🌾 {L('Harvest', 'కోత')}</p>
             <p className="text-sm font-bold text-green-800 leading-snug mt-0.5">⏱ {harvestClock(harvest.harvested_at, L)}</p>
@@ -386,7 +398,6 @@ export default function HarvestDetailPage() {
             {harvestShelf != null && (
               <p className="text-sm text-gray-600 leading-snug mt-0.5">
                 {L('Shelf life', 'తాజా')}: {harvestShelf} {L('days', 'రోజులు')}
-                {fresh ? <span className="text-amber-700 font-semibold"> · {fresh}</span> : null}
               </p>
             )}
           </div>
@@ -395,6 +406,26 @@ export default function HarvestDetailPage() {
             <div>
               <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">🌱 {L('How we grow', 'మేము ఎలా పండిస్తాము')}</p>
               <p className="text-sm text-gray-600 leading-snug whitespace-pre-line mt-0.5">{item.how_we_grow}</p>
+            </div>
+          )}
+
+          {/* Farmer's video for this produce. normalizeUrl both adds the missing
+              scheme and rejects anything that isn't http(s), so a pasted
+              javascript: string can never become a live link on this page. */}
+          {normalizeUrl(item.video_url) && (
+            <div>
+              <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">🎥 {L('Video', 'వీడియో')}</p>
+              <a
+                href={normalizeUrl(item.video_url)!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 mt-1 text-sm font-semibold text-green-700 underline active:opacity-70"
+              >
+                {L('Watch video', 'వీడియో చూడండి')}
+                {linkHost(item.video_url) && (
+                  <span className="text-xs text-gray-500 no-underline">({linkHost(item.video_url)})</span>
+                )}
+              </a>
             </div>
           )}
 

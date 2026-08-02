@@ -10,8 +10,10 @@ import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useCart, CartFab, EditableQty } from '@/components/consumer/Cart'
 import { supabase } from '@/lib/supabase'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
+import { isSoldOutListing } from '@/lib/produceStatus'
 import { localizeName } from '@/lib/localizeName'
-import { harvestClock, freshnessLabel } from '@/lib/harvest'
+import { harvestClock } from '@/lib/harvest'
+import { normalizeUrl, linkHost } from '@/lib/links'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import ShareButton from '@/components/consumer/ShareButton'
 
@@ -43,6 +45,7 @@ type Listing = {
   soil_ph?: number | null
   pesticide_result?: string | null
   how_we_grow?: string | null
+  video_url?: string | null
   availability_from?: string | null
   availability_to?: string | null
   harvest_frequency?: string | null
@@ -129,6 +132,7 @@ export default function ProduceDetailPage() {
         .from('harvests')
         .select('harvested_at, shelf_life_days')
         .eq('produce_listing_id', id)
+        .eq('paused', false)
         .order('harvested_at', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -176,7 +180,9 @@ export default function ProduceDetailPage() {
   const farmerHref = farmer ? `/farmer/${farmer.slug}` : '#'
   const canAdd = !!farmer && !!farmer.phone
   const inCart = cart[item.id]
-  const isOutOfStock = liveStock !== null && liveStock <= 0
+  // Status counts alongside the number: this page can be reached for a produce
+  // whose stock_qty is null but that the auto-flip already marked 'sold_out'.
+  const isOutOfStock = (liveStock !== null && liveStock <= 0) || isSoldOutListing(item)
   const atMax = liveStock !== null && inCart != null && inCart.qty >= liveStock
 
   const doAdd = async () => {
@@ -304,13 +310,11 @@ export default function ProduceDetailPage() {
           {/* Harvest clock — "Harvested 2 hours ago", from the latest harvest. */}
           {latestHarvest && (
             <div className="mt-2 flex items-center gap-2 flex-wrap">
+              {/* Harvest clock only — the freshness countdown is no longer
+                  shown to buyers (see the consumer grid for why). */}
               <span className="inline-flex items-center gap-1 text-xs font-bold text-green-700 bg-green-50 rounded-full px-2.5 py-1">
                 ⏱ {harvestClock(latestHarvest.at, L)}
               </span>
-              {(() => {
-                const fresh = freshnessLabel(latestHarvest.at, latestHarvest.shelf, L)
-                return fresh ? <span className="text-xs font-semibold text-amber-700">{fresh}</span> : null
-              })()}
             </div>
           )}
 
@@ -339,9 +343,9 @@ export default function ProduceDetailPage() {
             </div>
           </div>
 
-          {liveStock != null && (
-            <p className={`text-xs font-semibold mt-1 ${liveStock === 0 ? 'text-red-600' : 'text-gray-500'}`}>
-              {liveStock === 0 ? L('Out of stock', 'అయిపోయింది') : `${liveStock} ${unit} ${L('left', 'మిగిలి ఉంది')}`}
+          {(liveStock != null || isOutOfStock) && (
+            <p className={`text-xs font-semibold mt-1 ${isOutOfStock ? 'text-red-600' : 'text-gray-500'}`}>
+              {isOutOfStock ? L('Sold out', 'అయిపోయింది') : `${liveStock} ${unit} ${L('left', 'మిగిలి ఉంది')}`}
             </p>
           )}
 
@@ -410,11 +414,9 @@ export default function ProduceDetailPage() {
               </p>
               {latestHarvest.shelf != null && (
                 <p className="text-sm text-gray-600 leading-snug mt-0.5">
+                  {/* The plain shelf-life figure stays — it's a useful fact
+                      about the crop. Only the running countdown is dropped. */}
                   {L('Shelf life', 'తాజా')}: {latestHarvest.shelf} {L('days', 'రోజులు')}
-                  {(() => {
-                    const fresh = freshnessLabel(latestHarvest.at, latestHarvest.shelf, L)
-                    return fresh ? <span className="text-amber-700 font-semibold"> · {fresh}</span> : null
-                  })()}
                 </p>
               )}
             </div>
@@ -431,6 +433,26 @@ export default function ProduceDetailPage() {
             <div>
               <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">🌱 {L('How we grow', 'మేము ఎలా పండిస్తాము')}</p>
               <p className="text-sm text-gray-600 leading-snug whitespace-pre-line mt-0.5">{item.how_we_grow}</p>
+            </div>
+          )}
+
+          {/* Farmer's video for this produce. normalizeUrl both adds the missing
+              scheme and rejects anything that isn't http(s), so a pasted
+              javascript: string can never become a live link on this page. */}
+          {normalizeUrl(item.video_url) && (
+            <div>
+              <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">🎥 {L('Video', 'వీడియో')}</p>
+              <a
+                href={normalizeUrl(item.video_url)!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 mt-1 text-sm font-semibold text-green-700 underline active:opacity-70"
+              >
+                {L('Watch video', 'వీడియో చూడండి')}
+                {linkHost(item.video_url) && (
+                  <span className="text-xs text-gray-500 no-underline">({linkHost(item.video_url)})</span>
+                )}
+              </a>
             </div>
           )}
 
@@ -455,7 +477,7 @@ export default function ProduceDetailPage() {
           </Link>
         ) : isOutOfStock ? (
           <button disabled className="w-full h-12 bg-gray-200 text-gray-500 font-bold rounded-xl cursor-not-allowed">
-            {L('Out of stock', 'అయిపోయింది')}
+            {L('Sold out', 'అయిపోయింది')}
           </button>
         ) : !inCart ? (
           <button

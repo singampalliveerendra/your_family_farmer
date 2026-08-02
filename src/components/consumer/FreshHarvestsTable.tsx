@@ -9,6 +9,7 @@ import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
 import { harvestRelTime, freshnessLeftDays } from '@/lib/harvest'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
+import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
 
 // Two compact harvest tables shown above the consumer search box:
 //   FreshHarvestsTable    — already-picked harvests (buyable now), newest first
@@ -74,7 +75,11 @@ function HarvestTable({ variant }: { variant: Variant }) {
     const base = supabase
       .from('harvests')
       .select('id, harvested_at, produce_listing_id, stock_qty, shelf_life_days, produce_listings!inner(id, name, emoji, status, shelf_life_days)')
-      .eq('produce_listings.status', 'available')
+      // A harvest has its own stock, so a 'sold_out' template must not hide it —
+      // only a genuine takedown (paused/suspended) should. See produceStatus.ts.
+      .in('produce_listings.status', CONSUMER_VISIBLE_STATUSES)
+      // Paused picks are hidden from buyers without being deleted.
+      .eq('paused', false)
     // Fresh = already picked and still inside its shelf life, newest first.
     // Upcoming = picks in the next 7 days (pre-book), soonest first.
     //

@@ -8,6 +8,7 @@ import { normalizePhone } from '@/lib/phone'
 import { getDeliveryCharges } from '@/lib/delivery-fee'
 import { getPlatformFeePercent, computePlatformFee } from '@/lib/platform-fee'
 import { getCodDepositPercent, computeCodSplit } from '@/lib/cod'
+import { ORDERABLE_STATUSES } from '@/lib/produceStatus'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -67,6 +68,7 @@ export async function POST(req: NextRequest) {
         farmerId?: string
         paymentMethod?: string
         pickupLocation?: string | null
+        pickupPhone?: string | null
         items?: IncomingItem[]
         deliveryType?: string
         deliveryAddress?: string | null
@@ -160,6 +162,11 @@ export async function POST(req: NextRequest) {
   let deliveryLandmark: string | null = null
   let deliveryPincode: string | null = null
   let deliveryAltPhone: string | null = null
+
+  // Optional contact for the pickup point. Stamped on self-pickup rows only
+  // (below), and dropped rather than rejected if it isn't a usable number —
+  // it's a convenience for the farmer, never a reason to fail a paid checkout.
+  const pickupPhone = normalizePhone(body.pickupPhone) || null
 
   if (needsAddress) {
     deliveryAddress = String(body.deliveryAddress ?? '').trim().slice(0, 400)
@@ -276,7 +283,11 @@ export async function POST(req: NextRequest) {
   if (harvestIds.length > 0) {
     const { data: harvestRows } = await supabase
       .from('harvests')
+      // A paused harvest is filtered out here rather than checked later, so the
+      // count test below rejects it exactly like a deleted one — a cart held
+      // open across a pause must not be able to place the order.
       .select('id, produce_listing_id, stock_qty')
+      .eq('paused', false)
       .in('id', harvestIds) as { data: Array<{ id: string; produce_listing_id: string; stock_qty: number | null }> | null }
     if (!harvestRows || harvestRows.length !== harvestIds.length) {
       return bad('One or more harvests in your cart are no longer available.')
@@ -311,10 +322,13 @@ export async function POST(req: NextRequest) {
     const listing = listingById.get(item.listingId)
     if (!listing) return bad('Item missing.')
     if (listing.farmer_id !== farmerId) return bad('Items must belong to the same farmer.')
-    // Block ordering a listing the farmer (or moderator) has taken down. A
-    // stale cart could still hold a since-paused/suspended item; only
-    // 'available' produce may be purchased.
-    if (listing.status !== 'available') {
+    // Block ordering a listing the farmer (or moderator) has taken down — a
+    // stale cart could still hold a since-paused/suspended item. 'sold_out' is
+    // NOT a takedown: it mirrors the template's own stock, while a harvest line
+    // is backed by the harvest's separate stock. Quantity is settled by the
+    // stock-claim RPC below, which rejects an empty listing anyway, so this
+    // check only guards availability-by-decision.
+    if (!listing.status || !ORDERABLE_STATUSES.includes(listing.status)) {
       return bad(`${listing.name} is no longer available.`)
     }
 
@@ -362,6 +376,7 @@ export async function POST(req: NextRequest) {
       pickup_location: rowDeliveryType === 'self_pickup' && typeof pickupLocation === 'string'
         ? pickupLocation.slice(0, 200)
         : null,
+      pickup_phone: rowDeliveryType === 'self_pickup' ? pickupPhone : null,
       status: 'pending',
       payment_method: paymentMethod,
       payment_status: 'pending',

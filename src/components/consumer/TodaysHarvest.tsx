@@ -8,8 +8,9 @@ import { useCart } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
-import { harvestClock, freshnessLabel } from '@/lib/harvest'
+import { harvestClock } from '@/lib/harvest'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
+import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
 
 // "Today's Harvest near you" — the freshness-driven USP feed. Lists harvests
 // from the last 2 days (buyable now) plus the next 3 days (pre-book), newest
@@ -62,9 +63,12 @@ export default function TodaysHarvest() {
     supabase
       .from('harvests')
       .select('id, harvested_at, shelf_life_days, approx_quantity, stock_qty, unit, produce_listing_id, produce_listings!inner(id, name, variety, emoji, image_url, image_urls, method, status, price_tier_1_price, unit, shelf_life_days)')
+      .eq('paused', false)
       .gte('harvested_at', start)
       .lte('harvested_at', end)
-      .eq('produce_listings.status', 'available')
+      // A harvest has its own stock, so a 'sold_out' template must not hide it —
+      // only a genuine takedown (paused/suspended) should. See produceStatus.ts.
+      .in('produce_listings.status', CONSUMER_VISIBLE_STATUSES)
       .order('harvested_at', { ascending: false })
       .limit(30)
       .then(({ data }) => {
@@ -148,7 +152,6 @@ export default function TodaysHarvest() {
     const emoji = item.emoji || '🌿'
     const cover = (item.image_urls && item.image_urls.length ? item.image_urls[0] : item.image_url) || null
     const clock = harvestClock(r.harvested_at, L)
-    const fresh = freshnessLabel(r.harvested_at, r.shelf_life_days ?? item.shelf_life_days ?? null, L)
     return (
       <Link
         key={r.id}
@@ -197,7 +200,6 @@ export default function TodaysHarvest() {
         <div className="p-2">
           <p className="text-[13px] font-bold text-gray-900 truncate">{localizeName(item.name, lang)}</p>
           <p className={`text-[10px] font-semibold truncate mt-0.5 ${kind === 'fresh' ? 'text-green-700' : 'text-blue-700'}`}>⏱ {clock}</p>
-          {fresh && <p className="text-[10px] text-amber-700 truncate">{fresh}</p>}
           {item.price_tier_1_price != null && (
             <p className="text-xs font-extrabold text-green-800 mt-0.5">₹{item.price_tier_1_price}<span className="text-[10px] font-medium text-gray-400">/{item.unit || 'kg'}</span></p>
           )}

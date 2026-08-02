@@ -27,6 +27,7 @@ type Order = {
   platform_fee: number | null
   delivery_fee: number | null
   pickup_location: string | null
+  pickup_phone?: string | null
   status: 'pending' | 'approved' | 'declined' | 'cancelled'
   payment_method: string | null
   payment_method_detail?: string | null
@@ -399,10 +400,17 @@ export default function OrderDetailsPage() {
                 )}
               </div>
 
-              {order.pickup_location && (
+              {(order.pickup_location || order.pickup_phone) && (
                 <div className="pt-1 border-t border-gray-100 mt-1">
                   <p className="text-[10px] font-bold text-gray-400 uppercase">Pickup</p>
-                  <p className="text-xs font-semibold text-gray-700">📍 {order.pickup_location}</p>
+                  {order.pickup_location && (
+                    <p className="text-xs font-semibold text-gray-700">📍 {order.pickup_location}</p>
+                  )}
+                  {/* Echo back the number they left, so they can check it before
+                      the farmer tries to call it. */}
+                  {order.pickup_phone && (
+                    <p className="text-xs text-gray-600">📞 +91 {order.pickup_phone}</p>
+                  )}
                 </div>
               )}
 

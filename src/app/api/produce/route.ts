@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { purchaseCountsFor } from '@/lib/purchaseCounts'
+import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -9,10 +10,15 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const status = searchParams.get('status') ?? 'available'
 
+  // "available" means "what a buyer may see", which includes sold-out produce —
+  // the grid renders those greyed with a disabled CTA. See CONSUMER_VISIBLE_STATUSES.
+  // Any other explicit status (coming_soon, …) is returned as asked for.
+  const wanted = status === 'available' ? [...CONSUMER_VISIBLE_STATUSES] : [status]
+
   const { data: produce, error } = await supabase
     .from('produce_listings')
     .select('*')
-    .eq('status', status)
+    .in('status', wanted)
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
