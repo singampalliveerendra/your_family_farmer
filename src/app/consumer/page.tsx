@@ -23,6 +23,12 @@ import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slo
 
 const DEFAULT_REGION = 'tadepalligudem'
 
+// How recent a harvest must be to get its OWN tile in the grid. Older picks
+// still count — their produce shows as a single template tile carrying the
+// latest harvest date — this only stops one crop from filling the grid with a
+// season's worth of tiles.
+const HARVEST_CARD_WINDOW_DAYS = 14
+
 // Which region's farmers should see a demand intent.
 //
 // The consumer's saved location is free text, so slugging it directly minted
@@ -228,16 +234,19 @@ export default function ConsumerPage() {
       setComingSoon(csArr)
       setFarmerCount(new Set(avArr.map((p) => p.farmer_id)).size)
 
-      // All harvests per produce (last 14 days + any future pre-books) → one card
-      // each. Best-effort: a missing `harvests` table (migration not applied)
-      // just leaves the map empty, so the grid falls back to one card per produce.
+      // Every harvest per produce, newest first — NOT just the recent ones. The
+      // HARVEST_CARD_WINDOW below still decides which get their own card, but the
+      // full list is what feeds each card's "Harvested N ago" clock. Filtering by
+      // date here instead meant a produce whose last pick was 3 weeks ago showed
+      // no harvest date at all, even though the date was known: the clock is a
+      // fact about the crop, not a freshness gate.
+      // Best-effort: a missing `harvests` table (migration not applied) just
+      // leaves the map empty, so the grid falls back to one card per produce.
       try {
-        const since = new Date(Date.now() - 14 * 86_400_000).toISOString()
         const { data: hs } = await supabase
           .from('harvests')
           .select('id, produce_listing_id, harvested_at, shelf_life_days, stock_qty, unit')
           .eq('paused', false)
-          .gte('harvested_at', since)
           .order('harvested_at', { ascending: false })
           .limit(500)
         const map: Record<string, GridHarvest[]> = {}
@@ -381,16 +390,21 @@ export default function ConsumerPage() {
       return Number.isNaN(t) ? -Infinity : t
     }
 
-    // Expand: a produce with logged harvests becomes one card per harvest (each
-    // its own product — own date, shelf, stock); a produce with none falls back
-    // to a single template card.
+    // Expand: a produce with RECENT logged harvests becomes one card per harvest
+    // (each its own product — own date, shelf, stock); a produce whose picks are
+    // all older than the window falls back to a single template card, which still
+    // carries the latest harvest date in its clock (see latest_harvested_at above).
+    // The window bounds how many tiles one produce can occupy; it is deliberately
+    // not a visibility rule.
+    const harvestCardCutoff = Date.now() - HARVEST_CARD_WINDOW_DAYS * 86_400_000
     const cards: DisplayCard[] = []
     for (const item of items) {
       const hs = harvestsByListing[item.id] ?? []
-      if (hs.length) {
+      const recent = hs.filter((h) => ts(h.harvested_at) >= harvestCardCutoff)
+      if (recent.length) {
         // A harvest is sold out on its own stock — the template's status says
         // nothing about a pick that still has kilos left.
-        for (const h of hs) {
+        for (const h of recent) {
           cards.push({ item, harvest: h, key: h.id, sortAt: ts(h.harvested_at), soldOut: h.stock_qty != null && h.stock_qty <= 0 })
         }
       } else {
