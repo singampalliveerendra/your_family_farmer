@@ -47,6 +47,11 @@ const DAY = 86_400_000
 const MAX_SHELF_LIFE_DAYS = 90
 type Variant = 'fresh' | 'upcoming'
 
+// A harvest judges itself by its OWN stock, never the template's — a template
+// can be sold out while a freshly logged pick still has kilos left. null means
+// the farmer doesn't track quantity, which is not the same as zero.
+const isHarvestSoldOut = (r: HarvestRow) => r.stock_qty != null && r.stock_qty <= 0
+
 // A picked harvest is fresh while it has shelf life left. The harvest's own
 // shelf_life_days wins when set; otherwise it inherits the produce's. When
 // neither is set we can't compute freshness, so we keep the harvest rather than
@@ -103,9 +108,16 @@ function HarvestTable({ variant }: { variant: Variant }) {
       if (cancelled) return
       const all = (data ?? []) as HarvestRow[]
       const visible = variant === 'upcoming' ? all : all.filter(isStillFresh)
-      // Sold-out harvests aren't buyable, so they don't belong in a table whose
-      // every row has an add-to-cart button. null stock = quantity not tracked.
-      setRows(visible.filter((r) => r.stock_qty == null || r.stock_qty > 0).slice(0, 12))
+      // Sold-out harvests STAY in the table, shown as sold out with the add
+      // button replaced. Dropping them made a farmer's crop vanish the moment
+      // the last kilo went, which is the one moment a buyer most wants to know
+      // it exists — same reasoning as CONSUMER_VISIBLE_STATUSES for the grid.
+      // They sink below everything buyable: context, not the offer.
+      setRows(
+        [...visible]
+          .sort((a, b) => Number(isHarvestSoldOut(a)) - Number(isHarvestSoldOut(b)))
+          .slice(0, 12),
+      )
       setLoaded(true)
     })
     return () => { cancelled = true }
@@ -203,24 +215,30 @@ function HarvestTable({ variant }: { variant: Variant }) {
           {rows.map((r) => {
             const item = listingOf(r)
             if (!item) return null
+            const soldOut = isHarvestSoldOut(r)
             return (
               <tr
                 key={r.id}
                 onClick={() => router.push(`/consumer/harvest/${r.id}`)}
-                className="border-b border-gray-50 last:border-0 cursor-pointer active:bg-green-50"
+                className={`border-b border-gray-50 last:border-0 cursor-pointer active:bg-green-50 ${soldOut ? 'bg-gray-50/60' : ''}`}
               >
                 <td className="pl-4 pr-2 py-3">
                   <span className="flex items-center gap-1.5 min-w-0">
-                    <span className="text-lg shrink-0">{item.emoji || '🌿'}</span>
-                    <span className="text-sm font-bold text-gray-900 truncate">
+                    <span className={`text-lg shrink-0 ${soldOut ? 'grayscale opacity-60' : ''}`}>{item.emoji || '🌿'}</span>
+                    <span className={`text-sm font-bold truncate ${soldOut ? 'text-gray-500' : 'text-gray-900'}`}>
                       {localizeName(item.name, lang)}
                     </span>
+                    {soldOut && (
+                      <span className="shrink-0 text-[9px] font-black uppercase tracking-wide text-red-600 bg-red-50 rounded-full px-1.5 py-0.5">
+                        {L('Sold out', 'అయిపోయింది')}
+                      </span>
+                    )}
                   </span>
                   {/* Bare relative time ("2 days ago"), not harvestClock's full
                       "Harvested 2 days ago" — this line sits under the name where
                       the prefix reads as noise. The detail page keeps the long
                       form. Indented past the emoji to line up with the name. */}
-                  <span className={`block pl-[26px] text-[11px] font-semibold ${variant === 'fresh' ? 'text-green-700' : 'text-blue-700'}`}>
+                  <span className={`block pl-[26px] text-[11px] font-semibold ${soldOut ? 'text-gray-400' : variant === 'fresh' ? 'text-green-700' : 'text-blue-700'}`}>
                     ⏱ {harvestRelTime(r.harvested_at, L)}
                   </span>
                 </td>
@@ -229,7 +247,13 @@ function HarvestTable({ variant }: { variant: Variant }) {
                     Shows a single + until it's in the cart, then − qty +.
                     stopPropagation so taps don't also open the details row. */}
                 <td className="pr-2 pl-1 py-3 text-right align-middle">
-                  {cart[r.id] ? (
+                  {soldOut ? (
+                    // No stepper and no +: the row is here to say the crop
+                    // exists and has gone, not to sell it.
+                    <span className="text-[11px] font-bold text-gray-400">
+                      {L('Sold out', 'అయిపోయింది')}
+                    </span>
+                  ) : cart[r.id] ? (
                     <span className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
