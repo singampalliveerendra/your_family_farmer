@@ -19,7 +19,7 @@ import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
 import { harvestClock } from '@/lib/harvest'
 import { isSoldOutListing } from '@/lib/produceStatus'
-import { normalizePickupSchedule } from '@/lib/pickup-slots'
+import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
 
 const DEFAULT_REGION = 'tadepalligudem'
 
@@ -46,6 +46,7 @@ type Farmer = {
   phone: string
   method: string
   pickup_locations?: string[] | null
+  pickup_location_phones?: unknown
   pickup_slots?: unknown
   lat?: number | null
   lng?: number | null
@@ -751,6 +752,7 @@ function ProduceCard({ item, harvest, distanceKm, distanceApprox }: { item: Prod
       farmerSlug: farmer.slug,
       farmerPickupLocations: farmer.pickup_locations ?? [],
       farmerPickupSlots: normalizePickupSchedule(farmer.pickup_slots, farmer.pickup_locations ?? []),
+      farmerPickupPhones: normalizePickupPhones(farmer.pickup_location_phones, farmer.pickup_locations ?? []),
     }, 1)
   }
 

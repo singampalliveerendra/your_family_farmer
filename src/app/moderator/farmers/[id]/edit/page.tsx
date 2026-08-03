@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import ModeratorShell, { useModeratorAuth } from '../../../ModeratorShell'
 import ModeratorFarmerForm, { type FarmerInitial } from '@/components/moderator/ModeratorFarmerForm'
-import { normalizePickupSchedule } from '@/lib/pickup-slots'
+import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
 
 // Raw farmer row from GET /api/moderator/farmers/[id].
 type FarmerRow = {
@@ -31,6 +31,7 @@ type FarmerRow = {
   bank_ifsc: string | null
   pickup_locations: string[] | null
   pickup_slots: unknown
+  pickup_location_phones: unknown
   cover_photo_url: string | null
   photo_url: string | null
   pesticide_cert_url: string | null
@@ -65,6 +66,10 @@ function toInitial(f: FarmerRow): FarmerInitial {
     pickup_locations: Array.isArray(f.pickup_locations) ? f.pickup_locations : [],
     pickup_slots: normalizePickupSchedule(
       f.pickup_slots,
+      Array.isArray(f.pickup_locations) ? f.pickup_locations : [],
+    ),
+    pickup_location_phones: normalizePickupPhones(
+      f.pickup_location_phones,
       Array.isArray(f.pickup_locations) ? f.pickup_locations : [],
     ),
     cod_enabled: f.cod_enabled === true,

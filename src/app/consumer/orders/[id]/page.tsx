@@ -28,6 +28,7 @@ type Order = {
   delivery_fee: number | null
   pickup_location: string | null
   pickup_phone?: string | null
+  pickup_location_phone?: string | null
   status: 'pending' | 'approved' | 'declined' | 'cancelled'
   payment_method: string | null
   payment_method_detail?: string | null
@@ -400,11 +401,20 @@ export default function OrderDetailsPage() {
                 )}
               </div>
 
-              {(order.pickup_location || order.pickup_phone) && (
+              {(order.pickup_location || order.pickup_phone || order.pickup_location_phone) && (
                 <div className="pt-1 border-t border-gray-100 mt-1">
                   <p className="text-[10px] font-bold text-gray-400 uppercase">Pickup</p>
                   {order.pickup_location && (
                     <p className="text-xs font-semibold text-gray-700">📍 {order.pickup_location}</p>
+                  )}
+                  {/* The number to call AT the point — tappable, because this is
+                      the screen the buyer opens when they are standing there. */}
+                  {order.pickup_location_phone && (
+                    <p className="text-xs text-gray-700">
+                      📞 <a href={`tel:${order.pickup_location_phone}`} className="text-blue-700 underline font-semibold">
+                        +91 {order.pickup_location_phone}
+                      </a>
+                    </p>
                   )}
                   {/* Echo back the number they left, so they can check it before
                       the farmer tries to call it. */}

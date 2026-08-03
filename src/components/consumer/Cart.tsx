@@ -11,7 +11,7 @@ import { localizeName } from '@/lib/localizeName'
 import { compressImage } from '@/lib/imageCompress'
 import { DEFAULT_DELIVERY_BASE_FEE, DEFAULT_DELIVERY_EXTRA_FEE } from '@/lib/delivery-fee'
 import { computePlatformFee } from '@/lib/platform-fee'
-import { formatPickupSlots, type PickupSchedule } from '@/lib/pickup-slots'
+import { formatPickupSlots, type PickupSchedule, type PickupPhones } from '@/lib/pickup-slots'
 
 // Razorpay Checkout is loaded lazily — we only pull the script the first time
 // a buyer chooses to pay online, so the rest of the catalogue stays light on
@@ -89,6 +89,7 @@ export type CartItem = {
   farmerSlug: string
   farmerPickupLocations?: string[]
   farmerPickupSlots?: PickupSchedule
+  farmerPickupPhones?: PickupPhones
   farmerUpiId?: string
   farmerQrCodeUrl?: string
 }
@@ -667,6 +668,7 @@ export function CartSheet({
         paymentMethod,
         pickupLocation: pickupByFarmer[f.farmerId] || null,
         pickupPhone: pickupPhoneByFarmer[f.farmerId]?.replace(/\D/g, '').slice(-10) || null,
+        pickupLocationPhone: f.farmerPickupPhones?.[pickupByFarmer[f.farmerId] ?? ''] || null,
         items: group.map((it) => ({
           listingId: it.listingId,
           harvestId: it.harvestId,
@@ -2009,18 +2011,33 @@ export function CartSheet({
                             </p>
                           )}
                           {pickupByFarmer[f.farmerId] && (() => {
-                            const lines = formatPickupSlots(f.farmerPickupSlots?.[pickupByFarmer[f.farmerId]])
-                            if (lines.length === 0) return null
+                            const chosen = pickupByFarmer[f.farmerId]
+                            const lines = formatPickupSlots(f.farmerPickupSlots?.[chosen])
+                            // The number to call AT this point — often a shop,
+                            // not the farmer. Shown here so the buyer has it
+                            // before they set out, not just after ordering.
+                            const phone = f.farmerPickupPhones?.[chosen]
+                            if (lines.length === 0 && !phone) return null
                             return (
                               <div className="mt-2 bg-green-50 border border-green-100 rounded-xl px-3 py-2">
-                                <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-1">
-                                  🕒 {L('Pickup timings', 'పికప్ సమయాలు')}
-                                </p>
-                                <ul className="space-y-0.5">
-                                  {lines.map((line, i) => (
-                                    <li key={i} className="text-[11px] text-green-800 font-medium">{line}</li>
-                                  ))}
-                                </ul>
+                                {lines.length > 0 && (
+                                  <>
+                                    <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-1">
+                                      🕒 {L('Pickup timings', 'పికప్ సమయాలు')}
+                                    </p>
+                                    <ul className="space-y-0.5">
+                                      {lines.map((line, i) => (
+                                        <li key={i} className="text-[11px] text-green-800 font-medium">{line}</li>
+                                      ))}
+                                    </ul>
+                                  </>
+                                )}
+                                {phone && (
+                                  <p className={`text-[11px] text-green-800 font-medium ${lines.length > 0 ? 'mt-1.5 pt-1.5 border-t border-green-100' : ''}`}>
+                                    📞 {L('Call at this point', 'ఈ స్థలంలో ఫోన్')}:{' '}
+                                    <a href={`tel:${phone}`} className="underline font-bold">+91 {phone}</a>
+                                  </p>
+                                )}
                               </div>
                             )
                           })()}

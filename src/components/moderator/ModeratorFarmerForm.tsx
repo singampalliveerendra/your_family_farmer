@@ -3,7 +3,10 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import LocationSearch from '@/components/LocationSearch'
-import { normalizePickupSchedule, emptyPickupSlot, type PickupSchedule } from '@/lib/pickup-slots'
+import {
+  normalizePickupSchedule, emptyPickupSlot, normalizePickupPhones,
+  type PickupSchedule, type PickupPhones,
+} from '@/lib/pickup-slots'
 
 const ALL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -38,6 +41,7 @@ export type FarmerInitial = {
   bank_ifsc: string
   pickup_locations: string[]
   pickup_slots: PickupSchedule
+  pickup_location_phones: PickupPhones
   cod_enabled: boolean
   lat: number | null
   lng: number | null
@@ -91,7 +95,7 @@ export function emptyFarmerInitial(): FarmerInitial {
     farm_address: '', upi_id: '', soil_organic_carbon: '', soil_ph: '', water_source: '',
     facebook_url: '', instagram_url: '', youtube_url: '',
     bank_account_number: '', bank_ifsc: '',
-    pickup_locations: [], pickup_slots: {}, cod_enabled: false,
+    pickup_locations: [], pickup_slots: {}, pickup_location_phones: {}, cod_enabled: false,
     lat: null, lng: null, location_name: '',
     cover_photo_url: null, photo_url: null, pesticide_cert_url: null, upi_qr_code_url: null,
   }
@@ -127,6 +131,11 @@ export default function ModeratorFarmerForm({
   const [pickupLocations, setPickupLocations] = useState<string[]>(initial.pickup_locations)
   const [newPickup, setNewPickup] = useState('')
   const [schedule, setSchedule] = useState<PickupSchedule>(initial.pickup_slots)
+  // Mirrors the farmer dashboard: a contact number per pickup point, since the
+  // point is usually a shop rather than the farm.
+  const [pickupPhones, setPickupPhones] = useState<PickupPhones>(
+    normalizePickupPhones(initial.pickup_location_phones, initial.pickup_locations),
+  )
   const [codEnabled, setCodEnabled] = useState(initial.cod_enabled)
 
   const [lat, setLat] = useState<number | null>(initial.lat)
@@ -198,6 +207,11 @@ export default function ModeratorFarmerForm({
       delete next[loc]
       return next
     })
+    setPickupPhones((prev) => {
+      const next = { ...prev }
+      delete next[loc]
+      return next
+    })
   }
 
   // Per-location timing editors. Each operates on schedule[loc].
@@ -254,6 +268,7 @@ export default function ModeratorFarmerForm({
       ...form,
       pickup_locations: pickupLocations,
       pickup_slots: normalizePickupSchedule(schedule, pickupLocations),
+      pickup_location_phones: normalizePickupPhones(pickupPhones, pickupLocations),
       cod_enabled: codEnabled,
       cover_photo_url: coverR.url,
       photo_url: avatarR.url,
@@ -436,6 +451,30 @@ export default function ModeratorFarmerForm({
                     <button type="button" onClick={() => removePickup(loc)} className="text-red-500 text-xs font-bold active:text-red-700 whitespace-nowrap">✕ Remove location</button>
                   </div>
                   <div className="p-3">
+                    {/* Whom the buyer calls at THIS point — buyer-facing. */}
+                    <div className="mb-3">
+                      <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                        Contact number here (optional)
+                      </label>
+                      <div className="flex gap-2">
+                        <span className="flex items-center px-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 font-medium">+91</span>
+                        <input
+                          type="tel"
+                          inputMode="numeric"
+                          value={pickupPhones[loc] ?? ''}
+                          onChange={(e) =>
+                            setPickupPhones((prev) => ({
+                              ...prev,
+                              [loc]: e.target.value.replace(/\D/g, '').slice(0, 10),
+                            }))
+                          }
+                          maxLength={10}
+                          placeholder="Shop / contact at this point"
+                          className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+                        />
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-1">Buyers see this number with the pickup address.</p>
+                    </div>
                     <p className="text-[11px] text-gray-500 mb-2">Days &amp; times buyers can pick up from here.</p>
                     <div className="space-y-3">
                       {timings.map((slot, idx) => (

@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { randomInt } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { isModeratorRequest, getModeratorZone, getModeratorId } from '@/lib/moderator-session'
-import { normalizePickupSchedule } from '@/lib/pickup-slots'
+import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
 import { normalizeUrl } from '@/lib/links'
 
 export const runtime = 'nodejs'
@@ -143,6 +143,12 @@ export async function POST(req: NextRequest) {
   )
   const pickup_slots = Object.keys(cleanSchedule).length > 0 ? cleanSchedule : null
 
+  // Contact number per pickup point, same map shape and scoping.
+  const pickup_location_phones = normalizePickupPhones(
+    (body as { pickup_location_phones?: unknown }).pickup_location_phones,
+    pickup_locations,
+  )
+
   if (!name) return NextResponse.json({ error: 'Name is required.' }, { status: 400 })
   if (upi_id && !/^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$/.test(upi_id)) {
     return NextResponse.json({ error: 'Invalid UPI ID. Example: name@ybl' }, { status: 400 })
@@ -187,6 +193,7 @@ export async function POST(req: NextRequest) {
       farm_address: farm_address || null,
       pickup_locations,
       pickup_slots,
+      pickup_location_phones,
       upi_id: upi_id || null,
       upi_qr_code_url: upi_qr_code_url || null,
       cod_enabled,

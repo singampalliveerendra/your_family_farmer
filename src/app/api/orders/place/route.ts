@@ -9,6 +9,7 @@ import { getDeliveryCharges } from '@/lib/delivery-fee'
 import { getPlatformFeePercent, computePlatformFee } from '@/lib/platform-fee'
 import { getCodDepositPercent, computeCodSplit } from '@/lib/cod'
 import { ORDERABLE_STATUSES } from '@/lib/produceStatus'
+import { normalizePickupPhones } from '@/lib/pickup-slots'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -250,7 +251,7 @@ export async function POST(req: NextRequest) {
   // Farmer COD acceptance check
   const { data: farmer } = await supabase
     .from('farmers')
-    .select('id, cod_enabled')
+    .select('id, cod_enabled, pickup_location_phones')
     .eq('id', farmerId)
     .maybeSingle()
 
@@ -258,6 +259,12 @@ export async function POST(req: NextRequest) {
   if (paymentMethod === 'cod' && farmer.cod_enabled !== true) {
     return bad('This farmer is not accepting Cash on Delivery.')
   }
+
+  // The chosen pickup point's contact number, looked up in the farmer's
+  // per-location map. Null when the farmer never set one for that point.
+  const pickupLocationPhone = typeof pickupLocation === 'string'
+    ? (normalizePickupPhones(farmer.pickup_location_phones)[pickupLocation] ?? null)
+    : null
 
   // Pull live listing rows — never trust prices from the client cart
   const listingIds = items.map((i) => i.listingId)
@@ -377,6 +384,11 @@ export async function POST(req: NextRequest) {
         ? pickupLocation.slice(0, 200)
         : null,
       pickup_phone: rowDeliveryType === 'self_pickup' ? pickupPhone : null,
+      // Snapshot of the pickup point's own contact number, resolved from the
+      // farmer's record rather than the client body — the cart is never
+      // trusted for anything the buyer will be shown as fact. Frozen at order
+      // time so a later edit can't rewrite what the buyer was told to call.
+      pickup_location_phone: rowDeliveryType === 'self_pickup' ? pickupLocationPhone : null,
       status: 'pending',
       payment_method: paymentMethod,
       payment_status: 'pending',

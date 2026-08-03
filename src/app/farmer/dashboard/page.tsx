@@ -8,7 +8,10 @@ import NextImage from 'next/image'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useLang } from '@/lib/LanguageContext'
 import LocationSearch from '@/components/LocationSearch'
-import { normalizePickupSchedule, emptyPickupSlot, type PickupSchedule } from '@/lib/pickup-slots'
+import {
+  normalizePickupSchedule, emptyPickupSlot, normalizePickupPhones,
+  type PickupSchedule, type PickupPhones,
+} from '@/lib/pickup-slots'
 import { type FarmerOrder as Order, isResolved } from '@/components/farmer/OrderCard'
 import DemandSupplyChart from '@/components/DemandSupplyChart'
 import { type CropBalance } from '@/lib/demand-supply'
@@ -39,6 +42,7 @@ type Farmer = {
   water_source: string | null
   story_quote: string | null
   pickup_locations: string[] | null
+  pickup_location_phones?: unknown
   farm_address: string | null
   facebook_url?: string | null
   instagram_url?: string | null
@@ -883,6 +887,11 @@ function ProfileEditModal({
   const initialLocations = Array.isArray(farmer.pickup_locations) ? farmer.pickup_locations : []
   const [pickupLocations, setPickupLocations] = useState<string[]>(initialLocations)
   const [newPickup, setNewPickup] = useState('')
+  // Contact number per pickup point — the buyer calls THIS, not the farmer's
+  // own number, because the point is usually a shop or a landmark.
+  const [pickupPhones, setPickupPhones] = useState<PickupPhones>(
+    normalizePickupPhones(farmer.pickup_location_phones, initialLocations),
+  )
   const [farmAddress, setFarmAddress] = useState(farmer.farm_address ?? '')
   // Social channels the farmer already runs. Stored on `farmers`; see
   // scripts/farmer-social-links-migration.sql.
@@ -1023,6 +1032,11 @@ function ProfileEditModal({
       delete next[loc]
       return next
     })
+    setPickupPhones((prev) => {
+      const next = { ...prev }
+      delete next[loc]
+      return next
+    })
   }
 
   // Per-location timing editors. Each operates on schedule[loc].
@@ -1063,6 +1077,16 @@ function ProfileEditModal({
     const missingTiming = pickupLocations.filter((loc) => !(cleanSlots[loc]?.length))
     if (missingTiming.length > 0) {
       setError(L(`Add pickup timings for: ${missingTiming.join(', ')}`, `వీటికి పికప్ సమయాలను జోడించండి: ${missingTiming.join(', ')}`))
+      return
+    }
+    // The number is optional, but a half-typed one is worse than none — the
+    // buyer would dial a dead number when they are already at the point.
+    const badPhone = pickupLocations.filter((loc) => {
+      const d = (pickupPhones[loc] ?? '').replace(/\D/g, '')
+      return d.length > 0 && d.length < 10
+    })
+    if (badPhone.length > 0) {
+      setError(L(`Enter a full 10-digit contact number for: ${badPhone.join(', ')}`, `వీటికి పూర్తి 10 అంకెల నంబర్ ఇవ్వండి: ${badPhone.join(', ')}`))
       return
     }
     setLoading(true)
@@ -1110,6 +1134,9 @@ function ProfileEditModal({
         const clean = normalizePickupSchedule(schedule, pickupLocations)
         return Object.keys(clean).length > 0 ? clean : null
       })(),
+      // Scoped to the locations that still exist, so a number can't linger for
+      // a point the farmer just deleted.
+      pickup_location_phones: normalizePickupPhones(pickupPhones, pickupLocations),
       lat: farmerLat,
       lng: farmerLng,
       location_name: farmerLat ? (farmerLocationName || name.trim()) : null,
@@ -1544,6 +1571,45 @@ function ProfileEditModal({
                     </div>
 
                     <div className="p-3">
+                      {/* Whom the buyer calls at THIS point. Usually the shop
+                          or the person who keeps the produce there, which is
+                          why it is per-location and not the farmer's number. */}
+                      <div className="mb-3">
+                        <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                          {L('Contact number here (optional)', 'ఇక్కడి ఫోన్ నంబర్')}
+                        </label>
+                        <div className="flex gap-2">
+                          <span className="flex items-center px-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 font-medium">
+                            +91
+                          </span>
+                          <input
+                            type="tel"
+                            inputMode="numeric"
+                            value={pickupPhones[loc] ?? ''}
+                            onChange={(e) =>
+                              setPickupPhones((prev) => ({
+                                ...prev,
+                                [loc]: e.target.value.replace(/\D/g, '').slice(0, 10),
+                              }))
+                            }
+                            maxLength={10}
+                            placeholder={L('Shop / contact at this point', 'ఈ స్థలంలో సంప్రదించే నంబర్')}
+                            className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+                          />
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-1 leading-snug">
+                          {L('Buyers see this number with the pickup address.', 'పికప్ చిరునామాతో పాటు కొనుగోలుదారులకు ఈ నంబర్ కనిపిస్తుంది.')}
+                        </p>
+                        {(() => {
+                          const d = (pickupPhones[loc] ?? '').replace(/\D/g, '')
+                          return d.length > 0 && d.length < 10 ? (
+                            <p className="text-[11px] text-red-600 mt-1">
+                              {L('Enter a 10-digit number, or leave it blank.', '10 అంకెల నంబర్ ఇవ్వండి, లేదా ఖాళీగా వదిలేయండి.')}
+                            </p>
+                          ) : null
+                        })()}
+                      </div>
+
                       <p className="text-[11px] text-gray-500 mb-2 leading-snug">
                         {L('Days & times buyers can pick up from here.', 'ఇక్కడ నుండి కొనుగోలుదారులు పికప్ చేసుకునే రోజులు & సమయాలు.')}
                       </p>

@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
-import { normalizePickupSchedule } from '@/lib/pickup-slots'
+import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
 import { normalizeUrl } from '@/lib/links'
 
 export const runtime = 'nodejs'
@@ -24,6 +24,7 @@ const EDIT_COLUMNS =
   'farm_size_acres, farming_since_year, farm_address, soil_organic_carbon, soil_ph, water_source, ' +
   'facebook_url, instagram_url, youtube_url, ' +
   'upi_id, cod_enabled, bank_account_number, bank_ifsc, pickup_locations, pickup_slots, ' +
+  'pickup_location_phones, ' +
   'cover_photo_url, photo_url, pesticide_cert_url, upi_qr_code_url, ' +
   'lat, lng, location_name'
 
@@ -150,6 +151,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       : undefined
     const clean = normalizePickupSchedule(b.pickup_slots, locs)
     update.pickup_slots = Object.keys(clean).length > 0 ? clean : null
+  }
+
+  // Contact number per pickup point — same per-location map shape, scoped the
+  // same way. normalizePickupPhones drops anything that is not a full 10
+  // digits, so a partial number can never reach a buyer.
+  if ('pickup_location_phones' in b) {
+    const locs = Array.isArray(b.pickup_locations)
+      ? b.pickup_locations.map((p) => String(p).trim()).filter(Boolean)
+      : undefined
+    update.pickup_location_phones = normalizePickupPhones(b.pickup_location_phones, locs)
   }
 
   // Photos — the client sends the resolved URL (existing, newly uploaded, or

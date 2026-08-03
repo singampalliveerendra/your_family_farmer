@@ -9,7 +9,7 @@ import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useCart, CartFab, EditableQty } from '@/components/consumer/Cart'
 import { supabase } from '@/lib/supabase'
-import { normalizePickupSchedule } from '@/lib/pickup-slots'
+import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
 import { isSoldOutListing } from '@/lib/produceStatus'
 import { localizeName } from '@/lib/localizeName'
 import { harvestClock } from '@/lib/harvest'
@@ -25,6 +25,7 @@ type Farmer = {
   phone: string
   method: string
   pickup_locations?: string[] | null
+  pickup_location_phones?: unknown
   pickup_slots?: unknown
 }
 
@@ -217,6 +218,7 @@ export default function ProduceDetailPage() {
       farmerSlug: farmer.slug,
       farmerPickupLocations: farmer.pickup_locations ?? [],
       farmerPickupSlots: normalizePickupSchedule(farmer.pickup_slots, farmer.pickup_locations ?? []),
+      farmerPickupPhones: normalizePickupPhones(farmer.pickup_location_phones, farmer.pickup_locations ?? []),
     }, 1)
   }
 
