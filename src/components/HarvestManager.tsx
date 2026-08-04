@@ -172,6 +172,22 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
             <div key={h.id} className="bg-white border border-green-200 rounded-lg p-2.5">
               {editingHarvestId === h.id ? (
                 <div className="space-y-2">
+                  {/* Way out at the top right, where a form's close control is
+                      looked for first — the footer Cancel is below the fold on
+                      a 390px screen once both inputs are open. Both discard the
+                      same way; neither writes anything. */}
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-[11px] font-bold text-green-800 uppercase tracking-wide">
+                      {L('Edit harvest', 'కోత సవరించు')}
+                    </p>
+                    <button
+                      onClick={() => setEditingHarvestId(null)}
+                      aria-label={L('Cancel editing', 'సవరణ రద్దు చేయి')}
+                      className="flex-shrink-0 -mt-1 -mr-1 w-8 h-8 inline-flex items-center justify-center rounded-full text-gray-400 text-base leading-none active:bg-gray-100"
+                    >
+                      ✕
+                    </button>
+                  </div>
                   <div>
                     <label className="text-[11px] font-semibold text-gray-600">{L('Harvest date & time', 'కోత తేదీ & సమయం')}</label>
                     <input
