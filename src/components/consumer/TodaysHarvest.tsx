@@ -149,6 +149,10 @@ export default function TodaysHarvest() {
   const renderCard = (r: HarvestRow, kind: 'fresh' | 'upcoming') => {
     const item = listingOf(r)
     if (!item) return null
+    // A pick judges itself by its own stock — null means quantity not tracked,
+    // not zero. Spent picks stay in the strip (the buyer wants to know the crop
+    // exists) but say so, and the add button goes.
+    const soldOut = r.stock_qty != null && r.stock_qty <= 0
     const emoji = item.emoji || '🌿'
     const cover = (item.image_urls && item.image_urls.length ? item.image_urls[0] : item.image_url) || null
     const clock = harvestClock(r.harvested_at, L)
@@ -156,7 +160,7 @@ export default function TodaysHarvest() {
       <Link
         key={r.id}
         href={`/consumer/harvest/${r.id}`}
-        className="snap-start shrink-0 w-36 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden active:opacity-80"
+        className={`snap-start shrink-0 w-36 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden active:opacity-80 ${soldOut ? 'opacity-75' : ''}`}
       >
         <div className="h-24 w-full bg-green-50 flex items-center justify-center relative">
           {cover ? (
@@ -174,7 +178,13 @@ export default function TodaysHarvest() {
             </span>
           )}
           {/* Add-to-cart — adds THIS harvest without leaving the page.
-              preventDefault/stopPropagation so it doesn't follow the card link. */}
+              preventDefault/stopPropagation so it doesn't follow the card link.
+              A spent pick gets a SOLD OUT tag in its place. */}
+          {soldOut ? (
+            <span className="absolute top-1.5 right-1.5 bg-red-50 text-red-600 text-[9px] font-bold rounded-full px-1.5 py-0.5">
+              {L('Sold out', 'అయిపోయింది')}
+            </span>
+          ) : (
           <button
             type="button"
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); addHarvestToCart(r) }}
@@ -196,6 +206,7 @@ export default function TodaysHarvest() {
               </svg>
             )}
           </button>
+          )}
         </div>
         <div className="p-2">
           <p className="text-[13px] font-bold text-gray-900 truncate">{localizeName(item.name, lang)}</p>

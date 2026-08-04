@@ -10,7 +10,7 @@ import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useCart, CartFab, EditableQty } from '@/components/consumer/Cart'
 import { supabase } from '@/lib/supabase'
 import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
-import { isSoldOutListing } from '@/lib/produceStatus'
+import { isSoldOutWithHarvests } from '@/lib/produceStatus'
 import { localizeName } from '@/lib/localizeName'
 import { harvestClock } from '@/lib/harvest'
 import { normalizeUrl, linkHost } from '@/lib/links'
@@ -108,6 +108,9 @@ export default function ProduceDetailPage() {
   const [showReviews, setShowReviews] = useState(false)
   // Latest harvest for this produce — powers the "Harvested 2 hours ago" clock.
   const [latestHarvest, setLatestHarvest] = useState<{ at: string; shelf: number | null } | null>(null)
+  // Every unpaused pick's stock — the authority on whether anything is left
+  // once this produce has harvests at all (see isSoldOutWithHarvests).
+  const [harvestStocks, setHarvestStocks] = useState<Array<{ stock_qty: number | null }>>([])
 
   // Swipe gallery
   const [activeImg, setActiveImg] = useState(0)
@@ -127,29 +130,34 @@ export default function ProduceDetailPage() {
     setLiveStock((l as Listing).stock_qty ?? null)
     const { data: f } = await supabase.from('farmers').select('*').eq('id', (l as Listing).farmer_id).maybeSingle()
     setFarmer((f as Farmer) ?? null)
-    // Latest harvest for the clock. Best-effort — silent if the table is absent.
+    // Every unpaused pick, newest first: the first row drives the clock, the
+    // whole set decides whether this produce still has anything left. Fetching
+    // only the newest one was enough for the clock but blind to stock — a crop
+    // whose picks were all spent still read as buyable off the template's
+    // number. Best-effort — silent if the table is absent.
     try {
-      const { data: h } = await supabase
+      const { data: hs } = await supabase
         .from('harvests')
-        .select('harvested_at, shelf_life_days')
+        .select('harvested_at, shelf_life_days, stock_qty')
         .eq('produce_listing_id', id)
         .eq('paused', false)
         .order('harvested_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      const rows = (hs ?? []) as Array<{ harvested_at: string; shelf_life_days: number | null; stock_qty: number | null }>
+      setHarvestStocks(rows.map((r) => ({ stock_qty: r.stock_qty ?? null })))
+      const h = rows[0]
       // Clock source, in order of preference: a logged `harvests` row, else the
       // harvest date/time set on the listing's Edit form. Shelf life falls back
       // to the listing's own value the same way.
       const listingShelf = (l as Listing).shelf_life_days ?? null
       const listingHarvestDate = (l as Listing).harvest_date ?? null
       if (h) {
-        setLatestHarvest({ at: h.harvested_at as string, shelf: (h.shelf_life_days as number | null) ?? listingShelf })
+        setLatestHarvest({ at: h.harvested_at, shelf: h.shelf_life_days ?? listingShelf })
       } else if (listingHarvestDate) {
         setLatestHarvest({ at: listingHarvestDate, shelf: listingShelf })
       } else {
         setLatestHarvest(null)
       }
-    } catch { setLatestHarvest(null) }
+    } catch { setLatestHarvest(null); setHarvestStocks([]) }
     setLoading(false)
   }, [id])
 
@@ -183,7 +191,9 @@ export default function ProduceDetailPage() {
   const inCart = cart[item.id]
   // Status counts alongside the number: this page can be reached for a produce
   // whose stock_qty is null but that the auto-flip already marked 'sold_out'.
-  const isOutOfStock = (liveStock !== null && liveStock <= 0) || isSoldOutListing(item)
+  // And where the produce has logged picks, those outrank the template's number
+  // entirely — orders decrement the harvest, so the template's count goes stale.
+  const isOutOfStock = (liveStock !== null && liveStock <= 0) || isSoldOutWithHarvests(item, harvestStocks)
   const atMax = liveStock !== null && inCart != null && inCart.qty >= liveStock
 
   const doAdd = async () => {

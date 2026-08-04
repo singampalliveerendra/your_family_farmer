@@ -9,7 +9,7 @@ import { localizeName } from '@/lib/localizeName'
 import { useCart, EditableQty } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
-import { isSoldOutListing } from '@/lib/produceStatus'
+import { isSoldOutWithHarvests } from '@/lib/produceStatus'
 
 type Produce = {
   id: string
@@ -78,12 +78,43 @@ export default function ProduceTab({
     if (f.id && localStorage.getItem('yff_farmer_id') === f.id) setIsOwner(true)
   }, [f.id])
   const [listings, setListings] = useState<Produce[]>(produce as Produce[])
+
+  // Stock of every unpaused pick, per listing. A produce that has harvests is
+  // sold out when THEY are spent, whatever the listing's own stock_qty still
+  // says — orders decrement the harvest row, so the template's number goes
+  // stale and would otherwise keep a spent crop on the buyable shelf.
+  // Best-effort: no harvests table, or none logged, and each produce simply
+  // judges itself by its own stock as before.
+  const [harvestsByListing, setHarvestsByListing] = useState<Record<string, Array<{ stock_qty: number | null }>>>({})
+  useEffect(() => {
+    const ids = listings.map((p) => p.id)
+    if (!ids.length) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data } = await supabase
+          .from('harvests')
+          .select('produce_listing_id, stock_qty')
+          .in('produce_listing_id', ids)
+          .eq('paused', false)
+        if (cancelled) return
+        const map: Record<string, Array<{ stock_qty: number | null }>> = {}
+        for (const h of (data ?? []) as Array<{ produce_listing_id: string; stock_qty: number | null }>) {
+          ;(map[h.produce_listing_id] ??= []).push({ stock_qty: h.stock_qty ?? null })
+        }
+        setHarvestsByListing(map)
+      } catch { /* harvests table not present yet */ }
+    })()
+    return () => { cancelled = true }
+  }, [listings])
+
   // Sold out is its own shelf rather than a filter: dropping those rows made a
   // farmer who had sold their whole crop look like they grow nothing at all.
   // They render below the buyable ones with no Add button.
+  const isSoldOut = (p: Produce) => isSoldOutWithHarvests(p, harvestsByListing[p.id] ?? [])
   const sellable = listings.filter((p) => p.status === 'available' || p.status === 'sold_out')
-  const available = sellable.filter((p) => !isSoldOutListing(p))
-  const soldOut = sellable.filter((p) => isSoldOutListing(p))
+  const available = sellable.filter((p) => !isSoldOut(p))
+  const soldOut = sellable.filter((p) => isSoldOut(p))
   const comingSoon = listings.filter((p) => p.status === 'coming_soon')
 
   const handleProduceAdded = (newItem: Produce) => {

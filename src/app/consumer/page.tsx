@@ -23,12 +23,6 @@ import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slo
 
 const DEFAULT_REGION = 'tadepalligudem'
 
-// How recent a harvest must be to get its OWN tile in the grid. Older picks
-// still count — their produce shows as a single template tile carrying the
-// latest harvest date — this only stops one crop from filling the grid with a
-// season's worth of tiles.
-const HARVEST_CARD_WINDOW_DAYS = 14
-
 // Which region's farmers should see a demand intent.
 //
 // The consumer's saved location is free text, so slugging it directly minted
@@ -390,21 +384,27 @@ export default function ConsumerPage() {
       return Number.isNaN(t) ? -Infinity : t
     }
 
-    // Expand: a produce with RECENT logged harvests becomes one card per harvest
-    // (each its own product — own date, shelf, stock); a produce whose picks are
-    // all older than the window falls back to a single template card, which still
-    // carries the latest harvest date in its clock (see latest_harvested_at above).
-    // The window bounds how many tiles one produce can occupy; it is deliberately
-    // not a visibility rule.
-    const harvestCardCutoff = Date.now() - HARVEST_CARD_WINDOW_DAYS * 86_400_000
+    // Expand: a produce with logged harvests becomes one card per harvest (each
+    // its own product — own date, shelf, stock). Only a produce with no logged
+    // pick at all falls back to a single template card, which still carries the
+    // latest known harvest date in its clock (see latest_harvested_at above).
+    //
+    // A pick's AGE deliberately does not decide this. It used to: harvests older
+    // than 14 days collapsed back to one template card, and a template card
+    // reads the LISTING's stock_qty — which nothing decrements when a harvest
+    // sells out, since orders against a harvest decrement the harvest's own row.
+    // So a farmer could zero a harvest and the grid would keep offering the crop
+    // as "10 kg left" with a live Add button. Every pick on staging was 18–50
+    // days old, so in practice NO card was a harvest card and the sold-out
+    // treatment never appeared at all. Bounding tiles per crop is not worth
+    // showing a number no one can buy.
     const cards: DisplayCard[] = []
     for (const item of items) {
       const hs = harvestsByListing[item.id] ?? []
-      const recent = hs.filter((h) => ts(h.harvested_at) >= harvestCardCutoff)
-      if (recent.length) {
+      if (hs.length) {
         // A harvest is sold out on its own stock — the template's status says
-        // nothing about a pick that still has kilos left.
-        for (const h of recent) {
+        // nothing about a pick that still has kilos left, nor the reverse.
+        for (const h of hs) {
           cards.push({ item, harvest: h, key: h.id, sortAt: ts(h.harvested_at), soldOut: h.stock_qty != null && h.stock_qty <= 0 })
         }
       } else {

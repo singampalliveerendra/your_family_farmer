@@ -35,3 +35,26 @@ export function isSoldOutListing(item: {
   if (item.status === 'sold_out') return true
   return item.stock_qty != null && item.stock_qty <= 0
 }
+
+/**
+ * Is this produce sold out, once its logged harvests are taken into account?
+ *
+ * An order placed against a harvest decrements THAT row, never the template's,
+ * so a listing happily sits at `stock_qty: 10, status: 'available'` long after
+ * its last kilo went. Wherever a produce is shown as one row rather than one
+ * card per pick, the template's number is therefore the wrong thing to read:
+ * a farmer would zero a harvest and the buyer would still be offered "10 kg
+ * left". Whenever a produce has unpaused harvests, they are the authority on
+ * whether anything is left; the template's own number only speaks for a produce
+ * with no logged pick at all.
+ *
+ * A harvest's `stock_qty: null` means quantity not tracked, not zero — such a
+ * pick keeps the produce buyable.
+ */
+export function isSoldOutWithHarvests(
+  item: { status?: string | null; stock_qty?: number | null },
+  harvests: ReadonlyArray<{ stock_qty?: number | null }>,
+): boolean {
+  if (!harvests.length) return isSoldOutListing(item)
+  return harvests.every((h) => h.stock_qty != null && h.stock_qty <= 0)
+}
