@@ -384,10 +384,11 @@ export default function ConsumerPage() {
       return Number.isNaN(t) ? -Infinity : t
     }
 
-    // Expand: a produce with logged harvests becomes one card per harvest (each
-    // its own product — own date, shelf, stock). Only a produce with no logged
-    // pick at all falls back to a single template card, which still carries the
-    // latest known harvest date in its clock (see latest_harvested_at above).
+    // Expand: a produce with logged harvests becomes one card per harvest that
+    // still has stock (each its own product — own date, shelf, stock). A produce
+    // with no logged pick at all falls back to a single template card, which
+    // still carries the latest known harvest date in its clock (see
+    // latest_harvested_at above).
     //
     // A pick's AGE deliberately does not decide this. It used to: harvests older
     // than 14 days collapsed back to one template card, and a template card
@@ -398,15 +399,29 @@ export default function ConsumerPage() {
     // days old, so in practice NO card was a harvest card and the sold-out
     // treatment never appeared at all. Bounding tiles per crop is not worth
     // showing a number no one can buy.
+    //
+    // A spent pick does NOT get a tile of its own. One card per harvest is right
+    // while the picks are things a buyer can choose between; once a pick is
+    // ordered out, a second tile of the same crop reads as a second product that
+    // happens to be unavailable — the buyer sees "Banana" twice, one greyed.
+    // So: only picks with stock left get their own tile, and a produce whose
+    // EVERY pick is spent collapses to a single sold-out tile for the crop.
+    // That tile is the template card, but its verdict is carried in `soldOut`
+    // rather than read off the listing — orders decrement the harvest row, never
+    // the template's stock_qty, so the template's own number is stale here.
     const cards: DisplayCard[] = []
     for (const item of items) {
       const hs = harvestsByListing[item.id] ?? []
-      if (hs.length) {
-        // A harvest is sold out on its own stock — the template's status says
-        // nothing about a pick that still has kilos left, nor the reverse.
-        for (const h of hs) {
-          cards.push({ item, harvest: h, key: h.id, sortAt: ts(h.harvested_at), soldOut: h.stock_qty != null && h.stock_qty <= 0 })
+      // A harvest is sold out on its own stock — the template's status says
+      // nothing about a pick that still has kilos left, nor the reverse. null
+      // stock means quantity not tracked, which is not zero.
+      const live = hs.filter((h) => h.stock_qty == null || h.stock_qty > 0)
+      if (live.length) {
+        for (const h of live) {
+          cards.push({ item, harvest: h, key: h.id, sortAt: ts(h.harvested_at), soldOut: false })
         }
+      } else if (hs.length) {
+        cards.push({ item, key: item.id, sortAt: ts(item.latest_harvested_at), soldOut: true })
       } else {
         cards.push({ item, key: item.id, sortAt: ts(item.latest_harvested_at), soldOut: isSoldOutListing(item) })
       }
@@ -594,6 +609,7 @@ export default function ConsumerPage() {
                 key={card.key}
                 item={card.item}
                 harvest={card.harvest}
+                soldOut={card.soldOut}
                 distanceKm={card.item.distKm}
                 distanceApprox={card.item.distApprox}
               />
@@ -642,10 +658,16 @@ export default function ConsumerPage() {
 /* ─── Produce card ──────────────────────────────────────── */
 // `harvest` present → this tile is one specific harvest of the produce (its own
 // pick date, shelf life and stock; tapping opens the harvest page and Add puts
-// that harvest in the cart). Absent → the produce template, as a fallback for
-// produce with no logged harvest. Everything else (photos, price, farmer,
-// quality, reviews) is inherited from the produce_listing either way.
-function ProduceCard({ item, harvest, distanceKm, distanceApprox }: { item: ProduceListing; harvest?: GridHarvest; distanceKm?: number | null; distanceApprox?: boolean }) {
+// that harvest in the cart). Absent → the produce template, either for produce
+// with no logged harvest or as the single sold-out tile standing for a produce
+// whose every pick is spent. Everything else (photos, price, farmer, quality,
+// reviews) is inherited from the produce_listing either way.
+//
+// `soldOut` is the grid's verdict (see the expansion in displayItems). It has to
+// come from there for the collapsed tile: nothing decrements the template's
+// stock_qty when a harvest sells out, so the listing's own number would still
+// claim kilos that are gone.
+function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { item: ProduceListing; harvest?: GridHarvest; soldOut?: boolean; distanceKm?: number | null; distanceApprox?: boolean }) {
   const emoji       = item.emoji ?? '🌿'
   const produceBg   = PRODUCE_BG[emoji] ?? DEFAULT_PRODUCE_BG
   const method      = item.method?.toLowerCase() ?? 'natural'
@@ -696,9 +718,10 @@ function ProduceCard({ item, harvest, distanceKm, distanceApprox }: { item: Prod
   // A harvest tile judges itself by the harvest's own stock — the template
   // being 'sold_out' says nothing about a pick that still has kilos left. A
   // template tile has no second source, so its status counts too.
-  const isOutOfStock = harvest
-    ? liveStock !== null && liveStock <= 0
-    : (liveStock !== null && liveStock <= 0) || isSoldOutListing(item)
+  const isOutOfStock = soldOut
+    || (harvest
+      ? liveStock !== null && liveStock <= 0
+      : (liveStock !== null && liveStock <= 0) || isSoldOutListing(item))
   const atMax        = liveStock !== null && inCart != null && inCart.qty >= liveStock
 
   const handleAdd = async () => {

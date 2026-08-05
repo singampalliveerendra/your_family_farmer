@@ -108,13 +108,34 @@ function HarvestTable({ variant }: { variant: Variant }) {
       if (cancelled) return
       const all = (data ?? []) as HarvestRow[]
       const visible = variant === 'upcoming' ? all : all.filter(isStillFresh)
-      // Sold-out harvests STAY in the table, shown as sold out with the add
-      // button replaced. Dropping them made a farmer's crop vanish the moment
-      // the last kilo went, which is the one moment a buyer most wants to know
-      // it exists — same reasoning as CONSUMER_VISIBLE_STATUSES for the grid.
-      // They sink below everything buyable: context, not the offer.
+      // A produce is one row here, not one row per spent pick. A sold-out pick
+      // shown beside its own crop's buyable picks reads as a second product that
+      // happens to be gone — the buyer sees the same crop twice, one greyed. So
+      // a sold-out row only survives when the produce has NO pick left with
+      // stock, and then just one row (the first, i.e. the newest picked /
+      // soonest expected) stands for the whole crop.
+      //
+      // Whether anything is left is judged across every pick fetched, not only
+      // the ones this table shows: a crop with stock sitting in a pick that has
+      // run out of shelf life is not sold out, it just isn't on the fresh shelf.
+      const hasLivePick = new Set(
+        all.filter((r) => !isHarvestSoldOut(r)).map((r) => r.produce_listing_id),
+      )
+      const shownSoldOut = new Set<string>()
+      const collapsed = visible.filter((r) => {
+        if (!isHarvestSoldOut(r)) return true
+        if (hasLivePick.has(r.produce_listing_id)) return false
+        if (shownSoldOut.has(r.produce_listing_id)) return false
+        shownSoldOut.add(r.produce_listing_id)
+        return true
+      })
+      // The surviving sold-out rows STAY, shown as sold out with the add button
+      // replaced. Dropping them made a farmer's crop vanish the moment the last
+      // kilo went, which is the one moment a buyer most wants to know it exists
+      // — same reasoning as CONSUMER_VISIBLE_STATUSES for the grid. They sink
+      // below everything buyable: context, not the offer.
       setRows(
-        [...visible]
+        collapsed
           .sort((a, b) => Number(isHarvestSoldOut(a)) - Number(isHarvestSoldOut(b)))
           .slice(0, 12),
       )
