@@ -1943,6 +1943,7 @@ function ProduceListingForm({
   editData,
   onClose,
   onPublished,
+  pinnedHeader = false,
 }: {
   farmerId: string
   farmerSlug?: string
@@ -1952,6 +1953,11 @@ function ProduceListingForm({
   editData?: ListingRow | null
   onClose: () => void
   onPublished: (saved?: Partial<ListingRow>) => void
+  // Pin the header (and its ✕) to the top while the form scrolls. Only for the
+  // overlay usages, which have their own scroll container: rendered inline in
+  // the dashboard the form scrolls with the page, whose sticky GlobalNav owns
+  // top-0 and would swallow it.
+  pinnedHeader?: boolean
 }) {
   const { tx, L } = useLang()
   const isEdit = !!editData
@@ -2307,14 +2313,29 @@ function ProduceListingForm({
     )
   }
 
+  // No overflow-hidden when the header is pinned: an overflow-hidden ancestor
+  // becomes the sticky element's scroll container, and since it never scrolls
+  // the header would simply never stick. The header carries the matching top
+  // rounding instead, so the corners still read right.
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-      {/* Form header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
+    <div className={`bg-white rounded-2xl border border-gray-200 ${pinnedHeader ? '' : 'overflow-hidden'}`}>
+      {/* Form header. The × is what a farmer reaches for to back out of an
+          edit, so on the overlay it stays pinned at the top right for the whole
+          form rather than scrolling away with the first field — on a 390px
+          screen this form is several viewports tall, and a close control you
+          have to scroll back up to find reads as no close control at all. The
+          footer Cancel (added in eee717c) stays: same pairing, either end. */}
+      <div className={`flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50 ${pinnedHeader ? 'sticky top-0 z-10 rounded-t-2xl' : ''}`}>
         <h3 className="font-extrabold text-gray-900 text-base">
           {isEdit ? tx.editProduceListing : tx.newProduceListing}
         </h3>
-        <button onClick={onClose} className="text-gray-400 text-2xl leading-none p-1">×</button>
+        <button
+          onClick={onClose}
+          aria-label={tx.cancel}
+          className="flex-shrink-0 text-gray-400 text-2xl leading-none p-1"
+        >
+          ×
+        </button>
       </div>
 
       <div className="p-4 space-y-5">
@@ -3055,6 +3076,7 @@ function ManageListingsModal({
               defaultMethod={defaultMethod}
               farmerSoilPh={farmerSoilPh}
               editData={editingRow}
+              pinnedHeader
               onClose={() => setEditingRow(null)}
               onPublished={(saved) => {
                 if (saved && editingRow) {
@@ -3079,6 +3101,7 @@ function ManageListingsModal({
               farmerRegion={farmerRegion}
               defaultMethod={defaultMethod}
               farmerSoilPh={farmerSoilPh}
+              pinnedHeader
               onClose={() => setShowAddForm(false)}
               onPublished={() => {
                 setShowAddForm(false)
