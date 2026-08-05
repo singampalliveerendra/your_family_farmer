@@ -54,8 +54,9 @@ export default function GlobalNav({
             </button>
           )}
           {/* Logged-out users keep a visible Login CTA; once signed in the
-              greeting pill is gone and the account links live in ⚙️ instead,
-              which buys the brand and location back their width. */}
+              account links live in ⚙️ instead, which buys the brand and
+              location back their width — the greeting is now a single line
+              under the gear (see RoleMenu), not a pill on this row. */}
           {state.status === 'loading' || consumer ? null : (
             <button
               onClick={openAuth}
@@ -127,17 +128,33 @@ function RoleMenu({
     }
   }, [open])
 
+  // "Hi! Ravi" — the first word only, and truncated on top of that. A full name
+  // ("Veerendra Singampalli") would push the brand and location pill out of a
+  // 390px row, and the greeting is there to say who is signed in, not to print
+  // the whole name; the menu below still shows it in full.
+  const firstName = name?.trim().split(/\s+/)[0] ?? ''
+
   return (
     <div ref={wrapRef} className="relative flex-shrink-0">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={L('Settings', 'సెట్టింగ్‌లు')}
-        className="text-base leading-none text-green-100 bg-green-800 active:bg-green-700 rounded-full w-8 h-8 flex items-center justify-center"
-      >
-        <span aria-hidden>⚙️</span>
-      </button>
+      {/* Greeting sits UNDER the ⚙️ rather than beside it: the top row has no
+          horizontal room left at 390px (brand + location + toggle + gear), and
+          stacking costs ~12px of height that the row can afford. */}
+      <div className="flex flex-col items-center gap-0.5">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={L('Settings', 'సెట్టింగ్‌లు')}
+          className="text-base leading-none text-green-100 bg-green-800 active:bg-green-700 rounded-full w-8 h-8 flex items-center justify-center"
+        >
+          <span aria-hidden>⚙️</span>
+        </button>
+        {loggedIn && firstName && (
+          <span className="max-w-[72px] truncate text-[10px] font-bold text-green-100 leading-none">
+            {L('Hi!', 'హాయ్!')} {firstName}
+          </span>
+        )}
+      </div>
       {open && (
         <div
           role="menu"
