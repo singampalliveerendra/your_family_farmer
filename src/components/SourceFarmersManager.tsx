@@ -129,7 +129,11 @@ export default function SourceFarmersManager({
     'w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:border-green-500 focus:outline-none'
 
   return (
-    <div className="space-y-4 border border-gray-200 rounded-2xl p-4">
+    /* bg-white is load-bearing, not decoration: on the dashboard this card sits
+       in a `-mt-5` container that pulls it up over the green hero, so a
+       transparent panel shows green through its top and page-grey through the
+       rest. Matches the card style used by every other section there. */
+    <div className="space-y-4 bg-white border border-gray-100 shadow-sm rounded-2xl p-4">
       <div>
         <h4 className="text-sm font-extrabold text-green-800">
           {L('Farmers you aggregate from', 'మీరు సేకరించే రైతులు')}
