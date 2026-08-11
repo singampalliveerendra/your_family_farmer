@@ -206,6 +206,16 @@ function RoleMenu({
           >
             {L('🧑‍🌾 Login as Farmer', 'రైతుగా లాగిన్')}
           </Link>
+          {/* Next to Farmer, since both are selling roles. /aggregator resolves
+              to the dashboard when signed in and to the login page otherwise —
+              the same behaviour as the Farmer entry above. */}
+          <Link
+            href="/aggregator"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-2.5 text-gray-800 active:bg-gray-100"
+          >
+            {L('🤝 Login as Aggregator', 'సమీకరణదారుగా లాగిన్')}
+          </Link>
           <Link
             href="/rider"
             onClick={() => setOpen(false)}
