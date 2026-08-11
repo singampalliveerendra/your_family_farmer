@@ -173,6 +173,15 @@ function FarmerLoginInner() {
               {L('Create an account', 'ఖాతా సృష్టించండి')}
             </Link>
           </div>
+
+          {/* Aggregators log in here too — same accounts table — so the sign-up
+              route for them has to be offered here as well. */}
+          <div className="text-xs text-gray-600 text-center border-t border-gray-100 pt-3">
+            {L('Do you collect produce from other farmers?', 'ఇతర రైతుల నుండి పంటలు సేకరిస్తారా?')}{' '}
+            <Link href="/aggregator/signup" className="text-green-700 font-bold underline whitespace-nowrap">
+              🤝 {L('Sign up as an aggregator', 'సమీకరణదారుగా నమోదు చేసుకోండి')}
+            </Link>
+          </div>
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6">

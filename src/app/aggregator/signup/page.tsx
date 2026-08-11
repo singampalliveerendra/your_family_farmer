@@ -54,7 +54,7 @@ export default function AggregatorSignupPage() {
     if (!res.ok) { setError(json?.error ?? 'Could not create account.'); return }
     localStorage.setItem('yff_farmer_id', json.farmerId)
     localStorage.setItem('yff_farmer_slug', json.farmerSlug)
-    router.replace('/farmer/dashboard')
+    router.replace('/aggregator/dashboard')
   }
 
   const inputCls =

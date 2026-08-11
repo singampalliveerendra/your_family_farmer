@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import NextImage from 'next/image'
@@ -193,6 +193,11 @@ const isProfileComplete = (f: Farmer | null) =>
 export default function FarmerDashboard() {
   const router = useRouter()
   const { tx, L } = useLang()
+  // Mounted at BOTH /farmer/dashboard and /aggregator/dashboard. The pathname is
+  // how the one component knows which address it was reached at, so a seller who
+  // arrives at the wrong one — from login, a bookmark, a shared link — gets sent
+  // to theirs instead of seeing the other role's wording.
+  const pathname = usePathname()
   const [farmer, setFarmer] = useState<Farmer | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -309,6 +314,17 @@ export default function FarmerDashboard() {
   }, [])
 
   useEffect(() => { loadDashboard() }, [loadDashboard])
+
+  // Send each seller to their own URL. Login, old bookmarks and shared links all
+  // point at /farmer/dashboard, so an aggregator would otherwise sit on a page
+  // calling itself the farmer dashboard. replace(), not push(), so Back doesn't
+  // bounce them straight into the redirect again.
+  useEffect(() => {
+    if (!farmer) return
+    const isAgg = farmer.account_type === 'aggregator'
+    if (isAgg && pathname === '/farmer/dashboard') router.replace('/aggregator/dashboard')
+    else if (!isAgg && pathname === '/aggregator/dashboard') router.replace('/farmer/dashboard')
+  }, [farmer, pathname, router])
 
   // Auto-open the profile edit modal the first time an incomplete farmer lands here.
   useEffect(() => {
@@ -480,7 +496,9 @@ export default function FarmerDashboard() {
               </Link>
             )}
             <p className="text-green-400 text-xs font-semibold mb-0.5 uppercase tracking-wide">
-              {tx.farmerDashboard}
+              {farmer?.account_type === 'aggregator'
+                ? L('Aggregator Dashboard', 'సమీకరణదారు డాష్‌బోర్డ్')
+                : tx.farmerDashboard}
             </p>
             <h1 className="text-white text-xl font-extrabold leading-tight">{displayName}</h1>
             <p className="text-green-300 text-sm mt-0.5">
@@ -1259,7 +1277,7 @@ function ProfileEditModal({
         <div className="sticky top-0 bg-white flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <div>
             <h3 className="font-extrabold text-gray-900 text-base">
-              {tx.profileModalTitle}
+              {isAggregator ? L('Your aggregator profile', 'మీ సమీకరణదారు ప్రొఫైల్') : tx.profileModalTitle}
             </h3>
             <p className="text-xs text-gray-500">{tx.profileModalSubtitle}</p>
           </div>
@@ -1269,13 +1287,15 @@ function ProfileEditModal({
         <div className="p-4 space-y-4">
           {/* ── Section 1: Farm Profile ── */}
           <div className="pt-1 border-t-2 border-green-100 first:border-t-0">
-            <h4 className="text-sm font-extrabold text-green-800">{L('Farm Profile', 'పొలం వివరాలు')}</h4>
+            <h4 className="text-sm font-extrabold text-green-800">
+              {isAggregator ? L('Organisation Profile', 'సంస్థ వివరాలు') : L('Farm Profile', 'పొలం వివరాలు')}
+            </h4>
             <p className="text-[11px] text-gray-500">Name, photo, certifications</p>
           </div>
 
           <Field
-            label={tx.yourNameLabel}
-            placeholder="Ramu Reddy"
+            label={isAggregator ? L('Organisation name *', 'సంస్థ పేరు *') : tx.yourNameLabel}
+            placeholder={isAggregator ? 'Go Grameen' : 'Ramu Reddy'}
             value={name}
             onChange={setName}
           />
@@ -1309,7 +1329,7 @@ function ProfileEditModal({
           </div>
 
           <Field
-            label={tx.farmingSinceLabel}
+            label={isAggregator ? L('Operating since (year)', 'ఎప్పటి నుండి (సంవత్సరం)') : tx.farmingSinceLabel}
             placeholder="e.g. 2005"
             value={sinceYear}
             onChange={setSinceYear}
