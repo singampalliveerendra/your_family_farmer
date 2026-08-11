@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
+import { SproutMark } from '@/components/BrandLogo'
 
 // Phases: 'show' while visible, 'out' during the fade, 'done' = unmounted.
 // We start at 'show' so the overlay is part of the server-rendered HTML and
@@ -56,20 +57,21 @@ export default function SplashScreen() {
       }`}
       style={{ backgroundColor: '#1a5c2a' }}
     >
-      {/* YFF circle logo */}
-      <div className="splash-logo flex items-center justify-center w-24 h-24 rounded-full border-2 border-white">
-        <span className="font-black text-white" style={{ fontSize: 32, lineHeight: 1 }}>
-          GG
-        </span>
+      {/* Sprout mark — same SVG the top bar uses, just bigger */}
+      <div className="splash-logo flex items-center justify-center w-24 h-24 rounded-full border-2 border-white/70 bg-white/5">
+        <SproutMark className="w-12 h-12 text-[#f4f7ec]" />
       </div>
 
       {/* Brand name */}
-      <h1 className="splash-name font-bold text-white mt-5" style={{ fontSize: 22 }}>
+      <h1 className="splash-name brand-wordmark text-white mt-5" style={{ fontSize: 30, fontWeight: 700 }}>
         {L('Go Grameen', 'గో గ్రామీణ్')}
       </h1>
 
       {/* Tagline */}
-      <p className="splash-tagline italic text-white mt-4" style={{ fontSize: 16 }}>
+      <p
+        className="splash-tagline text-white/85 mt-3 uppercase font-semibold"
+        style={{ fontSize: 11, letterSpacing: '0.18em' }}
+      >
         {L('Your Family Farmer', 'యువర్ ఫ్యామిలీ ఫార్మర్')}
       </p>
 

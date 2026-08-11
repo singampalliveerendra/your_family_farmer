@@ -9,6 +9,7 @@ import { localizeName } from '@/lib/localizeName'
 import { useCart, EditableQty } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
+import { isSoldOutWithHarvests } from '@/lib/produceStatus'
 
 type Produce = {
   id: string
@@ -77,7 +78,43 @@ export default function ProduceTab({
     if (f.id && localStorage.getItem('yff_farmer_id') === f.id) setIsOwner(true)
   }, [f.id])
   const [listings, setListings] = useState<Produce[]>(produce as Produce[])
-  const available = listings.filter((p) => p.status === 'available' && p.stock_qty !== 0)
+
+  // Stock of every unpaused pick, per listing. A produce that has harvests is
+  // sold out when THEY are spent, whatever the listing's own stock_qty still
+  // says — orders decrement the harvest row, so the template's number goes
+  // stale and would otherwise keep a spent crop on the buyable shelf.
+  // Best-effort: no harvests table, or none logged, and each produce simply
+  // judges itself by its own stock as before.
+  const [harvestsByListing, setHarvestsByListing] = useState<Record<string, Array<{ stock_qty: number | null }>>>({})
+  useEffect(() => {
+    const ids = listings.map((p) => p.id)
+    if (!ids.length) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data } = await supabase
+          .from('harvests')
+          .select('produce_listing_id, stock_qty')
+          .in('produce_listing_id', ids)
+          .eq('paused', false)
+        if (cancelled) return
+        const map: Record<string, Array<{ stock_qty: number | null }>> = {}
+        for (const h of (data ?? []) as Array<{ produce_listing_id: string; stock_qty: number | null }>) {
+          ;(map[h.produce_listing_id] ??= []).push({ stock_qty: h.stock_qty ?? null })
+        }
+        setHarvestsByListing(map)
+      } catch { /* harvests table not present yet */ }
+    })()
+    return () => { cancelled = true }
+  }, [listings])
+
+  // Sold out is its own shelf rather than a filter: dropping those rows made a
+  // farmer who had sold their whole crop look like they grow nothing at all.
+  // They render below the buyable ones with no Add button.
+  const isSoldOut = (p: Produce) => isSoldOutWithHarvests(p, harvestsByListing[p.id] ?? [])
+  const sellable = listings.filter((p) => p.status === 'available' || p.status === 'sold_out')
+  const available = sellable.filter((p) => !isSoldOut(p))
+  const soldOut = sellable.filter((p) => isSoldOut(p))
   const comingSoon = listings.filter((p) => p.status === 'coming_soon')
 
   const handleProduceAdded = (newItem: Produce) => {
@@ -136,6 +173,30 @@ export default function ProduceTab({
                   stockQty: item.stock_qty,
                   ...farmerCartInfo,
                 }, qty))}
+                onDelete={isEditMode ? () => handleDelete(item.id) : undefined}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {soldOut.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="bg-gray-200 text-gray-600 text-xs font-bold px-3 py-1 rounded-full">
+              {L('Sold out', 'అయిపోయింది')}
+            </span>
+          </div>
+          <div className="space-y-3">
+            {soldOut.map((item) => (
+              // No onAddToCart → the card renders without an Add button; Delete
+              // still shows in edit mode so the farmer can clear old produce.
+              <ProduceCard
+                key={item.id}
+                item={item}
+                review={produceReviews?.[item.id]}
+                farmerInfo={farmerCartInfo}
+                soldOut
                 onDelete={isEditMode ? () => handleDelete(item.id) : undefined}
               />
             ))}
@@ -343,12 +404,14 @@ function ProduceCard({
   farmerInfo,
   onAddToCart,
   onDelete,
+  soldOut = false,
 }: {
   item: Produce
   review?: ReviewSummary
   farmerInfo: FarmerCartInfo
   onAddToCart?: (qty: number) => void
   onDelete?: () => void
+  soldOut?: boolean
 }) {
   const { tx, lang, L } = useLang()
   const { cart, setQty } = useCart()
@@ -377,7 +440,9 @@ function ProduceCard({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
+    // Sold out dims the whole row a touch — enough to read as unavailable,
+    // still legible so the buyer can see what this farmer grows.
+    <div className={`bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm ${soldOut ? 'opacity-75' : ''}`}>
       <div className="flex gap-3 p-3">
         {gallery.length ? (
           // #12 — inline swipeable strip: swipe right-to-left to see the rest of
@@ -412,9 +477,13 @@ function ProduceCard({
               <h3 className="font-bold text-gray-900 text-sm hover:underline">{localizeName(item.name, lang)}</h3>
               {item.variety && <p className="text-xs text-gray-500">{localizeName(item.variety, lang)}</p>}
             </Link>
-            {item.stock_qty !== undefined && (
+            {soldOut ? (
+              <span className="text-[11px] font-semibold text-red-600 bg-red-50 rounded-full px-2 py-0.5 flex-shrink-0">
+                {L('Sold out', 'అయిపోయింది')}
+              </span>
+            ) : item.stock_qty !== undefined ? (
               <span className="text-xs text-gray-500 flex-shrink-0">{item.stock_qty} {tx.stockLeft}</span>
-            )}
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-1 mt-1.5">
             {review && review.count > 0 && (
@@ -481,6 +550,14 @@ function ProduceCard({
       )}
 
       <div className="px-3 pb-3 pt-2 space-y-2">
+        {soldOut && (
+          <button
+            disabled
+            className="w-full font-bold py-3.5 rounded-xl text-base bg-gray-200 text-gray-500 cursor-not-allowed"
+          >
+            {L('Sold out', 'అయిపోయింది')}
+          </button>
+        )}
         {onAddToCart && (
           inCart ? (
             <div className="flex items-center justify-between w-full bg-green-50 border border-green-200 rounded-xl p-1.5">

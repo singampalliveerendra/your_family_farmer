@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getRiderSessionFromRequest } from '@/lib/rider-session'
 import { rateLimit } from '@/lib/rate-limit'
 import { cashDue } from '@/lib/payment'
+import { resolveJobOrderIds } from '@/lib/rider-jobs'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -47,33 +48,45 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Account not active.' }, { status: 403 })
   }
 
-  const { data: order } = await supabase
+  // One handover closes the whole job: every line from this farmer in this
+  // checkout is in the same bag, against the same code. They also share one
+  // handover_otp, since the batch was written by a single place-order call.
+  const jobIds = await resolveJobOrderIds(supabase, id)
+  if (!jobIds) return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
+
+  type Row = {
+    id: string; delivery_boy_id: string | null; delivery_status: string | null
+    handover_otp: string | null; payment_status: string | null; cod_balance_due: number | null
+  }
+  const { data: rows } = await supabase
     .from('orders')
     .select('id, delivery_boy_id, delivery_status, handover_otp, payment_status, cod_balance_due')
-    .eq('id', id)
-    .maybeSingle() as {
-      data: {
-        id: string; delivery_boy_id: string | null; delivery_status: string | null
-        handover_otp: string | null; payment_status: string | null; cod_balance_due: number | null
-      } | null
-    }
+    .in('id', jobIds) as { data: Row[] | null }
 
-  if (!order) return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
-  if (order.delivery_boy_id !== session.riderId) {
+  if (!rows || rows.length === 0) return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
+
+  const ours = rows.filter((r) => r.delivery_boy_id === session.riderId)
+  if (ours.length === 0) {
     return NextResponse.json({ error: 'Not your delivery.' }, { status: 403 })
   }
-  if (order.delivery_status !== 'out_for_delivery') {
+  // Only the lines still awaiting handover. Anything already delivered is left
+  // alone, which also makes a retry after a partial write safe.
+  const pending = ours.filter((r) => r.delivery_status === 'out_for_delivery')
+  if (pending.length === 0) {
     return NextResponse.json({ error: 'Mark the order as out for delivery first.' }, { status: 409 })
   }
-  if (!order.handover_otp || !safeEqual(order.handover_otp, otp)) {
+
+  const expectedOtp = pending.find((r) => r.handover_otp)?.handover_otp
+  if (!expectedOtp || !safeEqual(expectedOtp, otp)) {
     return NextResponse.json({ error: 'Wrong code. Ask the customer to read it again.' }, { status: 401 })
   }
 
   // Part-paid COD: the deposit came in online, the rest is cash at the door.
   // The rider must confirm they actually took it — the correct handover code
   // only proves they reached the right customer, not that money changed hands.
-  // Collecting it flips the order to fully paid ('completed').
-  const balanceDue = cashDue(order)
+  // Collecting it flips those orders to fully paid ('completed'). The buyer
+  // hands over ONE amount for the bag, so this is the sum across the job.
+  const balanceDue = pending.reduce((s, r) => s + cashDue(r), 0)
   if (balanceDue > 0) {
     const collected = (body && (body as { cashCollected?: unknown }).cashCollected) === true
     if (!collected) {
@@ -85,33 +98,52 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const now = new Date().toISOString()
-  const { data: updated, error } = await supabase
-    .from('orders')
-    .update({
-      delivery_status: 'delivered',
-      delivered_at: now,
-      ...(balanceDue > 0
-        ? {
-          payment_status: 'completed',
-          paid_at: now,
-          cash_collected_at: now,
-          cash_collected_by: session.riderId,
-          cod_balance_due: 0,
-        }
-        : {}),
-    })
-    .eq('id', id)
-    .eq('delivery_boy_id', session.riderId)
-    .eq('delivery_status', 'out_for_delivery')
-    .select('id')
+  // The payment columns are written only to the rows that actually owed cash,
+  // so a fully-prepaid line can never be re-stamped as cash-collected.
+  const cashIds = pending.filter((r) => cashDue(r) > 0).map((r) => r.id)
+  const plainIds = pending.filter((r) => cashDue(r) <= 0).map((r) => r.id)
 
-  if (error) {
-    console.error('[YFF rider/deliver] update failed:', error.message)
+  const markDelivered = async (ids: string[], withCash: boolean) => {
+    if (ids.length === 0) return { count: 0, failed: false }
+    const { data, error } = await supabase
+      .from('orders')
+      .update({
+        delivery_status: 'delivered',
+        delivered_at: now,
+        ...(withCash
+          ? {
+            payment_status: 'completed',
+            paid_at: now,
+            cash_collected_at: now,
+            cash_collected_by: session.riderId,
+            cod_balance_due: 0,
+          }
+          : {}),
+      })
+      .in('id', ids)
+      .eq('delivery_boy_id', session.riderId)
+      .eq('delivery_status', 'out_for_delivery')
+      .select('id')
+    if (error) {
+      console.error('[YFF rider/deliver] update failed:', error.message)
+      return { count: 0, failed: true }
+    }
+    return { count: data?.length ?? 0, failed: false }
+  }
+
+  // Cash rows first: if the second write fails, the money is already recorded
+  // (the thing we must never lose) and the rider can safely retry — the retry
+  // skips rows that are already delivered.
+  const cashRes = await markDelivered(cashIds, true)
+  const plainRes = await markDelivered(plainIds, false)
+
+  if (cashRes.failed || plainRes.failed) {
     return NextResponse.json({ error: 'Could not mark delivered.' }, { status: 500 })
   }
-  if (!updated || updated.length === 0) {
+  const delivered = cashRes.count + plainRes.count
+  if (delivered === 0) {
     return NextResponse.json({ error: 'Could not mark delivered. Refresh and try again.' }, { status: 409 })
   }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, delivered })
 }

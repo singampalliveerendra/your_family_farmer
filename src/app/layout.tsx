@@ -1,9 +1,29 @@
 import type { Metadata, Viewport } from "next";
+import { Fraunces, Noto_Serif_Telugu } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/lib/LanguageContext";
 import { ConsumerAuthProvider } from "@/lib/ConsumerAuthContext";
 import SplashScreen from "@/components/SplashScreen";
 import StagingBanner from "@/components/StagingBanner";
+
+/* Brand type. Fraunces carries the Latin wordmark (soft, slightly wonky serif
+   — the farm-to-table look); it has no Telugu glyphs, so Noto Serif Telugu
+   sits next to it in the same stack and the browser falls back per glyph when
+   the UI is in Telugu. Both are self-hosted by next/font, so the wordmark
+   costs no third-party round-trip on 4G. Only the logo lockup uses them —
+   body copy stays on the system stack. */
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  axes: ["SOFT", "WONK", "opsz"],
+  display: "swap",
+  variable: "--font-brand",
+});
+
+const notoSerifTelugu = Noto_Serif_Telugu({
+  subsets: ["telugu"],
+  display: "swap",
+  variable: "--font-brand-te",
+});
 
 export const metadata: Metadata = {
   title: "Go Grameen — Your Family Farmer",
@@ -23,7 +43,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full">
+    <html lang="en" className={`h-full ${fraunces.variable} ${notoSerifTelugu.variable}`}>
       <body className="min-h-full bg-gray-50 antialiased">
         {/* Runs before first paint: if the splash already played this session,
             mark <html> so CSS hides the overlay instantly (no green flash on

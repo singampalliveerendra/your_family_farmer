@@ -43,6 +43,13 @@ next-env.d.ts
 # WSL alternate-data-stream junk (Windows "mark of the web" metadata)
 *:Zone.Identifier
 
+# AI agent tooling config (local only, not part of the app)
+.claude/
+.codex/
+.entire/
+.gemini/
+.opencode/
+
 # local scratch / spec docs (not part of the app)
 mod.md
 moderator.pdf

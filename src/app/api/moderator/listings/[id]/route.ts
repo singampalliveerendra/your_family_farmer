@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
+import { normalizeUrl } from '@/lib/links'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -194,6 +195,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     variety: String(b.variety ?? '').trim() || null,
     stock_qty: toNonNeg(b.stock_qty),
     description: String(b.description ?? '').trim() || null,
+    video_url: normalizeUrl(b.video_url as string | null | undefined),
     brix: toNonNeg(b.brix),
     soil_organic_carbon: toNonNeg(b.soil_organic_carbon),
     image_url: (typeof b.image_url === 'string' && b.image_url) ? b.image_url : null,

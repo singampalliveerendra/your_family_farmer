@@ -52,6 +52,7 @@ export default function EditListingPage() {
         unit: (l.unit as string) ?? 'kg',
         stock_qty: numStr(l.stock_qty as number | null),
         description: (l.description as string) ?? '',
+        video_url: (l.video_url as string) ?? '',
         brix: numStr(l.brix as number | null),
         harvest_date: toLocalInput(l.harvest_date as string | null),
         shelf_life_days: numStr(l.shelf_life_days as number | null),

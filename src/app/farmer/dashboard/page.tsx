@@ -8,11 +8,15 @@ import NextImage from 'next/image'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useLang } from '@/lib/LanguageContext'
 import LocationSearch from '@/components/LocationSearch'
-import { normalizePickupSchedule, emptyPickupSlot, type PickupSchedule } from '@/lib/pickup-slots'
+import {
+  normalizePickupSchedule, emptyPickupSlot, normalizePickupPhones,
+  type PickupSchedule, type PickupPhones,
+} from '@/lib/pickup-slots'
 import { type FarmerOrder as Order, isResolved } from '@/components/farmer/OrderCard'
 import DemandSupplyChart from '@/components/DemandSupplyChart'
 import { type CropBalance } from '@/lib/demand-supply'
 import HarvestManager from '@/components/HarvestManager'
+import { isLikelyUrl, normalizeUrl } from '@/lib/links'
 import {
   clearFarmerLocalSession,
   farmerFetch,
@@ -38,7 +42,11 @@ type Farmer = {
   water_source: string | null
   story_quote: string | null
   pickup_locations: string[] | null
+  pickup_location_phones?: unknown
   farm_address: string | null
+  facebook_url?: string | null
+  instagram_url?: string | null
+  youtube_url?: string | null
   cover_photo_url: string | null
   photo_url: string | null
   pesticide_cert_url: string | null
@@ -89,6 +97,7 @@ type ListingRow = {
   soil_ph: number | null
   pesticide_result: string | null
   how_we_grow: string | null
+  video_url?: string | null
   unit: string | null
   availability_from: string | null
   availability_to: string | null
@@ -190,6 +199,17 @@ export default function FarmerDashboard() {
   const [showForm, setShowForm] = useState(false)
   const [showProfileEdit, setShowProfileEdit] = useState(false)
   const [showListings, setShowListings] = useState(false)
+
+  // ?edit=profile opens the profile modal straight away — the "Edit profile"
+  // button on the farmer's own public page links here. Read off
+  // window.location rather than useSearchParams so this page needs no Suspense
+  // boundary. The param is stripped afterwards, so a refresh (or a Back) doesn't
+  // reopen the modal the farmer just closed.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('edit') !== 'profile') return
+    setShowProfileEdit(true)
+    window.history.replaceState(null, '', window.location.pathname)
+  }, [])
 
   const loadDashboard = useCallback(async () => {
     // Cookie-verified: a farmer whose session died must land on the login page,
@@ -867,7 +887,17 @@ function ProfileEditModal({
   const initialLocations = Array.isArray(farmer.pickup_locations) ? farmer.pickup_locations : []
   const [pickupLocations, setPickupLocations] = useState<string[]>(initialLocations)
   const [newPickup, setNewPickup] = useState('')
+  // Contact number per pickup point — the buyer calls THIS, not the farmer's
+  // own number, because the point is usually a shop or a landmark.
+  const [pickupPhones, setPickupPhones] = useState<PickupPhones>(
+    normalizePickupPhones(farmer.pickup_location_phones, initialLocations),
+  )
   const [farmAddress, setFarmAddress] = useState(farmer.farm_address ?? '')
+  // Social channels the farmer already runs. Stored on `farmers`; see
+  // scripts/farmer-social-links-migration.sql.
+  const [facebookUrl, setFacebookUrl]   = useState(farmer.facebook_url ?? '')
+  const [instagramUrl, setInstagramUrl] = useState(farmer.instagram_url ?? '')
+  const [youtubeUrl, setYoutubeUrl]     = useState(farmer.youtube_url ?? '')
 
   // Farm & soil details (also editable by moderators) — surfaced here so farmers
   // can fill their own WhatsApp, farm size, soil health and story from the dashboard.
@@ -1002,6 +1032,11 @@ function ProfileEditModal({
       delete next[loc]
       return next
     })
+    setPickupPhones((prev) => {
+      const next = { ...prev }
+      delete next[loc]
+      return next
+    })
   }
 
   // Per-location timing editors. Each operates on schedule[loc].
@@ -1042,6 +1077,16 @@ function ProfileEditModal({
     const missingTiming = pickupLocations.filter((loc) => !(cleanSlots[loc]?.length))
     if (missingTiming.length > 0) {
       setError(L(`Add pickup timings for: ${missingTiming.join(', ')}`, `వీటికి పికప్ సమయాలను జోడించండి: ${missingTiming.join(', ')}`))
+      return
+    }
+    // The number is optional, but a half-typed one is worse than none — the
+    // buyer would dial a dead number when they are already at the point.
+    const badPhone = pickupLocations.filter((loc) => {
+      const d = (pickupPhones[loc] ?? '').replace(/\D/g, '')
+      return d.length > 0 && d.length < 10
+    })
+    if (badPhone.length > 0) {
+      setError(L(`Enter a full 10-digit contact number for: ${badPhone.join(', ')}`, `వీటికి పూర్తి 10 అంకెల నంబర్ ఇవ్వండి: ${badPhone.join(', ')}`))
       return
     }
     setLoading(true)
@@ -1089,6 +1134,9 @@ function ProfileEditModal({
         const clean = normalizePickupSchedule(schedule, pickupLocations)
         return Object.keys(clean).length > 0 ? clean : null
       })(),
+      // Scoped to the locations that still exist, so a number can't linger for
+      // a point the farmer just deleted.
+      pickup_location_phones: normalizePickupPhones(pickupPhones, pickupLocations),
       lat: farmerLat,
       lng: farmerLng,
       location_name: farmerLat ? (farmerLocationName || name.trim()) : null,
@@ -1121,9 +1169,19 @@ function ProfileEditModal({
       await supabase.from('farmers').update({ soil_ph: phValue }).eq('id', farmer.id)
     }
 
+    // Social links are best-effort for the same reason: their columns don't
+    // exist until scripts/farmer-social-links-migration.sql runs, and a farmer
+    // must still be able to save their name and pickup points before then.
+    const socialPatch = {
+      facebook_url:  normalizeUrl(facebookUrl),
+      instagram_url: normalizeUrl(instagramUrl),
+      youtube_url:   normalizeUrl(youtubeUrl),
+    }
+    await supabase.from('farmers').update(socialPatch).eq('id', farmer.id)
+
     setLoading(false)
     localStorage.setItem('yff_farmer_slug', data.slug)
-    onSaved({ ...(data as Farmer), soil_ph: phValue })
+    onSaved({ ...(data as Farmer), soil_ph: phValue, ...socialPatch })
   }
 
   const handleChangePassword = async () => {
@@ -1423,6 +1481,45 @@ function ProfileEditModal({
             />
           </div>
 
+          {/* Social channels. A farm page a buyer can go and look at does more
+              for trust than anything we can say about a new seller ourselves.
+              All optional — the profile shows only what's filled in. */}
+          <div>
+            <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
+              {L('Your channels (optional)', 'మీ ఛానెల్‌లు')}
+            </label>
+            <p className="text-[11px] text-gray-500 mb-2 leading-snug">
+              {L('Already post about your farm? Add the links and buyers can follow you.', 'మీ పొలం గురించి పోస్ట్ చేస్తున్నారా? లింక్‌లు జోడిస్తే కొనుగోలుదారులు ఫాలో అవుతారు.')}
+            </p>
+            <div className="space-y-2">
+              {([
+                { label: 'Facebook',  icon: '📘', value: facebookUrl,  set: setFacebookUrl,  ph: 'facebook.com/yourfarm' },
+                { label: 'Instagram', icon: '📸', value: instagramUrl, set: setInstagramUrl, ph: 'instagram.com/yourfarm' },
+                { label: 'YouTube',   icon: '▶️', value: youtubeUrl,   set: setYoutubeUrl,   ph: 'youtube.com/@yourfarm' },
+              ] as const).map((row) => (
+                <div key={row.label}>
+                  <div className="flex items-center gap-2">
+                    <span className="w-8 text-center text-lg" aria-hidden>{row.icon}</span>
+                    <input
+                      type="url"
+                      inputMode="url"
+                      aria-label={row.label}
+                      value={row.value}
+                      onChange={(e) => row.set(e.target.value.slice(0, 300))}
+                      placeholder={row.ph}
+                      className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
+                    />
+                  </div>
+                  {row.value.trim() && !isLikelyUrl(row.value) && (
+                    <p className="text-[11px] text-amber-700 mt-1 ml-10">
+                      {L('That does not look like a link.', 'ఇది లింక్‌లా లేదు.')}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div>
             <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
               {tx.pickupLocationsLabel}
@@ -1474,6 +1571,45 @@ function ProfileEditModal({
                     </div>
 
                     <div className="p-3">
+                      {/* Whom the buyer calls at THIS point. Usually the shop
+                          or the person who keeps the produce there, which is
+                          why it is per-location and not the farmer's number. */}
+                      <div className="mb-3">
+                        <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                          {L('Contact number here (optional)', 'ఇక్కడి ఫోన్ నంబర్')}
+                        </label>
+                        <div className="flex gap-2">
+                          <span className="flex items-center px-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 font-medium">
+                            +91
+                          </span>
+                          <input
+                            type="tel"
+                            inputMode="numeric"
+                            value={pickupPhones[loc] ?? ''}
+                            onChange={(e) =>
+                              setPickupPhones((prev) => ({
+                                ...prev,
+                                [loc]: e.target.value.replace(/\D/g, '').slice(0, 10),
+                              }))
+                            }
+                            maxLength={10}
+                            placeholder={L('Shop / contact at this point', 'ఈ స్థలంలో సంప్రదించే నంబర్')}
+                            className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+                          />
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-1 leading-snug">
+                          {L('Buyers see this number with the pickup address.', 'పికప్ చిరునామాతో పాటు కొనుగోలుదారులకు ఈ నంబర్ కనిపిస్తుంది.')}
+                        </p>
+                        {(() => {
+                          const d = (pickupPhones[loc] ?? '').replace(/\D/g, '')
+                          return d.length > 0 && d.length < 10 ? (
+                            <p className="text-[11px] text-red-600 mt-1">
+                              {L('Enter a 10-digit number, or leave it blank.', '10 అంకెల నంబర్ ఇవ్వండి, లేదా ఖాళీగా వదిలేయండి.')}
+                            </p>
+                          ) : null
+                        })()}
+                      </div>
+
                       <p className="text-[11px] text-gray-500 mb-2 leading-snug">
                         {L('Days & times buyers can pick up from here.', 'ఇక్కడ నుండి కొనుగోలుదారులు పికప్ చేసుకునే రోజులు & సమయాలు.')}
                       </p>
@@ -1807,6 +1943,7 @@ function ProduceListingForm({
   editData,
   onClose,
   onPublished,
+  pinnedHeader = false,
 }: {
   farmerId: string
   farmerSlug?: string
@@ -1816,6 +1953,11 @@ function ProduceListingForm({
   editData?: ListingRow | null
   onClose: () => void
   onPublished: (saved?: Partial<ListingRow>) => void
+  // Pin the header (and its ✕) to the top while the form scrolls. Only for the
+  // overlay usages, which have their own scroll container: rendered inline in
+  // the dashboard the form scrolls with the page, whose sticky GlobalNav owns
+  // top-0 and would swallow it.
+  pinnedHeader?: boolean
 }) {
   const { tx, L } = useLang()
   const isEdit = !!editData
@@ -1866,6 +2008,7 @@ function ProduceListingForm({
   // Chemicals / pesticide info reuses the existing pesticide_result column.
   const [pesticide, setPesticide] = useState(editData?.pesticide_result ?? '')
   const [howWeGrow, setHowWeGrow] = useState(editData?.how_we_grow ?? '')
+  const [videoUrl, setVideoUrl] = useState(editData?.video_url ?? '')
   // #9 — explicit produce category (drives the consumer category filter).
   const [category, setCategory] = useState(editData?.category ?? '')
   const [unit, setUnit] = useState(editData?.unit ?? 'kg')
@@ -2071,6 +2214,7 @@ function ProduceListingForm({
         how_we_grow: howWeGrow.trim() || null,
         category: category || null,
         image_urls: allImages.length ? allImages : null,
+        video_url: normalizeUrl(videoUrl),
       }
       await supabase.from('produce_listings').update(qualityPatch).eq('id', editData.id)
       setLoading(false)
@@ -2134,6 +2278,7 @@ function ProduceListingForm({
         how_we_grow: howWeGrow.trim() || null,
         category: category || null,
         image_urls: allImages.length ? allImages : null,
+        video_url: normalizeUrl(videoUrl),
       }).eq('id', inserted.id)
     }
     setLoading(false)
@@ -2168,14 +2313,29 @@ function ProduceListingForm({
     )
   }
 
+  // No overflow-hidden when the header is pinned: an overflow-hidden ancestor
+  // becomes the sticky element's scroll container, and since it never scrolls
+  // the header would simply never stick. The header carries the matching top
+  // rounding instead, so the corners still read right.
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-      {/* Form header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
+    <div className={`bg-white rounded-2xl border border-gray-200 ${pinnedHeader ? '' : 'overflow-hidden'}`}>
+      {/* Form header. The × is what a farmer reaches for to back out of an
+          edit, so on the overlay it stays pinned at the top right for the whole
+          form rather than scrolling away with the first field — on a 390px
+          screen this form is several viewports tall, and a close control you
+          have to scroll back up to find reads as no close control at all. The
+          footer Cancel (added in eee717c) stays: same pairing, either end. */}
+      <div className={`flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50 ${pinnedHeader ? 'sticky top-0 z-10 rounded-t-2xl' : ''}`}>
         <h3 className="font-extrabold text-gray-900 text-base">
           {isEdit ? tx.editProduceListing : tx.newProduceListing}
         </h3>
-        <button onClick={onClose} className="text-gray-400 text-2xl leading-none p-1">×</button>
+        <button
+          onClick={onClose}
+          aria-label={tx.cancel}
+          className="flex-shrink-0 text-gray-400 text-2xl leading-none p-1"
+        >
+          ×
+        </button>
       </div>
 
       <div className="p-4 space-y-5">
@@ -2472,6 +2632,29 @@ function ProduceListingForm({
           <p className="text-right text-xs text-gray-400">{description.length}/500</p>
         </div>
 
+        {/* Video link — a link, not an upload. Farmers already post clips to
+            YouTube/Instagram/WhatsApp status; asking them to upload video over
+            rural 4G would just mean nobody uses it. Buyers get a "Watch video"
+            link on the produce page. */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            {L('Video link (optional)', 'వీడియో లింక్')}
+          </label>
+          <input
+            type="url"
+            inputMode="url"
+            placeholder="https://youtube.com/..."
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value.slice(0, 500))}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
+          />
+          {videoUrl.trim() && !isLikelyUrl(videoUrl) && (
+            <p className="text-xs text-amber-700">
+              {L('That does not look like a link. Paste the full address, starting with https://', 'ఇది లింక్‌లా లేదు. https:// తో మొదలయ్యే పూర్తి చిరునామా ఇవ్వండి.')}
+            </p>
+          )}
+        </div>
+
         {/* Produce photo */}
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
@@ -2634,6 +2817,20 @@ function ProduceListingForm({
             {loading ? (isEdit ? tx.saving : tx.publishing) : (isEdit ? tx.saveChanges : tx.publish)}
           </button>
         </div>
+
+        {/* Cancel, at the bottom where the farmer actually ends up. The only way
+            out used to be the × in the header, which meant scrolling this whole
+            form back to the top to abandon an edit. Kept on its own row — three
+            buttons abreast don't fit 390px — and styled quietly so it can't be
+            mistaken for Save. Disabled mid-save so a tap can't close the sheet
+            while the write is in flight. */}
+        <button
+          onClick={onClose}
+          disabled={loading}
+          className="w-full text-gray-500 font-semibold py-3 rounded-xl text-sm active:bg-gray-50 disabled:opacity-50"
+        >
+          {tx.cancel}
+        </button>
       </div>
 
       {/* Preview modal */}
@@ -2879,6 +3076,7 @@ function ManageListingsModal({
               defaultMethod={defaultMethod}
               farmerSoilPh={farmerSoilPh}
               editData={editingRow}
+              pinnedHeader
               onClose={() => setEditingRow(null)}
               onPublished={(saved) => {
                 if (saved && editingRow) {
@@ -2903,6 +3101,7 @@ function ManageListingsModal({
               farmerRegion={farmerRegion}
               defaultMethod={defaultMethod}
               farmerSoilPh={farmerSoilPh}
+              pinnedHeader
               onClose={() => setShowAddForm(false)}
               onPublished={() => {
                 setShowAddForm(false)

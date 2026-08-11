@@ -11,6 +11,9 @@ export type Harvest = {
   approx_quantity?: number | null
   unit?: string | null
   notes?: string | null
+  // Farmer has hidden this pick from buyers without deleting it. Optional so
+  // code still typechecks against rows fetched before the column existed.
+  paused?: boolean | null
 }
 
 type Tr = (en: string, te: string) => string

@@ -39,6 +39,7 @@ type Order = {
   buyer_name: string | null
   buyer_phone: string | null
   pickup_location: string | null
+  pickup_phone: string | null
   status: 'pending' | 'approved' | 'declined' | 'cancelled'
   payment_method: string | null
   payment_status: string | null
@@ -74,7 +75,7 @@ type Order = {
 }
 
 const ORDER_COLUMNS =
-  'id, farmer_id, order_code, produce_name, quantity, unit, total_price, platform_fee, buyer_name, buyer_phone, pickup_location, status, payment_method, payment_status, utr_number, decline_reason, refund_status, refund_amount, refunded_at, created_at, confirmed_at, paid_at, delivery_type, delivery_status, delivery_boy_id, delivery_address, delivery_city, delivery_landmark, delivery_pincode, delivery_alt_phone, assigned_at, picked_up_at, out_for_delivery_at, delivered_at, collected_at, shipped_at, received_at, fulfillment_date, acknowledged_at, harvest_id, harvest:harvests(harvested_at, shelf_life_days)'
+  'id, farmer_id, order_code, produce_name, quantity, unit, total_price, platform_fee, buyer_name, buyer_phone, pickup_location, pickup_phone, status, payment_method, payment_status, utr_number, decline_reason, refund_status, refund_amount, refunded_at, created_at, confirmed_at, paid_at, delivery_type, delivery_status, delivery_boy_id, delivery_address, delivery_city, delivery_landmark, delivery_pincode, delivery_alt_phone, assigned_at, picked_up_at, out_for_delivery_at, delivered_at, collected_at, shipped_at, received_at, fulfillment_date, acknowledged_at, harvest_id, harvest:harvests(harvested_at, shelf_life_days)'
 
 export default function FarmerOrderDetailPage() {
   const params = useParams<{ id: string }>()
@@ -431,6 +432,18 @@ export default function FarmerOrderDetailPage() {
                 <p className="text-sm text-gray-800">📍 {order.pickup_location}</p>
               ) : (
                 <p className="text-xs text-gray-500">—</p>
+              )}
+              {/* Whom to call at the pickup point — often not the account
+                  holder. Tappable, since the farmer is usually standing there
+                  waiting when they need it. Hidden when it just repeats
+                  buyer_phone, which is already shown above. */}
+              {!isDelivery && !isCourier && order.pickup_phone && order.pickup_phone !== order.buyer_phone && (
+                <p className="text-xs text-gray-600">
+                  📞 {L('Pickup contact', 'పికప్ సంప్రదింపు')}:{' '}
+                  <a href={`tel:${order.pickup_phone}`} className="text-blue-700 underline font-semibold">
+                    +91 {order.pickup_phone}
+                  </a>
+                </p>
               )}
               {order.fulfillment_date && order.status !== 'declined' && order.status !== 'cancelled' && (
                 <p className="text-sm font-bold text-green-700 pt-1">

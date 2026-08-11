@@ -2,7 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 import { randomInt } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { isModeratorRequest, getModeratorZone, getModeratorId } from '@/lib/moderator-session'
-import { normalizePickupSchedule } from '@/lib/pickup-slots'
+import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
+import { normalizeUrl } from '@/lib/links'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -113,6 +114,9 @@ export async function POST(req: NextRequest) {
   const phRaw = (body as { soil_ph?: unknown }).soil_ph
   const soil_ph = Number(phRaw) > 0 ? Number(phRaw) : null
   const water_source = String((body as { water_source?: unknown }).water_source ?? '').trim()
+  const facebook_url  = normalizeUrl((body as { facebook_url?: string }).facebook_url)
+  const instagram_url = normalizeUrl((body as { instagram_url?: string }).instagram_url)
+  const youtube_url   = normalizeUrl((body as { youtube_url?: string }).youtube_url)
 
   // Photos & farm GPS — the same media a farmer can attach to their own profile.
   const cover_photo_url = String((body as { cover_photo_url?: unknown }).cover_photo_url ?? '').trim()
@@ -138,6 +142,12 @@ export async function POST(req: NextRequest) {
     pickup_locations,
   )
   const pickup_slots = Object.keys(cleanSchedule).length > 0 ? cleanSchedule : null
+
+  // Contact number per pickup point, same map shape and scoping.
+  const pickup_location_phones = normalizePickupPhones(
+    (body as { pickup_location_phones?: unknown }).pickup_location_phones,
+    pickup_locations,
+  )
 
   if (!name) return NextResponse.json({ error: 'Name is required.' }, { status: 400 })
   if (upi_id && !/^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$/.test(upi_id)) {
@@ -183,6 +193,7 @@ export async function POST(req: NextRequest) {
       farm_address: farm_address || null,
       pickup_locations,
       pickup_slots,
+      pickup_location_phones,
       upi_id: upi_id || null,
       upi_qr_code_url: upi_qr_code_url || null,
       cod_enabled,
@@ -191,6 +202,9 @@ export async function POST(req: NextRequest) {
       soil_organic_carbon,
       soil_ph,
       water_source: water_source || null,
+      facebook_url,
+      instagram_url,
+      youtube_url,
       cover_photo_url: cover_photo_url || null,
       photo_url: photo_url || null,
       pesticide_cert_url: pesticide_cert_url || null,

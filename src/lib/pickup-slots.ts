@@ -98,3 +98,26 @@ export function normalizePickupSchedule(raw: unknown, locations?: string[]): Pic
 
   return out
 }
+
+// ── Per-location contact phone ────────────────────────────────────
+// A pickup point is often a shop or a landmark rather than the farm itself, so
+// the buyer needs a number for THAT point — not the farmer's own. Stored in
+// farmers.pickup_location_phones as { [locationName]: '9876543210' }, keyed by
+// name for the same reason pickup_slots is: reordering or deleting a location
+// must never shift a number onto a different one.
+export type PickupPhones = Record<string, string>
+
+// Normalize a raw pickup_location_phones value, scoped to the locations that
+// currently exist. Anything that is not a usable 10-digit number is dropped, so
+// a half-typed entry can never reach a buyer as something to dial.
+export function normalizePickupPhones(raw: unknown, locations?: string[]): PickupPhones {
+  const out: PickupPhones = {}
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out
+  const map = raw as Record<string, unknown>
+  const keys = locations ?? Object.keys(map)
+  for (const loc of keys) {
+    const digits = String(map[loc] ?? '').replace(/\D/g, '').slice(-10)
+    if (digits.length === 10) out[loc] = digits
+  }
+  return out
+}

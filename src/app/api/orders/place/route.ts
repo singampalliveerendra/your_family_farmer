@@ -8,6 +8,8 @@ import { normalizePhone } from '@/lib/phone'
 import { getDeliveryCharges } from '@/lib/delivery-fee'
 import { getPlatformFeePercent, computePlatformFee } from '@/lib/platform-fee'
 import { getCodDepositPercent, computeCodSplit } from '@/lib/cod'
+import { ORDERABLE_STATUSES } from '@/lib/produceStatus'
+import { normalizePickupPhones } from '@/lib/pickup-slots'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -67,6 +69,7 @@ export async function POST(req: NextRequest) {
         farmerId?: string
         paymentMethod?: string
         pickupLocation?: string | null
+        pickupPhone?: string | null
         items?: IncomingItem[]
         deliveryType?: string
         deliveryAddress?: string | null
@@ -161,6 +164,11 @@ export async function POST(req: NextRequest) {
   let deliveryPincode: string | null = null
   let deliveryAltPhone: string | null = null
 
+  // Optional contact for the pickup point. Stamped on self-pickup rows only
+  // (below), and dropped rather than rejected if it isn't a usable number —
+  // it's a convenience for the farmer, never a reason to fail a paid checkout.
+  const pickupPhone = normalizePhone(body.pickupPhone) || null
+
   if (needsAddress) {
     deliveryAddress = String(body.deliveryAddress ?? '').trim().slice(0, 400)
     deliveryCity = String(body.deliveryCity ?? '').trim().slice(0, 100) || null
@@ -243,7 +251,7 @@ export async function POST(req: NextRequest) {
   // Farmer COD acceptance check
   const { data: farmer } = await supabase
     .from('farmers')
-    .select('id, cod_enabled')
+    .select('id, cod_enabled, pickup_location_phones')
     .eq('id', farmerId)
     .maybeSingle()
 
@@ -251,6 +259,12 @@ export async function POST(req: NextRequest) {
   if (paymentMethod === 'cod' && farmer.cod_enabled !== true) {
     return bad('This farmer is not accepting Cash on Delivery.')
   }
+
+  // The chosen pickup point's contact number, looked up in the farmer's
+  // per-location map. Null when the farmer never set one for that point.
+  const pickupLocationPhone = typeof pickupLocation === 'string'
+    ? (normalizePickupPhones(farmer.pickup_location_phones)[pickupLocation] ?? null)
+    : null
 
   // Pull live listing rows — never trust prices from the client cart
   const listingIds = items.map((i) => i.listingId)
@@ -276,7 +290,11 @@ export async function POST(req: NextRequest) {
   if (harvestIds.length > 0) {
     const { data: harvestRows } = await supabase
       .from('harvests')
+      // A paused harvest is filtered out here rather than checked later, so the
+      // count test below rejects it exactly like a deleted one — a cart held
+      // open across a pause must not be able to place the order.
       .select('id, produce_listing_id, stock_qty')
+      .eq('paused', false)
       .in('id', harvestIds) as { data: Array<{ id: string; produce_listing_id: string; stock_qty: number | null }> | null }
     if (!harvestRows || harvestRows.length !== harvestIds.length) {
       return bad('One or more harvests in your cart are no longer available.')
@@ -311,10 +329,13 @@ export async function POST(req: NextRequest) {
     const listing = listingById.get(item.listingId)
     if (!listing) return bad('Item missing.')
     if (listing.farmer_id !== farmerId) return bad('Items must belong to the same farmer.')
-    // Block ordering a listing the farmer (or moderator) has taken down. A
-    // stale cart could still hold a since-paused/suspended item; only
-    // 'available' produce may be purchased.
-    if (listing.status !== 'available') {
+    // Block ordering a listing the farmer (or moderator) has taken down — a
+    // stale cart could still hold a since-paused/suspended item. 'sold_out' is
+    // NOT a takedown: it mirrors the template's own stock, while a harvest line
+    // is backed by the harvest's separate stock. Quantity is settled by the
+    // stock-claim RPC below, which rejects an empty listing anyway, so this
+    // check only guards availability-by-decision.
+    if (!listing.status || !ORDERABLE_STATUSES.includes(listing.status)) {
       return bad(`${listing.name} is no longer available.`)
     }
 
@@ -362,6 +383,12 @@ export async function POST(req: NextRequest) {
       pickup_location: rowDeliveryType === 'self_pickup' && typeof pickupLocation === 'string'
         ? pickupLocation.slice(0, 200)
         : null,
+      pickup_phone: rowDeliveryType === 'self_pickup' ? pickupPhone : null,
+      // Snapshot of the pickup point's own contact number, resolved from the
+      // farmer's record rather than the client body — the cart is never
+      // trusted for anything the buyer will be shown as fact. Frozen at order
+      // time so a later edit can't rewrite what the buyer was told to call.
+      pickup_location_phone: rowDeliveryType === 'self_pickup' ? pickupLocationPhone : null,
       status: 'pending',
       payment_method: paymentMethod,
       payment_status: 'pending',

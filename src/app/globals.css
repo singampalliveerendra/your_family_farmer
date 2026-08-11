@@ -6,6 +6,17 @@ body {
   color: #111827;
 }
 
+/* ── Brand wordmark ────────────────────────────────────────────
+   One stack for both languages: Fraunces has no Telugu glyphs, so a Telugu
+   wordmark falls through to Noto Serif Telugu glyph-by-glyph and the lockup
+   still reads as one typeface. Optical-size + wonk axes are pinned so the
+   name keeps the same handmade curve at every size it renders. */
+.brand-wordmark {
+  font-family: var(--font-brand), var(--font-brand-te), Georgia, serif;
+  font-variation-settings: "SOFT" 40, "WONK" 1, "opsz" 60;
+  letter-spacing: -0.015em;
+}
+
 /* Hide scrollbar for chip strips */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;

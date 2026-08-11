@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { notFound } from 'next/navigation'
+import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
 import RegionTopBar from '@/components/region/RegionTopBar'
 import RegionHero from '@/components/region/RegionHero'
 import RegionContent from '@/components/region/RegionContent'
@@ -46,7 +47,7 @@ export default async function RegionPage({ params }: { params: Promise<{ slug: s
         .from('produce_listings')
         .select('*')
         .in('farmer_id', farmerIds)
-        .eq('status', 'available')
+        .in('status', CONSUMER_VISIBLE_STATUSES)
         .order('created_at', { ascending: false })
     : { data: [] }
 
@@ -70,7 +71,13 @@ export default async function RegionPage({ params }: { params: Promise<{ slug: s
   return (
     <main className="min-h-screen bg-gray-50">
       <RegionTopBar region={region} />
-      <RegionHero region={region} farmerCount={farmers?.length ?? 0} produceCount={produce?.length ?? 0} />
+      {/* The hero stat counts what a buyer can actually order today, so the
+          sold-out listings we now render below are excluded from it. */}
+      <RegionHero
+        region={region}
+        farmerCount={farmers?.length ?? 0}
+        produceCount={(produce ?? []).filter((p) => p.status === 'available').length}
+      />
       <RegionContent farmers={farmersWithFollowers} produce={produce ?? []} />
     </main>
   )

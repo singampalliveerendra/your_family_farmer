@@ -30,6 +30,7 @@ export type ListingFormValues = {
   unit: string
   stock_qty: string
   description: string
+  video_url: string
   brix: string
   harvest_date: string
   shelf_life_days: string
@@ -55,7 +56,7 @@ export type ListingFormValues = {
 
 export const EMPTY_LISTING_FORM: ListingFormValues = {
   name: '', variety: '', method: 'natural', category: '', unit: 'kg',
-  stock_qty: '', description: '', brix: '', harvest_date: '', shelf_life_days: '',
+  stock_qty: '', description: '', video_url: '', brix: '', harvest_date: '', shelf_life_days: '',
   price_tier_1_qty: '1', price_tier_1_price: '',
   price_tier_2_qty: '', price_tier_2_price: '',
   price_tier_3_price: '',
@@ -443,6 +444,12 @@ export default function ListingForm({
 
       <Field label="Description">
         <textarea value={form.description} onChange={set('description')} rows={3} className={inputCls} />
+      </Field>
+
+      {/* Mirrors the farmer form's video link, so a moderator onboarding a
+          farmer can capture it in the same pass. */}
+      <Field label="Video link (optional)">
+        <input type="url" inputMode="url" placeholder="https://youtube.com/..." value={form.video_url} onChange={set('video_url')} className={inputCls} />
       </Field>
 
       {error && <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 font-semibold">{error}</p>}

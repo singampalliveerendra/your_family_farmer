@@ -11,7 +11,7 @@ import { localizeName } from '@/lib/localizeName'
 import { compressImage } from '@/lib/imageCompress'
 import { DEFAULT_DELIVERY_BASE_FEE, DEFAULT_DELIVERY_EXTRA_FEE } from '@/lib/delivery-fee'
 import { computePlatformFee } from '@/lib/platform-fee'
-import { formatPickupSlots, type PickupSchedule } from '@/lib/pickup-slots'
+import { formatPickupSlots, type PickupSchedule, type PickupPhones } from '@/lib/pickup-slots'
 
 // Razorpay Checkout is loaded lazily — we only pull the script the first time
 // a buyer chooses to pay online, so the rest of the catalogue stays light on
@@ -89,6 +89,7 @@ export type CartItem = {
   farmerSlug: string
   farmerPickupLocations?: string[]
   farmerPickupSlots?: PickupSchedule
+  farmerPickupPhones?: PickupPhones
   farmerUpiId?: string
   farmerQrCodeUrl?: string
 }
@@ -233,9 +234,12 @@ type UpiPaymentState = {
   buyerPhone: string
   items: Array<{ name: string; variety?: string; emoji?: string; qty: number; unit?: string; pricePerKg?: number }>
   pickupLocation?: string
-  // Platform fee (moderator commission) included in `amount`, shown as a
-  // breakdown line on the success screen so the total stays transparent.
+  // Platform fee (moderator commission) and delivery charge, both included in
+  // `amount` and shown as their own breakdown lines on the success screen so
+  // the total stays transparent. They are two different charges to two
+  // different parties — never fold the delivery charge into the platform fee.
   platformFee?: number
+  deliveryFee?: number
   // Part-paid COD: `amount` is the deposit just paid online, and this is what
   // the buyer still owes the rider in cash at the door. Undefined on a
   // fully-prepaid order.
@@ -329,6 +333,9 @@ export function CartSheet({
   const [deliveryAltPhone, setDeliveryAltPhone] = useState('')
   const [sentFarmers, setSentFarmers] = useState<Record<string, boolean>>({})
   const [pickupByFarmer, setPickupByFarmer] = useState<Record<string, string>>({})
+  // Optional "who to call at the pickup point", per farmer — the pickup twin of
+  // deliveryAltPhone. Blank means the farmer just uses the account's buyer_phone.
+  const [pickupPhoneByFarmer, setPickupPhoneByFarmer] = useState<Record<string, string>>({})
   const [toast, setToast] = useState('')
   const [placingUpiOrder, setPlacingUpiOrder] = useState<string | null>(null)
   const [submittingResult, setSubmittingResult] = useState(false)
@@ -611,7 +618,18 @@ export function CartSheet({
   const baseDetailsMissing = !name.trim() || phone.replace(/\D/g, '').length < 10
   const deliveryDetailsMissing = needsAddress
     && (deliveryAddress.trim().length < 10 || !deliveryCity.trim() || !/^\d{6}$/.test(deliveryPincode.trim()))
-  const detailsMissing = baseDetailsMissing || deliveryDetailsMissing
+  // Pickup contact phone is optional, but a half-typed one is worse than none —
+  // the farmer would dial a dead number. Blank is fine; anything else must be
+  // a full 10 digits.
+  const pickupPhoneInvalid = (farmerId: string) => {
+    const digits = (pickupPhoneByFarmer[farmerId] ?? '').replace(/\D/g, '')
+    return digits.length > 0 && digits.length < 10
+  }
+  const anyPickupPhoneInvalid = farmerGroups.some((g) => {
+    const f = g[0]
+    return g.some((it) => deliveryOf(it) === 'self_pickup') && pickupPhoneInvalid(f.farmerId)
+  })
+  const detailsMissing = baseDetailsMissing || deliveryDetailsMissing || anyPickupPhoneInvalid
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -625,7 +643,11 @@ export function CartSheet({
     group: CartItem[],
     paymentMethod: 'upi' | 'cod' | 'razorpay',
   ): Promise<
-    | { ok: true; orderIds: string[]; total: number; codDeposit: number; codBalanceDue: number }
+    | {
+        ok: true; orderIds: string[]; total: number
+        platformFee: number; deliveryFee: number
+        codDeposit: number; codBalanceDue: number
+      }
     | { ok: false; error: string }
   > => {
     const f = group[0]
@@ -645,6 +667,8 @@ export function CartSheet({
         farmerId: f.farmerId,
         paymentMethod,
         pickupLocation: pickupByFarmer[f.farmerId] || null,
+        pickupPhone: pickupPhoneByFarmer[f.farmerId]?.replace(/\D/g, '').slice(-10) || null,
+        pickupLocationPhone: f.farmerPickupPhones?.[pickupByFarmer[f.farmerId] ?? ''] || null,
         items: group.map((it) => ({
           listingId: it.listingId,
           harvestId: it.harvestId,
@@ -671,6 +695,8 @@ export function CartSheet({
       ok: true,
       orderIds: json.orderIds,
       total: json.total,
+      platformFee: Number(json.platformFee) || 0,
+      deliveryFee: Number(json.deliveryFee) || 0,
       codDeposit: Number(json.codDeposit) || 0,
       codBalanceDue: Number(json.codBalanceDue) || 0,
     }
@@ -954,8 +980,9 @@ export function CartSheet({
 
     // Order summary kept for the success screen once payment verifies. The
     // online charge (createRes.amount, in paise) is the authoritative total the
-    // buyer pays — subtotal plus the platform fee — so show that, not the
-    // fee-less subtotal, and keep the fee for the breakdown line.
+    // buyer pays — subtotal plus platform fee plus delivery — so show that, not
+    // the fee-less subtotal. The two fees come from the create route itself;
+    // deriving them by subtracting the subtotal would collapse both into one.
     const chargedTotal = Math.round((createRes.amount ?? result.total * 100) / 100)
     const summary: UpiPaymentState = {
       farmerName: f.farmerName,
@@ -963,7 +990,8 @@ export function CartSheet({
       farmerPhone: f.farmerPhone,
       upiId: '',
       amount: chargedTotal,
-      platformFee: Math.max(0, chargedTotal - result.total),
+      platformFee: Math.max(0, Number(createRes.platformFee) || result.platformFee || 0),
+      deliveryFee: Math.max(0, Number(createRes.deliveryFee) || result.deliveryFee || 0),
       orderIds: result.orderIds,
       farmerId: f.farmerId,
       buyerName: name.trim(),
@@ -1129,7 +1157,8 @@ export function CartSheet({
       farmerPhone: '',
       upiId: '',
       amount: chargedTotal,
-      platformFee: Math.max(0, chargedTotal - subtotal),
+      platformFee: Math.max(0, Number(createRes.platformFee) || 0),
+      deliveryFee: Math.max(0, Number(createRes.deliveryFee) || 0),
       orderIds: allOrderIds,
       farmerId: 'all',
       buyerName: name.trim(),
@@ -1333,10 +1362,22 @@ export function CartSheet({
           <div className="bg-gray-50 rounded-2xl px-5 py-4 w-full text-left space-y-1">
             <p className="text-xs text-gray-500 font-medium">{cashMode ? L('Amount to pay', 'చెల్లించవలసిన మొత్తం') : L('Amount paid', 'చెల్లించిన మొత్తం')}</p>
             <p className="text-lg font-black text-green-900">₹{upiScreen.amount}</p>
-            {upiScreen.platformFee != null && upiScreen.platformFee > 0 && (
-              <p className="text-[11px] text-gray-500">
-                {L('Includes', 'వీటితో సహా')} ₹{upiScreen.platformFee} {L('platform fee', 'ప్లాట్‌ఫామ్ ఫీజు')}
-              </p>
+            {((upiScreen.platformFee ?? 0) > 0 || (upiScreen.deliveryFee ?? 0) > 0) && (
+              <div className="text-[11px] text-gray-500 space-y-0.5">
+                <p>{L('Includes', 'వీటితో సహా')}:</p>
+                {(upiScreen.platformFee ?? 0) > 0 && (
+                  <p className="flex justify-between">
+                    <span>{L('Platform fee', 'ప్లాట్‌ఫామ్ ఫీజు')}</span>
+                    <span className="font-semibold text-gray-700">₹{upiScreen.platformFee}</span>
+                  </p>
+                )}
+                {(upiScreen.deliveryFee ?? 0) > 0 && (
+                  <p className="flex justify-between">
+                    <span>{L('Delivery charge', 'డెలివరీ ఛార్జీ')}</span>
+                    <span className="font-semibold text-gray-700">₹{upiScreen.deliveryFee}</span>
+                  </p>
+                )}
+              </div>
             )}
             {!cashMode && upiScreen.transactionId && (
               <div className="pt-2">
@@ -1970,18 +2011,33 @@ export function CartSheet({
                             </p>
                           )}
                           {pickupByFarmer[f.farmerId] && (() => {
-                            const lines = formatPickupSlots(f.farmerPickupSlots?.[pickupByFarmer[f.farmerId]])
-                            if (lines.length === 0) return null
+                            const chosen = pickupByFarmer[f.farmerId]
+                            const lines = formatPickupSlots(f.farmerPickupSlots?.[chosen])
+                            // The number to call AT this point — often a shop,
+                            // not the farmer. Shown here so the buyer has it
+                            // before they set out, not just after ordering.
+                            const phone = f.farmerPickupPhones?.[chosen]
+                            if (lines.length === 0 && !phone) return null
                             return (
                               <div className="mt-2 bg-green-50 border border-green-100 rounded-xl px-3 py-2">
-                                <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-1">
-                                  🕒 {L('Pickup timings', 'పికప్ సమయాలు')}
-                                </p>
-                                <ul className="space-y-0.5">
-                                  {lines.map((line, i) => (
-                                    <li key={i} className="text-[11px] text-green-800 font-medium">{line}</li>
-                                  ))}
-                                </ul>
+                                {lines.length > 0 && (
+                                  <>
+                                    <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-1">
+                                      🕒 {L('Pickup timings', 'పికప్ సమయాలు')}
+                                    </p>
+                                    <ul className="space-y-0.5">
+                                      {lines.map((line, i) => (
+                                        <li key={i} className="text-[11px] text-green-800 font-medium">{line}</li>
+                                      ))}
+                                    </ul>
+                                  </>
+                                )}
+                                {phone && (
+                                  <p className={`text-[11px] text-green-800 font-medium ${lines.length > 0 ? 'mt-1.5 pt-1.5 border-t border-green-100' : ''}`}>
+                                    📞 {L('Call at this point', 'ఈ స్థలంలో ఫోన్')}:{' '}
+                                    <a href={`tel:${phone}`} className="underline font-bold">+91 {phone}</a>
+                                  </p>
+                                )}
                               </div>
                             )
                           })()}
@@ -1996,6 +2052,42 @@ export function CartSheet({
                           </p>
                         </div>
                       )}
+
+                      {/* Contact number for THIS pickup — the twin of the
+                          delivery "Alternate phone" above. The person who
+                          collects is often not the person who ordered (a
+                          relative, a driver), and the farmer waiting at the
+                          point needs someone reachable. Optional: left blank,
+                          the farmer falls back to the account phone. */}
+                      <div className="pt-1">
+                        <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                          {L('Pickup contact phone (optional)', 'పికప్ ఫోన్ నంబర్')}
+                        </label>
+                        <div className="flex gap-2">
+                          <span className="flex items-center px-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 font-medium">
+                            +91
+                          </span>
+                          <input
+                            type="tel"
+                            inputMode="numeric"
+                            value={pickupPhoneByFarmer[f.farmerId] ?? ''}
+                            onChange={(e) =>
+                              setPickupPhoneByFarmer((prev) => ({
+                                ...prev,
+                                [f.farmerId]: e.target.value.replace(/\D/g, '').slice(0, 10),
+                              }))
+                            }
+                            maxLength={10}
+                            placeholder={L('Who will collect', 'ఎవరు తీసుకుంటారు')}
+                            className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+                          />
+                        </div>
+                        {pickupPhoneInvalid(f.farmerId) && (
+                          <p className="text-[11px] text-red-600 mt-1">
+                            {L('Enter a 10-digit number, or leave it blank.', '10 అంకెల నంబర్ ఇవ్వండి, లేదా ఖాళీగా వదిలేయండి.')}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )
                 })}
