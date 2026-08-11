@@ -34,6 +34,15 @@ type Farmer = {
   pickup_locations?: string[] | null
   pickup_location_phones?: unknown
   pickup_slots?: unknown
+  account_type?: string | null
+}
+
+// The farmer an aggregator's harvest came from. Contact record, not an account.
+type SourceFarmer = {
+  name: string
+  village?: string | null
+  address?: string | null
+  phone?: string | null
 }
 
 type Listing = {
@@ -72,6 +81,7 @@ type Harvest = {
   stock_qty?: number | null
   unit?: string | null
   paused?: boolean | null
+  source_farmer?: SourceFarmer | null
 }
 
 const METHOD_SHORT: Record<string, string> = {
@@ -113,19 +123,19 @@ export default function HarvestDetailPage() {
     setLoading(true)
     const { data: h } = await supabase
       .from('harvests')
-      .select('id, produce_listing_id, harvested_at, shelf_life_days, stock_qty, unit, paused')
+      .select('id, produce_listing_id, harvested_at, shelf_life_days, stock_qty, unit, paused, source_farmer:source_farmers(name, village, address, phone)')
       .eq('id', harvestId)
       .maybeSingle()
     // A paused harvest is off the market — treat a direct link to it (a shared
     // URL, a stale tab) exactly like a harvest that no longer exists.
-    if (!h || (h as Harvest).paused) { setNotFound(true); setLoading(false); return }
-    setHarvest(h as Harvest)
-    setLiveStock((h as Harvest).stock_qty ?? null)
+    if (!h || (h as unknown as Harvest).paused) { setNotFound(true); setLoading(false); return }
+    setHarvest(h as unknown as Harvest)
+    setLiveStock((h as unknown as Harvest).stock_qty ?? null)
 
     const { data: l } = await supabase
       .from('produce_listings')
       .select('*')
-      .eq('id', (h as Harvest).produce_listing_id)
+      .eq('id', (h as unknown as Harvest).produce_listing_id)
       .maybeSingle()
     // The template must exist and not be taken down. 'sold_out' is allowed
     // through: it only describes the template's own loose stock, and this
@@ -137,7 +147,14 @@ export default function HarvestDetailPage() {
     }
     setItem(l as Listing)
 
-    const { data: f } = await supabase.from('farmers').select('*').eq('id', (l as Listing).farmer_id).maybeSingle()
+    // Explicit columns, never '*': `farmers` carries password_hash, the
+    // activation code and the legacy bank columns, and this response is
+    // world-readable.
+    const { data: f } = await supabase
+      .from('farmers')
+      .select('id, name, village, slug, phone, method, pickup_locations, pickup_location_phones, pickup_slots, account_type')
+      .eq('id', (l as Listing).farmer_id)
+      .maybeSingle()
     setFarmer((f as Farmer) ?? null)
     setLoading(false)
   }, [harvestId])
@@ -168,6 +185,8 @@ export default function HarvestDetailPage() {
   const gallery = (item.image_urls && item.image_urls.length ? item.image_urls : (item.image_url ? [item.image_url] : []))
     .filter(Boolean) as string[]
   const farmerHref = farmer ? `/farmer/${farmer.slug}` : '#'
+  const isAggregator = farmer?.account_type === 'aggregator'
+  const sourceFarmer = harvest.source_farmer ?? null
   const canAdd = !!farmer && !!farmer.phone
   const inCart = cart[harvest.id]
   const isOutOfStock = liveStock !== null && liveStock <= 0
@@ -361,11 +380,43 @@ export default function HarvestDetailPage() {
         {farmer && (
           <Link href={farmerHref} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center justify-between active:bg-gray-50">
             <div className="min-w-0">
-              <p className="text-sm font-bold text-gray-900 truncate">👨‍🌾 {farmer.name}</p>
+              {isAggregator && (
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{L('Sold by', 'అమ్మేవారు')}</p>
+              )}
+              <p className="text-sm font-bold text-gray-900 truncate">{isAggregator ? '🤝' : '👨‍🌾'} {farmer.name}</p>
               <p className="text-xs text-gray-500 truncate">{farmer.village}</p>
             </div>
             <span className="text-green-700 text-sm font-semibold whitespace-nowrap">{L('View profile', 'ప్రొఫైల్ చూడండి')} ›</span>
           </Link>
+        )}
+
+        {/* Grown by — the aggregator's whole obligation, made visible. Sits
+            immediately under "Sold by" so the two are read as a pair and the
+            buyer cannot mistake the reseller for the grower. Deliberately not a
+            link: a source farmer is a contact record, with no profile page. */}
+        {isAggregator && sourceFarmer && (
+          <div className="bg-white rounded-2xl border-2 border-green-200 p-4 shadow-sm space-y-1.5">
+            <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide">
+              {L('Grown by', 'పండించినవారు')}
+            </p>
+            <p className="text-sm font-bold text-gray-900">👨‍🌾 {sourceFarmer.name}</p>
+            {(sourceFarmer.address || sourceFarmer.village) && (
+              <p className="text-xs text-gray-600 leading-snug">
+                📍 {[sourceFarmer.address, sourceFarmer.village].filter(Boolean).join(', ')}
+              </p>
+            )}
+            {sourceFarmer.phone && (
+              <a href={`tel:${sourceFarmer.phone}`} className="inline-block text-xs font-bold text-green-700 underline">
+                📞 {sourceFarmer.phone}
+              </a>
+            )}
+            <p className="text-[11px] text-gray-500 leading-snug pt-0.5">
+              {L(
+                'This harvest was grown by this farmer and sold through the aggregator above.',
+                'ఈ కోతను ఈ రైతు పండించారు, పైన ఉన్న సమీకరణదారు ద్వారా అమ్మబడుతోంది.',
+              )}
+            </p>
+          </div>
         )}
 
         {/* Quality / details */}

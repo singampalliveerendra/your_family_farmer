@@ -27,6 +27,7 @@ type Farmer = {
   pickup_locations?: string[] | null
   pickup_location_phones?: unknown
   pickup_slots?: unknown
+  account_type?: string | null
 }
 
 type Listing = {
@@ -128,7 +129,14 @@ export default function ProduceDetailPage() {
     if (!l) { setNotFound(true); setLoading(false); return }
     setItem(l as Listing)
     setLiveStock((l as Listing).stock_qty ?? null)
-    const { data: f } = await supabase.from('farmers').select('*').eq('id', (l as Listing).farmer_id).maybeSingle()
+    // Explicit columns, never '*': `farmers` carries password_hash, the
+    // activation code and the legacy bank columns, and this response is
+    // world-readable.
+    const { data: f } = await supabase
+      .from('farmers')
+      .select('id, name, village, slug, phone, method, pickup_locations, pickup_location_phones, pickup_slots, account_type')
+      .eq('id', (l as Listing).farmer_id)
+      .maybeSingle()
     setFarmer((f as Farmer) ?? null)
     // Every unpaused pick, newest first: the first row drives the clock, the
     // whole set decides whether this produce still has anything left. Fetching
@@ -380,8 +388,24 @@ export default function ProduceDetailPage() {
         {farmer && (
           <Link href={farmerHref} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center justify-between active:bg-gray-50">
             <div className="min-w-0">
-              <p className="text-sm font-bold text-gray-900 truncate">👨‍🌾 {farmer.name}</p>
+              {/* This page is the produce template, not one pick, so there is no
+                  single grower to name — each harvest has its own. Say who the
+                  seller is and where the grower's name will be. */}
+              {farmer.account_type === 'aggregator' && (
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{L('Sold by', 'అమ్మేవారు')}</p>
+              )}
+              <p className="text-sm font-bold text-gray-900 truncate">
+                {farmer.account_type === 'aggregator' ? '🤝' : '👨‍🌾'} {farmer.name}
+              </p>
               <p className="text-xs text-gray-500 truncate">{farmer.village}</p>
+              {farmer.account_type === 'aggregator' && (
+                <p className="text-[11px] text-gray-500 leading-snug mt-1">
+                  {L(
+                    'An aggregator. Each harvest names the farmer who grew it.',
+                    'ఒక సమీకరణదారు. ప్రతి కోతలో దానిని పండించిన రైతు పేరు ఉంటుంది.',
+                  )}
+                </p>
+              )}
             </div>
             <span className="text-green-700 text-sm font-semibold whitespace-nowrap">{L('View profile', 'ప్రొఫైల్ చూడండి')} ›</span>
           </Link>

@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
 import { harvestClock, freshnessLabel, type Harvest } from '@/lib/harvest'
 
+type SourceFarmerOption = { id: string; name: string; village?: string | null }
+
 /* ─── Harvest timings manager ──────────────────────────────────────────
    A produce_listing is the template; logging a harvest records one actual pick
    (date+time, qty-for-sale) into the `harvests` table — each pick is its own
@@ -43,10 +45,53 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
   const [savingEdit, setSavingEdit] = useState(false)
   const [editErr, setEditErr] = useState('')
 
+  /* ─── Aggregator attribution ───────────────────────────────────────────
+     An aggregator's harvest must name the farmer it came from; a farmer's own
+     harvest never does. Which of the two this is comes from the listing's
+     owner, so both surfaces resolve it identically and a plain farmer sees no
+     change at all. The DB trigger is the actual enforcement — this picker is
+     what stops the seller from meeting it as an error message. */
+  const [isAggregator, setIsAggregator] = useState(false)
+  const [sourceFarmers, setSourceFarmers] = useState<SourceFarmerOption[]>([])
+  const [sourceFarmerId, setSourceFarmerId] = useState('')
+  const [editSourceFarmerId, setEditSourceFarmerId] = useState('')
+
+  useEffect(() => {
+    if (!farmerId) return
+    let cancelled = false
+    const loadSeller = async () => {
+      const { data: owner } = await supabase
+        .from('farmers')
+        .select('account_type')
+        .eq('id', farmerId)
+        .maybeSingle()
+      if (cancelled || owner?.account_type !== 'aggregator') return
+      setIsAggregator(true)
+      const { data: rows } = await supabase
+        .from('source_farmers')
+        .select('id, name, village')
+        .eq('aggregator_id', farmerId)
+        .order('name', { ascending: true })
+      if (cancelled) return
+      setSourceFarmers((rows ?? []) as SourceFarmerOption[])
+    }
+    void loadSeller()
+    return () => { cancelled = true }
+  }, [farmerId])
+
+  // Village disambiguates two farmers who share a first name — common enough in
+  // one mandal that the name alone is not a safe label to pick from.
+  const sourceLabel = (r: SourceFarmerOption) => (r.village ? `${r.name} — ${r.village}` : r.name)
+  const sourceNameOf = (id?: string | null) =>
+    (id ? sourceFarmers.find((r) => r.id === id)?.name : null) ?? null
+  // An aggregator with an empty registry cannot log anything: the trigger would
+  // reject it. Say so, rather than offering an empty dropdown that fails on save.
+  const noSourceFarmers = isAggregator && sourceFarmers.length === 0
+
   const loadHarvests = useCallback(async () => {
     const { data } = await supabase
       .from('harvests')
-      .select('id, produce_listing_id, farmer_id, harvested_at, shelf_life_days, approx_quantity, unit, notes, paused')
+      .select('id, produce_listing_id, farmer_id, harvested_at, shelf_life_days, approx_quantity, unit, notes, paused, source_farmer_id')
       .eq('produce_listing_id', listingId)
       .order('harvested_at', { ascending: false })
       .limit(20)
@@ -61,6 +106,10 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
     setHarvestMsg('')
     const when = new Date(harvestedAt)
     if (isNaN(when.getTime())) { setHarvestErr(L('Pick a valid harvest date & time.', 'సరైన కోత తేదీ & సమయం ఎంచుకోండి.')); return }
+    if (isAggregator && !sourceFarmerId) {
+      setHarvestErr(L('Choose the farmer this harvest came from.', 'ఈ కోత ఏ రైతు నుండి వచ్చిందో ఎంచుకోండి.'))
+      return
+    }
     setSavingHarvest(true)
     // Shelf life is not logged per-harvest — it's a produce-level property, so
     // the consumer freshness label falls back to the listing's shelf_life_days.
@@ -73,11 +122,13 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
       // its own product with its own inventory (decremented as buyers order).
       stock_qty: approxQty ? Number(approxQty) : null,
       unit: unit ?? null,
+      // Omitted entirely for a farmer, so their insert is unchanged.
+      ...(isAggregator ? { source_farmer_id: sourceFarmerId } : {}),
     })
     setSavingHarvest(false)
     if (err) { setHarvestErr(err.message); return }
     setHarvestMsg(L('Harvest logged ✓', 'కోత నమోదైంది ✓'))
-    setApproxQty(''); setHarvestedAt(nowLocal())
+    setApproxQty(''); setHarvestedAt(nowLocal()); setSourceFarmerId('')
     void loadHarvests()
     setTimeout(() => setHarvestMsg(''), 1400)
   }
@@ -87,6 +138,7 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
     setEditErr('')
     setEditAt(toLocalInput(h.harvested_at))
     setEditQty(h.approx_quantity != null ? String(h.approx_quantity) : '')
+    setEditSourceFarmerId(h.source_farmer_id ?? '')
   }
 
   const saveEditHarvest = async () => {
@@ -94,6 +146,10 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
     setEditErr('')
     const when = new Date(editAt)
     if (isNaN(when.getTime())) { setEditErr(L('Pick a valid harvest date & time.', 'సరైన కోత తేదీ & సమయం ఎంచుకోండి.')); return }
+    if (isAggregator && !editSourceFarmerId) {
+      setEditErr(L('Choose the farmer this harvest came from.', 'ఈ కోత ఏ రైతు నుండి వచ్చిందో ఎంచుకోండి.'))
+      return
+    }
     setSavingEdit(true)
     const { error: err } = await supabase.from('harvests').update({
       harvested_at: when.toISOString(),
@@ -101,6 +157,7 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
       // Editing the quantity resets this harvest's sellable stock to the new
       // amount (the farmer is stating what's actually available now).
       stock_qty: editQty ? Number(editQty) : null,
+      ...(isAggregator ? { source_farmer_id: editSourceFarmerId } : {}),
     }).eq('id', editingHarvestId)
     setSavingEdit(false)
     if (err) { setEditErr(err.message); return }
@@ -134,6 +191,41 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
   return (
     <div className="bg-green-50 border border-green-200 rounded-xl p-3 space-y-2.5">
       <p className="text-xs font-bold text-green-800">🌾 {L('Harvest timings', 'కోత సమయాలు')}</p>
+
+      {/* Attribution comes first: which farmer this pick is from is the one
+          thing an aggregator must not get wrong, and it decides what the buyer
+          is later told about the produce. */}
+      {noSourceFarmers && (
+        <div className="bg-amber-50 border border-amber-300 rounded-lg p-2.5">
+          <p className="text-[11px] font-bold text-amber-900 leading-snug">
+            {L('No farmers in the aggregator list yet.', 'ఇంకా ఏ రైతూ జాబితాలో లేరు.')}
+          </p>
+          <p className="text-[11px] text-amber-800 leading-snug mt-0.5">
+            {L(
+              'Every harvest has to name the farmer who grew it. Add them under "Farmers you aggregate from" before logging a harvest.',
+              'ప్రతి కోతకు దానిని పండించిన రైతు పేరు ఉండాలి. కోత నమోదు చేసే ముందు "మీరు సేకరించే రైతులు" విభాగంలో వారిని జోడించండి.',
+            )}
+          </p>
+        </div>
+      )}
+      {isAggregator && !noSourceFarmers && (
+        <div>
+          <label className="text-[11px] font-semibold text-gray-600">
+            {L('Farmer this harvest came from', 'ఈ కోత వచ్చిన రైతు')} <span className="text-red-600">*</span>
+          </label>
+          <select
+            value={sourceFarmerId}
+            onChange={(e) => setSourceFarmerId(e.target.value)}
+            className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            <option value="">{L('Select a farmer…', 'రైతును ఎంచుకోండి…')}</option>
+            {sourceFarmers.map((r) => (
+              <option key={r.id} value={r.id}>{sourceLabel(r)}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div>
         <label className="text-[11px] font-semibold text-gray-600">{L('Harvest date & time', 'కోత తేదీ & సమయం')}</label>
         <input
@@ -156,7 +248,7 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
       {harvestMsg && <p className="text-[11px] text-green-700 font-semibold">{harvestMsg}</p>}
       <button
         onClick={submitHarvest}
-        disabled={savingHarvest}
+        disabled={savingHarvest || noSourceFarmers}
         className="w-full bg-green-700 text-white font-bold py-2 rounded-lg text-sm active:bg-green-800 disabled:opacity-50"
       >
         {savingHarvest ? '…' : L('Save harvest', 'సేవ్ చేయి')}
@@ -188,6 +280,23 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
                       ✕
                     </button>
                   </div>
+                  {isAggregator && sourceFarmers.length > 0 && (
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-600">
+                        {L('Farmer this harvest came from', 'ఈ కోత వచ్చిన రైతు')} <span className="text-red-600">*</span>
+                      </label>
+                      <select
+                        value={editSourceFarmerId}
+                        onChange={(e) => setEditSourceFarmerId(e.target.value)}
+                        className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                      >
+                        <option value="">{L('Select a farmer…', 'రైతును ఎంచుకోండి…')}</option>
+                        {sourceFarmers.map((r) => (
+                          <option key={r.id} value={r.id}>{sourceLabel(r)}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div>
                     <label className="text-[11px] font-semibold text-gray-600">{L('Harvest date & time', 'కోత తేదీ & సమయం')}</label>
                     <input
@@ -242,6 +351,14 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
                       {freshnessLabel(h.harvested_at, produceShelfLife ?? null, L) ?? harvestClock(h.harvested_at, L)}
                       {h.approx_quantity != null && <> · {h.approx_quantity} {h.unit || unit || 'kg'}</>}
                     </p>
+                    {/* The aggregator can see, without opening Edit, which
+                        farmer each pick is credited to — the same line the
+                        buyer will read on the harvest. */}
+                    {isAggregator && sourceNameOf(h.source_farmer_id) && (
+                      <p className="text-[11px] text-green-700 font-semibold truncate">
+                        🤝 {L('From', 'నుండి')} {sourceNameOf(h.source_farmer_id)}
+                      </p>
+                    )}
                     {h.paused && (
                       <p className="text-[10px] text-amber-700 leading-snug mt-0.5">
                         {L('Hidden from buyers. Resume to sell it again.', 'కొనుగోలుదారులకు కనిపించదు. మళ్లీ అమ్మడానికి కొనసాగించండి.')}

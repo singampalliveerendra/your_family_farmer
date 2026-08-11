@@ -101,6 +101,20 @@ export async function POST(req: NextRequest) {
   const farm_size_acres = Number((body as { farm_size_acres?: unknown }).farm_size_acres ?? 0) || null
   const farming_since_year = Number((body as { farming_since_year?: unknown }).farming_since_year ?? 0) || null
 
+  // Aggregator onboarding. A moderator can register an aggregator on their
+  // behalf, exactly as they already do for farmers — an aggregator is a farmers
+  // row with account_type = 'aggregator'. Anything but 'aggregator' falls back
+  // to 'farmer', so an unknown value can never create a third kind of seller.
+  const account_type =
+    String((body as { account_type?: unknown }).account_type ?? 'farmer').trim() === 'aggregator'
+      ? 'aggregator'
+      : 'farmer'
+  const isAggregator = account_type === 'aggregator'
+  const contact_person = String((body as { contact_person?: unknown }).contact_person ?? '').trim().slice(0, 80)
+  const how_we_aggregate = String((body as { how_we_aggregate?: unknown }).how_we_aggregate ?? '').trim().slice(0, 800)
+  const business_cert_url = String((body as { business_cert_url?: unknown }).business_cert_url ?? '').trim()
+  const organic_certificate_url = String((body as { organic_certificate_url?: unknown }).organic_certificate_url ?? '').trim()
+
   // Marketing / payout details — the same things a farmer fills on their own
   // profile, so a moderator onboarding on their behalf can capture them up front.
   const farm_address = String((body as { farm_address?: unknown }).farm_address ?? '').trim()
@@ -150,6 +164,14 @@ export async function POST(req: NextRequest) {
   )
 
   if (!name) return NextResponse.json({ error: 'Name is required.' }, { status: 400 })
+  // The person behind the organisation is the aggregator's accountability — the
+  // whole model rests on a buyer being able to see who they are dealing with.
+  if (isAggregator && !contact_person) {
+    return NextResponse.json(
+      { error: 'Please enter the name of the person behind the organisation.' },
+      { status: 400 },
+    )
+  }
   if (upi_id && !/^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$/.test(upi_id)) {
     return NextResponse.json({ error: 'Invalid UPI ID. Example: name@ybl' }, { status: 400 })
   }
@@ -186,7 +208,16 @@ export async function POST(req: NextRequest) {
       phone: phone || null,
       village: village || null,
       district: district || null,
-      method,
+      // Aggregators list produce from organic farmers only, so the method is not
+      // the form's to choose.
+      method: isAggregator ? 'organic' : method,
+      account_type,
+      ...(isAggregator ? {
+        contact_person,
+        how_we_aggregate: how_we_aggregate || null,
+        business_cert_url: business_cert_url || null,
+        organic_certificate_url: organic_certificate_url || null,
+      } : {}),
       story_quote: story_quote || null,
       farm_size_acres,
       farming_since_year,

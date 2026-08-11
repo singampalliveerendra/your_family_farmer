@@ -50,6 +50,9 @@ type Farmer = {
   pickup_slots?: unknown
   lat?: number | null
   lng?: number | null
+  // 'aggregator' → this seller resells other farmers' produce. Absent on rows
+  // fetched before the column existed, so treat anything else as a farmer.
+  account_type?: string | null
 }
 
 type ProduceListing = {
@@ -102,6 +105,12 @@ type GridHarvest = {
   shelf_life_days: number | null
   stock_qty: number | null
   unit: string | null
+  // Who actually grew this pick, when the seller is an aggregator. Null for a
+  // farmer selling their own produce. Carried per-harvest rather than per-
+  // listing because one aggregator's listing has a different source farmer on
+  // every pick — which is exactly what must not get collapsed.
+  source_farmer_name?: string | null
+  source_farmer_village?: string | null
 }
 
 // A produce listing with its computed distance from the consumer.
@@ -237,20 +246,29 @@ export default function ConsumerPage() {
       // Best-effort: a missing `harvests` table (migration not applied) just
       // leaves the map empty, so the grid falls back to one card per produce.
       try {
+        // source_farmer is embedded, not joined client-side: the grid must be
+        // able to name the grower on the card, and a second round-trip per
+        // harvest is not affordable on 4G.
         const { data: hs } = await supabase
           .from('harvests')
-          .select('id, produce_listing_id, harvested_at, shelf_life_days, stock_qty, unit')
+          .select('id, produce_listing_id, harvested_at, shelf_life_days, stock_qty, unit, source_farmer:source_farmers(name, village)')
           .eq('paused', false)
           .order('harvested_at', { ascending: false })
           .limit(500)
         const map: Record<string, GridHarvest[]> = {}
-        for (const h of (hs ?? []) as (GridHarvest & { produce_listing_id: string })[]) {
+        type HarvestRow = GridHarvest & {
+          produce_listing_id: string
+          source_farmer?: { name?: string | null; village?: string | null } | null
+        }
+        for (const h of (hs ?? []) as unknown as HarvestRow[]) {
           ;(map[h.produce_listing_id] ??= []).push({
             id: h.id,
             harvested_at: h.harvested_at,
             shelf_life_days: h.shelf_life_days ?? null,
             stock_qty: h.stock_qty ?? null,
             unit: h.unit ?? null,
+            source_farmer_name: h.source_farmer?.name ?? null,
+            source_farmer_village: h.source_farmer?.village ?? null,
           })
         }
         setHarvestsByListing(map)
@@ -675,6 +693,12 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
   const methodShort = METHOD_SHORT[method] ?? 'Natural'
   const farmer      = item.farmer
   const farmerHref  = farmer ? `/farmer/${farmer.slug}` : '#'
+  // A seller who resells other farmers' produce must be legible as such before
+  // the buyer taps anything — the whole point of the feature is that the grower
+  // is never hidden behind the middleman.
+  const isAggregator  = farmer?.account_type === 'aggregator'
+  const sourceName    = harvest?.source_farmer_name ?? null
+  const sourceVillage = harvest?.source_farmer_village ?? null
   // Harvest card links to the harvest page and is keyed on the harvest; template
   // card links to the produce page and is keyed on the listing.
   const produceHref = harvest ? `/consumer/harvest/${harvest.id}` : `/consumer/produce/${item.id}`
@@ -885,6 +909,17 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
           {item.variety && (
             <p className="text-[12px] text-[#666] truncate mt-0.5">{localizeName(item.variety, lang)}</p>
           )}
+          {/* The grower, on its own line directly under the crop name. Three
+              aggregator tiles of the same crop are three different farmers'
+              produce, and without this they read as duplicate tiles. Kept off
+              the <h3> itself because "Tomatoes — from Ramesh, Kovvur" truncates
+              to "Tomatoes — from…" in a 390px grid column, which loses exactly
+              the part that distinguishes them. */}
+          {isAggregator && sourceName && (
+            <p className="text-[12px] font-semibold text-green-800 truncate mt-0.5">
+              {L('from', 'నుండి')} {sourceName}{sourceVillage ? `, ${sourceVillage}` : ''}
+            </p>
+          )}
         </Link>
 
         {/* Harvest clock — "Harvested 2 hours ago", from THIS harvest (or the
@@ -896,11 +931,18 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
             on a long-shelf-life crop actively put buyers off. Shelf life still
             decides which harvests the Fresh shelf shows, and the farmer still
             sees the countdown in HarvestManager. */}
-        {clockAt && (
+        {(clockAt || isAggregator) && (
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-green-700 bg-green-50 rounded-full px-2 py-0.5">
-              ⏱ {harvestClock(clockAt, L)}
-            </span>
+            {clockAt && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-green-700 bg-green-50 rounded-full px-2 py-0.5">
+                ⏱ {harvestClock(clockAt, L)}
+              </span>
+            )}
+            {isAggregator && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 rounded-full px-2 py-0.5">
+                🤝 {L('Aggregator', 'సమీకరణదారు')}
+              </span>
+            )}
           </div>
         )}
 
@@ -908,7 +950,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
         {farmer && (
           <div className="flex items-center justify-between gap-1.5 mt-1">
             <p className="text-[11px] text-[#666] truncate min-w-0">
-              👨‍🌾 {farmer.name} · {farmer.village}
+              {isAggregator ? '🤝' : '👨‍🌾'} {farmer.name} · {farmer.village}
             </p>
             <Link
               href={farmerHref}

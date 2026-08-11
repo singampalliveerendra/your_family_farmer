@@ -21,6 +21,12 @@ export type Created = {
 // The full set of editable fields. On create everything starts blank; on edit
 // the page passes the farmer's current values.
 export type FarmerInitial = {
+  // 'farmer' (grows their own) or 'aggregator' (resells other farmers' produce
+  // and must name the source farmer on every harvest). Chosen at creation only —
+  // switching an existing seller would orphan their harvests either way.
+  account_type: string
+  contact_person: string
+  how_we_aggregate: string
   name: string
   phone: string
   village: string
@@ -90,6 +96,7 @@ const photoDisplay = (p: PhotoState) => (p.file ? p.preview : p.existingUrl ?? '
 
 export function emptyFarmerInitial(): FarmerInitial {
   return {
+    account_type: 'farmer', contact_person: '', how_we_aggregate: '',
     name: '', phone: '', village: '', district: '',
     method: 'natural', farm_size_acres: '', farming_since_year: '', story_quote: '',
     farm_address: '', upi_id: '', soil_organic_carbon: '', soil_ph: '', water_source: '',
@@ -117,6 +124,8 @@ export default function ModeratorFarmerForm({
   onCancel: () => void
 }) {
   const [form, setForm] = useState({
+    account_type: initial.account_type || 'farmer',
+    contact_person: initial.contact_person, how_we_aggregate: initial.how_we_aggregate,
     name: initial.name, phone: initial.phone, village: initial.village, district: initial.district,
     method: initial.method, farm_size_acres: initial.farm_size_acres,
     farming_since_year: initial.farming_since_year, story_quote: initial.story_quote,
@@ -297,10 +306,56 @@ export default function ModeratorFarmerForm({
 
   return (
     <form onSubmit={submit} className="bg-white rounded-2xl border border-gray-100 p-5 max-w-2xl space-y-4">
+      {/* Account type. Create-only: an existing seller cannot be switched, since
+          a farmer has no source farmers to attribute their harvests to and an
+          aggregator's harvests would lose the attribution they carry. */}
+      {mode === 'create' && (
+        <div className="border border-green-200 bg-green-50 rounded-xl p-3">
+          <p className="text-xs font-extrabold text-green-900 mb-2">Account type</p>
+          <div className="flex gap-2">
+            {(['farmer', 'aggregator'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, account_type: t }))}
+                className={`flex-1 rounded-xl px-3 py-2 text-sm font-bold border-2 transition-colors ${
+                  form.account_type === t
+                    ? 'bg-green-700 text-white border-green-700'
+                    : 'bg-white text-gray-600 border-gray-200'
+                }`}
+              >
+                {t === 'farmer' ? '🌱 Farmer' : '🤝 Aggregator'}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-gray-600 mt-2 leading-relaxed">
+            {form.account_type === 'aggregator'
+              ? 'Collects produce from other farmers. Every harvest must name the farmer it came from, and the method is fixed to organic.'
+              : 'Grows and sells their own produce.'}
+          </p>
+        </div>
+      )}
+
       <div className="grid md:grid-cols-2 gap-4">
-        <Field label="Full name *">
+        <Field label={form.account_type === 'aggregator' ? 'Organisation name *' : 'Full name *'}>
           <input value={form.name} onChange={set('name')} required className={inputCls} autoFocus />
         </Field>
+        {form.account_type === 'aggregator' && (
+          <>
+            <Field label="Person behind the organisation *">
+              <input value={form.contact_person} onChange={set('contact_person')} required className={inputCls} />
+            </Field>
+            <Field label="How we aggregate">
+              <textarea
+                value={form.how_we_aggregate}
+                onChange={set('how_we_aggregate')}
+                rows={3}
+                maxLength={800}
+                className={inputCls}
+              />
+            </Field>
+          </>
+        )}
         <Field label="Phone (WhatsApp)">
           <input value={form.phone} onChange={set('phone')} placeholder="+91 94400 12345" className={inputCls} />
         </Field>

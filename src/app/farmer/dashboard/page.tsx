@@ -16,6 +16,8 @@ import { type FarmerOrder as Order, isResolved } from '@/components/farmer/Order
 import DemandSupplyChart from '@/components/DemandSupplyChart'
 import { type CropBalance } from '@/lib/demand-supply'
 import HarvestManager from '@/components/HarvestManager'
+import PayoutDetailsForm from '@/components/farmer/PayoutDetailsForm'
+import SourceFarmersManager from '@/components/SourceFarmersManager'
 import { isLikelyUrl, normalizeUrl } from '@/lib/links'
 import {
   clearFarmerLocalSession,
@@ -50,6 +52,14 @@ type Farmer = {
   cover_photo_url: string | null
   photo_url: string | null
   pesticide_cert_url: string | null
+  // Aggregator-only. account_type defaults to 'farmer' for every existing row,
+  // so these are absent on an ordinary farmer and every read must tolerate it.
+  account_type?: string | null
+  approval_status?: string | null
+  contact_person?: string | null
+  how_we_aggregate?: string | null
+  business_cert_url?: string | null
+  organic_certificate_url?: string | null
   pickup_slots: unknown
   lat: number | null
   lng: number | null
@@ -510,6 +520,13 @@ export default function FarmerDashboard() {
       </div>
 
       <div className="px-4 -mt-5 space-y-4">
+        {/* An aggregator's farmer registry. Sits on the dashboard rather than
+            behind Edit Profile because every harvest they log has to pick from
+            this list, so it is day-to-day work, not setup. */}
+        {farmer?.account_type === 'aggregator' && (
+          <SourceFarmersManager endpoint="/api/aggregator/source-farmers" />
+        )}
+
         {/* Notification permission banner — shown only if browser supports it
             and the farmer hasn't decided yet. Permission must be requested via
             a user gesture so we can't auto-call it on mount. */}
@@ -931,6 +948,19 @@ function ProfileEditModal({
   const [certPreview, setCertPreview] = useState('')
   const [existingCertUrl, setExistingCertUrl] = useState(farmer.pesticide_cert_url ?? '')
 
+  // Aggregator-only fields. Step 2 of registration: signup collects only
+  // organisation, contact person, phone and password, so the rest is completed
+  // here rather than on one long form over 4G.
+  const isAggregator = farmer.account_type === 'aggregator'
+  const [contactPerson, setContactPerson] = useState(farmer.contact_person ?? '')
+  const [howWeAggregate, setHowWeAggregate] = useState(farmer.how_we_aggregate ?? '')
+  const [bizCertFile, setBizCertFile] = useState<File | null>(null)
+  const [bizCertPreview, setBizCertPreview] = useState('')
+  const [existingBizCertUrl, setExistingBizCertUrl] = useState(farmer.business_cert_url ?? '')
+  const [orgCertFile, setOrgCertFile] = useState<File | null>(null)
+  const [orgCertPreview, setOrgCertPreview] = useState('')
+  const [existingOrgCertUrl, setExistingOrgCertUrl] = useState(farmer.organic_certificate_url ?? '')
+
   // UPI ID + QR
   const [upiId, setUpiId] = useState(farmer.upi_id ?? '')
   const [qrFile, setQrFile] = useState<File | null>(null)
@@ -1107,13 +1137,15 @@ function ProfileEditModal({
     }
 
     // Upload photos in parallel
-    const [coverRes, avatarRes, certRes, qrRes] = await Promise.all([
+    const [coverRes, avatarRes, certRes, qrRes, bizCertRes, orgCertRes] = await Promise.all([
       coverFile ? uploadProfileImage(coverFile, 'cover') : Promise.resolve({ url: null, err: null }),
       avatarFile ? uploadProfileImage(avatarFile, 'avatar') : Promise.resolve({ url: null, err: null }),
       certFile  ? uploadProfileImage(certFile,  'pesticide-cert') : Promise.resolve({ url: null, err: null }),
       qrFile    ? uploadProfileImage(qrFile,    'upi-qr') : Promise.resolve({ url: null, err: null }),
+      bizCertFile ? uploadProfileImage(bizCertFile, 'business-cert') : Promise.resolve({ url: null, err: null }),
+      orgCertFile ? uploadProfileImage(orgCertFile, 'organic-cert') : Promise.resolve({ url: null, err: null }),
     ])
-    const uploadErr = coverRes.err ?? avatarRes.err ?? certRes.err ?? qrRes.err
+    const uploadErr = coverRes.err ?? avatarRes.err ?? certRes.err ?? qrRes.err ?? bizCertRes.err ?? orgCertRes.err
     if (uploadErr) { setError(uploadErr); setLoading(false); return }
 
     const payload: Record<string, unknown> = {
@@ -1130,6 +1162,14 @@ function ProfileEditModal({
       upi_id:           upiId.trim() || null,
       upi_qr_code_url:  (qrRes.url ?? existingQrUrl) || null,
       cod_enabled:      codEnabled,
+      // Aggregator-only. Spread so an ordinary farmer's payload is byte-for-byte
+      // what it was before this feature existed.
+      ...(isAggregator ? {
+        contact_person:          contactPerson.trim() || null,
+        how_we_aggregate:        howWeAggregate.trim() || null,
+        business_cert_url:       (bizCertRes.url ?? existingBizCertUrl) || null,
+        organic_certificate_url: (orgCertRes.url ?? existingOrgCertUrl) || null,
+      } : {}),
       pickup_slots: (() => {
         const clean = normalizePickupSchedule(schedule, pickupLocations)
         return Object.keys(clean).length > 0 ? clean : null
@@ -1458,6 +1498,111 @@ function ProfileEditModal({
             )}
           </div>
 
+          {/* ── Aggregator details ──
+              Step 2 of aggregator registration. Hidden entirely for farmers, so
+              their profile editor is unchanged. */}
+          {isAggregator && (
+            <>
+              <div className="pt-3 border-t-2 border-green-100">
+                <h4 className="text-sm font-extrabold text-green-800">
+                  {L('Aggregator details', 'అగ్రిగేటర్ వివరాలు')}
+                </h4>
+                <p className="text-[11px] text-gray-500">
+                  {L('Shown to buyers on your profile', 'మీ ప్రొఫైల్‌లో కొనుగోలుదారులకు కనిపిస్తుంది')}
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
+                  {L('Person behind the organisation', 'సంస్థ నిర్వాహకుడి పేరు')}
+                </label>
+                <input
+                  type="text"
+                  value={contactPerson}
+                  onChange={(e) => setContactPerson(e.target.value)}
+                  maxLength={80}
+                  placeholder={L('Full name', 'పూర్తి పేరు')}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:border-green-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
+                  {L('How we aggregate', 'మేము ఎలా సేకరిస్తాము')}
+                </label>
+                <p className="text-[11px] text-gray-500 mb-2">
+                  {L(
+                    'How you source, handle and pay the farmers you work with.',
+                    'మీరు రైతుల నుండి ఎలా సేకరిస్తారు, ఎలా చెల్లిస్తారు.',
+                  )}
+                </p>
+                <textarea
+                  value={howWeAggregate}
+                  onChange={(e) => setHowWeAggregate(e.target.value)}
+                  maxLength={800}
+                  rows={4}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:border-green-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
+                  {L('Certificate of Business', 'వ్యాపార ధృవీకరణ పత్రం')}
+                </label>
+                {existingBizCertUrl && !bizCertPreview ? (
+                  <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
+                    <span className="text-green-700 font-semibold text-sm">{tx.certUploaded}</span>
+                    <a href={existingBizCertUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-green-700 underline font-semibold ml-auto">{tx.viewCertificate}</a>
+                    <button type="button" onClick={() => setExistingBizCertUrl('')}
+                      className="text-xs text-red-500 underline">{tx.removeCert}</button>
+                  </div>
+                ) : (
+                  <ProfilePhotoUpload
+                    preview={bizCertPreview}
+                    existingUrl=""
+                    onPick={(e) => handlePickFile(e, setBizCertFile, setBizCertPreview, bizCertPreview)}
+                    onClear={() => { if (bizCertPreview) URL.revokeObjectURL(bizCertPreview); setBizCertFile(null); setBizCertPreview('') }}
+                    takeLabel={tx.takePhoto}
+                    galleryLabel={tx.uploadCert}
+                    aspectClass="aspect-[4/3]"
+                  />
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
+                  {L('Certificate of Organic produce', 'సేంద్రియ ధృవీకరణ పత్రం')}
+                </label>
+                <p className="text-[11px] text-gray-500 mb-2">
+                  {L(
+                    'Aggregators may list produce from organic farmers only.',
+                    'అగ్రిగేటర్లు సేంద్రియ రైతుల పంటలను మాత్రమే జాబితా చేయగలరు.',
+                  )}
+                </p>
+                {existingOrgCertUrl && !orgCertPreview ? (
+                  <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
+                    <span className="text-green-700 font-semibold text-sm">{tx.certUploaded}</span>
+                    <a href={existingOrgCertUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-green-700 underline font-semibold ml-auto">{tx.viewCertificate}</a>
+                    <button type="button" onClick={() => setExistingOrgCertUrl('')}
+                      className="text-xs text-red-500 underline">{tx.removeCert}</button>
+                  </div>
+                ) : (
+                  <ProfilePhotoUpload
+                    preview={orgCertPreview}
+                    existingUrl=""
+                    onPick={(e) => handlePickFile(e, setOrgCertFile, setOrgCertPreview, orgCertPreview)}
+                    onClear={() => { if (orgCertPreview) URL.revokeObjectURL(orgCertPreview); setOrgCertFile(null); setOrgCertPreview('') }}
+                    takeLabel={tx.takePhoto}
+                    galleryLabel={tx.uploadCert}
+                    aspectClass="aspect-[4/3]"
+                  />
+                )}
+              </div>
+            </>
+          )}
+
           {/* ── Section 2: Pickup & Schedule ── */}
           <div className="pt-3 border-t-2 border-green-100">
             <h4 className="text-sm font-extrabold text-green-800">{L('Pickup & Schedule', 'పికప్ & షెడ్యూల్')}</h4>
@@ -1772,6 +1917,12 @@ function ProfileEditModal({
               </label>
             </div>
           </div>
+
+          {/* ── Section 4: Payout Details ──
+              Saves through its own session-gated API route rather than the
+              profile payload below: `farmers` is world-readable and
+              anon-writable, so bank details must not live there. */}
+          <PayoutDetailsForm />
 
           {/* Change Password */}
           <div className="border border-gray-200 rounded-xl overflow-hidden">
