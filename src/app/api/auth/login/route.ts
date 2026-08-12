@@ -9,6 +9,21 @@ import { rateLimit } from '@/lib/rate-limit'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+// Shared by BOTH seller login pages. Farmers and aggregators are the same
+// `farmers` row and the same `yff_farmer` cookie, so there is one login
+// endpoint; `accountType` only decides which surface the caller is standing on,
+// so each login page accepts its own kind and points the other kind at theirs.
+//
+// Omitting accountType keeps the pre-split behaviour (any seller may log in),
+// so an older client or a direct API caller is not broken by this.
+type SellerType = 'farmer' | 'aggregator'
+
+/** Where each kind of seller logs in and lands. */
+const SURFACE: Record<SellerType, { login: string; dashboard: string }> = {
+  farmer: { login: '/farmer/login', dashboard: '/farmer/dashboard' },
+  aggregator: { login: '/aggregator/login', dashboard: '/aggregator/dashboard' },
+}
+
 export async function POST(req: NextRequest) {
   const lang = reqLang(req)
   const body = await req.json().catch(() => null)
@@ -18,6 +33,9 @@ export async function POST(req: NextRequest) {
 
   const phone = normalizePhone((body as { phone?: unknown }).phone as string)
   const password = String((body as { password?: unknown }).password ?? '')
+  const rawType = (body as { accountType?: unknown }).accountType
+  const expectedType: SellerType | null =
+    rawType === 'farmer' || rawType === 'aggregator' ? rawType : null
 
   if (!phone) {
     return NextResponse.json({ error: 'Enter a valid 10-digit phone number.' }, { status: 400 })
@@ -45,7 +63,7 @@ export async function POST(req: NextRequest) {
 
   const { data: farmers } = await supabase
     .from('farmers')
-    .select('id, name, slug, phone, password_hash')
+    .select('id, name, slug, phone, password_hash, account_type')
     .or(
       [
         `phone.eq.${phone}`,
@@ -90,9 +108,46 @@ export async function POST(req: NextRequest) {
     return wrongCreds
   }
 
+  // Surface check runs AFTER the password is verified, on purpose: doing it
+  // earlier would let anyone probe a phone number and learn whether it belongs
+  // to an aggregator without ever knowing the password.
+  //
+  // account_type is nullable on rows created before aggregators existed, so an
+  // absent value means 'farmer' — the column's own default.
+  const actualType: SellerType = farmer.account_type === 'aggregator' ? 'aggregator' : 'farmer'
+  if (expectedType && actualType !== expectedType) {
+    // Correct credentials, wrong door. Say so and link to the right one rather
+    // than "wrong phone or password", which would send them round in circles.
+    return NextResponse.json(
+      {
+        error:
+          actualType === 'aggregator'
+            ? tr(
+              lang,
+              'This is an aggregator account. Please use the aggregator login.',
+              'ఇది సమీకరణదారు ఖాతా. దయచేసి సమీకరణదారు లాగిన్ వాడండి.',
+            )
+            : tr(
+              lang,
+              'This is a farmer account. Please use the farmer login.',
+              'ఇది రైతు ఖాతా. దయచేసి రైతు లాగిన్ వాడండి.',
+            ),
+        wrongSurface: true,
+        loginPath: SURFACE[actualType].login,
+      },
+      { status: 403 },
+    )
+  }
+
   await supabase.from('farmers').update({ active: true }).eq('id', farmer.id)
 
-  const res = NextResponse.json({ ok: true, farmerId: farmer.id, farmerSlug: farmer.slug })
+  const res = NextResponse.json({
+    ok: true,
+    farmerId: farmer.id,
+    farmerSlug: farmer.slug,
+    accountType: actualType,
+    dashboard: SURFACE[actualType].dashboard,
+  })
   try {
     setFarmerSessionCookie(res, farmer.id)
   } catch (e) {

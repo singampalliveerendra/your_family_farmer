@@ -218,7 +218,7 @@ export default function AggregatorSignupPage() {
 
           <div className="text-xs text-gray-600 text-center pt-1">
             Already have an account?{' '}
-            <Link href="/farmer/login" className="text-green-700 font-bold underline">
+            <Link href="/aggregator/login" className="text-green-700 font-bold underline">
               Log in
             </Link>
           </div>

@@ -442,7 +442,10 @@ export default function FarmerDashboard() {
     // session behind on the device.
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => null)
     clearFarmerLocalSession()
-    router.replace('/farmer/login')
+    // Back to the login this seller actually uses. Taken from the pathname
+    // rather than `farmer`, which is null on the not-found screen that also
+    // calls this.
+    router.replace(pathname.startsWith('/aggregator') ? '/aggregator/login' : '/farmer/login')
   }
 
   if (loading) return <LoadingScreen />
