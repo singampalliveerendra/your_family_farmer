@@ -72,9 +72,22 @@ export async function POST(req: NextRequest) {
         `phone.eq.91${phone}`,
       ].join(','),
     )
-    .limit(1)
+    // One phone may own a farmer row AND an aggregator row (a farmer who also
+    // runs a collection shop), so we can no longer take the first match.
+    .limit(4)
 
-  const farmer = farmers?.[0]
+  const rows = farmers ?? []
+  // account_type is absent on rows created before aggregators existed; the
+  // column's own default says that means 'farmer'.
+  const typeOf = (r: { account_type?: string | null }): SellerType =>
+    r.account_type === 'aggregator' ? 'aggregator' : 'farmer'
+
+  // The row for the surface being logged into. When the caller sent no
+  // accountType we keep the old behaviour and prefer the farmer row.
+  const onSurface = expectedType ? rows.find((r) => typeOf(r) === expectedType) : undefined
+  const farmer =
+    onSurface ??
+    (expectedType ? rows[0] : rows.find((r) => typeOf(r) === 'farmer') ?? rows[0])
 
   const wrongCreds = NextResponse.json(
     { error: tr(lang, 'Wrong phone or password.', 'తప్పు ఫోన్ లేదా పాస్‌వర్డ్.') },
@@ -114,26 +127,31 @@ export async function POST(req: NextRequest) {
   //
   // account_type is nullable on rows created before aggregators existed, so an
   // absent value means 'farmer' — the column's own default.
-  const actualType: SellerType = farmer.account_type === 'aggregator' ? 'aggregator' : 'farmer'
+  const actualType: SellerType = typeOf(farmer)
   if (expectedType && actualType !== expectedType) {
     // Correct credentials, wrong door. Say so and link to the right one rather
     // than "wrong phone or password", which would send them round in circles.
+    //
+    // canSignUp tells the page to ALSO offer creating the other kind of
+    // account: this number has no account on the surface they asked for, and a
+    // farmer who has started a collection shop is entitled to open one.
     return NextResponse.json(
       {
         error:
           actualType === 'aggregator'
             ? tr(
               lang,
-              'This is an aggregator account. Please use the aggregator login.',
-              'ఇది సమీకరణదారు ఖాతా. దయచేసి సమీకరణదారు లాగిన్ వాడండి.',
+              'This number has an aggregator account, not a farmer one.',
+              'ఈ నంబర్‌కు సమీకరణదారు ఖాతా ఉంది, రైతు ఖాతా కాదు.',
             )
             : tr(
               lang,
-              'This is a farmer account. Please use the farmer login.',
-              'ఇది రైతు ఖాతా. దయచేసి రైతు లాగిన్ వాడండి.',
+              'This number has a farmer account, not an aggregator one.',
+              'ఈ నంబర్‌కు రైతు ఖాతా ఉంది, సమీకరణదారు ఖాతా కాదు.',
             ),
         wrongSurface: true,
         loginPath: SURFACE[actualType].login,
+        canSignUp: true,
       },
       { status: 403 },
     )

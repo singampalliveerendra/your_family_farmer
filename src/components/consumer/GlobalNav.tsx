@@ -206,11 +206,13 @@ function RoleMenu({
           >
             {L('🧑‍🌾 Login as Farmer', 'రైతుగా లాగిన్')}
           </Link>
-          {/* Next to Farmer, since both are selling roles. /aggregator resolves
-              to the dashboard when signed in and to the login page otherwise —
-              the same behaviour as the Farmer entry above. */}
+          {/* Next to Farmer, since both are selling roles. Points at the login
+              page, NOT /aggregator: this is a "switch role" action, and
+              /aggregator resolves to the aggregator dashboard, which bounces a
+              signed-in farmer straight back to the farmer dashboard — so the
+              menu item looked like it was ignoring the tap. */}
           <Link
-            href="/aggregator"
+            href="/aggregator/login"
             onClick={() => setOpen(false)}
             className="block px-4 py-2.5 text-gray-800 active:bg-gray-100"
           >

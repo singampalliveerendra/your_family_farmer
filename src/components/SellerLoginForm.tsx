@@ -62,6 +62,9 @@ export default function SellerLoginForm({ accountType }: { accountType: SellerTy
   // Set when the password was right but the account belongs to the OTHER
   // surface; holds the login path to send them to.
   const [wrongSurface, setWrongSurface] = useState<string | null>(null)
+  // The number has no account on THIS surface, and may open one — a farmer who
+  // has started a collection shop can hold both.
+  const [canSignUp, setCanSignUp] = useState(false)
   const [showForgot, setShowForgot] = useState(false)
 
   // Set when farmerFetch/requireFarmerSession bounced the seller here.
@@ -87,6 +90,7 @@ export default function SellerLoginForm({ accountType }: { accountType: SellerTy
     setError('')
     setNotRegistered(false)
     setWrongSurface(null)
+    setCanSignUp(false)
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -99,6 +103,7 @@ export default function SellerLoginForm({ accountType }: { accountType: SellerTy
       if (json.notRegistered) { setNotRegistered(true); return }
       if (json.wrongSurface && typeof json.loginPath === 'string') {
         setWrongSurface(json.loginPath)
+        setCanSignUp(json.canSignUp === true)
         setError(json.error ?? '')
         return
       }
@@ -205,6 +210,23 @@ export default function SellerLoginForm({ accountType }: { accountType: SellerTy
                   ? L('Go to aggregator login', 'సమీకరణదారు లాగిన్‌కు వెళ్లండి')
                   : L('Go to farmer login', 'రైతు లాగిన్‌కు వెళ్లండి')}
               </Link>
+              {/* Both kinds of account can coexist on one number, so offer to
+                  open this one rather than treating the mismatch as a dead end. */}
+              {canSignUp && (
+                <p className="text-amber-800 pt-1">
+                  {accountType === 'aggregator'
+                    ? L('Collecting from other farmers now?', 'ఇప్పుడు ఇతర రైతుల నుండి సేకరిస్తున్నారా?')
+                    : L('Also growing your own produce?', 'మీ సొంత పంటలు కూడా పండిస్తున్నారా?')}{' '}
+                  <Link
+                    href={`${surface.signupHref}?phone=${digits}`}
+                    className="font-bold underline whitespace-nowrap"
+                  >
+                    {accountType === 'aggregator'
+                      ? L('Create an aggregator account', 'సమీకరణదారు ఖాతా సృష్టించండి')
+                      : L('Create a farmer account', 'రైతు ఖాతా సృష్టించండి')}
+                  </Link>
+                </p>
+              )}
             </div>
           )}
 
@@ -277,10 +299,11 @@ export default function SellerLoginForm({ accountType }: { accountType: SellerTy
       </div>
 
       {showForgot && (
-        // userType stays 'farmer' for both: otp-accounts.ts resolves that to the
-        // `farmers` table, which is where an aggregator's password lives too.
+        // Pass the surface, not a fixed 'farmer': one number can hold both a
+        // farmer and an aggregator account, each with its own password, so the
+        // reset has to land on the one they are actually resetting.
         <ForgotPasswordModal
-          userType="farmer"
+          userType={accountType}
           initialPhone={phone}
           onClose={() => setShowForgot(false)}
           onResetComplete={() => setShowForgot(false)}

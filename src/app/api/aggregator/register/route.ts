@@ -75,9 +75,14 @@ export async function POST(req: NextRequest) {
 
   // Phones may have been stored in older formats (0XXX, +91XXX, 91XXX). Check
   // every variant so we don't create a duplicate row for an existing account.
+  //
+  // Scoped to AGGREGATOR rows only. A farmer who has started collecting from
+  // other farmers keeps their farmer account and opens a second, separate
+  // aggregator account on the same number — so only an existing aggregator
+  // blocks this signup.
   const { data: existing } = await supabase
     .from('farmers')
-    .select('id')
+    .select('id, account_type')
     .or(
       [
         `phone.eq.${phone}`,
@@ -86,11 +91,12 @@ export async function POST(req: NextRequest) {
         `phone.eq.91${phone}`,
       ].join(','),
     )
-    .limit(1)
+    .limit(4)
 
-  if (existing && existing.length > 0) {
+  const aggregatorExists = (existing ?? []).some((r) => r.account_type === 'aggregator')
+  if (aggregatorExists) {
     return NextResponse.json(
-      { error: 'An account already exists for this phone. Please log in.' },
+      { error: 'An aggregator account already exists for this phone. Please log in.' },
       { status: 409 },
     )
   }
