@@ -17,7 +17,7 @@ import DemandSupplyChart from '@/components/DemandSupplyChart'
 import { type CropBalance } from '@/lib/demand-supply'
 import HarvestManager from '@/components/HarvestManager'
 import PayoutDetailsForm from '@/components/farmer/PayoutDetailsForm'
-import SourceFarmersManager from '@/components/SourceFarmersManager'
+import SourceFarmerPicker, { useSourceFarmers } from '@/components/SourceFarmerPicker'
 import { isLikelyUrl, normalizeUrl } from '@/lib/links'
 import {
   clearFarmerLocalSession,
@@ -118,6 +118,9 @@ type ListingRow = {
   delivery_mode: string | null
   delivery_charge: number | null
   delivery_radius_km: number | null
+  // Aggregators only: which of their source farmers grows this produce. Every
+  // harvest logged against the listing inherits it.
+  source_farmer_id?: string | null
   created_at: string
 }
 
@@ -541,11 +544,30 @@ export default function FarmerDashboard() {
       </div>
 
       <div className="px-4 -mt-5 space-y-4">
-        {/* An aggregator's farmer registry. Sits on the dashboard rather than
-            behind Edit Profile because every harvest they log has to pick from
-            this list, so it is day-to-day work, not setup. */}
+        {/* An aggregator's farmer registry — a LINK, not the panel itself
+            (client request 2026-08-14). It stopped being day-to-day work once
+            the farmer moved from the harvest form to the produce form: they now
+            answer it once per produce, not once per pick, so the registry is
+            setup and does not deserve the top of the dashboard. */}
         {farmer?.account_type === 'aggregator' && (
-          <SourceFarmersManager endpoint="/api/aggregator/source-farmers" />
+          <Link
+            href="/aggregator/farmers"
+            className="flex items-center gap-3 bg-white border border-gray-100 shadow-sm rounded-2xl p-4 active:bg-gray-50"
+          >
+            <span className="text-2xl flex-shrink-0">🤝</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-extrabold text-green-800">
+                {L('Farmers you aggregate from', 'మీరు సేకరించే రైతులు')}
+              </p>
+              <p className="text-[11px] text-gray-500 leading-snug mt-0.5">
+                {L(
+                  'Add or edit the farmers you buy from. Each produce you list names one of them.',
+                  'మీరు కొనుగోలు చేసే రైతులను జోడించండి లేదా సవరించండి. మీరు జాబితా చేసే ప్రతి ఉత్పత్తి వారిలో ఒకరిని పేర్కొంటుంది.',
+                )}
+              </p>
+            </div>
+            <span className="text-gray-300 text-xl flex-shrink-0">›</span>
+          </Link>
         )}
 
         {/* Notification permission banner — shown only if browser supports it
@@ -2186,6 +2208,11 @@ function ProduceListingForm({
   // #9 — explicit produce category (drives the consumer category filter).
   const [category, setCategory] = useState(editData?.category ?? '')
   const [unit, setUnit] = useState(editData?.unit ?? 'kg')
+  // Aggregators: which of their farmers grows this produce. Asked here, once,
+  // instead of on every harvest (client request 2026-08-14). Renders nothing
+  // for a plain farmer.
+  const [sourceFarmerId, setSourceFarmerId] = useState(editData?.source_farmer_id ?? '')
+  const { isAggregator, sourceFarmers, noSourceFarmers } = useSourceFarmers(farmerId)
   // #11 — delivery method for this listing: pickup only, farmer courier, or both.
   // Courier collects a flat charge within a radius (km) the farmer sets.
   const [deliveryMode, setDeliveryMode] = useState<'pickup' | 'courier' | 'both'>(
@@ -2309,6 +2336,13 @@ function ProduceListingForm({
       setError(L('Shelf life (days) is required.', 'తాజా (రోజులు) తప్పనిసరి.'))
       return
     }
+    // An aggregator's produce has to name the farmer behind it — the DB trigger
+    // refuses it otherwise, and the buyer's whole reason to trust an aggregator
+    // is seeing who grew what they bought.
+    if (isAggregator && !sourceFarmerId) {
+      setError(L('Choose the farmer who grows this produce.', 'ఈ ఉత్పత్తిని పండించే రైతును ఎంచుకోండి.'))
+      return
+    }
     setLoading(true)
     setError('')
 
@@ -2362,6 +2396,10 @@ function ProduceListingForm({
         delivery_mode: deliveryMode,
         delivery_charge: deliveryMode === 'pickup' ? null : (deliveryCharge ? Number(deliveryCharge) : null),
         delivery_radius_km: deliveryMode === 'pickup' ? null : (deliveryRadius ? Number(deliveryRadius) : null),
+        // Sent only by an aggregator: a plain farmer's payload is unchanged, and
+        // sending null would trip the trigger on an environment where the
+        // column doesn't exist yet.
+        ...(isAggregator && sourceFarmerId ? { source_farmer_id: sourceFarmerId } : {}),
       }
 
       let res: Response
@@ -2429,6 +2467,7 @@ function ProduceListingForm({
     payload.harvest_date = harvestDateIso
     payload.shelf_life_days = shelfLifeVal
     payload.delivery_mode = deliveryMode
+    if (isAggregator && sourceFarmerId) payload.source_farmer_id = sourceFarmerId
     if (deliveryMode !== 'pickup') {
       if (deliveryCharge) payload.delivery_charge = Number(deliveryCharge)
       if (deliveryRadius) payload.delivery_radius_km = Number(deliveryRadius)
@@ -2571,6 +2610,19 @@ function ProduceListingForm({
           />
         </div>
 
+        {/* Who grew it — aggregators only, and the field they must not get
+            wrong, so it sits with the produce's identity rather than further
+            down with the logistics. */}
+        {isAggregator && (
+          <SourceFarmerPicker
+            sourceFarmers={sourceFarmers}
+            noSourceFarmers={noSourceFarmers}
+            value={sourceFarmerId}
+            onChange={setSourceFarmerId}
+            manageHref="/aggregator/farmers"
+          />
+        )}
+
         {/* Quantity */}
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
@@ -2615,6 +2667,7 @@ function ProduceListingForm({
             farmerId={farmerId}
             unit={unit}
             produceShelfLife={shelfLifeDays ? parseInt(shelfLifeDays, 10) : null}
+            sourceFarmerId={editData.source_farmer_id ?? null}
           />
         )}
 

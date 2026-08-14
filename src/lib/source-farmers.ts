@@ -97,9 +97,11 @@ export async function updateSourceFarmer(
 
 /**
  * Deleting a farmer who has harvests on record would erase the attribution that
- * is the whole point of the feature. harvests.source_farmer_id is ON DELETE
- * RESTRICT so the database refuses it regardless; this check exists to turn that
- * into a sentence a human can act on.
+ * is the whole point of the feature. Both harvests.source_farmer_id and
+ * produce_listings.source_farmer_id are ON DELETE RESTRICT so the database
+ * refuses it regardless; these checks exist to turn that into a sentence a human
+ * can act on — and to name the right thing to unpick, since a listing that names
+ * the farmer blocks the delete even before it has a single harvest.
  */
 export async function deleteSourceFarmer(
   svc: SupabaseClient,
@@ -118,6 +120,21 @@ export async function deleteSourceFarmer(
       error:
         `This farmer has ${count} harvest${count === 1 ? '' : 's'} on record and cannot be removed. ` +
         'Buyers need to see who grew what they bought.',
+    }
+  }
+
+  const { count: listingCount } = await svc
+    .from('produce_listings')
+    .select('id', { count: 'exact', head: true })
+    .eq('source_farmer_id', id)
+
+  if ((listingCount ?? 0) > 0) {
+    return {
+      ok: false,
+      status: 409,
+      error:
+        `This farmer is named on ${listingCount} produce listing${listingCount === 1 ? '' : 's'}. ` +
+        'Point those at another farmer (or delete them) first.',
     }
   }
 

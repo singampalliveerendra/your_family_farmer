@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import HarvestManager from '@/components/HarvestManager'
+import { useSourceFarmers, sourceFarmerLabel } from '@/components/SourceFarmerPicker'
 
 // Shared add/edit form for a farmer's harvest listing, used by both
 //   /moderator/listings/new          (mode="create")
@@ -52,6 +53,10 @@ export type ListingFormValues = {
   delivery_mode: string
   delivery_charge: string
   delivery_radius_km: string
+  // Aggregator sellers only: which of their source farmers grows this produce.
+  // Mirrors the farmer dashboard's produce form — the selection lives on the
+  // produce, and every harvest logged against it inherits the farmer.
+  source_farmer_id: string
 }
 
 export const EMPTY_LISTING_FORM: ListingFormValues = {
@@ -64,6 +69,7 @@ export const EMPTY_LISTING_FORM: ListingFormValues = {
   availability_from: '', availability_to: '',
   harvest_frequency: '', harvest_frequency_count: '',
   delivery_mode: 'pickup', delivery_charge: '', delivery_radius_km: '',
+  source_farmer_id: '',
 }
 
 const DELIVERY_MODES = [
@@ -122,6 +128,20 @@ export default function ListingForm({
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
 
+  // Only fires for an aggregator seller; a plain farmer gets no extra field.
+  // Keyed on the chosen farmer, so switching sellers in create mode reloads
+  // the right registry.
+  const { isAggregator, sourceFarmers, noSourceFarmers } = useSourceFarmers(farmerId)
+
+  // Switching the seller invalidates any farmer already chosen — it belongs to
+  // the previous aggregator's list, and the DB refuses a cross-aggregator
+  // attribution. Skipped on the first render so an edit keeps its saved value.
+  const [lastFarmerId, setLastFarmerId] = useState(initialFarmerId)
+  if (farmerId !== lastFarmerId) {
+    setLastFarmerId(farmerId)
+    if (form.source_farmer_id) setForm((f) => ({ ...f, source_farmer_id: '' }))
+  }
+
   const set = (k: keyof ListingFormValues) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
@@ -176,6 +196,11 @@ export default function ListingForm({
     const shelfNum = parseInt(form.shelf_life_days, 10)
     if (!form.shelf_life_days || !Number.isFinite(shelfNum) || shelfNum <= 0) {
       setError('Shelf life (days) is required.'); return
+    }
+    // An aggregator's produce must name the farmer behind it (the DB trigger
+    // refuses it otherwise). Same rule the farmer dashboard enforces.
+    if (isAggregator && !form.source_farmer_id) {
+      setError('Choose the farmer who grows this produce.'); return
     }
     setError(''); setSubmitting(true)
 
@@ -272,6 +297,26 @@ export default function ListingForm({
         )}
       </Field>
 
+      {/* Aggregator sellers only: who actually grows this produce. Sits right
+          under the seller, since it only makes sense as a follow-up to it. */}
+      {isAggregator && (
+        noSourceFarmers ? (
+          <p className="text-xs text-amber-900 bg-amber-50 border border-amber-300 rounded-xl px-3 py-2 font-semibold leading-snug">
+            This aggregator has no farmers in their list yet. Add them on the aggregator&apos;s
+            edit page first — every produce they list has to name one.
+          </p>
+        ) : (
+          <Field label="Farmer who grows this *">
+            <select value={form.source_farmer_id} onChange={set('source_farmer_id')} className={inputCls}>
+              <option value="">Select a farmer…</option>
+              {sourceFarmers.map((r) => (
+                <option key={r.id} value={r.id}>{sourceFarmerLabel(r)}</option>
+              ))}
+            </select>
+          </Field>
+        )
+      )}
+
       <div>
         <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wide block mb-1">Icon</span>
         <div className="flex flex-wrap gap-2">
@@ -341,6 +386,7 @@ export default function ListingForm({
             farmerId={farmerId}
             unit={form.unit}
             produceShelfLife={form.shelf_life_days ? parseInt(form.shelf_life_days, 10) : null}
+            sourceFarmerId={initialForm.source_farmer_id || null}
           />
         </div>
       )}

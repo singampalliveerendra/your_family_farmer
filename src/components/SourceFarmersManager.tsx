@@ -4,9 +4,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
 
 // The farmers an aggregator sources from. Rendered in two places — the
-// aggregator's own dashboard and the moderator's farmer edit screen — with the
-// same rules on both, per the farmer↔moderator parity rule. The only difference
-// is the endpoint and, for the moderator, an aggregatorId on writes.
+// aggregator's own /aggregator/farmers page and the moderator's farmer edit
+// screen — with the same rules on both, per the farmer↔moderator parity rule.
+// The only difference is the endpoint and, for the moderator, an aggregatorId
+// on writes.
 //
 // Both endpoints validate through @/lib/source-farmers, so nothing here is the
 // last line of defence; the inline checks are only to save a round trip.
@@ -129,10 +130,10 @@ export default function SourceFarmersManager({
     'w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:border-green-500 focus:outline-none'
 
   return (
-    /* bg-white is load-bearing, not decoration: on the dashboard this card sits
-       in a `-mt-5` container that pulls it up over the green hero, so a
+    /* bg-white is load-bearing, not decoration: on its own page this card sits
+       in a `-mt-5` container that pulls it up over the green header, so a
        transparent panel shows green through its top and page-grey through the
-       rest. Matches the card style used by every other section there. */
+       rest. Matches the card style used by every other section. */
     <div className="space-y-4 bg-white border border-gray-100 shadow-sm rounded-2xl p-4">
       <div>
         <h4 className="text-sm font-extrabold text-green-800">
@@ -140,8 +141,8 @@ export default function SourceFarmersManager({
         </h4>
         <p className="text-[11px] text-gray-500 mt-0.5">
           {L(
-            'Every harvest you list must name one of these farmers. Buyers see their name, village and phone.',
-            'మీరు జాబితా చేసే ప్రతి కోత ఈ రైతులలో ఒకరిని పేర్కొనాలి. కొనుగోలుదారులకు వారి పేరు, ఊరు, ఫోన్ కనిపిస్తాయి.',
+            'Every produce you list must name one of these farmers. Buyers see their name, village and phone.',
+            'మీరు జాబితా చేసే ప్రతి ఉత్పత్తి ఈ రైతులలో ఒకరిని పేర్కొనాలి. కొనుగోలుదారులకు వారి పేరు, ఊరు, ఫోన్ కనిపిస్తాయి.',
           )}
         </p>
       </div>
