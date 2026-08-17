@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase'
 import { haversineKm, nearestTown, formatDistance, farmerCoords, townByName } from '@/lib/location'
 import { todayInIndia, isPastDate } from '@/lib/date'
 import LocationSearch from '@/components/LocationSearch'
+import InstallAppCard from '@/components/InstallAppCard'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
@@ -496,6 +497,9 @@ export default function ConsumerPage() {
 
       {/* ── Fresh Harvests table + Search card (float over hero) ────── */}
       <div className="max-w-3xl mx-auto px-4 -mt-7 space-y-3">
+        {/* Renders nothing unless this browser can actually install the app, so
+            it costs the page nothing on desktop or for anyone already installed. */}
+        <InstallAppCard />
         {/* Fresh + upcoming harvests near you, above the search box. Sit side by
             side on larger screens, stacked on mobile. Each renders nothing when
             it has no matching harvests / the harvests table isn't present yet. */}
