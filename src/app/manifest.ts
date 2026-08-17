@@ -21,7 +21,12 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Go Grameen",
     description:
       "Buy natural harvests directly from farmers in Andhra Pradesh. No middlemen.",
-    start_url: "/",
+    // The ?pwa=1 is how `/` tells an app launch apart from someone typing
+    // gogrameen.in, which now lands on the /home promo page. Without it the
+    // installed app would open on a page selling itself.
+    // `id` stays "/", so this is NOT a new app identity — existing installs
+    // keep their icon and simply pick up the new start_url.
+    start_url: "/?pwa=1",
     scope: "/",
     display: "standalone",
     // The whole UI is built to a 390px viewport; letting a tablet launch it
