@@ -298,15 +298,44 @@ export default async function HomePage() {
       </section>
 
       {/* ── Footer ─────────────────────────────────────────────────── */}
-      <footer className="relative z-10 border-t border-white/10 px-4 py-8 text-center">
-        <p className="text-xs text-lime-100/40">
-          Go Grameen · Your Family Farmer
-        </p>
-        <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs font-semibold text-lime-100/60">
+      <footer className="relative z-10 border-t border-white/10 px-4 py-10 text-center">
+        <div className="mt-1 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs font-semibold text-lime-100/60">
           <Link href="/consumer" className="hover:text-lime-300">Browse harvests</Link>
           <Link href="/farmer/login" className="hover:text-lime-300">Farmer login</Link>
           <Link href="/aggregator/login" className="hover:text-lime-300">Aggregator login</Link>
         </div>
+
+        {/* Contact. Real mailto:/tel: links, not plain text — on a phone the
+            number has to be one tap to dial, which is the whole point of
+            putting it here. */}
+        <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
+          <a
+            href="mailto:gograameen@zohomail.in"
+            className="inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-lime-100 transition hover:border-lime-300/50 hover:text-white"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9}
+                 strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-lime-300" aria-hidden>
+              <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" />
+              <path d="m3 7 8.2 5.6a1.5 1.5 0 0 0 1.6 0L21 7" />
+            </svg>
+            gograameen@zohomail.in
+          </a>
+
+          <a
+            href="tel:+917893074271"
+            className="inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-lime-100 transition hover:border-lime-300/50 hover:text-white"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9}
+                 strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-lime-300" aria-hidden>
+              <path d="M6.2 3.5h3l1.5 4-2 1.4a12.5 12.5 0 0 0 6.4 6.4l1.4-2 4 1.5v3a2 2 0 0 1-2.2 2A17.5 17.5 0 0 1 4.2 5.7a2 2 0 0 1 2-2.2Z" />
+            </svg>
+            7893074271
+          </a>
+        </div>
+
+        <p className="mt-7 text-xs text-lime-100/40">
+          Go Grameen · Your Family Farmer
+        </p>
       </footer>
     </main>
   )
