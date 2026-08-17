@@ -15,6 +15,7 @@ import { haversineKm, nearestTown, formatDistance, farmerCoords, townByName } fr
 import { todayInIndia, isPastDate } from '@/lib/date'
 import LocationSearch from '@/components/LocationSearch'
 import InstallAppFab from '@/components/InstallAppFab'
+import InstallAppBar from '@/components/InstallAppBar'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
@@ -480,17 +481,22 @@ export default function ConsumerPage() {
             {L('Straight from the farm. No Middlemen', 'నేరుగా పొలం నుండి. మధ్యవర్తులు లేరు')}
           </p>
 
-          {/* My Orders quick link (only when logged in) + location on the right */}
+          {/* My Orders quick link (only when logged in) + Get App and location
+              paired on the right. The pair shares one ml-auto so they stay
+              together as a unit instead of drifting apart on a wide screen. */}
           <div className="mt-5 flex items-center gap-2">
             <MyOrdersChip />
-            <button
-              onClick={() => setShowLocationSheet(true)}
-              aria-label={L('Set location', 'లొకేషన్ పెట్టండి')}
-              className="ml-auto inline-flex items-center gap-1 text-xs font-bold text-green-100 bg-green-800 active:bg-green-700 rounded-full px-3 py-2 leading-tight max-w-[160px]"
-            >
-              <span aria-hidden>📍</span>
-              <span className="truncate">{consumerLocationName || L('Set location', 'లొకేషన్ పెట్టండి')}</span>
-            </button>
+            <div className="ml-auto flex items-center gap-2 min-w-0">
+              <InstallAppBar />
+              <button
+                onClick={() => setShowLocationSheet(true)}
+                aria-label={L('Set location', 'లొకేషన్ పెట్టండి')}
+                className="inline-flex items-center gap-1 text-xs font-bold text-green-100 bg-green-800 active:bg-green-700 rounded-full px-3 py-2 leading-tight max-w-[160px]"
+              >
+                <span aria-hidden>📍</span>
+                <span className="truncate">{consumerLocationName || L('Set location', 'లొకేషన్ పెట్టండి')}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

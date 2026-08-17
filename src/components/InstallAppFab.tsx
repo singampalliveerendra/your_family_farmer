@@ -1,185 +1,190 @@
 'use client'
 
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
+import { useInstallState, runInstall, dismissInstall, DownloadIcon } from '@/lib/installPrompt'
 
-/* Floating "install the app" ball — an AssistiveTouch-style bubble parked on
- * the left edge, which opens a small popover with the Download button.
+/* Draggable "download the app" ball — an AssistiveTouch-style bubble the buyer
+ * can move anywhere on screen, so it never sits on top of what they're reading.
  *
- * A ball rather than a card in the page: the install offer should follow the
- * buyer while they browse, not scroll away after two swipes.
+ * Starts bottom-LEFT: CartFab is `fixed right-4` at the same height, so the
+ * right corner is taken. This runs on z-[55], one layer under it, and under
+ * every modal.
  *
- * LEFT edge on purpose. CartFab is `fixed right-4 z-[60]` at the same height,
- * so the right side is taken; this sits at the mirrored offset on `z-[55]`, one
- * layer below, so the cart and every modal keep winning any overlap.
- *
- * There is no APK and nothing downloads — Chrome mints the app from
- * /manifest.webmanifest. "Download" is simply the word buyers understand.
- *
- * Renders NOTHING unless installing is genuinely possible, so already-installed
- * users, desktop browsers and anyone who dismissed it see an unchanged page. */
+ * Position is remembered per device. The popover flips side and vertical
+ * anchor based on where the ball has been dragged, so it can never open off
+ * the edge of the screen. */
 
-// Not in TS's lib.dom yet — Chromium-only.
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+const SIZE = 56          // h-14 / w-14
+const MARGIN = 8         // keep the ball this far from every edge
+const POPOVER_W = 240    // w-60
+const POS_KEY = 'yff_install_ball_pos'
+
+type Pos = { x: number; y: number }
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi)
+
+function clampToViewport(p: Pos): Pos {
+  return {
+    x: clamp(p.x, MARGIN, Math.max(MARGIN, window.innerWidth - SIZE - MARGIN)),
+    y: clamp(p.y, MARGIN, Math.max(MARGIN, window.innerHeight - SIZE - MARGIN)),
+  }
 }
 
-const DISMISS_KEY = 'yff_install_card_dismissed'
-
-// Matches CartFab's own offset so the two balls sit level.
-const BOTTOM = 'max(24px, env(safe-area-inset-bottom, 24px))'
-
-function isStandalone(): boolean {
-  if (typeof window === 'undefined') return false
-  return (
-    window.matchMedia?.('(display-mode: standalone)').matches ||
-    // iOS Safari's own flag — it does not implement display-mode.
-    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
-  )
+/* Runs in the useState initialiser, i.e. during the hydration render. Safe:
+   the component returns null until the store reports something to offer, so
+   nothing derived from `window` reaches the server-rendered DOM. */
+function initialPos(): Pos | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(POS_KEY)
+    if (raw) {
+      const p = JSON.parse(raw) as Pos
+      if (typeof p?.x === 'number' && typeof p?.y === 'number') return clampToViewport(p)
+    }
+  } catch { /* fall through to the default corner */ }
+  return { x: 12, y: window.innerHeight - SIZE - 24 }
 }
-
-function isIOS(): boolean {
-  if (typeof navigator === 'undefined') return false
-  return /iPad|iPhone|iPod/.test(navigator.userAgent)
-}
-
-function wasDismissed(): boolean {
-  try { return localStorage.getItem(DISMISS_KEY) === '1' } catch { return false }
-}
-
-/* The server has no window, so anything derived from it must render as absent
-   first and appear only after hydration. useSyncExternalStore is the supported
-   way to say that — not a setState in an effect, which React 19 flags. */
-const neverChanges = () => () => {}
-const onClient = () => true
-const onServer = () => false
 
 export default function InstallAppFab() {
   const { L } = useLang()
-  const [prompt, setPrompt] = useState<BeforeInstallPromptEvent | null>(null)
-  const [dismissed, setDismissed] = useState(false)
+  const { canPrompt, iosHint } = useInstallState()
   const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<Pos | null>(initialPos)
 
-  const hydrated = useSyncExternalStore(neverChanges, onClient, onServer)
+  const ballRef = useRef<HTMLButtonElement>(null)
+  // Drag bookkeeping lives in a ref: it changes on every pointermove and must
+  // not re-render the page 60 times a second.
+  const drag = useRef({ active: false, startX: 0, startY: 0, dx: 0, dy: 0, moved: 0 })
 
+  // A rotation or a desktop resize can leave a remembered position off-screen.
   useEffect(() => {
-    // iOS never fires beforeinstallprompt, and an installed app never fires it
-    // again — neither case needs a listener.
-    if (isStandalone() || isIOS()) return
-
-    const onPrompt = (e: Event) => {
-      // Without this Chrome shows its own mini-infobar and withholds the event.
-      e.preventDefault()
-      setPrompt(e as BeforeInstallPromptEvent)
-    }
-    const onInstalled = () => { setPrompt(null); setOpen(false) }
-
-    window.addEventListener('beforeinstallprompt', onPrompt)
-    window.addEventListener('appinstalled', onInstalled)
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onPrompt)
-      window.removeEventListener('appinstalled', onInstalled)
-    }
+    const onResize = () => setPos((p) => (p ? clampToViewport(p) : p))
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  // iOS gets manual steps instead of a button that cannot work there.
-  const iosHint = hydrated && isIOS() && !isStandalone()
+  const onPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const el = ballRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    drag.current = {
+      active: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      dx: e.clientX - r.left,
+      dy: e.clientY - r.top,
+      moved: 0,
+    }
+    // Keeps the moves coming even if the finger outruns the ball.
+    el.setPointerCapture(e.pointerId)
+  }
+
+  const onPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = drag.current
+    if (!d.active) return
+    d.moved = Math.hypot(e.clientX - d.startX, e.clientY - d.startY)
+    setPos(clampToViewport({ x: e.clientX - d.dx, y: e.clientY - d.dy }))
+  }
+
+  const onPointerUp = () => {
+    const d = drag.current
+    if (!d.active) return
+    d.active = false
+    // Under the threshold it was a tap, not a drag — a finger never holds
+    // perfectly still, so an exact-zero test would make the ball untappable.
+    if (d.moved < 8) {
+      setOpen((v) => !v)
+      return
+    }
+    if (pos) { try { localStorage.setItem(POS_KEY, JSON.stringify(pos)) } catch { /* ignore */ } }
+  }
 
   const install = async () => {
-    if (!prompt) return
-    await prompt.prompt()
-    const { outcome } = await prompt.userChoice
-    // Single-use event: Chrome fires a fresh one if they change their mind.
-    setPrompt(null)
     setOpen(false)
-    if (outcome === 'accepted') hide()
+    await runInstall()
   }
 
-  const hide = () => {
-    setDismissed(true)
-    setOpen(false)
-    try { localStorage.setItem(DISMISS_KEY, '1') } catch { /* ignore */ }
-  }
+  if (!canPrompt && !iosHint) return null
+  if (!pos) return null
 
-  if (!hydrated || dismissed || wasDismissed()) return null
-  if (!prompt && !iosHint) return null
+  // Flip the popover so it always opens into the screen, never off it.
+  const openLeft = pos.x > window.innerWidth / 2
+  const openUp = pos.y > window.innerHeight / 2
+  const popStyle: React.CSSProperties = {
+    left: openLeft ? clamp(pos.x + SIZE - POPOVER_W, MARGIN, window.innerWidth - POPOVER_W - MARGIN) : clamp(pos.x, MARGIN, Math.max(MARGIN, window.innerWidth - POPOVER_W - MARGIN)),
+    ...(openUp
+      ? { bottom: window.innerHeight - pos.y + MARGIN }
+      : { top: pos.y + SIZE + MARGIN }),
+  }
 
   return (
     <>
-      {/* Tap-away layer. Only mounted while open, so it never intercepts taps
-          on the page underneath the rest of the time. */}
+      {/* Tap-away layer, mounted only while open so it never intercepts taps. */}
+      {open && <div className="fixed inset-0 z-[54]" onClick={() => setOpen(false)} aria-hidden />}
+
       {open && (
         <div
-          className="fixed inset-0 z-[54]"
-          onClick={() => setOpen(false)}
-          aria-hidden
-        />
+          role="dialog"
+          aria-label={L('Download Go Grameen App', 'గో గ్రామీణ్ యాప్ డౌన్‌లోడ్')}
+          className="fixed z-[56] w-60 rounded-2xl border border-green-200 bg-white p-3.5 shadow-2xl"
+          style={popStyle}
+        >
+          <h3 className="text-green-900 font-extrabold text-sm leading-tight">
+            {L('Download Go Grameen App', 'గో గ్రామీణ్ యాప్')}
+          </h3>
+          <p className="text-green-800 text-xs mt-1 leading-snug">
+            {iosHint
+              ? L('Add it to your home screen.', 'హోమ్ స్క్రీన్‌కు జోడించండి.')
+              : L('Add it to your phone. No Play Store needed.', 'మీ ఫోన్‌లో పెట్టుకోండి. ప్లే స్టోర్ అవసరం లేదు.')}
+          </p>
+
+          {iosHint ? (
+            <ol className="mt-2.5 text-xs text-green-900 space-y-1 list-decimal list-inside">
+              <li>{L('Tap Share', 'షేర్ నొక్కండి')} <span aria-hidden>⬆️</span></li>
+              <li>{L('Choose "Add to Home Screen"', '"Add to Home Screen" ఎంచుకోండి')}</li>
+            </ol>
+          ) : (
+            <button
+              onClick={install}
+              className="mt-3 w-full bg-green-700 text-white font-bold py-2.5 rounded-xl text-sm active:bg-green-800"
+            >
+              {L('Download App', 'డౌన్‌లోడ్ చేయండి')}
+            </button>
+          )}
+
+          <button
+            onClick={() => { setOpen(false); dismissInstall() }}
+            className="mt-2 w-full text-green-700 text-xs font-semibold py-1 active:text-green-900"
+          >
+            {L("Don't show again", 'మళ్లీ చూపవద్దు')}
+          </button>
+        </div>
       )}
 
-      <div className="fixed left-3 z-[55] flex flex-col items-start gap-2" style={{ bottom: BOTTOM }}>
-        {/* ── The popover ─────────────────────────────── */}
-        {open && (
-          <div
-            role="dialog"
-            aria-label={L('Download Go Grameen App', 'గో గ్రామీణ్ యాప్ డౌన్‌లోడ్')}
-            className="w-60 rounded-2xl border border-green-200 bg-white p-3.5 shadow-2xl"
-          >
-            <div className="flex items-start gap-2">
-              <span className="text-xl leading-none" aria-hidden>📲</span>
-              <div className="min-w-0">
-                <h3 className="text-green-900 font-extrabold text-sm leading-tight">
-                  {L('Download Go Grameen App', 'గో గ్రామీణ్ యాప్')}
-                </h3>
-                <p className="text-green-800 text-xs mt-1 leading-snug">
-                  {iosHint
-                    ? L('Add it to your home screen.', 'హోమ్ స్క్రీన్‌కు జోడించండి.')
-                    : L('Add it to your phone. No Play Store needed.', 'మీ ఫోన్‌లో పెట్టుకోండి. ప్లే స్టోర్ అవసరం లేదు.')}
-                </p>
-              </div>
-            </div>
-
-            {iosHint ? (
-              <ol className="mt-2.5 text-xs text-green-900 space-y-1 list-decimal list-inside">
-                <li>{L('Tap Share', 'షేర్ నొక్కండి')} <span aria-hidden>⬆️</span></li>
-                <li>{L('Choose "Add to Home Screen"', '"Add to Home Screen" ఎంచుకోండి')}</li>
-              </ol>
-            ) : (
-              <button
-                onClick={install}
-                className="mt-3 w-full bg-green-700 text-white font-bold py-2.5 rounded-xl text-sm active:bg-green-800"
-              >
-                {L('Download App', 'డౌన్‌లోడ్ చేయండి')}
-              </button>
-            )}
-
-            <button
-              onClick={hide}
-              className="mt-2 w-full text-green-700 text-xs font-semibold py-1 active:text-green-900"
-            >
-              {L("Don't show again", 'మళ్లీ చూపవద్దు')}
-            </button>
-          </div>
+      <button
+        ref={ballRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        aria-expanded={open}
+        aria-label={L('Download Go Grameen App', 'గో గ్రామీణ్ యాప్ డౌన్‌లోడ్')}
+        className="fixed z-[55] h-14 w-14 rounded-full bg-green-700 text-white shadow-2xl flex items-center justify-center active:bg-green-800"
+        // touch-action:none is what makes the drag work on a phone — without it
+        // the browser claims the gesture as a page scroll.
+        style={{ left: pos.x, top: pos.y, touchAction: 'none' }}
+      >
+        {!open && (
+          <span
+            className="absolute inset-0 rounded-full bg-green-500 opacity-60 animate-ping pointer-events-none"
+            aria-hidden
+          />
         )}
-
-        {/* ── The ball ────────────────────────────────── */}
-        <button
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          aria-label={L('Download Go Grameen App', 'గో గ్రామీణ్ యాప్ డౌన్‌లోడ్')}
-          className="relative h-14 w-14 rounded-full bg-green-700 text-white shadow-2xl flex items-center justify-center text-2xl active:bg-green-800"
-        >
-          {/* One-shot attention ring. `pointer-events-none` so it never eats the
-              tap, and it stops once opened so it isn't a permanent distraction. */}
-          {!open && (
-            <span
-              className="absolute inset-0 rounded-full bg-green-500 opacity-60 animate-ping pointer-events-none"
-              aria-hidden
-            />
-          )}
-          <span className="relative" aria-hidden>{open ? '×' : '📲'}</span>
-        </button>
-      </div>
+        <span className="relative flex items-center justify-center">
+          {open ? <span className="text-2xl leading-none" aria-hidden>×</span> : <DownloadIcon />}
+        </span>
+      </button>
     </>
   )
 }
