@@ -3,12 +3,15 @@
 import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
 
-/* "Who are you?" — the landing page's way into the four public surfaces.
+/* "Who are you?" — the landing page's way into the public selling surfaces.
  *
- * Mirrors RoleGateModal's buyer/farmer split and extends it with the two roles
- * that already exist in GlobalNav's switch menu. Moderator is deliberately NOT
- * here: it is staff-only and has no business being advertised on a public
- * marketing page. Staff go straight to /moderator/login. */
+ * Mirrors RoleGateModal's buyer/farmer split, plus the aggregator entry that
+ * already exists in GlobalNav's switch menu.
+ *
+ * Two roles are deliberately absent. Moderator is staff-only and has no
+ * business on a public marketing page. Delivery rider was removed at the
+ * client's request — riders are recruited, not signed up off a landing page.
+ * Both still reach their own logins directly (/moderator/login, /rider). */
 
 type Role = {
   href: string
@@ -36,12 +39,6 @@ const ROLES: Role[] = [
     title: ["I'm an Aggregator", 'నేను అగ్రిగేటర్‌ని'],
     blurb: ['Sell for many farmers — each one named.', 'రైతుల తరఫున అమ్మండి — ప్రతి పేరు కనిపిస్తుంది.'],
   },
-  {
-    href: '/rider',
-    emoji: '🛵',
-    title: ["I'm a Delivery Rider", 'నేను డెలివరీ రైడర్‌ని'],
-    blurb: ['Pick up nearby jobs and deliver fresh.', 'దగ్గరలోని డెలివరీలు తీసుకోండి.'],
-  },
 ]
 
 export default function RoleSelect() {
@@ -53,7 +50,9 @@ export default function RoleSelect() {
         <Link
           key={r.href}
           href={r.href}
-          className="gghome-card gghome-rise group flex items-center gap-3.5 rounded-2xl border border-white/10 bg-white/5 p-4 text-left backdrop-blur-sm transition hover:border-lime-300/50 hover:bg-white/10"
+          /* Three cards in a two-column grid leaves an odd one out, so the last
+             one spans the full width rather than sitting in a lopsided gap. */
+          className="gghome-card gghome-rise group flex items-center gap-3.5 rounded-2xl border border-white/10 bg-white/5 p-4 text-left backdrop-blur-sm transition hover:border-lime-300/50 hover:bg-white/10 sm:last:col-span-2"
           style={{ animationDelay: `${0.05 * i}s` }}
         >
           <span

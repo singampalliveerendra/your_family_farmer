@@ -1,72 +1,168 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
 import { useInstallState, runInstall, DownloadIcon } from '@/lib/installPrompt'
+import { writeEntryRole, type EntryRole } from '@/lib/entryRole'
 
-/* The landing page's primary call to action.
+/* The landing page's call to action.
  *
- * Unlike the pill and the ball on /consumer, this one is ALWAYS visible — it is
- * the reason the page exists, so it must never render as an empty hole. It just
- * changes what it does:
+ * Tapping Download opens a chooser first — Consumer or Farmer/Aggregator — and
+ * the answer is remembered in a cookie so `/`, the PWA's start_url, opens the
+ * installed app straight onto that surface.
  *
- *   Chrome, installable   → raises the real install dialog
- *   iOS Safari            → Share → Add to Home Screen steps
- *   already installed /   → sends them into the app instead, which is the
- *   no prompt available      thing the button was promising anyway
- */
-export default function HomeInstallCta({ size = 'lg' }: { size?: 'lg' | 'md' }) {
+ * Note this is ONE app, not two. A PWA has a single manifest and a single
+ * start_url, so the choice cannot mint two separate icons in the drawer; it
+ * decides where the one icon lands. Either way they can still switch roles from
+ * the app's own menu afterwards.
+ *
+ * The install dialog is raised from the chooser button's own click, which keeps
+ * it inside a user gesture — Chrome refuses prompt() outside one.
+ *
+ * Unlike the pill and ball on /consumer this is ALWAYS visible: the page exists
+ * to promote the install, so it must never render as an empty hole. It falls
+ * back to "Open App" for anyone already installed. */
+
+type Props = { size?: 'lg' | 'compact' }
+
+export default function HomeInstallCta({ size = 'lg' }: Props) {
   const { L } = useLang()
   const { canPrompt, iosHint } = useInstallState()
+  const [chooser, setChooser] = useState(false)
+  // iOS has no dialog to raise, so after choosing we keep the sheet open and
+  // show the manual Add-to-Home-Screen steps instead.
+  const [chosen, setChosen] = useState<EntryRole | null>(null)
 
-  const cls =
-    size === 'lg'
-      ? 'w-full sm:w-auto px-8 py-4 text-base'
-      : 'w-full sm:w-auto px-6 py-3.5 text-sm'
+  const compact = size === 'compact'
+  const offersInstall = canPrompt || iosHint
 
   const shell =
-    `gghome-cta inline-flex items-center justify-center gap-2.5 rounded-2xl font-extrabold ` +
+    `inline-flex items-center justify-center gap-2 font-extrabold ` +
     `bg-lime-300 text-green-950 shadow-[0_10px_40px_-10px_rgba(163,230,53,0.7)] ` +
-    `active:bg-lime-400 transition ${cls}`
+    `active:bg-lime-400 transition ` +
+    (compact ? 'px-4 py-2 text-xs rounded-full' : 'w-full sm:w-auto px-8 py-4 text-base rounded-2xl')
 
-  if (canPrompt) {
-    return (
-      <div className="w-full sm:w-auto">
-        <button onClick={() => { void runInstall() }} className={shell}>
-          <DownloadIcon className="h-5 w-5" />
-          {L('Download App', 'యాప్ డౌన్‌లోడ్ చేయండి')}
-        </button>
-        <p className="mt-2 text-center text-xs text-lime-200/70">
-          {L('Free · No Play Store · Installs in seconds', 'ఉచితం · ప్లే స్టోర్ అవసరం లేదు')}
-        </p>
-      </div>
-    )
+  const choose = async (role: EntryRole) => {
+    writeEntryRole(role)
+    if (canPrompt) {
+      setChooser(false)
+      await runInstall()
+      return
+    }
+    setChosen(role)
   }
 
-  if (iosHint) {
-    return (
-      <div className="w-full sm:w-auto">
-        <div className={`${shell} cursor-default`}>
-          <DownloadIcon className="h-5 w-5" />
-          {L('Add to Home Screen', 'హోమ్ స్క్రీన్‌కు జోడించండి')}
-        </div>
-        <p className="mt-2 text-center text-xs text-lime-200/80">
-          {L('Tap Share ⬆️ then "Add to Home Screen"', 'షేర్ ⬆️ నొక్కి "Add to Home Screen" ఎంచుకోండి')}
-        </p>
-      </div>
-    )
-  }
+  const label = canPrompt
+    ? L('Download App', 'యాప్ డౌన్‌లోడ్ చేయండి')
+    : iosHint
+      ? L('Add to Home Screen', 'హోమ్ స్క్రీన్‌కు జోడించండి')
+      : L('Open App', 'యాప్ తెరవండి')
 
-  // Already installed, or a browser that never offers it. Never a dead button.
   return (
-    <div className="w-full sm:w-auto">
-      <Link href="/consumer" className={shell}>
-        <DownloadIcon className="h-5 w-5" />
-        {L('Open the App', 'యాప్ తెరవండి')}
-      </Link>
-      <p className="mt-2 text-center text-xs text-lime-200/70">
-        {L('Works in your browser — nothing to download', 'బ్రౌజర్‌లోనే పనిచేస్తుంది')}
-      </p>
-    </div>
+    <>
+      <div className={compact ? '' : 'w-full sm:w-auto'}>
+        {offersInstall ? (
+          <button onClick={() => { setChosen(null); setChooser(true) }} className={shell}>
+            <DownloadIcon className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
+            {compact ? L('Download App', 'డౌన్‌లోడ్') : label}
+          </button>
+        ) : (
+          // Already installed, or a browser that never offers a prompt. `/`
+          // honours whatever they picked before, so it is the right target.
+          <Link href="/" className={shell}>
+            <DownloadIcon className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
+            {compact ? L('Open App', 'తెరవండి') : label}
+          </Link>
+        )}
+
+        {!compact && offersInstall && (
+          <p className="mt-2 text-center text-xs text-lime-200/70">
+            {L('Free · No Play Store · Installs in seconds', 'ఉచితం · ప్లే స్టోర్ అవసరం లేదు')}
+          </p>
+        )}
+      </div>
+
+      {/* ── Chooser sheet ─────────────────────────────────────────── */}
+      {chooser && (
+        <div
+          className="fixed inset-0 z-[300] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          onClick={() => setChooser(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={L('Choose how you will use the app', 'మీరు యాప్‌ను ఎలా వాడతారు')}
+            className="w-full max-w-md rounded-t-3xl border border-lime-300/20 bg-[#081a10] p-5 text-left shadow-2xl sm:rounded-3xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {chosen ? (
+              /* iOS follow-up: the choice is saved, now the manual steps. */
+              <>
+                <h3 className="brand-wordmark text-xl font-bold text-white">
+                  {L('Almost there', 'దాదాపు పూర్తయింది')}
+                </h3>
+                <p className="mt-1.5 text-sm text-lime-100/70">
+                  {chosen === 'seller'
+                    ? L('The app will open on the farmer login.', 'యాప్ రైతు లాగిన్‌తో తెరుచుకుంటుంది.')
+                    : L('The app will open on today’s harvests.', 'యాప్ నేటి కోతలతో తెరుచుకుంటుంది.')}
+                </p>
+                <ol className="mt-4 space-y-2 text-sm text-white">
+                  <li className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    1. {L('Tap the Share button', 'షేర్ బటన్ నొక్కండి')} <span aria-hidden>⬆️</span>
+                  </li>
+                  <li className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    2. {L('Choose “Add to Home Screen”', '“Add to Home Screen” ఎంచుకోండి')}
+                  </li>
+                </ol>
+                <button
+                  onClick={() => setChooser(false)}
+                  className="mt-4 w-full rounded-2xl bg-lime-300 py-3 text-sm font-extrabold text-green-950"
+                >
+                  {L('Got it', 'సరే')}
+                </button>
+              </>
+            ) : (
+              <>
+                <h3 className="brand-wordmark text-xl font-bold text-white">
+                  {L('How will you use Go Grameen?', 'మీరు గో గ్రామీణ్ ఎలా వాడతారు?')}
+                </h3>
+                <p className="mt-1.5 text-sm text-lime-100/70">
+                  {L('The app will open straight to your screen.', 'యాప్ నేరుగా మీ స్క్రీన్‌ను చూపుతుంది.')}
+                </p>
+
+                <div className="mt-5 space-y-3">
+                  <button
+                    onClick={() => { void choose('consumer') }}
+                    className="flex w-full items-center gap-3.5 rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:border-lime-300/50 hover:bg-white/10"
+                  >
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-lime-300/15 text-xl ring-1 ring-lime-300/25" aria-hidden>🛒</span>
+                    <span className="min-w-0">
+                      <span className="block font-extrabold text-white">{L('Download as Consumer', 'కొనుగోలుదారుగా')}</span>
+                      <span className="block text-xs text-lime-100/60">{L('Browse and buy fresh harvests', 'తాజా కోతలు కొనండి')}</span>
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => { void choose('seller') }}
+                    className="flex w-full items-center gap-3.5 rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:border-lime-300/50 hover:bg-white/10"
+                  >
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-lime-300/15 text-xl ring-1 ring-lime-300/25" aria-hidden>🧑‍🌾</span>
+                    <span className="min-w-0">
+                      <span className="block font-extrabold text-white">{L('Download as Farmer / Aggregator', 'రైతు / అగ్రిగేటర్‌గా')}</span>
+                      <span className="block text-xs text-lime-100/60">{L('List and sell your harvest', 'మీ కోత అమ్మండి')}</span>
+                    </span>
+                  </button>
+                </div>
+
+                <p className="mt-4 text-center text-xs text-lime-100/45">
+                  {L('You can switch anytime from the app menu.', 'ఎప్పుడైనా యాప్ మెనూ నుండి మార్చవచ్చు.')}
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   )
 }

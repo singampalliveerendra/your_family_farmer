@@ -23,7 +23,7 @@ import RoleSelect from '@/components/home/RoleSelect'
 export const metadata: Metadata = {
   title: 'Go Grameen — Natural harvests, straight from the farmer',
   description:
-    'Buy natural harvests directly from farmers in Andhra Pradesh. No middlemen, no Play Store — install Go Grameen straight from your browser.',
+    'Buy natural harvests directly from the farmers who grow them. No middlemen, no Play Store — install Go Grameen straight from your browser.',
 }
 
 // Photos change only when the catalogue does; ten minutes keeps the landing
@@ -118,12 +118,18 @@ export default async function HomePage() {
           </span>
           <span className="brand-wordmark text-[15px] font-bold leading-none">Go Grameen</span>
         </div>
-        <Link
-          href="/consumer"
-          className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-bold text-lime-100 backdrop-blur-sm transition hover:border-lime-300/50 hover:text-white"
-        >
-          Open the app →
-        </Link>
+        {/* Download is what the page is for, so it takes the loud pill up here
+            too. "Open the app" drops to a quiet secondary link and hides below
+            sm, so the row still fits at 390px. */}
+        <div className="flex items-center gap-2">
+          <Link
+            href="/consumer"
+            className="hidden rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-bold text-lime-100 backdrop-blur-sm transition hover:border-lime-300/50 hover:text-white sm:inline-flex"
+          >
+            Open the app →
+          </Link>
+          <HomeInstallCta size="compact" />
+        </div>
       </header>
 
       {/* ── Hero ───────────────────────────────────────────────────── */}
@@ -132,7 +138,7 @@ export default async function HomePage() {
           <div>
             <span className="gghome-rise inline-flex items-center gap-2 rounded-full border border-lime-300/25 bg-lime-300/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-lime-200">
               <span className="h-1.5 w-1.5 rounded-full bg-lime-300" />
-              Andhra Pradesh · Natural farming
+              Natural farming · Farm direct
             </span>
 
             <h1 className="gghome-rise brand-wordmark mt-5 text-4xl font-bold leading-[1.05] sm:text-6xl" style={{ animationDelay: '.08s' }}>
@@ -144,7 +150,7 @@ export default async function HomePage() {
             </h1>
 
             <p className="gghome-rise mt-5 max-w-md text-base leading-relaxed text-lime-100/70 sm:text-lg" style={{ animationDelay: '.16s' }}>
-              Go Grameen connects natural farmers in Andhra Pradesh straight to the people who eat their food.
+              Go Grameen connects natural farmers straight to the people who eat their food.
               Harvested today, priced by the farmer, delivered to you.
             </p>
 
@@ -273,7 +279,9 @@ export default async function HomePage() {
       )}
 
       {/* ── Closing CTA ────────────────────────────────────────────── */}
-      <section className="relative z-10 mx-auto max-w-4xl px-4 pb-20">
+      {/* id is the target the header pill uses on iOS, where there is no
+          install dialog and the manual steps have to be reachable. */}
+      <section id="install" className="relative z-10 mx-auto max-w-4xl px-4 pb-20 scroll-mt-20">
         <div className="relative overflow-hidden rounded-3xl border border-lime-300/25 bg-gradient-to-br from-green-900/80 to-emerald-950/80 p-8 text-center backdrop-blur-sm sm:p-14">
           <div aria-hidden className="gghome-blob pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-lime-400/20 blur-3xl" />
           <SproutMark className="mx-auto h-10 w-10 text-lime-300" />
@@ -292,13 +300,12 @@ export default async function HomePage() {
       {/* ── Footer ─────────────────────────────────────────────────── */}
       <footer className="relative z-10 border-t border-white/10 px-4 py-8 text-center">
         <p className="text-xs text-lime-100/40">
-          Go Grameen · Your Family Farmer · Andhra Pradesh
+          Go Grameen · Your Family Farmer
         </p>
         <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs font-semibold text-lime-100/60">
           <Link href="/consumer" className="hover:text-lime-300">Browse harvests</Link>
           <Link href="/farmer/login" className="hover:text-lime-300">Farmer login</Link>
           <Link href="/aggregator/login" className="hover:text-lime-300">Aggregator login</Link>
-          <Link href="/rider" className="hover:text-lime-300">Delivery rider</Link>
         </div>
       </footer>
     </main>
