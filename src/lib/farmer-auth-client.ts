@@ -36,15 +36,29 @@ export function clearFarmerLocalSession(): void {
 // Two parallel requests can both 401. Redirect once.
 let redirecting = false
 
+/**
+ * Which login page to bounce to. The session cookie is already gone by the time
+ * we get here, so the account type can't be looked up — the URL is the only
+ * signal left. Anyone under /aggregator is an aggregator; everyone else goes to
+ * the farmer login, which offers a one-tap hop to the aggregator login if the
+ * account turns out to be the other kind.
+ */
+function loginPathForCurrentPage(): string {
+  return window.location.pathname.startsWith('/aggregator')
+    ? '/aggregator/login'
+    : '/farmer/login'
+}
+
 export function goToFarmerLogin(reason: 'expired' | 'required' = 'expired'): void {
   if (redirecting) return
   redirecting = true
   clearFarmerLocalSession()
   const next = window.location.pathname + window.location.search
   const qs = new URLSearchParams({ reason, next })
+  const loginPath = loginPathForCurrentPage()
   // location.replace, not router.replace: a hard load drops the stale in-memory
   // state of the page we're leaving, and keeps the dead page out of history.
-  window.location.replace(`/farmer/login?${qs.toString()}`)
+  window.location.replace(`${loginPath}?${qs.toString()}`)
 }
 
 /**

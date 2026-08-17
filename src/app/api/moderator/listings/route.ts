@@ -86,6 +86,15 @@ function toIso(v: unknown): string | null {
   return isNaN(d.getTime()) ? null : d.toISOString()
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// A source-farmer id, or null. Ownership (that the farmer belongs to this
+// aggregator) is the DB trigger's job — it guards every write path, not just
+// this one.
+function toUuid(v: unknown): string | null {
+  const s = String(v ?? '').trim()
+  return UUID_RE.test(s) ? s : null
+}
+
 // POST — moderator adds a produce listing on behalf of a farmer in their zone.
 // Moderator-created listings are trusted, so they go live immediately
 // (status 'available') rather than into the pending_review queue.
@@ -162,6 +171,12 @@ export async function POST(req: NextRequest) {
     shelf_life_days: shelfLife,
     status: 'available',
   }
+  // Aggregator attribution: which of the seller's source farmers grows this.
+  // Only set when supplied — the trigger rejects an aggregator listing without
+  // one and clears it for a plain farmer, so nothing here needs to know which
+  // kind of seller this is.
+  const sourceFarmerId = toUuid(b.source_farmer_id)
+  if (sourceFarmerId) insert.source_farmer_id = sourceFarmerId
   if (price1) { insert.price_tier_1_price = price1; insert.price_tier_1_qty = price1Qty ?? 1 }
   if (price2 && price2Qty) { insert.price_tier_2_price = price2; insert.price_tier_2_qty = price2Qty }
   // Tier 3 sits just above tier 2's band (matches the farmer form's qty rule).
@@ -181,6 +196,10 @@ export async function POST(req: NextRequest) {
   // becomes a sellable HARVEST (appears in the Fresh/Upcoming feeds with its own
   // stock), not just a template. The listing's stock is the harvest's sellable
   // quantity. Best-effort — never fail the listing save on it.
+  //
+  // No source_farmer_id: for an aggregator the trigger inherits it from the
+  // listing we just created. (Before that inheritance existed this insert could
+  // not create an aggregator's first harvest at all.)
   const harvestQty = toNum(b.stock_qty)
   const { error: hErr } = await supabase.from('harvests').insert({
     produce_listing_id: created.id,

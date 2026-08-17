@@ -435,6 +435,25 @@ export function CartSheet({
 
   useEffect(() => { upiScreenRef.current = upiScreen }, [upiScreen])
 
+  // Wipe every trace of a previous payment attempt.
+  //
+  // The success screen renders on `upiScreen && paidDone`, and nothing used to
+  // reset those two flags — they only ever went true. So a buyer who cancelled
+  // on the Razorpay sheet could be dropped straight back onto a leftover
+  // "Payment successful!" screen from an earlier attempt in the same session.
+  // Every payment now starts by clearing this state and every abort path clears
+  // it again, so the success screen is reachable only from a payment that
+  // actually verified.
+  const resetPaymentScreen = useCallback(() => {
+    setUpiScreen(null)
+    setPaidDone(false)
+    setOnlinePaid(false)
+    setCashMode(false)
+    autoTriggeredRef.current = false
+    localStorage.removeItem(UPI_PENDING_KEY)
+    localStorage.removeItem(UPI_LAUNCHED_KEY)
+  }, [])
+
   // Update payment status to claimed and clear cart. The farmer is alerted via
   // the realtime subscription on their dashboard — no WhatsApp message opened.
   const triggerPostPayment = useCallback(async (screen: UpiPaymentState, utrRef: string) => {
@@ -480,10 +499,14 @@ export function CartSheet({
 
   // Persist upiScreen to localStorage whenever it changes — but only for a real
   // UPI payment. A COD success reuses upiScreen for its confirmation screen and
-  // has nothing to resume, so we never persist it.
+  // has nothing to resume, so we never persist it. A Razorpay-paid order is the
+  // same: it is already settled, and persisting it left a "pending UPI payment"
+  // entry that a later visit could restore as a phantom payment screen.
   useEffect(() => {
-    if (upiScreen && !cashMode) localStorage.setItem(UPI_PENDING_KEY, JSON.stringify(upiScreen))
-  }, [upiScreen, cashMode])
+    if (upiScreen && !cashMode && !onlinePaid) {
+      localStorage.setItem(UPI_PENDING_KEY, JSON.stringify(upiScreen))
+    }
+  }, [upiScreen, cashMode, onlinePaid])
 
   // When user returns from UPI app (no page reload): auto-trigger WhatsApp
   useEffect(() => {
@@ -714,6 +737,7 @@ export function CartSheet({
   ) => {
     const f = group[0]
     const buyerPhone = phone.replace(/\D/g, '').slice(-10)
+    resetPaymentScreen()
     setPayingOnline(f.farmerId)
 
     const [scriptOk, createRes] = await Promise.all([
@@ -785,6 +809,7 @@ export function CartSheet({
         ondismiss: () => {
           if (settled) return
           setPayingOnline(null)
+          resetPaymentScreen()
           showToast('Deposit not paid. Your order was not placed.')
           void abandonOrders()
         },
@@ -819,6 +844,7 @@ export function CartSheet({
     rzp.on('payment.failed', () => {
       if (settled) return
       setPayingOnline(null)
+      resetPaymentScreen()
       showToast('Deposit payment failed. Your order was not placed — please try again.')
       void abandonOrders()
     })
@@ -942,6 +968,7 @@ export function CartSheet({
     if (detailsMissing) return
     const f = group[0]
     saveInfo({ name: name.trim(), phone: phone.trim() })
+    resetPaymentScreen()
     setPayingOnline(f.farmerId)
 
     const buyerPhone = phone.replace(/\D/g, '').slice(-10)
@@ -1037,6 +1064,7 @@ export function CartSheet({
           // cancel it and release the stock so nothing is initiated.
           if (settled) return
           setPayingOnline(null)
+          resetPaymentScreen()
           showToast('Payment cancelled. Your order was not placed.')
           void abandonOrders()
         },
@@ -1073,6 +1101,7 @@ export function CartSheet({
     rzp.on('payment.failed', () => {
       if (settled) return
       setPayingOnline(null)
+      resetPaymentScreen()
       showToast('Payment failed. Your order was not placed — please try again.')
       void abandonOrders()
     })
@@ -1095,6 +1124,7 @@ export function CartSheet({
     if (pickupMissing) { showToast(L('Please choose a pickup point for each farmer.', 'ప్రతి రైతుకు పికప్ స్థలం ఎంచుకోండి.')); return }
 
     saveInfo({ name: name.trim(), phone: phone.trim() })
+    resetPaymentScreen()
     setPayingOnline('all')
     const buyerPhone = phone.replace(/\D/g, '').slice(-10)
 
@@ -1183,6 +1213,7 @@ export function CartSheet({
         ondismiss: () => {
           if (settled) return
           setPayingOnline(null)
+          resetPaymentScreen()
           showToast('Payment cancelled. Your order was not placed.')
           void abandon(allOrderIds)
         },
@@ -1216,6 +1247,7 @@ export function CartSheet({
     rzp.on('payment.failed', () => {
       if (settled) return
       setPayingOnline(null)
+      resetPaymentScreen()
       showToast('Payment failed. Your order was not placed — please try again.')
       void abandon(allOrderIds)
     })
@@ -1416,7 +1448,7 @@ export function CartSheet({
             {L('Check order status', 'ఆర్డర్ స్థితి చూడండి')}
           </Link>
           <button
-            onClick={onClose}
+            onClick={() => { resetPaymentScreen(); onClose() }}
             className="w-full bg-green-700 text-white font-bold py-4 rounded-xl text-base active:bg-green-800"
           >
             {L('Done', 'మూసివేయి')}

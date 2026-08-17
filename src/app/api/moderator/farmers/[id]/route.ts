@@ -21,6 +21,9 @@ function svc() {
 // in when onboarding the farmer.
 const EDIT_COLUMNS =
   'id, slug, name, phone, village, district, method, active, story_quote, ' +
+  // Aggregators are farmers rows with account_type = 'aggregator'. The edit
+  // screen needs both to show the source-farmer list and the approval control.
+  'account_type, approval_status, contact_person, how_we_aggregate, ' +
   'farm_size_acres, farming_since_year, farm_address, soil_organic_carbon, soil_ph, water_source, ' +
   'facebook_url, instagram_url, youtube_url, ' +
   'upi_id, cod_enabled, bank_account_number, bank_ifsc, pickup_locations, pickup_slots, ' +
@@ -110,6 +113,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if ('youtube_url' in b)   update.youtube_url   = normalizeUrl(b.youtube_url as string | null | undefined)
   if ('active' in b) update.active = Boolean(b.active)
   if ('cod_enabled' in b) update.cod_enabled = b.cod_enabled === true
+
+  // Aggregator details. account_type is deliberately NOT editable: switching a
+  // seller either strands an aggregator's harvests without a source farmer, or
+  // hands a farmer a source-farmer list that none of their harvests reference.
+  if ('contact_person' in b) {
+    update.contact_person = String(b.contact_person ?? '').trim().slice(0, 80) || null
+  }
+  if ('how_we_aggregate' in b) {
+    update.how_we_aggregate = String(b.how_we_aggregate ?? '').trim().slice(0, 800) || null
+  }
   if ('method' in b) {
     const m = String(b.method ?? '')
     if ((METHODS as readonly string[]).includes(m)) update.method = m

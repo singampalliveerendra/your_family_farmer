@@ -140,6 +140,15 @@ function toIso(v: unknown): string | null {
   return isNaN(d.getTime()) ? null : d.toISOString()
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// A source-farmer id, or null. Ownership (that the farmer belongs to this
+// aggregator) is the DB trigger's job — it guards every write path, not just
+// this one.
+function toUuid(v: unknown): string | null {
+  const s = String(v ?? '').trim()
+  return UUID_RE.test(s) ? s : null
+}
+
 // PUT — edit a listing's fields (name, pricing, stock, shelf life, …). Zone-
 // scoped. Does not change status or ownership; use PATCH actions for those.
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -217,6 +226,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     price_tier_3_qty: price3 ? ((price2Qty ?? 1) + 1) : null,
   }
   if (harvestDate) update.harvest_date = harvestDate
+  // Aggregator attribution. Sent only when present so a caller that predates
+  // the field can't blank it, and so the column being absent (migration not yet
+  // run) doesn't fail every moderator edit.
+  const sourceFarmerId = toUuid(b.source_farmer_id)
+  if (sourceFarmerId) update.source_farmer_id = sourceFarmerId
 
   const { data: updated, error } = await supabase
     .from('produce_listings')

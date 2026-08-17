@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import ModeratorShell, { useModeratorAuth } from '../../../ModeratorShell'
 import ModeratorFarmerForm, { type FarmerInitial } from '@/components/moderator/ModeratorFarmerForm'
+import SourceFarmersManager from '@/components/SourceFarmersManager'
 import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
 
 // Raw farmer row from GET /api/moderator/farmers/[id].
@@ -39,6 +40,12 @@ type FarmerRow = {
   lat: number | null
   lng: number | null
   location_name: string | null
+  // Aggregators are farmers rows with account_type = 'aggregator'; absent on
+  // every ordinary farmer, so optional.
+  account_type?: string | null
+  approval_status?: string | null
+  contact_person?: string | null
+  how_we_aggregate?: string | null
 }
 
 const str = (v: string | number | null | undefined) => (v == null ? '' : String(v))
@@ -80,6 +87,9 @@ function toInitial(f: FarmerRow): FarmerInitial {
     photo_url: f.photo_url ?? null,
     pesticide_cert_url: f.pesticide_cert_url ?? null,
     upi_qr_code_url: f.upi_qr_code_url ?? null,
+    account_type: str(f.account_type) || 'farmer',
+    contact_person: str(f.contact_person),
+    how_we_aggregate: str(f.how_we_aggregate),
   }
 }
 
@@ -126,13 +136,27 @@ export default function EditFarmerPage() {
       {loading ? (
         <p className="text-sm text-gray-400 py-10 text-center">Loading…</p>
       ) : farmer ? (
-        <ModeratorFarmerForm
-          mode="edit"
-          farmerId={farmer.id}
-          initial={toInitial(farmer)}
-          onSaved={() => router.push('/moderator/farmers')}
-          onCancel={() => router.push('/moderator/farmers')}
-        />
+        <>
+          <ModeratorFarmerForm
+            mode="edit"
+            farmerId={farmer.id}
+            initial={toInitial(farmer)}
+            onSaved={() => router.push('/moderator/farmers')}
+            onCancel={() => router.push('/moderator/farmers')}
+          />
+
+          {/* Full CRUD over the aggregator's source-farmer list — the same
+              component and the same server-side rules the aggregator gets, per
+              the farmer↔moderator parity rule. */}
+          {farmer.account_type === 'aggregator' && (
+            <div className="mt-6">
+              <SourceFarmersManager
+                endpoint="/api/moderator/source-farmers"
+                aggregatorId={farmer.id}
+              />
+            </div>
+          )}
+        </>
       ) : !error ? (
         <p className="text-sm text-gray-400 py-10 text-center">Farmer not found.</p>
       ) : null}

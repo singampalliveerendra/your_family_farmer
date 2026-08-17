@@ -71,6 +71,7 @@ export default function EditListingPage() {
         delivery_mode: (l.delivery_mode as string) || 'pickup',
         delivery_charge: numStr(l.delivery_charge as number | null),
         delivery_radius_km: numStr(l.delivery_radius_km as number | null),
+        source_farmer_id: (l.source_farmer_id as string) ?? '',
       },
       emoji: (l.emoji as string) || '📦',
       farmerId: (l.farmer_id as string) ?? '',

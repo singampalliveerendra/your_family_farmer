@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
 import { harvestClock, freshnessLabel, type Harvest } from '@/lib/harvest'
+import { useSourceFarmers, sourceFarmerNameOf } from '@/components/SourceFarmerPicker'
 
 /* ─── Harvest timings manager ──────────────────────────────────────────
    A produce_listing is the template; logging a harvest records one actual pick
@@ -14,7 +15,15 @@ import { harvestClock, freshnessLabel, type Harvest } from '@/lib/harvest'
    Lives inside the produce Edit form on BOTH surfaces: the farmer dashboard and
    the moderator's Edit Harvest page (moderators log harvests on a farmer's
    behalf). Shared so the two can't drift apart. */
-export default function HarvestManager({ listingId, farmerId, unit, produceShelfLife }: { listingId: string; farmerId: string; unit?: string | null; produceShelfLife?: number | null }) {
+export default function HarvestManager({ listingId, farmerId, unit, produceShelfLife, sourceFarmerId }: {
+  listingId: string
+  farmerId: string
+  unit?: string | null
+  produceShelfLife?: number | null
+  /** The produce's source farmer (aggregators only). Every pick logged here is
+      credited to them — see the aggregator block below. */
+  sourceFarmerId?: string | null
+}) {
   const { L } = useLang()
   const nowLocal = () => {
     const d = new Date()
@@ -43,10 +52,28 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
   const [savingEdit, setSavingEdit] = useState(false)
   const [editErr, setEditErr] = useState('')
 
+  /* ─── Aggregator attribution ───────────────────────────────────────────
+     An aggregator's harvest names the farmer it came from; a farmer's own
+     harvest never does. That farmer is no longer picked here: it is a property
+     of the PRODUCE (client request, 2026-08-14), chosen once on the produce form
+     and inherited by every pick logged against it. What's left on this panel is
+     the read-back — the aggregator can see who each pick is credited to without
+     being asked the same question again per harvest.
+
+     The id is still written explicitly on insert rather than left to the DB
+     trigger's inheritance, so a pick keeps the farmer it was credited to at the
+     time even if the listing is later re-pointed at someone else. */
+  const { isAggregator, sourceFarmers } = useSourceFarmers(farmerId)
+  const sourceNameOf = (id?: string | null) => sourceFarmerNameOf(sourceFarmers, id)
+  // The listing has no farmer named yet (a legacy listing from before the
+  // produce-level field, or an unsaved change). The trigger would reject the
+  // insert, so say what to fix instead of showing a raw DB error.
+  const noSourceFarmer = isAggregator && !sourceFarmerId
+
   const loadHarvests = useCallback(async () => {
     const { data } = await supabase
       .from('harvests')
-      .select('id, produce_listing_id, farmer_id, harvested_at, shelf_life_days, approx_quantity, unit, notes, paused')
+      .select('id, produce_listing_id, farmer_id, harvested_at, shelf_life_days, approx_quantity, unit, notes, paused, source_farmer_id')
       .eq('produce_listing_id', listingId)
       .order('harvested_at', { ascending: false })
       .limit(20)
@@ -61,6 +88,13 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
     setHarvestMsg('')
     const when = new Date(harvestedAt)
     if (isNaN(when.getTime())) { setHarvestErr(L('Pick a valid harvest date & time.', 'సరైన కోత తేదీ & సమయం ఎంచుకోండి.')); return }
+    if (noSourceFarmer) {
+      setHarvestErr(L(
+        'Set the farmer who grows this produce first, in the form above.',
+        'ముందుగా పైన ఉన్న ఫారంలో ఈ ఉత్పత్తిని పండించే రైతును ఎంచుకోండి.',
+      ))
+      return
+    }
     setSavingHarvest(true)
     // Shelf life is not logged per-harvest — it's a produce-level property, so
     // the consumer freshness label falls back to the listing's shelf_life_days.
@@ -73,6 +107,9 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
       // its own product with its own inventory (decremented as buyers order).
       stock_qty: approxQty ? Number(approxQty) : null,
       unit: unit ?? null,
+      // Inherited from the produce. Omitted entirely for a farmer, so their
+      // insert is unchanged.
+      ...(isAggregator && sourceFarmerId ? { source_farmer_id: sourceFarmerId } : {}),
     })
     setSavingHarvest(false)
     if (err) { setHarvestErr(err.message); return }
@@ -101,6 +138,8 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
       // Editing the quantity resets this harvest's sellable stock to the new
       // amount (the farmer is stating what's actually available now).
       stock_qty: editQty ? Number(editQty) : null,
+      // source_farmer_id is deliberately not touched: the pick keeps whichever
+      // farmer it was credited to when it was logged.
     }).eq('id', editingHarvestId)
     setSavingEdit(false)
     if (err) { setEditErr(err.message); return }
@@ -134,6 +173,31 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
   return (
     <div className="bg-green-50 border border-green-200 rounded-xl p-3 space-y-2.5">
       <p className="text-xs font-bold text-green-800">🌾 {L('Harvest timings', 'కోత సమయాలు')}</p>
+
+      {/* Attribution is stated, not asked. It is set on the produce above and
+          every pick logged here inherits it, so the aggregator confirms rather
+          than re-answers — but it still shows, because who a pick is credited
+          to is the one thing they must not get wrong. */}
+      {noSourceFarmer && (
+        <div className="bg-amber-50 border border-amber-300 rounded-lg p-2.5">
+          <p className="text-[11px] font-bold text-amber-900 leading-snug">
+            {L('This produce has no farmer named yet.', 'ఈ ఉత్పత్తికి ఇంకా రైతు పేరు లేదు.')}
+          </p>
+          <p className="text-[11px] text-amber-800 leading-snug mt-0.5">
+            {L(
+              'Choose the farmer who grows it in the form above and save, then log harvests here.',
+              'పైన ఉన్న ఫారంలో దీన్ని పండించే రైతును ఎంచుకుని సేవ్ చేయండి, ఆపై ఇక్కడ కోతలు నమోదు చేయండి.',
+            )}
+          </p>
+        </div>
+      )}
+      {isAggregator && sourceFarmerId && sourceNameOf(sourceFarmerId) && (
+        <p className="text-[11px] text-green-800 bg-white border border-green-200 rounded-lg px-2.5 py-2 leading-snug">
+          🤝 {L('Every harvest here is credited to', 'ఇక్కడ ప్రతి కోత వీరికి ఆపాదించబడుతుంది')}{' '}
+          <span className="font-bold">{sourceNameOf(sourceFarmerId)}</span>
+        </p>
+      )}
+
       <div>
         <label className="text-[11px] font-semibold text-gray-600">{L('Harvest date & time', 'కోత తేదీ & సమయం')}</label>
         <input
@@ -156,7 +220,7 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
       {harvestMsg && <p className="text-[11px] text-green-700 font-semibold">{harvestMsg}</p>}
       <button
         onClick={submitHarvest}
-        disabled={savingHarvest}
+        disabled={savingHarvest || noSourceFarmer}
         className="w-full bg-green-700 text-white font-bold py-2 rounded-lg text-sm active:bg-green-800 disabled:opacity-50"
       >
         {savingHarvest ? '…' : L('Save harvest', 'సేవ్ చేయి')}
@@ -188,6 +252,14 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
                       ✕
                     </button>
                   </div>
+                  {/* No farmer picker here either: this pick's attribution was
+                      settled by the produce when it was logged. Changing it
+                      means changing the produce. */}
+                  {isAggregator && sourceNameOf(h.source_farmer_id) && (
+                    <p className="text-[11px] text-green-700 font-semibold">
+                      🤝 {L('From', 'నుండి')} {sourceNameOf(h.source_farmer_id)}
+                    </p>
+                  )}
                   <div>
                     <label className="text-[11px] font-semibold text-gray-600">{L('Harvest date & time', 'కోత తేదీ & సమయం')}</label>
                     <input
@@ -242,6 +314,14 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
                       {freshnessLabel(h.harvested_at, produceShelfLife ?? null, L) ?? harvestClock(h.harvested_at, L)}
                       {h.approx_quantity != null && <> · {h.approx_quantity} {h.unit || unit || 'kg'}</>}
                     </p>
+                    {/* The aggregator can see, without opening Edit, which
+                        farmer each pick is credited to — the same line the
+                        buyer will read on the harvest. */}
+                    {isAggregator && sourceNameOf(h.source_farmer_id) && (
+                      <p className="text-[11px] text-green-700 font-semibold truncate">
+                        🤝 {L('From', 'నుండి')} {sourceNameOf(h.source_farmer_id)}
+                      </p>
+                    )}
                     {h.paused && (
                       <p className="text-[10px] text-amber-700 leading-snug mt-0.5">
                         {L('Hidden from buyers. Resume to sell it again.', 'కొనుగోలుదారులకు కనిపించదు. మళ్లీ అమ్మడానికి కొనసాగించండి.')}

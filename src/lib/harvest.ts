@@ -14,6 +14,9 @@ export type Harvest = {
   // Farmer has hidden this pick from buyers without deleting it. Optional so
   // code still typechecks against rows fetched before the column existed.
   paused?: boolean | null
+  // Set only when the seller is an aggregator: the farmer this pick actually
+  // came from. Null on a farmer's own harvest — a DB trigger enforces both.
+  source_farmer_id?: string | null
 }
 
 type Tr = (en: string, te: string) => string

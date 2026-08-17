@@ -142,6 +142,17 @@ export default function FarmerSignupPage() {
               Log in
             </Link>
           </div>
+
+          {/* The only route to aggregator registration. Without it the page is
+              reachable only by typing the URL, and someone who collects produce
+              from other farmers would sign up as a farmer and have nowhere to
+              name the grower. */}
+          <div className="text-xs text-gray-600 text-center border-t border-gray-100 pt-3">
+            {L('Do you collect produce from other farmers?', 'ఇతర రైతుల నుండి పంటలు సేకరిస్తారా?')}{' '}
+            <Link href="/aggregator/signup" className="text-green-700 font-bold underline whitespace-nowrap">
+              🤝 {L('Sign up as an aggregator', 'సమీకరణదారుగా నమోదు చేసుకోండి')}
+            </Link>
+          </div>
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6">

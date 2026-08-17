@@ -28,6 +28,18 @@ const notoSerifTelugu = Noto_Serif_Telugu({
 export const metadata: Metadata = {
   title: "Go Grameen — Your Family Farmer",
   description: "Buy natural harvests directly from farmers in Andhra Pradesh. No middlemen.",
+  applicationName: "Go Grameen",
+  /* iOS ignores the web manifest's display mode. Without this block, "Add to
+     Home Screen" still makes an icon, but tapping it opens Safari's UI around
+     the page — it reads as a bookmark, not an app. */
+  appleWebApp: {
+    capable: true,
+    title: "Go Grameen",
+    // The header sits on the light page background, so the status bar text has
+    // to stay dark; "black-translucent" would run the page under the notch and
+    // white out the clock.
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {
@@ -35,6 +47,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  // Android tints the status bar with this once installed. Same green as the
+  // manifest and SplashScreen so the launch sequence is one colour throughout.
+  themeColor: '#1a5c2a',
 };
 
 export default function RootLayout({

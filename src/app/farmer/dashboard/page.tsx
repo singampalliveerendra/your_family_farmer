@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import NextImage from 'next/image'
@@ -16,6 +16,8 @@ import { type FarmerOrder as Order, isResolved } from '@/components/farmer/Order
 import DemandSupplyChart from '@/components/DemandSupplyChart'
 import { type CropBalance } from '@/lib/demand-supply'
 import HarvestManager from '@/components/HarvestManager'
+import PayoutDetailsForm from '@/components/farmer/PayoutDetailsForm'
+import SourceFarmerPicker, { useSourceFarmers } from '@/components/SourceFarmerPicker'
 import { isLikelyUrl, normalizeUrl } from '@/lib/links'
 import {
   clearFarmerLocalSession,
@@ -50,6 +52,14 @@ type Farmer = {
   cover_photo_url: string | null
   photo_url: string | null
   pesticide_cert_url: string | null
+  // Aggregator-only. account_type defaults to 'farmer' for every existing row,
+  // so these are absent on an ordinary farmer and every read must tolerate it.
+  account_type?: string | null
+  approval_status?: string | null
+  contact_person?: string | null
+  how_we_aggregate?: string | null
+  business_cert_url?: string | null
+  organic_certificate_url?: string | null
   pickup_slots: unknown
   lat: number | null
   lng: number | null
@@ -108,6 +118,9 @@ type ListingRow = {
   delivery_mode: string | null
   delivery_charge: number | null
   delivery_radius_km: number | null
+  // Aggregators only: which of their source farmers grows this produce. Every
+  // harvest logged against the listing inherits it.
+  source_farmer_id?: string | null
   created_at: string
 }
 
@@ -183,6 +196,11 @@ const isProfileComplete = (f: Farmer | null) =>
 export default function FarmerDashboard() {
   const router = useRouter()
   const { tx, L } = useLang()
+  // Mounted at BOTH /farmer/dashboard and /aggregator/dashboard. The pathname is
+  // how the one component knows which address it was reached at, so a seller who
+  // arrives at the wrong one — from login, a bookmark, a shared link — gets sent
+  // to theirs instead of seeing the other role's wording.
+  const pathname = usePathname()
   const [farmer, setFarmer] = useState<Farmer | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -300,6 +318,17 @@ export default function FarmerDashboard() {
 
   useEffect(() => { loadDashboard() }, [loadDashboard])
 
+  // Send each seller to their own URL. Login, old bookmarks and shared links all
+  // point at /farmer/dashboard, so an aggregator would otherwise sit on a page
+  // calling itself the farmer dashboard. replace(), not push(), so Back doesn't
+  // bounce them straight into the redirect again.
+  useEffect(() => {
+    if (!farmer) return
+    const isAgg = farmer.account_type === 'aggregator'
+    if (isAgg && pathname === '/farmer/dashboard') router.replace('/aggregator/dashboard')
+    else if (!isAgg && pathname === '/aggregator/dashboard') router.replace('/farmer/dashboard')
+  }, [farmer, pathname, router])
+
   // Auto-open the profile edit modal the first time an incomplete farmer lands here.
   useEffect(() => {
     if (!loading && farmer && !isProfileComplete(farmer)) {
@@ -416,7 +445,10 @@ export default function FarmerDashboard() {
     // session behind on the device.
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => null)
     clearFarmerLocalSession()
-    router.replace('/farmer/login')
+    // Back to the login this seller actually uses. Taken from the pathname
+    // rather than `farmer`, which is null on the not-found screen that also
+    // calls this.
+    router.replace(pathname.startsWith('/aggregator') ? '/aggregator/login' : '/farmer/login')
   }
 
   if (loading) return <LoadingScreen />
@@ -470,7 +502,9 @@ export default function FarmerDashboard() {
               </Link>
             )}
             <p className="text-green-400 text-xs font-semibold mb-0.5 uppercase tracking-wide">
-              {tx.farmerDashboard}
+              {farmer?.account_type === 'aggregator'
+                ? L('Aggregator Dashboard', 'సమీకరణదారు డాష్‌బోర్డ్')
+                : tx.farmerDashboard}
             </p>
             <h1 className="text-white text-xl font-extrabold leading-tight">{displayName}</h1>
             <p className="text-green-300 text-sm mt-0.5">
@@ -510,6 +544,32 @@ export default function FarmerDashboard() {
       </div>
 
       <div className="px-4 -mt-5 space-y-4">
+        {/* An aggregator's farmer registry — a LINK, not the panel itself
+            (client request 2026-08-14). It stopped being day-to-day work once
+            the farmer moved from the harvest form to the produce form: they now
+            answer it once per produce, not once per pick, so the registry is
+            setup and does not deserve the top of the dashboard. */}
+        {farmer?.account_type === 'aggregator' && (
+          <Link
+            href="/aggregator/farmers"
+            className="flex items-center gap-3 bg-white border border-gray-100 shadow-sm rounded-2xl p-4 active:bg-gray-50"
+          >
+            <span className="text-2xl flex-shrink-0">🤝</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-extrabold text-green-800">
+                {L('Farmers you aggregate from', 'మీరు సేకరించే రైతులు')}
+              </p>
+              <p className="text-[11px] text-gray-500 leading-snug mt-0.5">
+                {L(
+                  'Add or edit the farmers you buy from. Each produce you list names one of them.',
+                  'మీరు కొనుగోలు చేసే రైతులను జోడించండి లేదా సవరించండి. మీరు జాబితా చేసే ప్రతి ఉత్పత్తి వారిలో ఒకరిని పేర్కొంటుంది.',
+                )}
+              </p>
+            </div>
+            <span className="text-gray-300 text-xl flex-shrink-0">›</span>
+          </Link>
+        )}
+
         {/* Notification permission banner — shown only if browser supports it
             and the farmer hasn't decided yet. Permission must be requested via
             a user gesture so we can't auto-call it on mount. */}
@@ -931,6 +991,19 @@ function ProfileEditModal({
   const [certPreview, setCertPreview] = useState('')
   const [existingCertUrl, setExistingCertUrl] = useState(farmer.pesticide_cert_url ?? '')
 
+  // Aggregator-only fields. Step 2 of registration: signup collects only
+  // organisation, contact person, phone and password, so the rest is completed
+  // here rather than on one long form over 4G.
+  const isAggregator = farmer.account_type === 'aggregator'
+  const [contactPerson, setContactPerson] = useState(farmer.contact_person ?? '')
+  const [howWeAggregate, setHowWeAggregate] = useState(farmer.how_we_aggregate ?? '')
+  const [bizCertFile, setBizCertFile] = useState<File | null>(null)
+  const [bizCertPreview, setBizCertPreview] = useState('')
+  const [existingBizCertUrl, setExistingBizCertUrl] = useState(farmer.business_cert_url ?? '')
+  const [orgCertFile, setOrgCertFile] = useState<File | null>(null)
+  const [orgCertPreview, setOrgCertPreview] = useState('')
+  const [existingOrgCertUrl, setExistingOrgCertUrl] = useState(farmer.organic_certificate_url ?? '')
+
   // UPI ID + QR
   const [upiId, setUpiId] = useState(farmer.upi_id ?? '')
   const [qrFile, setQrFile] = useState<File | null>(null)
@@ -1107,13 +1180,15 @@ function ProfileEditModal({
     }
 
     // Upload photos in parallel
-    const [coverRes, avatarRes, certRes, qrRes] = await Promise.all([
+    const [coverRes, avatarRes, certRes, qrRes, bizCertRes, orgCertRes] = await Promise.all([
       coverFile ? uploadProfileImage(coverFile, 'cover') : Promise.resolve({ url: null, err: null }),
       avatarFile ? uploadProfileImage(avatarFile, 'avatar') : Promise.resolve({ url: null, err: null }),
       certFile  ? uploadProfileImage(certFile,  'pesticide-cert') : Promise.resolve({ url: null, err: null }),
       qrFile    ? uploadProfileImage(qrFile,    'upi-qr') : Promise.resolve({ url: null, err: null }),
+      bizCertFile ? uploadProfileImage(bizCertFile, 'business-cert') : Promise.resolve({ url: null, err: null }),
+      orgCertFile ? uploadProfileImage(orgCertFile, 'organic-cert') : Promise.resolve({ url: null, err: null }),
     ])
-    const uploadErr = coverRes.err ?? avatarRes.err ?? certRes.err ?? qrRes.err
+    const uploadErr = coverRes.err ?? avatarRes.err ?? certRes.err ?? qrRes.err ?? bizCertRes.err ?? orgCertRes.err
     if (uploadErr) { setError(uploadErr); setLoading(false); return }
 
     const payload: Record<string, unknown> = {
@@ -1130,6 +1205,14 @@ function ProfileEditModal({
       upi_id:           upiId.trim() || null,
       upi_qr_code_url:  (qrRes.url ?? existingQrUrl) || null,
       cod_enabled:      codEnabled,
+      // Aggregator-only. Spread so an ordinary farmer's payload is byte-for-byte
+      // what it was before this feature existed.
+      ...(isAggregator ? {
+        contact_person:          contactPerson.trim() || null,
+        how_we_aggregate:        howWeAggregate.trim() || null,
+        business_cert_url:       (bizCertRes.url ?? existingBizCertUrl) || null,
+        organic_certificate_url: (orgCertRes.url ?? existingOrgCertUrl) || null,
+      } : {}),
       pickup_slots: (() => {
         const clean = normalizePickupSchedule(schedule, pickupLocations)
         return Object.keys(clean).length > 0 ? clean : null
@@ -1219,7 +1302,7 @@ function ProfileEditModal({
         <div className="sticky top-0 bg-white flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <div>
             <h3 className="font-extrabold text-gray-900 text-base">
-              {tx.profileModalTitle}
+              {isAggregator ? L('Your aggregator profile', 'మీ సమీకరణదారు ప్రొఫైల్') : tx.profileModalTitle}
             </h3>
             <p className="text-xs text-gray-500">{tx.profileModalSubtitle}</p>
           </div>
@@ -1229,13 +1312,15 @@ function ProfileEditModal({
         <div className="p-4 space-y-4">
           {/* ── Section 1: Farm Profile ── */}
           <div className="pt-1 border-t-2 border-green-100 first:border-t-0">
-            <h4 className="text-sm font-extrabold text-green-800">{L('Farm Profile', 'పొలం వివరాలు')}</h4>
+            <h4 className="text-sm font-extrabold text-green-800">
+              {isAggregator ? L('Organisation Profile', 'సంస్థ వివరాలు') : L('Farm Profile', 'పొలం వివరాలు')}
+            </h4>
             <p className="text-[11px] text-gray-500">Name, photo, certifications</p>
           </div>
 
           <Field
-            label={tx.yourNameLabel}
-            placeholder="Ramu Reddy"
+            label={isAggregator ? L('Organisation name *', 'సంస్థ పేరు *') : tx.yourNameLabel}
+            placeholder={isAggregator ? 'Go Grameen' : 'Ramu Reddy'}
             value={name}
             onChange={setName}
           />
@@ -1269,7 +1354,7 @@ function ProfileEditModal({
           </div>
 
           <Field
-            label={tx.farmingSinceLabel}
+            label={isAggregator ? L('Operating since (year)', 'ఎప్పటి నుండి (సంవత్సరం)') : tx.farmingSinceLabel}
             placeholder="e.g. 2005"
             value={sinceYear}
             onChange={setSinceYear}
@@ -1457,6 +1542,111 @@ function ProfileEditModal({
               />
             )}
           </div>
+
+          {/* ── Aggregator details ──
+              Step 2 of aggregator registration. Hidden entirely for farmers, so
+              their profile editor is unchanged. */}
+          {isAggregator && (
+            <>
+              <div className="pt-3 border-t-2 border-green-100">
+                <h4 className="text-sm font-extrabold text-green-800">
+                  {L('Aggregator details', 'అగ్రిగేటర్ వివరాలు')}
+                </h4>
+                <p className="text-[11px] text-gray-500">
+                  {L('Shown to buyers on your profile', 'మీ ప్రొఫైల్‌లో కొనుగోలుదారులకు కనిపిస్తుంది')}
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
+                  {L('Person behind the organisation', 'సంస్థ నిర్వాహకుడి పేరు')}
+                </label>
+                <input
+                  type="text"
+                  value={contactPerson}
+                  onChange={(e) => setContactPerson(e.target.value)}
+                  maxLength={80}
+                  placeholder={L('Full name', 'పూర్తి పేరు')}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:border-green-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
+                  {L('How we aggregate', 'మేము ఎలా సేకరిస్తాము')}
+                </label>
+                <p className="text-[11px] text-gray-500 mb-2">
+                  {L(
+                    'How you source, handle and pay the farmers you work with.',
+                    'మీరు రైతుల నుండి ఎలా సేకరిస్తారు, ఎలా చెల్లిస్తారు.',
+                  )}
+                </p>
+                <textarea
+                  value={howWeAggregate}
+                  onChange={(e) => setHowWeAggregate(e.target.value)}
+                  maxLength={800}
+                  rows={4}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:border-green-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
+                  {L('Certificate of Business', 'వ్యాపార ధృవీకరణ పత్రం')}
+                </label>
+                {existingBizCertUrl && !bizCertPreview ? (
+                  <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
+                    <span className="text-green-700 font-semibold text-sm">{tx.certUploaded}</span>
+                    <a href={existingBizCertUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-green-700 underline font-semibold ml-auto">{tx.viewCertificate}</a>
+                    <button type="button" onClick={() => setExistingBizCertUrl('')}
+                      className="text-xs text-red-500 underline">{tx.removeCert}</button>
+                  </div>
+                ) : (
+                  <ProfilePhotoUpload
+                    preview={bizCertPreview}
+                    existingUrl=""
+                    onPick={(e) => handlePickFile(e, setBizCertFile, setBizCertPreview, bizCertPreview)}
+                    onClear={() => { if (bizCertPreview) URL.revokeObjectURL(bizCertPreview); setBizCertFile(null); setBizCertPreview('') }}
+                    takeLabel={tx.takePhoto}
+                    galleryLabel={tx.uploadCert}
+                    aspectClass="aspect-[4/3]"
+                  />
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
+                  {L('Certificate of Organic produce', 'సేంద్రియ ధృవీకరణ పత్రం')}
+                </label>
+                <p className="text-[11px] text-gray-500 mb-2">
+                  {L(
+                    'Aggregators may list produce from organic farmers only.',
+                    'అగ్రిగేటర్లు సేంద్రియ రైతుల పంటలను మాత్రమే జాబితా చేయగలరు.',
+                  )}
+                </p>
+                {existingOrgCertUrl && !orgCertPreview ? (
+                  <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
+                    <span className="text-green-700 font-semibold text-sm">{tx.certUploaded}</span>
+                    <a href={existingOrgCertUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-green-700 underline font-semibold ml-auto">{tx.viewCertificate}</a>
+                    <button type="button" onClick={() => setExistingOrgCertUrl('')}
+                      className="text-xs text-red-500 underline">{tx.removeCert}</button>
+                  </div>
+                ) : (
+                  <ProfilePhotoUpload
+                    preview={orgCertPreview}
+                    existingUrl=""
+                    onPick={(e) => handlePickFile(e, setOrgCertFile, setOrgCertPreview, orgCertPreview)}
+                    onClear={() => { if (orgCertPreview) URL.revokeObjectURL(orgCertPreview); setOrgCertFile(null); setOrgCertPreview('') }}
+                    takeLabel={tx.takePhoto}
+                    galleryLabel={tx.uploadCert}
+                    aspectClass="aspect-[4/3]"
+                  />
+                )}
+              </div>
+            </>
+          )}
 
           {/* ── Section 2: Pickup & Schedule ── */}
           <div className="pt-3 border-t-2 border-green-100">
@@ -1773,6 +1963,12 @@ function ProfileEditModal({
             </div>
           </div>
 
+          {/* ── Section 4: Payout Details ──
+              Saves through its own session-gated API route rather than the
+              profile payload below: `farmers` is world-readable and
+              anon-writable, so bank details must not live there. */}
+          <PayoutDetailsForm />
+
           {/* Change Password */}
           <div className="border border-gray-200 rounded-xl overflow-hidden">
             <button
@@ -2012,6 +2208,11 @@ function ProduceListingForm({
   // #9 — explicit produce category (drives the consumer category filter).
   const [category, setCategory] = useState(editData?.category ?? '')
   const [unit, setUnit] = useState(editData?.unit ?? 'kg')
+  // Aggregators: which of their farmers grows this produce. Asked here, once,
+  // instead of on every harvest (client request 2026-08-14). Renders nothing
+  // for a plain farmer.
+  const [sourceFarmerId, setSourceFarmerId] = useState(editData?.source_farmer_id ?? '')
+  const { isAggregator, sourceFarmers, noSourceFarmers } = useSourceFarmers(farmerId)
   // #11 — delivery method for this listing: pickup only, farmer courier, or both.
   // Courier collects a flat charge within a radius (km) the farmer sets.
   const [deliveryMode, setDeliveryMode] = useState<'pickup' | 'courier' | 'both'>(
@@ -2135,6 +2336,13 @@ function ProduceListingForm({
       setError(L('Shelf life (days) is required.', 'తాజా (రోజులు) తప్పనిసరి.'))
       return
     }
+    // An aggregator's produce has to name the farmer behind it — the DB trigger
+    // refuses it otherwise, and the buyer's whole reason to trust an aggregator
+    // is seeing who grew what they bought.
+    if (isAggregator && !sourceFarmerId) {
+      setError(L('Choose the farmer who grows this produce.', 'ఈ ఉత్పత్తిని పండించే రైతును ఎంచుకోండి.'))
+      return
+    }
     setLoading(true)
     setError('')
 
@@ -2188,6 +2396,10 @@ function ProduceListingForm({
         delivery_mode: deliveryMode,
         delivery_charge: deliveryMode === 'pickup' ? null : (deliveryCharge ? Number(deliveryCharge) : null),
         delivery_radius_km: deliveryMode === 'pickup' ? null : (deliveryRadius ? Number(deliveryRadius) : null),
+        // Sent only by an aggregator: a plain farmer's payload is unchanged, and
+        // sending null would trip the trigger on an environment where the
+        // column doesn't exist yet.
+        ...(isAggregator && sourceFarmerId ? { source_farmer_id: sourceFarmerId } : {}),
       }
 
       let res: Response
@@ -2255,6 +2467,7 @@ function ProduceListingForm({
     payload.harvest_date = harvestDateIso
     payload.shelf_life_days = shelfLifeVal
     payload.delivery_mode = deliveryMode
+    if (isAggregator && sourceFarmerId) payload.source_farmer_id = sourceFarmerId
     if (deliveryMode !== 'pickup') {
       if (deliveryCharge) payload.delivery_charge = Number(deliveryCharge)
       if (deliveryRadius) payload.delivery_radius_km = Number(deliveryRadius)
@@ -2397,6 +2610,19 @@ function ProduceListingForm({
           />
         </div>
 
+        {/* Who grew it — aggregators only, and the field they must not get
+            wrong, so it sits with the produce's identity rather than further
+            down with the logistics. */}
+        {isAggregator && (
+          <SourceFarmerPicker
+            sourceFarmers={sourceFarmers}
+            noSourceFarmers={noSourceFarmers}
+            value={sourceFarmerId}
+            onChange={setSourceFarmerId}
+            manageHref="/aggregator/farmers"
+          />
+        )}
+
         {/* Quantity */}
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
@@ -2441,6 +2667,7 @@ function ProduceListingForm({
             farmerId={farmerId}
             unit={unit}
             produceShelfLife={shelfLifeDays ? parseInt(shelfLifeDays, 10) : null}
+            sourceFarmerId={editData.source_farmer_id ?? null}
           />
         )}
 
