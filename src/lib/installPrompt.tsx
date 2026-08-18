@@ -2,16 +2,15 @@
 
 import { useSyncExternalStore } from 'react'
 
-/* Shared install state for the PWA "Download App" surfaces.
+/* Shared install state for the PWA "Download App" surface on /home.
  *
- * Two components offer the install — the bar beside the location chip and the
- * floating ball — and they must agree: dismissing one has to hide both, and
- * only ONE `beforeinstallprompt` event ever exists per page, so it cannot be
- * owned by whichever component happened to mount first.
+ * Only ONE `beforeinstallprompt` event ever exists per page, so the offer
+ * cannot be owned by whichever component happened to mount first — it lives
+ * here, ready for any surface that wants to raise it.
  *
  * Hence a module-level store read through useSyncExternalStore: the server
- * snapshot is "nothing to offer", so both surfaces are absent from the server
- * render and appear after hydration, with no setState in an effect (which
+ * snapshot is "nothing to offer", so the surface is absent from the server
+ * render and appears after hydration, with no setState in an effect (which
  * React 19 flags as a cascading render). */
 
 // Not in TS's lib.dom yet — Chromium-only.
@@ -55,8 +54,8 @@ function isIOS(): boolean {
 
 function wasDismissed(): boolean {
   if (dismissedFlag) return true
-  // Mirrored in a module flag as well, so a private-mode localStorage throw
-  // still hides the surfaces for the rest of the session.
+  // Set by the old install ball's "Don't show again"; still honoured so anyone
+  // who opted out then stays opted out.
   try { return localStorage.getItem(DISMISS_KEY) === '1' } catch { return false }
 }
 
@@ -120,13 +119,6 @@ export async function runInstall(): Promise<boolean> {
   if (outcome === 'accepted') dismissedFlag = true
   refresh()
   return outcome === 'accepted'
-}
-
-/** Hide every install surface for good. */
-export function dismissInstall() {
-  dismissedFlag = true
-  try { localStorage.setItem(DISMISS_KEY, '1') } catch { /* session-only */ }
-  refresh()
 }
 
 /** Shared download glyph — an arrow dropping into a tray. */

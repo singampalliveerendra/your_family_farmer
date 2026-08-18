@@ -14,7 +14,6 @@ import { supabase } from '@/lib/supabase'
 import { haversineKm, nearestTown, formatDistance, farmerCoords, townByName } from '@/lib/location'
 import { todayInIndia, isPastDate } from '@/lib/date'
 import LocationSearch from '@/components/LocationSearch'
-import InstallAppFab from '@/components/InstallAppFab'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
@@ -661,10 +660,6 @@ export default function ConsumerPage() {
 
       {/* ── Floating cart button ─────────────── */}
       <CartFab />
-      {/* Floating install ball. Sits on the LEFT at CartFab's height on a lower
-          layer, so the two never collide. Renders nothing unless this browser
-          can actually install. */}
-      <InstallAppFab />
 
       {/* ── Location bottom sheet ─────────────── */}
       {showLocationSheet && (
