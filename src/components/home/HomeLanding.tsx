@@ -25,6 +25,15 @@ type Shot = { id: string; name: string; image_url: string }
 // [English, తెలుగు] throughout, matching RoleSelect.
 type Pair = [string, string]
 
+/* The header's section nav. Every target is a section further down this same
+ * page — there is no separate About or Contact route to send people to, and a
+ * landing page should not bounce a visitor off itself. */
+const NAV: { href: string; label: Pair }[] = [
+  { href: '#how', label: ['How it works', 'ఎలా పనిచేస్తుంది'] },
+  { href: '#about', label: ['About', 'మా గురించి'] },
+  { href: '#contact', label: ['Contact', 'సంప్రదించండి'] },
+]
+
 const FEATURES: { icon: string; title: Pair; body: Pair }[] = [
   {
     icon: '🌾',
@@ -141,10 +150,14 @@ export default function HomeLanding({
           mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
           -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
         }
+        /* The header nav jumps down the page; ease it so the reader keeps
+           their bearings. Scoped to this page — the tag unmounts with it. */
+        html { scroll-behavior: smooth }
         /* Anyone who has asked the OS for less motion gets a still page. */
         @media (prefers-reduced-motion: reduce) {
           .gghome-rise, .gghome-float, .gghome-blob, .gghome-grad { animation: none !important }
           .gghome-card:hover { transform: none }
+          html { scroll-behavior: auto }
         }
       `}</style>
 
@@ -157,29 +170,48 @@ export default function HomeLanding({
       </div>
 
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <header className="relative z-20 mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-        {/* min-w-0 + truncate: at 390px the wordmark gives way before the
-            Download pill does, so the CTA can never be pushed off-screen. */}
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-green-500 to-green-700 ring-1 ring-white/15">
-            <SproutMark className="h-5 w-5 text-[#f4f7ec]" />
-          </span>
-          <span className="brand-wordmark truncate text-[15px] font-bold leading-none">Go Grameen</span>
+      <header className="relative z-20 mx-auto max-w-6xl px-4 py-4">
+        <div className="flex items-center justify-between">
+          {/* min-w-0 + truncate: at 390px the wordmark gives way before the
+              Download pill does, so the CTA can never be pushed off-screen. */}
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-green-500 to-green-700 ring-1 ring-white/15">
+              <SproutMark className="h-5 w-5 text-[#f4f7ec]" />
+            </span>
+            <span className="brand-wordmark truncate text-[15px] font-bold leading-none">Go Grameen</span>
+          </div>
+          {/* Download is what the page is for, so it takes the loud pill up
+              here too. "Open the app" drops to a quiet secondary link and hides
+              below sm, so the row still fits at 390px — which is also why the
+              language toggle runs at its `sm` size here. */}
+          <div className="flex shrink-0 items-center gap-2">
+            <LanguageToggle size="sm" />
+            <Link
+              href="/consumer"
+              className="hidden rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-bold text-lime-100 backdrop-blur-sm transition hover:border-lime-300/50 hover:text-white sm:inline-flex"
+            >
+              {L('Open the app →', 'యాప్ తెరవండి →')}
+            </Link>
+            <HomeInstallCta size="compact" />
+          </div>
         </div>
-        {/* Download is what the page is for, so it takes the loud pill up here
-            too. "Open the app" drops to a quiet secondary link and hides below
-            sm, so the row still fits at 390px — which is also why the language
-            toggle runs at its `sm` size here. */}
-        <div className="flex shrink-0 items-center gap-2">
-          <LanguageToggle size="sm" />
-          <Link
-            href="/consumer"
-            className="hidden rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-bold text-lime-100 backdrop-blur-sm transition hover:border-lime-300/50 hover:text-white sm:inline-flex"
-          >
-            {L('Open the app →', 'యాప్ తెరవండి →')}
-          </Link>
-          <HomeInstallCta size="compact" />
-        </div>
+
+        {/* Section nav. Plain anchors, so it works before hydration and costs
+            nothing on 4G — every target is already on this page. It wraps
+            rather than scrolls: at 390px the Telugu labels are long enough to
+            need a second line, and a wrapped row reads better than a strip
+            with content hidden off the right edge. */}
+        <nav className="mt-3.5 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+          {NAV.map((n) => (
+            <a
+              key={n.href}
+              href={n.href}
+              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold text-lime-100 backdrop-blur-sm transition hover:border-lime-300/50 hover:bg-white/10 hover:text-white"
+            >
+              {L(n.label[0], n.label[1])}
+            </a>
+          ))}
+        </nav>
       </header>
 
       {/* ── Hero ───────────────────────────────────────────────────── */}
@@ -274,8 +306,8 @@ export default function HomeLanding({
         <RoleSelect />
       </section>
 
-      {/* ── Features ───────────────────────────────────────────────── */}
-      <section className="relative z-10 mx-auto max-w-6xl px-4 py-16">
+      {/* ── Features (the nav's "About": what Go Grameen is) ───────── */}
+      <section id="about" className="relative z-10 mx-auto max-w-6xl px-4 py-16 scroll-mt-4">
         <h2 className="brand-wordmark text-center text-2xl font-bold sm:text-3xl">
           {L('Built for how villages actually sell', 'గ్రామాలు నిజంగా అమ్మే విధానానికి తగ్గట్టు')}
         </h2>
@@ -297,7 +329,7 @@ export default function HomeLanding({
       </section>
 
       {/* ── How it works ───────────────────────────────────────────── */}
-      <section className="relative z-10 border-y border-white/10 bg-black/20 py-16 backdrop-blur-sm">
+      <section id="how" className="relative z-10 border-y border-white/10 bg-black/20 py-16 backdrop-blur-sm scroll-mt-4">
         <div className="mx-auto max-w-5xl px-4">
           <h2 className="brand-wordmark text-center text-2xl font-bold sm:text-3xl">
             {L('Three taps to fresh food', 'మూడు ట్యాప్‌లలో తాజా ఆహారం')}
@@ -373,7 +405,7 @@ export default function HomeLanding({
       </section>
 
       {/* ── Footer ─────────────────────────────────────────────────── */}
-      <footer className="relative z-10 border-t border-white/10 px-4 py-10 text-center">
+      <footer id="contact" className="relative z-10 border-t border-white/10 px-4 py-10 text-center scroll-mt-4">
         <div className="mt-1 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs font-semibold text-lime-100/60">
           <Link href="/consumer" className="hover:text-lime-300">{L('Browse harvests', 'కోతలు చూడండి')}</Link>
           <Link href="/farmer/login" className="hover:text-lime-300">{L('Farmer login', 'రైతు లాగిన్')}</Link>
