@@ -24,9 +24,23 @@ import { writeEntryRole, type EntryRole } from '@/lib/entryRole'
  * to promote the install, so it must never render as an empty hole. It falls
  * back to "Open App" for anyone already installed. */
 
-type Props = { size?: 'lg' | 'compact' }
+/* Below this the badge stays hidden: "3 downloads" is weaker social proof
+ * than no number at all. Set to 0 to show the count from the very first
+ * install. */
+const MIN_TO_SHOW = 10
 
-export default function HomeInstallCta({ size = 'lg' }: Props) {
+/** Indian grouping — 1,20,000, not 120,000. */
+function formatCount(n: number): string {
+  return n.toLocaleString('en-IN')
+}
+
+type Props = {
+  size?: 'lg' | 'compact'
+  /** Devices that have installed the app; null when the count is unavailable. */
+  count?: number | null
+}
+
+export default function HomeInstallCta({ size = 'lg', count = null }: Props) {
   const { L } = useLang()
   const { canPrompt, iosHint } = useInstallState()
   const [chooser, setChooser] = useState(false)
@@ -36,6 +50,9 @@ export default function HomeInstallCta({ size = 'lg' }: Props) {
 
   const compact = size === 'compact'
   const offersInstall = canPrompt || iosHint
+  // The header pill has no room for it at 390px, so the badge rides the big
+  // CTA only.
+  const showCount = !compact && count != null && count >= MIN_TO_SHOW
 
   const shell =
     `inline-flex items-center justify-center gap-2 font-extrabold ` +
@@ -59,22 +76,35 @@ export default function HomeInstallCta({ size = 'lg' }: Props) {
       ? L('Add to Home Screen', 'హోమ్ స్క్రీన్‌కు జోడించండి')
       : L('Open App', 'యాప్ తెరవండి')
 
+  const countBadge = showCount ? (
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-lime-300/25 bg-lime-300/10 px-3 py-2 text-xs font-bold text-lime-100/80">
+      <span className="text-sm font-extrabold text-lime-200">{formatCount(count!)}</span>
+      {L('downloads', 'డౌన్‌లోడ్‌లు')}
+    </span>
+  ) : null
+
   return (
     <>
       <div className={compact ? '' : 'w-full sm:w-auto'}>
-        {offersInstall ? (
-          <button onClick={() => { setChosen(null); setChooser(true) }} className={shell}>
-            <DownloadIcon className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
-            {compact ? L('Download App', 'డౌన్‌లోడ్') : label}
-          </button>
-        ) : (
-          // Already installed, or a browser that never offers a prompt. `/`
-          // honours whatever they picked before, so it is the right target.
-          <Link href="/" className={shell}>
-            <DownloadIcon className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
-            {compact ? L('Open App', 'తెరవండి') : label}
-          </Link>
-        )}
+        {/* Wraps rather than squeezes: at 390px the full-width button takes
+            the first line and the badge centres underneath it; from sm up they
+            sit side by side. */}
+        <div className={compact ? '' : 'flex w-full flex-wrap items-center justify-center gap-2.5 sm:w-auto sm:justify-start'}>
+          {offersInstall ? (
+            <button onClick={() => { setChosen(null); setChooser(true) }} className={shell}>
+              <DownloadIcon className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
+              {compact ? L('Download App', 'డౌన్‌లోడ్') : label}
+            </button>
+          ) : (
+            // Already installed, or a browser that never offers a prompt. `/`
+            // honours whatever they picked before, so it is the right target.
+            <Link href="/" className={shell}>
+              <DownloadIcon className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
+              {compact ? L('Open App', 'తెరవండి') : label}
+            </Link>
+          )}
+          {countBadge}
+        </div>
 
         {!compact && offersInstall && (
           <p className="mt-2 text-center text-xs text-lime-200/70">

@@ -36,3 +36,12 @@ export function writeEntryRole(role: EntryRole) {
   // app, which is a top-level same-site navigation.
   document.cookie = `${ENTRY_COOKIE}=${role}; path=/; max-age=31536000; SameSite=Lax`
 }
+
+/** Read the remembered choice in the browser. Client-only; null when they
+ *  never chose (a straight install from the browser menu, say). */
+export function readEntryRole(): EntryRole | null {
+  if (typeof document === 'undefined') return null
+  const hit = document.cookie.match(new RegExp(`(?:^|; )${ENTRY_COOKIE}=([^;]*)`))
+  const raw = hit?.[1]
+  return raw === 'seller' || raw === 'consumer' ? raw : null
+}

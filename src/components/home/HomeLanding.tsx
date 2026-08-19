@@ -103,7 +103,14 @@ const STEPS: { n: string; title: Pair; body: Pair }[] = [
   },
 ]
 
-export default function HomeLanding({ shots }: { shots: Shot[] }) {
+export default function HomeLanding({
+  shots,
+  installs,
+}: {
+  shots: Shot[]
+  /** Devices that have installed the app — the badge beside Download. */
+  installs: number | null
+}) {
   const { L } = useLang()
 
   return (
@@ -204,7 +211,7 @@ export default function HomeLanding({ shots }: { shots: Shot[] }) {
             </p>
 
             <div className="gghome-rise mt-8 flex flex-col items-start gap-3 sm:flex-row sm:items-center" style={{ animationDelay: '.24s' }}>
-              <HomeInstallCta />
+              <HomeInstallCta count={installs} />
               <Link
                 href="/consumer"
                 className="w-full rounded-2xl border border-white/15 px-6 py-4 text-center text-sm font-bold text-white transition hover:border-lime-300/50 hover:bg-white/5 sm:w-auto"
@@ -360,7 +367,7 @@ export default function HomeLanding({ shots }: { shots: Shot[] }) {
             )}
           </p>
           <div className="mt-8 flex justify-center">
-            <HomeInstallCta />
+            <HomeInstallCta count={installs} />
           </div>
         </div>
       </section>

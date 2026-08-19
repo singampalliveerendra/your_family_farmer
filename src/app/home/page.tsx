@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { supabase } from '@/lib/supabase'
+import { installCount } from '@/lib/installCount'
 import HomeLanding from '@/components/home/HomeLanding'
 
 /* /home — the public landing page.
@@ -48,6 +49,10 @@ async function farmShots(limit = 6): Promise<Shot[]> {
 }
 
 export default async function HomePage() {
-  const shots = await farmShots(6)
-  return <HomeLanding shots={shots} />
+  // Both are cheap and independent, and both are covered by `revalidate`
+  // above — so the download count is at most ten minutes behind, which is
+  // the right trade for a marketing number that must not cost a query on
+  // every visit.
+  const [shots, installs] = await Promise.all([farmShots(6), installCount()])
+  return <HomeLanding shots={shots} installs={installs} />
 }

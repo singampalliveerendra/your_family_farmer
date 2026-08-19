@@ -1,6 +1,8 @@
 'use client'
 
 import { useSyncExternalStore } from 'react'
+import { readEntryRole } from '@/lib/entryRole'
+import type { InstallPlatform } from '@/lib/installCount'
 
 /* Shared install state for the PWA "Download App" surface on /home.
  *
@@ -83,6 +85,10 @@ function onPrompt(e: Event) {
 function onInstalled() {
   deferred = null
   dismissedFlag = true
+  // Chrome/Android fires this once the app is really on the home screen, so
+  // it is the honest moment to count a download — not the button tap, which
+  // they can still back out of.
+  void reportInstall()
   refresh()
 }
 
@@ -119,6 +125,74 @@ export async function runInstall(): Promise<boolean> {
   if (outcome === 'accepted') dismissedFlag = true
   refresh()
   return outcome === 'accepted'
+}
+
+/* ── Counting installs ──────────────────────────────────────────────
+ *
+ * The "N downloads" badge on /home is a real count of devices that
+ * installed the app, so it has to be reported from the browser: the server
+ * never sees an install happen.
+ *
+ * Two moments report, because no single one covers every platform:
+ *   • `appinstalled` above — Chrome/Android, the tab that installed it
+ *   • first launch in standalone mode (InstallCounter, in the root layout)
+ *     — the only signal iOS gives, since Safari has no install event
+ *
+ * Both are funnelled through here, and a device counts at most once: the id
+ * below is minted once into localStorage and is UNIQUE in the table, so even
+ * a cleared browser store cannot double-count without also losing the id. */
+
+const DEVICE_KEY = 'yff_install_device'
+const REPORTED_KEY = 'yff_install_reported'
+let reported = false
+
+function deviceId(): string {
+  try {
+    const seen = localStorage.getItem(DEVICE_KEY)
+    if (seen) return seen
+    const fresh =
+      crypto.randomUUID?.() ??
+      // Older Android WebViews have crypto but not randomUUID.
+      `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+    localStorage.setItem(DEVICE_KEY, fresh)
+    return fresh
+  } catch {
+    // Private mode with storage blocked: still report, just unlinkable.
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+  }
+}
+
+function platform(): InstallPlatform {
+  if (isIOS()) return 'ios'
+  return /Android/i.test(navigator.userAgent) ? 'android' : 'desktop'
+}
+
+/** Count this device's install, once. Silent on failure — a marketing number
+ *  is never worth interrupting someone who just installed the app. */
+export async function reportInstall(): Promise<void> {
+  if (typeof window === 'undefined' || reported) return
+  reported = true
+  try {
+    if (localStorage.getItem(REPORTED_KEY) === '1') return
+  } catch { /* storage blocked — fall through and report */ }
+
+  try {
+    await fetch('/api/installs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deviceId: deviceId(), role: readEntryRole(), platform: platform() }),
+      keepalive: true,
+    })
+    try { localStorage.setItem(REPORTED_KEY, '1') } catch { /* nothing to do */ }
+  } catch {
+    // Offline or blocked. Let the next launch try again.
+    reported = false
+  }
+}
+
+/** True once the app is running from the home screen. */
+export function runningStandalone(): boolean {
+  return isStandalone()
 }
 
 /** Shared download glyph — an arrow dropping into a tray. */

@@ -5,6 +5,7 @@ import { LanguageProvider } from "@/lib/LanguageContext";
 import { ConsumerAuthProvider } from "@/lib/ConsumerAuthContext";
 import SplashScreen from "@/components/SplashScreen";
 import StagingBanner from "@/components/StagingBanner";
+import InstallCounter from "@/components/InstallCounter";
 
 /* Brand type. Fraunces carries the Latin wordmark (soft, slightly wonky serif
    — the farm-to-table look); it has no Telugu glyphs, so Noto Serif Telugu
@@ -72,6 +73,9 @@ export default function RootLayout({
         />
         <SplashScreen />
         <StagingBanner />
+        {/* Invisible: counts this device's install the first time the app is
+            launched from the home screen. */}
+        <InstallCounter />
         <LanguageProvider>
           <ConsumerAuthProvider>{children}</ConsumerAuthProvider>
         </LanguageProvider>
