@@ -24,10 +24,10 @@ import { writeEntryRole, type EntryRole } from '@/lib/entryRole'
  * to promote the install, so it must never render as an empty hole. It falls
  * back to "Open App" for anyone already installed. */
 
-/* Below this the badge stays hidden: "3 downloads" is weaker social proof
- * than no number at all. Set to 0 to show the count from the very first
- * install. */
-const MIN_TO_SHOW = 10
+/* Below this the badge stays hidden. At 1 it appears with the first real
+ * install and only ever hides on zero — "0 downloads" is the one number worth
+ * withholding. Raise it if you would rather wait for a rounder figure. */
+const MIN_TO_SHOW = 1
 
 /** Indian grouping — 1,20,000, not 120,000. */
 function formatCount(n: number): string {
@@ -79,7 +79,7 @@ export default function HomeInstallCta({ size = 'lg', count = null }: Props) {
   const countBadge = showCount ? (
     <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-lime-300/25 bg-lime-300/10 px-3 py-2 text-xs font-bold text-lime-100/80">
       <span className="text-sm font-extrabold text-lime-200">{formatCount(count!)}</span>
-      {L('downloads', 'డౌన్‌లోడ్‌లు')}
+      {count === 1 ? L('download', 'డౌన్‌లోడ్') : L('downloads', 'డౌన్‌లోడ్‌లు')}
     </span>
   ) : null
 
