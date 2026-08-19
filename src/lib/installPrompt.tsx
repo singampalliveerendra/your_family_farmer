@@ -167,26 +167,31 @@ function platform(): InstallPlatform {
   return /Android/i.test(navigator.userAgent) ? 'android' : 'desktop'
 }
 
-/** Count this device's install, once. Silent on failure — a marketing number
- *  is never worth interrupting someone who just installed the app. */
-export async function reportInstall(): Promise<void> {
-  if (typeof window === 'undefined' || reported) return
+/** Count this device's install, once. Resolves to the fresh total so the
+ *  surface that raised the prompt can show the number moving, or null when
+ *  there was nothing to report. Silent on failure — a marketing number is
+ *  never worth interrupting someone who just installed the app. */
+export async function reportInstall(): Promise<number | null> {
+  if (typeof window === 'undefined' || reported) return null
   reported = true
   try {
-    if (localStorage.getItem(REPORTED_KEY) === '1') return
+    if (localStorage.getItem(REPORTED_KEY) === '1') return null
   } catch { /* storage blocked — fall through and report */ }
 
   try {
-    await fetch('/api/installs', {
+    const res = await fetch('/api/installs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ deviceId: deviceId(), role: readEntryRole(), platform: platform() }),
       keepalive: true,
     })
     try { localStorage.setItem(REPORTED_KEY, '1') } catch { /* nothing to do */ }
+    const body = (await res.json()) as { count?: unknown }
+    return typeof body.count === 'number' ? body.count : null
   } catch {
     // Offline or blocked. Let the next launch try again.
     reported = false
+    return null
   }
 }
 

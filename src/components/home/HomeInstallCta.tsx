@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
-import { useInstallState, runInstall, DownloadIcon } from '@/lib/installPrompt'
+import { useInstallState, runInstall, reportInstall, DownloadIcon } from '@/lib/installPrompt'
 import { writeEntryRole, type EntryRole } from '@/lib/entryRole'
 
 /* The landing page's call to action.
@@ -48,11 +48,16 @@ export default function HomeInstallCta({ size = 'lg', count = null }: Props) {
   // show the manual Add-to-Home-Screen steps instead.
   const [chosen, setChosen] = useState<EntryRole | null>(null)
 
+  // Starts at the server's figure and moves the moment this visitor installs,
+  // so they see their own install land instead of waiting out the page's
+  // ten-minute revalidate.
+  const [live, setLive] = useState<number | null>(count)
+
   const compact = size === 'compact'
   const offersInstall = canPrompt || iosHint
   // The header pill has no room for it at 390px, so the badge rides the big
   // CTA only.
-  const showCount = !compact && count != null && count >= MIN_TO_SHOW
+  const showCount = !compact && live != null && live >= MIN_TO_SHOW
 
   const shell =
     `inline-flex items-center justify-center gap-2 font-extrabold ` +
@@ -64,7 +69,13 @@ export default function HomeInstallCta({ size = 'lg', count = null }: Props) {
     writeEntryRole(role)
     if (canPrompt) {
       setChooser(false)
-      await runInstall()
+      // Only an ACCEPTED prompt is an install — Chrome's dialog still has a
+      // Cancel, and the badge says "downloads", so a tap must not count.
+      if (await runInstall()) {
+        // Idempotent, and it beats waiting for `appinstalled` to land.
+        const total = await reportInstall()
+        if (total != null) setLive(total)
+      }
       return
     }
     setChosen(role)
@@ -77,34 +88,34 @@ export default function HomeInstallCta({ size = 'lg', count = null }: Props) {
       : L('Open App', 'యాప్ తెరవండి')
 
   const countBadge = showCount ? (
-    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-lime-300/25 bg-lime-300/10 px-3 py-2 text-xs font-bold text-lime-100/80">
-      <span className="text-sm font-extrabold text-lime-200">{formatCount(count!)}</span>
-      {count === 1 ? L('download', 'డౌన్‌లోడ్') : L('downloads', 'డౌన్‌లోడ్‌లు')}
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-lime-300/20 bg-lime-300/10 px-3.5 py-1.5 text-xs font-semibold text-lime-100/75">
+      <DownloadIcon className="h-3.5 w-3.5 shrink-0 text-lime-300" />
+      <span className="text-sm font-extrabold text-lime-200">{formatCount(live!)}</span>
+      {live === 1 ? L('download', 'డౌన్‌లోడ్') : L('downloads', 'డౌన్‌లోడ్‌లు')}
     </span>
   ) : null
 
   return (
     <>
       <div className={compact ? '' : 'w-full sm:w-auto'}>
-        {/* Wraps rather than squeezes: at 390px the full-width button takes
-            the first line and the badge centres underneath it; from sm up they
-            sit side by side. */}
-        <div className={compact ? '' : 'flex w-full flex-wrap items-center justify-center gap-2.5 sm:w-auto sm:justify-start'}>
-          {offersInstall ? (
-            <button onClick={() => { setChosen(null); setChooser(true) }} className={shell}>
-              <DownloadIcon className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
-              {compact ? L('Download App', 'డౌన్‌లోడ్') : label}
-            </button>
-          ) : (
-            // Already installed, or a browser that never offers a prompt. `/`
-            // honours whatever they picked before, so it is the right target.
-            <Link href="/" className={shell}>
-              <DownloadIcon className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
-              {compact ? L('Open App', 'తెరవండి') : label}
-            </Link>
-          )}
-          {countBadge}
-        </div>
+        {offersInstall ? (
+          <button onClick={() => { setChosen(null); setChooser(true) }} className={shell}>
+            <DownloadIcon className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
+            {compact ? L('Download App', 'డౌన్‌లోడ్') : label}
+          </button>
+        ) : (
+          // Already installed, or a browser that never offers a prompt. `/`
+          // honours whatever they picked before, so it is the right target.
+          <Link href="/" className={shell}>
+            <DownloadIcon className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
+            {compact ? L('Open App', 'తెరవండి') : label}
+          </Link>
+        )}
+
+        {/* Under the button, centred on it: the count reads as proof of the
+            thing the button does, and stacking keeps the 390px row intact
+            whichever language the labels are in. */}
+        {countBadge && <div className="mt-3 flex justify-center">{countBadge}</div>}
 
         {!compact && offersInstall && (
           <p className="mt-2 text-center text-xs text-lime-200/70">
