@@ -417,7 +417,7 @@ export default function HomeLanding({
             putting it here. */}
         <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
           <a
-            href="mailto:gograameen@zohomail.in"
+            href="mailto:gogrameen1@gmail.com"
             className="inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-lime-100 transition hover:border-lime-300/50 hover:text-white"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9}
@@ -425,7 +425,7 @@ export default function HomeLanding({
               <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" />
               <path d="m3 7 8.2 5.6a1.5 1.5 0 0 0 1.6 0L21 7" />
             </svg>
-            gograameen@zohomail.in
+            gogrameen1@gmail.com
           </a>
 
           <a
