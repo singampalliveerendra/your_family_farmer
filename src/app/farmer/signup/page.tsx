@@ -36,7 +36,7 @@ export default function FarmerSignupPage() {
       body: JSON.stringify({ name: name.trim(), phone: digits, password }),
     }).catch(() => null)
     setLoading(false)
-    if (!res) { setError('Network error. Please try again.'); return }
+    if (!res) { setError(L('Network error. Please try again.', 'నెట్‌వర్క్ లోపం. మళ్ళీ ప్రయత్నించండి.')); return }
     const json = await res.json().catch(() => ({}))
     if (!res.ok) { setError(json?.error ?? 'Could not create account.'); return }
     localStorage.setItem('yff_farmer_id', json.farmerId)
@@ -72,7 +72,7 @@ export default function FarmerSignupPage() {
             </label>
             <input
               type="text"
-              placeholder="Your full name"
+              placeholder={L('Your full name', 'మీ పూర్తి పేరు')}
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={80}
@@ -107,7 +107,7 @@ export default function FarmerSignupPage() {
             <div className="relative">
               <input
                 type={showPass ? 'text' : 'password'}
-                placeholder="At least 6 characters"
+                placeholder={L('At least 6 characters', 'కనీసం 6 అక్షరాలు')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
@@ -139,7 +139,7 @@ export default function FarmerSignupPage() {
           <div className="text-xs text-gray-600 text-center pt-1">
             Already have an account?{' '}
             <Link href="/farmer/login" className="text-green-700 font-bold underline">
-              Log in
+              {L('Log in', 'లాగిన్')}
             </Link>
           </div>
 

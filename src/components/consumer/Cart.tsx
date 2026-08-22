@@ -280,7 +280,7 @@ export function CartFab({ raised = false }: { raised?: boolean }) {
       onClick={() => router.push('/consumer/cart')}
       className="fixed right-4 z-[60] bg-green-700 active:bg-green-800 text-white rounded-full shadow-2xl flex items-center gap-2 pl-4 pr-5 py-3.5"
       style={{ bottom: bottomExpr }}
-      aria-label="View cart"
+      aria-label={L('View cart', 'బండి చూడండి')}
     >
       <CartIcon />
       <span className="font-extrabold text-sm">
@@ -709,7 +709,7 @@ export function CartSheet({
         deliveryFarmerIndex: farmerIndex < 0 ? 0 : farmerIndex,
       }),
     }).catch(() => null)
-    if (!r) return { ok: false, error: 'Network error. Please try again.' }
+    if (!r) return { ok: false, error: L('Network error. Please try again.', 'నెట్‌వర్క్ లోపం. మళ్ళీ ప్రయత్నించండి.') }
     const json = await r.json().catch(() => ({}))
     if (!r.ok || !json?.ok) return { ok: false, error: json?.error ?? 'Could not place order.' }
     // Order saved — drop the key so a genuinely new order later gets a fresh one.
@@ -763,7 +763,7 @@ export function CartSheet({
 
     if (!scriptOk || !window.Razorpay) {
       setPayingOnline(null)
-      showToast('Could not load the payment screen. Check your connection.')
+      showToast(L('Could not load the payment screen. Check your connection.', 'చెల్లింపు స్క్రీన్ లోడ్ కాలేదు. మీ కనెక్షన్ చూడండి.'))
       void abandonOrders()
       return
     }
@@ -810,7 +810,7 @@ export function CartSheet({
           if (settled) return
           setPayingOnline(null)
           resetPaymentScreen()
-          showToast('Deposit not paid. Your order was not placed.')
+          showToast(L('Deposit not paid. Your order was not placed.', 'డిపాజిట్ చెల్లించలేదు. మీ ఆర్డర్ నమోదు కాలేదు.'))
           void abandonOrders()
         },
       },
@@ -845,7 +845,7 @@ export function CartSheet({
       if (settled) return
       setPayingOnline(null)
       resetPaymentScreen()
-      showToast('Deposit payment failed. Your order was not placed — please try again.')
+      showToast(L('Deposit payment failed. Your order was not placed — please try again.', 'డిపాజిట్ చెల్లింపు విఫలమైంది. మీ ఆర్డర్ నమోదు కాలేదు — మళ్ళీ ప్రయత్నించండి.'))
       void abandonOrders()
     })
     rzp.open()
@@ -996,7 +996,7 @@ export function CartSheet({
 
     if (!scriptOk || !window.Razorpay) {
       setPayingOnline(null)
-      showToast('Could not load the payment screen. Check your connection.')
+      showToast(L('Could not load the payment screen. Check your connection.', 'చెల్లింపు స్క్రీన్ లోడ్ కాలేదు. మీ కనెక్షన్ చూడండి.'))
       return
     }
     if (!createRes?.ok) {
@@ -1065,7 +1065,7 @@ export function CartSheet({
           if (settled) return
           setPayingOnline(null)
           resetPaymentScreen()
-          showToast('Payment cancelled. Your order was not placed.')
+          showToast(L('Payment cancelled. Your order was not placed.', 'చెల్లింపు రద్దైంది. మీ ఆర్డర్ నమోదు కాలేదు.'))
           void abandonOrders()
         },
       },
@@ -1102,7 +1102,7 @@ export function CartSheet({
       if (settled) return
       setPayingOnline(null)
       resetPaymentScreen()
-      showToast('Payment failed. Your order was not placed — please try again.')
+      showToast(L('Payment failed. Your order was not placed — please try again.', 'చెల్లింపు విఫలమైంది. మీ ఆర్డర్ నమోదు కాలేదు — మళ్ళీ ప్రయత్నించండి.'))
       void abandonOrders()
     })
     rzp.open()
@@ -1169,7 +1169,7 @@ export function CartSheet({
     if (!scriptOk || !window.Razorpay) {
       await abandon(allOrderIds)
       setPayingOnline(null)
-      showToast('Could not load the payment screen. Check your connection.')
+      showToast(L('Could not load the payment screen. Check your connection.', 'చెల్లింపు స్క్రీన్ లోడ్ కాలేదు. మీ కనెక్షన్ చూడండి.'))
       return
     }
     if (!createRes?.ok) {
@@ -1214,7 +1214,7 @@ export function CartSheet({
           if (settled) return
           setPayingOnline(null)
           resetPaymentScreen()
-          showToast('Payment cancelled. Your order was not placed.')
+          showToast(L('Payment cancelled. Your order was not placed.', 'చెల్లింపు రద్దైంది. మీ ఆర్డర్ నమోదు కాలేదు.'))
           void abandon(allOrderIds)
         },
       },
@@ -1248,7 +1248,7 @@ export function CartSheet({
       if (settled) return
       setPayingOnline(null)
       resetPaymentScreen()
-      showToast('Payment failed. Your order was not placed — please try again.')
+      showToast(L('Payment failed. Your order was not placed — please try again.', 'చెల్లింపు విఫలమైంది. మీ ఆర్డర్ నమోదు కాలేదు — మళ్ళీ ప్రయత్నించండి.'))
       void abandon(allOrderIds)
     })
     rzp.open()
@@ -1263,7 +1263,7 @@ export function CartSheet({
       return
     }
     if (raw.size > 12 * 1024 * 1024) {
-      setProofError('Screenshot too large (max 12MB before compression).')
+      setProofError(L('Screenshot too large (max 12MB before compression).', 'స్క్రీన్‌షాట్ చాలా పెద్దది (కుదించే ముందు గరిష్ఠం 12MB).'))
       return
     }
     setProofError('')
@@ -1286,7 +1286,7 @@ export function CartSheet({
     }).catch(() => null)
     setProofUploading(false)
     if (!r) {
-      setProofError('Upload failed — check your connection and try again.')
+      setProofError(L('Upload failed — check your connection and try again.', 'అప్‌లోడ్ విఫలమైంది — మీ కనెక్షన్ చూసి మళ్ళీ ప్రయత్నించండి.'))
       return
     }
     const json = await r.json().catch(() => ({}))
@@ -1300,7 +1300,7 @@ export function CartSheet({
   const handlePaymentSuccess = async () => {
     if (!upiScreen) return
     if (!proofUploaded) {
-      setProofError('Please attach your payment screenshot first.')
+      setProofError(L('Please attach your payment screenshot first.', 'ముందుగా మీ చెల్లింపు స్క్రీన్‌షాట్ జతచేయండి.'))
       return
     }
     await triggerPostPayment(upiScreen, utrNote)
@@ -1351,7 +1351,7 @@ export function CartSheet({
       URL.revokeObjectURL(url)
       showToast(L('QR saved!', 'గ్యాలరీకి సేవ్ అయింది'))
     } catch {
-      showToast('Could not save — please screenshot the QR')
+      showToast(L('Could not save — please screenshot the QR', 'సేవ్ కాలేదు — QR స్క్రీన్‌షాట్ తీసుకోండి'))
     }
   }
 
@@ -1428,7 +1428,7 @@ export function CartSheet({
                 {L('Payment confirmed', 'చెల్లింపు నిర్ధారించబడింది')}
               </p>
               <p className="text-xs text-gray-400 leading-snug">
-                The farmer has been notified and will prepare your order.
+                {L('The farmer has been notified and will prepare your order.', 'రైతుకు తెలియజేశాం, వారు మీ ఆర్డర్ సిద్ధం చేస్తారు.')}
               </p>
             </>
           ) : (
@@ -1437,7 +1437,7 @@ export function CartSheet({
                 {L('Waiting for farmer confirmation', 'రైతు నిర్ధారణ కోసం వేచి ఉంది')}
               </p>
               <p className="text-xs text-gray-400 leading-snug">
-                The farmer will check their UPI app and confirm your payment.
+                {L('The farmer will check their UPI app and confirm your payment.', 'రైతు తమ UPI యాప్ చూసి మీ చెల్లింపును ధృవీకరిస్తారు.')}
               </p>
             </>
           )}
@@ -1465,11 +1465,11 @@ export function CartSheet({
         <div className={shellInner}>
           <div className={`sticky top-0 z-10 bg-white flex items-center gap-2 px-4 py-3 border-b border-gray-100 ${headerRound}`}>
             {fullPage && (
-              <button onClick={onClose} className="text-gray-600 text-2xl leading-none p-1 -ml-1" aria-label="Back">←</button>
+              <button onClick={onClose} className="text-gray-600 text-2xl leading-none p-1 -ml-1" aria-label={L('Back', 'వెనక్కు')}>←</button>
             )}
             <div className="flex-1 min-w-0">
               <h2 className="font-extrabold text-gray-900 text-lg">{L('Pay Farmer', 'రైతుకు చెల్లించండి')}</h2>
-              <p className="text-xs text-gray-500">Pay directly — no middleman</p>
+              <p className="text-xs text-gray-500">{L('Pay directly — no middleman', 'నేరుగా చెల్లించండి — మధ్యవర్తి లేరు')}</p>
             </div>
             {!fullPage && (
               <button onClick={onClose} className="text-gray-400 text-3xl leading-none p-1">×</button>
@@ -1482,14 +1482,14 @@ export function CartSheet({
               <p className="text-sm font-bold text-green-700">🧑‍🌾 {upiScreen.farmerName}</p>
               <p className="text-xs text-green-600 mt-0.5">{upiScreen.farmerVillage}</p>
               <p className="text-4xl font-black text-green-900 mt-3">₹{upiScreen.amount}</p>
-              <p className="text-sm text-green-700 mt-1">Total amount to pay</p>
+              <p className="text-sm text-green-700 mt-1">{L('Total amount to pay', 'చెల్లించవలసిన మొత్తం')}</p>
             </div>
 
             {/* QR code (if available) */}
             {upiScreen.qrCodeUrl && (
               <div className="bg-white border-2 border-gray-200 rounded-2xl p-4 flex flex-col items-center gap-2">
-                <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">Scan QR Code to Pay</p>
-                <Image src={upiScreen.qrCodeUrl} alt="UPI QR Code" width={192} height={192} className="w-48 h-48 object-contain rounded-xl" />
+                <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">{L('Scan QR Code to Pay', 'చెల్లించడానికి QR స్కాన్ చేయండి')}</p>
+                <Image src={upiScreen.qrCodeUrl} alt={L('UPI QR Code', 'UPI QR కోడ్')} width={192} height={192} className="w-48 h-48 object-contain rounded-xl" />
                 <p className="text-[11px] text-gray-500 text-center">{L('Open any UPI app → Scan QR', 'QR స్కాన్ చేయండి')}</p>
                 <button
                   onClick={handleDownloadQR}
@@ -1538,7 +1538,7 @@ export function CartSheet({
                 {/* UPI ID copy row */}
                 <div className="bg-white border border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-bold text-gray-500 mb-0.5 uppercase tracking-wide">UPI ID</p>
+                    <p className="text-[10px] font-bold text-gray-500 mb-0.5 uppercase tracking-wide">{L('UPI ID', 'UPI ఐడీ')}</p>
                     <p className="font-mono text-sm font-bold text-gray-900 break-all">{upiScreen.upiId}</p>
                   </div>
                   <button
@@ -1576,7 +1576,7 @@ export function CartSheet({
               <input
                 type="text"
                 inputMode="text"
-                placeholder="e.g. GPay ref 123456"
+                placeholder={L('e.g. GPay ref 123456', 'ఉదా. GPay రెఫ్ 123456')}
                 value={utrNote}
                 onChange={(e) => setUtrNote(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:border-green-500 focus:outline-none"
@@ -1597,7 +1597,7 @@ export function CartSheet({
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={proofPreview}
-                    alt="Payment screenshot"
+                    alt={L('Payment screenshot', 'చెల్లింపు స్క్రీన్‌షాట్')}
                     className="w-full max-h-64 object-contain rounded-xl border border-gray-200 bg-white"
                   />
                   <div className="flex items-center justify-between gap-2">
@@ -1606,7 +1606,7 @@ export function CartSheet({
                         ? L('Uploading...', 'అప్‌లోడ్ అవుతోంది...')
                         : proofUploaded
                           ? L('✓ Saved', 'సేవ్ అయింది')
-                          : 'Not uploaded yet'}
+                          : L('Not uploaded yet', 'ఇంకా అప్‌లోడ్ కాలేదు')}
                     </span>
                     <label className="text-xs font-bold text-blue-700 underline cursor-pointer">
                       {L('Change', 'మార్చండి')}
@@ -1670,7 +1670,7 @@ export function CartSheet({
         {/* Header */}
         <div className={`sticky top-0 z-10 bg-white flex items-center gap-2 px-4 py-3 border-b border-gray-100 ${headerRound}`}>
           {fullPage && (
-            <button onClick={onClose} className="text-gray-600 text-2xl leading-none p-1 -ml-1" aria-label="Back">←</button>
+            <button onClick={onClose} className="text-gray-600 text-2xl leading-none p-1 -ml-1" aria-label={L('Back', 'వెనక్కు')}>←</button>
           )}
           <div className="flex-1 min-w-0">
             <h2 className="font-extrabold text-gray-900 text-lg">{L('Your cart', 'మీ బుట్ట')}</h2>
@@ -1705,7 +1705,7 @@ export function CartSheet({
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Ramya"
+                    placeholder={L('Ramya', 'రమ్య')}
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:border-green-500 focus:outline-none bg-white"
                   />
                 </div>
@@ -1815,7 +1815,7 @@ export function CartSheet({
                           <button
                             onClick={() => removeItem(key)}
                             className="text-gray-300 text-xl px-1"
-                            aria-label="Remove"
+                            aria-label={L('Remove', 'తీసివేయి')}
                           >
                             ×
                           </button>
@@ -1930,13 +1930,13 @@ export function CartSheet({
                     </p>
                     <div>
                       <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                        Full address (door no, street, area)
+                        {L('Full address (door no, street, area)', 'పూర్తి చిరునామా (ఇంటి నం, వీధి, ప్రాంతం)')}
                       </label>
                       <textarea
                         value={deliveryAddress}
                         onChange={(e) => setDeliveryAddress(e.target.value.slice(0, 400))}
                         rows={3}
-                        placeholder="H.No 12-3, Main Road, Anand Nagar"
+                        placeholder={L('H.No 12-3, Main Road, Anand Nagar', 'ఇం.నం 12-3, మెయిన్ రోడ్, ఆనంద్ నగర్')}
                         className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none resize-none"
                       />
                     </div>
@@ -1960,7 +1960,7 @@ export function CartSheet({
                         type="text"
                         value={deliveryLandmark}
                         onChange={(e) => setDeliveryLandmark(e.target.value.slice(0, 200))}
-                        placeholder="Near the temple"
+                        placeholder={L('Near the temple', 'గుడి దగ్గర')}
                         className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
                       />
                     </div>
@@ -1980,7 +1980,7 @@ export function CartSheet({
                     </div>
                     <div>
                       <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                        Alternate phone (optional)
+                        {L('Alternate phone (optional)', 'ప్రత్యామ్నాయ ఫోన్ (ఐచ్ఛికం)')}
                       </label>
                       <div className="flex gap-2">
                         <span className="flex items-center px-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 font-medium">
@@ -1992,7 +1992,7 @@ export function CartSheet({
                           value={deliveryAltPhone}
                           onChange={(e) => setDeliveryAltPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                           maxLength={10}
-                          placeholder="Family member / spouse"
+                          placeholder={L('Family member / spouse', 'కుటుంబ సభ్యుడు / జీవిత భాగస్వామి')}
                           className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
                         />
                       </div>
@@ -2326,6 +2326,7 @@ export function EditableQty({
   inputClassName?: string
   unitClassName?: string
 }) {
+  const { L } = useLang()
   const [text, setText] = useState(String(qty))
   const focused = useRef(false)
   // Keep the field in sync with the cart when the change came from elsewhere
@@ -2352,7 +2353,7 @@ export function EditableQty({
         inputMode="numeric"
         pattern="[0-9]*"
         value={text}
-        aria-label="Quantity"
+        aria-label={L('Quantity', 'పరిమాణం')}
         onFocus={(e) => { focused.current = true; e.currentTarget.select() }}
         onChange={(e) => setText(e.target.value.replace(/[^0-9]/g, ''))}
         onBlur={() => { focused.current = false; commit() }}
@@ -2380,13 +2381,14 @@ function QtyStepper({
   unit?: string
   maxQty?: number
 }) {
+  const { L } = useLang()
   const atMax = maxQty != null && qty >= maxQty
   return (
     <div className="flex items-center border border-gray-200 rounded-full">
       <button
         onClick={onDec}
         className="w-8 h-8 text-lg text-gray-700 flex items-center justify-center active:bg-gray-100 rounded-l-full"
-        aria-label="Decrease"
+        aria-label={L('Decrease', 'తగ్గించు')}
       >
         −
       </button>
@@ -2401,7 +2403,7 @@ function QtyStepper({
             ? 'text-gray-300 cursor-not-allowed'
             : 'text-gray-700 active:bg-gray-100'
         }`}
-        aria-label="Increase"
+        aria-label={L('Increase', 'పెంచు')}
       >
         +
       </button>

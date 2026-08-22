@@ -161,7 +161,7 @@ export default function ReviewsTab({
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ramya"
+                placeholder={L('Ramya', 'రమ్య')}
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
               />
             </div>
@@ -195,7 +195,7 @@ export default function ReviewsTab({
                 type="text"
                 value={produceBought}
                 onChange={(e) => setProduceBought(e.target.value)}
-                placeholder="e.g. Tomato, Brinjal"
+                placeholder={L('e.g. Tomato, Brinjal', 'ఉదా. టమాటా, వంకాయ')}
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
               />
             </div>
@@ -207,7 +207,7 @@ export default function ReviewsTab({
               <textarea
                 value={reviewText}
                 onChange={(e) => setReviewText(e.target.value.slice(0, 400))}
-                placeholder="Share your experience with this farmer..."
+                placeholder={L('Share your experience with this farmer...', 'ఈ రైతుతో మీ అనుభవం పంచుకోండి...')}
                 rows={3}
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm resize-none focus:border-green-500 focus:outline-none"
               />

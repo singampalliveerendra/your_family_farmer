@@ -25,7 +25,7 @@ export default function ConsumerOrderHistoryPage() {
     setLoading(true)
     setError('')
     const r = await fetch('/api/consumer/orders', { credentials: 'same-origin' }).catch(() => null)
-    if (!r) { setError('Could not load orders. Check your connection.'); setLoading(false); return }
+    if (!r) { setError(L('Could not load orders. Check your connection.', 'ఆర్డర్లు లోడ్ కాలేదు. మీ కనెక్షన్ చూడండి.')); setLoading(false); return }
     const json = await r.json().catch(() => ({}))
     if (!r.ok) { setError(json?.error ?? 'Could not load orders.'); setLoading(false); return }
     setOrders((json.orders ?? []) as Order[])

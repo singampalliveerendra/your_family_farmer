@@ -52,7 +52,7 @@ export default function ConsumerComplaintsPage() {
   const refresh = useCallback(async () => {
     setLoading(true); setError('')
     const r = await fetch('/api/consumer/complaints', { credentials: 'same-origin' }).catch(() => null)
-    if (!r) { setError('Could not load. Check your connection.'); setLoading(false); return }
+    if (!r) { setError(L('Could not load. Check your connection.', 'లోడ్ కాలేదు. మీ కనెక్షన్ చూడండి.')); setLoading(false); return }
     const json = await r.json().catch(() => ({}))
     if (!r.ok) { setError(json?.error ?? 'Could not load complaints.'); setLoading(false); return }
     setComplaints((json.complaints ?? []) as Complaint[])
@@ -86,7 +86,7 @@ export default function ConsumerComplaintsPage() {
         ) : state.status === 'anonymous' ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center space-y-4">
             <div className="text-5xl">🔒</div>
-            <p className="font-bold text-gray-900">Log in to raise a complaint</p>
+            <p className="font-bold text-gray-900">{L('Log in to raise a complaint', 'ఫిర్యాదు చేయడానికి లాగిన్ అవ్వండి')}</p>
             <button onClick={openAuth} className="w-full bg-green-700 text-white font-bold py-3.5 rounded-xl text-sm active:bg-green-800">{L('Log in', 'లాగిన్')}</button>
           </div>
         ) : (

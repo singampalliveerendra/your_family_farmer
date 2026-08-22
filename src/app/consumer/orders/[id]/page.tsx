@@ -158,7 +158,7 @@ export default function OrderDetailsPage() {
       })
       .catch(() => {
         if (cancelled) return
-        setError('Network error. Please try again.')
+        setError(L('Network error. Please try again.', 'నెట్‌వర్క్ లోపం. మళ్ళీ ప్రయత్నించండి.'))
         setLoading(false)
       })
     return () => { cancelled = true }
@@ -297,7 +297,7 @@ export default function OrderDetailsPage() {
         {state.status === 'anonymous' ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center space-y-4">
             <div className="text-5xl">🔒</div>
-            <p className="font-bold text-gray-900">Log in to view this order</p>
+            <p className="font-bold text-gray-900">{L('Log in to view this order', 'ఈ ఆర్డర్ చూడటానికి లాగిన్ అవ్వండి')}</p>
             <button
               onClick={openAuth}
               className="w-full bg-green-700 text-white font-bold py-3.5 rounded-xl text-sm active:bg-green-800"
@@ -317,7 +317,7 @@ export default function OrderDetailsPage() {
             <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Order</p>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{L('Order', 'ఆర్డర్')}</p>
                   {order.order_code && (
                     <p className="text-[11px] font-mono font-semibold text-gray-400">{order.order_code}</p>
                   )}
@@ -336,12 +336,12 @@ export default function OrderDetailsPage() {
 
               <div className="grid grid-cols-2 gap-3 pt-1 border-t border-gray-100 mt-3">
                 <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase">Placed</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">{L('Placed', 'నమోదైంది')}</p>
                   <p className="text-xs font-semibold text-gray-700">{orderDate}</p>
                   <p className="text-[11px] text-gray-500">{orderTime}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase">Payment</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">{L('Payment', 'చెల్లింపు')}</p>
                   <p className="text-xs font-semibold text-gray-700">{paymentLabel(order)}</p>
                 </div>
               </div>
@@ -403,7 +403,7 @@ export default function OrderDetailsPage() {
 
               {(order.pickup_location || order.pickup_phone || order.pickup_location_phone) && (
                 <div className="pt-1 border-t border-gray-100 mt-1">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase">Pickup</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">{L('Pickup', 'పికప్')}</p>
                   {order.pickup_location && (
                     <p className="text-xs font-semibold text-gray-700">📍 {order.pickup_location}</p>
                   )}
@@ -527,18 +527,18 @@ export default function OrderDetailsPage() {
                   {L('Payment screenshot', 'చెల్లింపు స్క్రీన్‌షాట్')}
                 </p>
                 {!order.payment_proof_path ? (
-                  <p className="text-xs text-gray-500">No screenshot uploaded yet.</p>
+                  <p className="text-xs text-gray-500">{L('No screenshot uploaded yet.', 'ఇంకా స్క్రీన్‌షాట్ అప్‌లోడ్ కాలేదు.')}</p>
                 ) : proofLoading ? (
-                  <p className="text-xs text-gray-500">Loading...</p>
+                  <p className="text-xs text-gray-500">{L('Loading...', 'లోడ్ అవుతోంది...')}</p>
                 ) : proofUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={proofUrl}
-                    alt="Payment screenshot"
+                    alt={L('Payment screenshot', 'చెల్లింపు స్క్రీన్‌షాట్')}
                     className="w-full max-h-96 object-contain rounded-xl border border-gray-200 bg-gray-50"
                   />
                 ) : (
-                  <p className="text-xs text-red-600">Could not load screenshot. Please refresh.</p>
+                  <p className="text-xs text-red-600">{L('Could not load screenshot. Please refresh.', 'స్క్రీన్‌షాట్ లోడ్ కాలేదు. రిఫ్రెష్ చేయండి.')}</p>
                 )}
               </div>
             )}
@@ -875,7 +875,7 @@ function DeliveryPanel({ order }: { order: Order }) {
       {/* Delivery address (always visible — confirms what consumer entered) */}
       {order.delivery_address && (
         <div className="border-t border-gray-100 pt-3">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Delivering to</p>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">{L('Delivering to', 'డెలివరీ చిరునామా')}</p>
           <p className="text-xs text-gray-800 leading-snug whitespace-pre-line">{order.delivery_address}</p>
           {order.delivery_city && (
             <p className="text-xs text-gray-600 mt-0.5">🏙️ {order.delivery_city}</p>

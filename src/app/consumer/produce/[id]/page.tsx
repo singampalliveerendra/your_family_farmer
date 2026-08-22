@@ -525,7 +525,7 @@ export default function ProduceDetailPage() {
           </button>
         ) : (
           <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl h-12 px-3">
-            <button onClick={() => { setQty(item.id, inCart.qty - 1); setStockMsg('') }} className="w-9 h-9 rounded-lg bg-white border border-green-300 text-green-800 text-xl font-bold" aria-label="Decrease">−</button>
+            <button onClick={() => { setQty(item.id, inCart.qty - 1); setStockMsg('') }} className="w-9 h-9 rounded-lg bg-white border border-green-300 text-green-800 text-xl font-bold" aria-label={L('Decrease', 'తగ్గించు')}>−</button>
             <EditableQty
               qty={inCart.qty}
               unit={unit}
@@ -534,7 +534,7 @@ export default function ProduceDetailPage() {
               inputClassName="font-extrabold text-green-900 text-base"
               unitClassName="font-extrabold text-green-900"
             />
-            <button onClick={handleInc} disabled={atMax} className={`w-9 h-9 rounded-lg text-xl font-bold ${atMax ? 'bg-gray-200 text-gray-400' : 'bg-green-700 text-white'}`} aria-label="Increase">+</button>
+            <button onClick={handleInc} disabled={atMax} className={`w-9 h-9 rounded-lg text-xl font-bold ${atMax ? 'bg-gray-200 text-gray-400' : 'bg-green-700 text-white'}`} aria-label={L('Increase', 'పెంచు')}>+</button>
           </div>
         )}
       </div>

@@ -88,7 +88,7 @@ export default function PayoutDetailsForm() {
       setEditing(false)
       setSuccess(true)
     } catch {
-      setError('Could not save. Please check your connection.')
+      setError(L('Could not save. Please check your connection.', 'సేవ్ కాలేదు. మీ కనెక్షన్ చూడండి.'))
     } finally {
       setBusy(false)
     }

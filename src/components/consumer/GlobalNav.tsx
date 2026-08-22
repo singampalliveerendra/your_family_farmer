@@ -90,7 +90,7 @@ export default function GlobalNav({
           </div>
           <button
             onClick={dismissSuspension}
-            aria-label="Dismiss"
+            aria-label={L('Dismiss', 'కొట్టివేయి')}
             className="text-white/80 active:text-white text-lg leading-none px-1 flex-shrink-0"
           >
             ×

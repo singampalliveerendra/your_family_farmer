@@ -76,7 +76,7 @@ export default function AuthModal() {
           <button
             type="button"
             onClick={closeAuth}
-            aria-label="Close"
+            aria-label={L('Close', 'మూసివేయి')}
             className="text-gray-400 text-2xl leading-none px-2 active:text-gray-600"
           >
             ×
@@ -117,7 +117,7 @@ export default function AuthModal() {
                 autoComplete="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ramu"
+                placeholder={L('Ramu', 'రాము')}
                 maxLength={80}
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:border-green-500 focus:outline-none"
               />

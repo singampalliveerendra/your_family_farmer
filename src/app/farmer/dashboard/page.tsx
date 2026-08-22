@@ -918,7 +918,7 @@ function NotificationPermissionBanner() {
             onClick={handleDismiss}
             className="border border-blue-300 text-blue-700 font-semibold px-3 py-1.5 rounded-lg text-xs"
           >
-            Not now
+            {L('Not now', 'ఇప్పుడు కాదు')}
           </button>
         </div>
       </div>
@@ -1136,7 +1136,7 @@ function ProfileEditModal({
     if (!name.trim()) { setError(tx.nameRequired); return }
     if (!village.trim()) { setError(tx.villageRequired); return }
     if (upiId.trim() && !/^[a-zA-Z0-9._\-]{2,256}@[a-zA-Z]{2,64}$/.test(upiId.trim())) {
-      setError('Invalid UPI ID format. Example: yourname@ybl or 9876543210@paytm')
+      setError(L('Invalid UPI ID format. Example: yourname@ybl or 9876543210@paytm', 'UPI ఐడీ ఫార్మాట్ తప్పు. ఉదా: yourname@ybl లేదా 9876543210@paytm'))
       return
     }
     // Pickup location + timing is mandatory: a buyer choosing self-pickup must
@@ -1315,7 +1315,7 @@ function ProfileEditModal({
             <h4 className="text-sm font-extrabold text-green-800">
               {isAggregator ? L('Organisation Profile', 'సంస్థ వివరాలు') : L('Farm Profile', 'పొలం వివరాలు')}
             </h4>
-            <p className="text-[11px] text-gray-500">Name, photo, certifications</p>
+            <p className="text-[11px] text-gray-500">{L('Name, photo, certifications', 'పేరు, ఫోటో, ధృవపత్రాలు')}</p>
           </div>
 
           <Field
@@ -1326,13 +1326,13 @@ function ProfileEditModal({
           />
           <Field
             label={tx.villageLabel}
-            placeholder="Tadepalligudem"
+            placeholder={L('Tadepalligudem', 'తాడేపల్లిగూడెం')}
             value={village}
             onChange={setVillage}
           />
           <Field
             label={tx.districtLabel}
-            placeholder="West Godavari"
+            placeholder={L('West Godavari', 'పశ్చిమ గోదావరి')}
             value={district}
             onChange={setDistrict}
           />
@@ -1651,7 +1651,7 @@ function ProfileEditModal({
           {/* ── Section 2: Pickup & Schedule ── */}
           <div className="pt-3 border-t-2 border-green-100">
             <h4 className="text-sm font-extrabold text-green-800">{L('Pickup & Schedule', 'పికప్ & షెడ్యూల్')}</h4>
-            <p className="text-[11px] text-gray-500">Where and when buyers collect</p>
+            <p className="text-[11px] text-gray-500">{L('Where and when buyers collect', 'కొనుగోలుదారులు ఎక్కడ, ఎప్పుడు తీసుకుంటారు')}</p>
           </div>
 
           <div>
@@ -1666,7 +1666,7 @@ function ProfileEditModal({
               onChange={(e) => setFarmAddress(e.target.value)}
               rows={3}
               maxLength={400}
-              placeholder="H. No. 12-34, Mango Grove Road, near water tank, Anand Nagar"
+              placeholder={L('H. No. 12-34, Mango Grove Road, near water tank, Anand Nagar', 'ఇం. నం. 12-34, మామిడి తోట రోడ్, నీటి ట్యాంక్ దగ్గర, ఆనంద్ నగర్')}
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none resize-none"
             />
           </div>
@@ -1878,7 +1878,7 @@ function ProfileEditModal({
           {/* ── Section 3: Payment Details ── */}
           <div className="pt-3 border-t-2 border-green-100">
             <h4 className="text-sm font-extrabold text-green-800">{L('Payment Details', 'చెల్లింపు వివరాలు')}</h4>
-            <p className="text-[11px] text-gray-500">UPI ID, QR code, cash on delivery</p>
+            <p className="text-[11px] text-gray-500">{L('UPI ID, QR code, cash on delivery', 'UPI ఐడీ, QR కోడ్, డెలివరీలో నగదు')}</p>
           </div>
 
           {/* Payment Details */}
@@ -1886,10 +1886,10 @@ function ProfileEditModal({
             {/* UPI ID */}
             <div>
               <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1">
-                UPI ID
+                {L('UPI ID', 'UPI ఐడీ')}
               </label>
               <p className="text-[11px] text-gray-500 mb-2">
-                Buyers will pay directly to this ID. Example: yourname@ybl, 9876543210@paytm
+                {L('Buyers will pay directly to this ID. Example: yourname@ybl, 9876543210@paytm', 'కొనుగోలుదారులు నేరుగా ఈ ఐడీకి చెల్లిస్తారు. ఉదా: yourname@ybl, 9876543210@paytm')}
               </p>
               <input
                 type="text"
@@ -1917,14 +1917,14 @@ function ProfileEditModal({
               {(existingQrUrl && !qrPreview) ? (
                 <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={existingQrUrl} alt="QR Code" className="w-12 h-12 object-contain rounded" />
+                  <img src={existingQrUrl} alt={L('QR Code', 'QR కోడ్')} className="w-12 h-12 object-contain rounded" />
                   <span className="text-green-700 font-semibold text-sm flex-1">✓ QR code uploaded</span>
                   <button
                     type="button"
                     onClick={() => setExistingQrUrl('')}
                     className="text-xs text-red-500 underline"
                   >
-                    Remove
+                    {L('Remove', 'తీసివేయి')}
                   </button>
                 </div>
               ) : (
@@ -2412,7 +2412,7 @@ function ProduceListingForm({
       } catch (e) {
         if (isFarmerSessionExpired(e)) return
         setLoading(false)
-        setError('Network error — is the server running?')
+        setError(L('Network error — is the server running?', 'నెట్‌వర్క్ లోపం — సర్వర్ నడుస్తోందా?'))
         return
       }
       const json = await res.json().catch(() => ({}))
@@ -2774,7 +2774,7 @@ function ProduceListingForm({
           </label>
           <div className="space-y-2">
             <div className="flex gap-2 items-center">
-              <span className="text-xs text-gray-500 w-14 flex-shrink-0">Tier 1</span>
+              <span className="text-xs text-gray-500 w-14 flex-shrink-0">{L('Tier 1', 'శ్రేణి 1')}</span>
               <input
                 type="number"
                 placeholder={`Up to ${price1Qty}`}
@@ -2795,7 +2795,7 @@ function ProduceListingForm({
               </div>
             </div>
             <div className="flex gap-2 items-center">
-              <span className="text-xs text-gray-500 w-14 flex-shrink-0">Tier 2</span>
+              <span className="text-xs text-gray-500 w-14 flex-shrink-0">{L('Tier 2', 'శ్రేణి 2')}</span>
               <input
                 type="number"
                 placeholder={`Up to`}
@@ -2816,7 +2816,7 @@ function ProduceListingForm({
               </div>
             </div>
             <div className="flex gap-2 items-center">
-              <span className="text-xs text-gray-500 w-14 flex-shrink-0">Tier 3</span>
+              <span className="text-xs text-gray-500 w-14 flex-shrink-0">{L('Tier 3', 'శ్రేణి 3')}</span>
               <span className="text-xs text-gray-400 w-20 text-center">{Number(price2Qty) + 1}+ {unit}</span>
               <span className="text-xs text-gray-400">→</span>
               <div className="flex-1 relative">
@@ -2892,14 +2892,14 @@ function ProduceListingForm({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={imagePreview || existingImageUrl}
-                alt="Preview"
+                alt={L('Preview', 'ప్రివ్యూ')}
                 className="w-full max-h-64 object-cover rounded-xl border border-gray-200 bg-gray-50"
               />
               <button
                 type="button"
                 onClick={clearImage}
                 className="absolute top-2 right-2 bg-white/90 text-gray-700 rounded-full w-8 h-8 flex items-center justify-center text-base font-bold shadow"
-                aria-label="Remove photo"
+                aria-label={L('Remove photo', 'ఫోటో తీసివేయి')}
               >
                 ×
               </button>
@@ -2947,7 +2947,7 @@ function ProduceListingForm({
                     type="button"
                     onClick={() => removeExistingExtra(url)}
                     className="absolute -top-1.5 -right-1.5 bg-white text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold shadow border"
-                    aria-label="Remove photo"
+                    aria-label={L('Remove photo', 'ఫోటో తీసివేయి')}
                   >×</button>
                 </div>
               ))}
@@ -2959,7 +2959,7 @@ function ProduceListingForm({
                     type="button"
                     onClick={() => removeNewExtra(i)}
                     className="absolute -top-1.5 -right-1.5 bg-white text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold shadow border"
-                    aria-label="Remove photo"
+                    aria-label={L('Remove photo', 'ఫోటో తీసివేయి')}
                   >×</button>
                 </div>
               ))}
@@ -2979,7 +2979,7 @@ function ProduceListingForm({
           </label>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <p className="text-xs text-gray-500 mb-1">BRIX reading</p>
+              <p className="text-xs text-gray-500 mb-1">{L('BRIX reading', 'BRIX రీడింగ్')}</p>
               <input
                 type="number"
                 step="0.1"
@@ -2990,7 +2990,7 @@ function ProduceListingForm({
               />
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-1">Soil Organic Carbon %</p>
+              <p className="text-xs text-gray-500 mb-1">{L('Soil Organic Carbon %', 'నేల సేంద్రియ కార్బన్ %')}</p>
               <input
                 type="number"
                 step="0.1"
@@ -3186,7 +3186,7 @@ function ManageListingsModal({
       .eq('id', row.id)
       .select('id')
     if (err) { setError(err.message); load() }
-    else if (!data?.length) { setError('Could not update — please try again.'); load() }
+    else if (!data?.length) { setError(L('Could not update — please try again.', 'నవీకరించలేకపోయాం — మళ్ళీ ప్రయత్నించండి.')); load() }
     else { onChanged() }
   }
 
@@ -3536,6 +3536,7 @@ function EarningsCard({
 type MediaRow = { id: string; url: string; caption?: string }
 
 function FarmPhotosSection({ farmerId }: { farmerId: string }) {
+  const { L } = useLang()
   const [photos, setPhotos] = useState<MediaRow[]>([])
   const [uploading, setUploading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -3555,8 +3556,8 @@ function FarmPhotosSection({ farmerId }: { farmerId: string }) {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    if (!file.type.startsWith('image/')) { setError('Please pick an image file.'); return }
-    if (file.size > 8 * 1024 * 1024) { setError('Image must be under 8 MB.'); return }
+    if (!file.type.startsWith('image/')) { setError(L('Please pick an image file.', 'దయచేసి ఒక చిత్ర ఫైల్ ఎంచుకోండి.')); return }
+    if (file.size > 8 * 1024 * 1024) { setError(L('Image must be under 8 MB.', 'చిత్రం 8 MB లోపు ఉండాలి.')); return }
     setError('')
     setUploading(true)
 
@@ -3587,7 +3588,7 @@ function FarmPhotosSection({ farmerId }: { farmerId: string }) {
   }
 
   const handleDelete = async (photo: MediaRow) => {
-    if (!confirm('Remove this photo?')) return
+    if (!confirm(L('Remove this photo?', 'ఈ ఫోటో తీసివేయాలా?'))) return
     setDeletingId(photo.id)
     await supabase.from('media').delete().eq('id', photo.id)
     setPhotos((prev) => prev.filter((p) => p.id !== photo.id))
@@ -3598,8 +3599,8 @@ function FarmPhotosSection({ farmerId }: { farmerId: string }) {
     <div className="bg-white rounded-2xl border border-gray-100 p-4">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h2 className="font-extrabold text-gray-900 text-base leading-tight">Farm Photos</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Visible on your public profile</p>
+          <h2 className="font-extrabold text-gray-900 text-base leading-tight">{L('Farm Photos', 'పొలం ఫోటోలు')}</h2>
+          <p className="text-xs text-gray-500 mt-0.5">{L('Visible on your public profile', 'మీ పబ్లిక్ ప్రొఫైల్‌లో కనిపిస్తుంది')}</p>
         </div>
         <label className={`flex items-center gap-1.5 bg-green-700 text-white text-xs font-bold px-3 py-2 rounded-xl cursor-pointer active:bg-green-800 ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
           {uploading ? (
@@ -3619,8 +3620,8 @@ function FarmPhotosSection({ farmerId }: { farmerId: string }) {
       {photos.length === 0 && !uploading ? (
         <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-xl">
           <p className="text-3xl mb-2">📷</p>
-          <p className="text-sm font-semibold text-gray-500">No farm photos yet</p>
-          <p className="text-xs text-gray-400 mt-1">Add photos of your farm, fields, and harvests</p>
+          <p className="text-sm font-semibold text-gray-500">{L('No farm photos yet', 'ఇంకా పొలం ఫోటోలు లేవు')}</p>
+          <p className="text-xs text-gray-400 mt-1">{L('Add photos of your farm, fields, and harvests', 'మీ పొలం, చేలు, కోతల ఫోటోలు జోడించండి')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-1.5">

@@ -289,7 +289,7 @@ export default function RiderDashboardPage() {
                   A delivery shows up here when:
                 </p>
                 <p className="text-xs text-gray-600 leading-snug">
-                  1. A buyer places an order and chooses <span className="font-bold">Home Delivery</span> in the cart.
+                  1. A buyer places an order and chooses <span className="font-bold">{L('Home Delivery', 'ఇంటికి డెలివరీ')}</span> in the cart.
                 </p>
                 <p className="text-xs text-gray-600 leading-snug">
                   2. The farmer <span className="font-bold">approves</span> the order (or, for UPI, marks payment received).

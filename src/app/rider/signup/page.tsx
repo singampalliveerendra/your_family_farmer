@@ -34,11 +34,11 @@ export default function RiderSignupPage() {
     e.target.value = ''
     if (!raw) return
     if (!raw.type.startsWith('image/')) {
-      setError('Please pick an image (JPG/PNG/WEBP).')
+      setError(L('Please pick an image (JPG/PNG/WEBP).', 'దయచేసి ఒక చిత్రం ఎంచుకోండి (JPG/PNG/WEBP).'))
       return
     }
     if (raw.size > 12 * 1024 * 1024) {
-      setError('Image too large (max 12MB before compression).')
+      setError(L('Image too large (max 12MB before compression).', 'చిత్రం చాలా పెద్దది (కుదించే ముందు గరిష్ఠం 12MB).'))
       return
     }
     setError('')
@@ -51,7 +51,7 @@ export default function RiderSignupPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (submitting) return
-    if (!file) { setError('Attach a photo of your ID proof.'); return }
+    if (!file) { setError(L('Attach a photo of your ID proof.', 'మీ గుర్తింపు రుజువు ఫోటో జతచేయండి.')); return }
     setError('')
     setSubmitting(true)
     const fd = new FormData()
@@ -70,7 +70,7 @@ export default function RiderSignupPage() {
       credentials: 'same-origin',
     }).catch(() => null)
     setSubmitting(false)
-    if (!r) { setError('Network error.'); return }
+    if (!r) { setError(L('Network error.', 'నెట్‌వర్క్ లోపం.')); return }
     const json = await r.json().catch(() => ({}))
     if (!r.ok || !json?.ok) { setError(json?.error ?? 'Sign-up failed.'); return }
     setDone(true)
@@ -84,7 +84,7 @@ export default function RiderSignupPage() {
         </div>
         <div className="bg-white rounded-2xl shadow-md mx-4 -mt-6 p-6 space-y-3 max-w-md w-full mx-auto text-center">
           <div className="text-5xl">📋</div>
-          <p className="font-extrabold text-gray-900">Thanks — we&apos;ll review it.</p>
+          <p className="font-extrabold text-gray-900">{L("Thanks — we'll review it.", 'ధన్యవాదాలు — మేము పరిశీలిస్తాం.')}</p>
           <p className="text-sm text-gray-600 leading-snug">
             {L('Our moderator will check your details and ID, then call you. You can log in and start picking deliveries once your application is approved.', 'మా మోడరేటర్ మీ వివరాలు మరియు గుర్తింపు పత్రాన్ని తనిఖీ చేసి మీకు కాల్ చేస్తారు. మీ దరఖాస్తు ఆమోదించబడిన తర్వాత మీరు లాగిన్ అయి డెలివరీలు తీసుకోవచ్చు.')}
           </p>
@@ -177,7 +177,7 @@ export default function RiderSignupPage() {
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:border-green-500 focus:outline-none"
             required
           />
-          <p className="text-[11px] text-gray-500 mt-1">At least 6 characters.</p>
+          <p className="text-[11px] text-gray-500 mt-1">{L('At least 6 characters.', 'కనీసం 6 అక్షరాలు.')}</p>
         </div>
 
         <div>
@@ -217,7 +217,7 @@ export default function RiderSignupPage() {
           <textarea
             value={serviceAreas}
             onChange={(e) => setServiceAreas(e.target.value)}
-            placeholder="Anand Nagar, Gandhi Street, Market Road"
+            placeholder={L('Anand Nagar, Gandhi Street, Market Road', 'ఆనంద్ నగర్, గాంధీ వీధి, మార్కెట్ రోడ్')}
             rows={3}
             maxLength={400}
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none resize-none"
@@ -251,9 +251,9 @@ export default function RiderSignupPage() {
           {preview ? (
             <div className="space-y-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={preview} alt="ID proof" className="w-full max-h-56 object-contain rounded-xl border border-gray-200 bg-gray-50" />
+              <img src={preview} alt={L('ID proof', 'గుర్తింపు రుజువు')} className="w-full max-h-56 object-contain rounded-xl border border-gray-200 bg-gray-50" />
               <label className="text-xs font-bold text-blue-700 underline cursor-pointer">
-                Change photo
+                {L('Change photo', 'ఫోటో మార్చండి')}
                 <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePickFile} />
               </label>
             </div>
@@ -281,7 +281,7 @@ export default function RiderSignupPage() {
 
         <div className="text-xs text-gray-600 text-center pt-2">
           Already have an account?{' '}
-          <Link href="/rider/login" className="text-green-700 font-bold underline">Log in</Link>
+          <Link href="/rider/login" className="text-green-700 font-bold underline">{L('Log in', 'లాగిన్')}</Link>
         </div>
       </form>
     </main>

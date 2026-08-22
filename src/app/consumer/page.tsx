@@ -168,11 +168,13 @@ const CATEGORIES = [
 ]
 
 // Short, single-word method label for the small pill on the image corner.
-const METHOD_SHORT: Record<string, string> = {
-  natural:      'Natural',
-  organic:      'Organic',
-  low_chemical: 'Semi-org',
-  chemical:     'Chemical',
+// Bilingual, and deliberately shorter than the filter dropdown's wording — the
+// pill sits in a 390px grid column's corner, so "సెమీ ఆర్గానిక్" would wrap.
+const METHOD_SHORT: Record<string, { en: string; te: string }> = {
+  natural:      { en: 'Natural',  te: 'సహజం' },
+  organic:      { en: 'Organic',  te: 'సేంద్రీయ' },
+  low_chemical: { en: 'Semi-org', te: 'సెమీ' },
+  chemical:     { en: 'Chemical', te: 'రసాయన' },
 }
 
 // Solid pill colour for the method badge over the image (spec: natural=green,
@@ -686,7 +688,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
   const produceBg   = PRODUCE_BG[emoji] ?? DEFAULT_PRODUCE_BG
   const method      = item.method?.toLowerCase() ?? 'natural'
   const methodPill  = METHOD_PILL[method]  ?? 'bg-green-600 text-white'
-  const methodShort = METHOD_SHORT[method] ?? 'Natural'
+  const methodShort = METHOD_SHORT[method] ?? METHOD_SHORT.natural
   const farmer      = item.farmer
   const farmerHref  = farmer ? `/farmer/${farmer.slug}` : '#'
   // A seller who resells other farmers' produce must be legible as such before
@@ -859,7 +861,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
         <span
           className={`absolute top-2 right-2 ${methodPill} text-[10px] font-bold rounded-full px-1.5 py-0.5 shadow-sm`}
         >
-          {methodShort}
+          {L(methodShort.en, methodShort.te)}
         </span>
         <div className="absolute top-2 left-2">
           <ShareButton
@@ -1038,7 +1040,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
               <button
                 onClick={() => { setQty(cartKey, inCart.qty - 1); setStockMsg('') }}
                 className="w-7 h-7 rounded-lg bg-white border border-green-300 text-green-800 text-lg font-bold leading-none"
-                aria-label="Decrease"
+                aria-label={L('Decrease', 'తగ్గించు')}
               >
                 −
               </button>
@@ -1058,7 +1060,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
                     ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                     : 'bg-green-700 text-white'
                 }`}
-                aria-label="Increase"
+                aria-label={L('Increase', 'పెంచు')}
               >
                 +
               </button>
@@ -1096,7 +1098,7 @@ function ComingSoonCard({ item }: { item: ProduceListing }) {
           <span className="text-5xl">{emoji}</span>
         </div>
         <span className="absolute top-2 right-2 bg-amber-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 shadow-sm">
-          Soon
+          {L('Soon', 'త్వరలో')}
         </span>
       </Link>
 
@@ -1269,7 +1271,7 @@ function LocationBottomSheet({
             {L('Type any city, town or village in AP / Telangana', 'ఆంధ్రప్రదేశ్ / తెలంగాణలో ఏ పట్టణమైనా టైప్ చేయండి')}
           </p>
           <LocationSearch
-            placeholder="e.g. Visakhapatnam, Hyderabad, Eluru..."
+            placeholder={L('e.g. Visakhapatnam, Hyderabad, Eluru...', 'ఉదా. విశాఖపట్నం, హైదరాబాద్, ఏలూరు...')}
             onSelect={(lat, lng, name) => onSet(lat, lng, name)}
           />
         </div>

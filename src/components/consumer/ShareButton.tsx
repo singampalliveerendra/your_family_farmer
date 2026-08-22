@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useLang } from '@/lib/LanguageContext'
 
 // Everything we need to build a rich share message for one harvest/produce.
 export type ShareInfo = {
@@ -15,17 +16,23 @@ export type ShareInfo = {
   farmerVillage?: string | null
 }
 
-const METHOD_LABEL: Record<string, string> = {
-  natural: 'Natural', organic: 'Organic', low_chemical: 'Semi-Organic', chemical: 'Chemical',
+type Tr = (en: string, te: string) => string
+
+const METHOD_LABEL: Record<string, { en: string; te: string }> = {
+  natural:      { en: 'Natural',      te: 'సహజ' },
+  organic:      { en: 'Organic',      te: 'సేంద్రీయ' },
+  low_chemical: { en: 'Semi-Organic', te: 'సెమీ ఆర్గానిక్' },
+  chemical:     { en: 'Chemical',     te: 'రసాయన' },
 }
 
 // Build the "this is where & how your food is grown" message — the share itself
 // advertises freshness + farmer + method, so it doubles as marketing.
-function buildMessage(info: ShareInfo, url: string): string {
+function buildMessage(info: ShareInfo, url: string, L: Tr): string {
   const emoji = info.emoji || '🌾'
-  const method = info.method ? METHOD_LABEL[info.method.toLowerCase()] : null
+  const pair = info.method ? METHOD_LABEL[info.method.toLowerCase()] : null
+  const method = pair ? L(pair.en, pair.te) : null
   const lines: string[] = []
-  lines.push(`${emoji} ${info.name}${info.variety ? ` (${info.variety})` : ''}${method ? ` — ${method} farming` : ''}`)
+  lines.push(`${emoji} ${info.name}${info.variety ? ` (${info.variety})` : ''}${method ? ` — ${method} ${L('farming', 'వ్యవసాయం')}` : ''}`)
   if (info.farmerName) {
     lines.push(`👨‍🌾 ${info.farmerName}${info.farmerVillage ? `, ${info.farmerVillage}` : ''}`)
   }
@@ -44,6 +51,7 @@ export default function ShareButton({
   info: ShareInfo
   variant?: 'icon' | 'pill'
 }) {
+  const { L } = useLang()
   const [toast, setToast] = useState('')
 
   const onShare = async (e: React.MouseEvent) => {
@@ -55,7 +63,7 @@ export default function ShareButton({
       typeof window !== 'undefined'
         ? `${window.location.origin}/consumer/produce/${info.id}`
         : `/consumer/produce/${info.id}`
-    const text = buildMessage(info, url)
+    const text = buildMessage(info, url, L)
 
     // 1) Native share sheet (Android shows WhatsApp/SMS/etc. right here).
     if (typeof navigator !== 'undefined' && navigator.share) {
@@ -78,10 +86,10 @@ export default function ShareButton({
     // 3) Copy-to-clipboard fallback.
     try {
       await navigator.clipboard.writeText(text)
-      setToast('Link copied — paste anywhere to share')
+      setToast(L('Link copied — paste anywhere to share', 'లింక్ కాపీ అయింది — ఎక్కడైనా పేస్ట్ చేయండి'))
       setTimeout(() => setToast(''), 2200)
     } catch {
-      setToast('Could not share on this device')
+      setToast(L('Could not share on this device', 'ఈ పరికరంలో షేర్ చేయలేకపోయాం'))
       setTimeout(() => setToast(''), 2200)
     }
   }
@@ -92,17 +100,17 @@ export default function ShareButton({
         <button
           type="button"
           onClick={onShare}
-          aria-label="Share"
+          aria-label={L('Share', 'షేర్')}
           className="flex items-center gap-1.5 text-green-100 text-sm font-semibold active:opacity-70"
         >
           <ShareIcon className="w-4 h-4" />
-          Share
+          {L('Share', 'షేర్')}
         </button>
       ) : (
         <button
           type="button"
           onClick={onShare}
-          aria-label="Share this produce"
+          aria-label={L('Share this produce', 'ఈ ఉత్పత్తిని షేర్ చేయండి')}
           className="w-8 h-8 rounded-full bg-white/90 shadow-sm flex items-center justify-center text-green-800 active:scale-90 transition-transform"
         >
           <ShareIcon className="w-4 h-4" />

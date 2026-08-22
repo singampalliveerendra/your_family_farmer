@@ -37,7 +37,7 @@ export default function ConsumerOrdersPage() {
     if (!silent) setLoading(true)
     setError('')
     const r = await fetch('/api/consumer/orders', { credentials: 'same-origin' }).catch(() => null)
-    if (!r) { if (!silent) setError('Could not load orders. Check your connection.'); setLoading(false); return }
+    if (!r) { if (!silent) setError(L('Could not load orders. Check your connection.', 'ఆర్డర్లు లోడ్ కాలేదు. మీ కనెక్షన్ చూడండి.')); setLoading(false); return }
     const json = await r.json().catch(() => ({}))
     if (!r.ok) { if (!silent) setError(json?.error ?? 'Could not load orders.'); setLoading(false); return }
     setOrders((json.orders ?? []) as Order[])

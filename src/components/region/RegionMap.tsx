@@ -40,7 +40,7 @@ export default function RegionMap({
         <ellipse cx="195" cy="110" rx="160" ry="80" fill="#c8e6c9" stroke="#81c784" strokeWidth="1.5" strokeDasharray="6,3" />
         <circle cx="195" cy="110" r="70" fill="none" stroke="#4caf50" strokeWidth="1" strokeDasharray="4,3" opacity="0.6" />
         <path d="M 20 160 Q 80 150 130 155 Q 180 160 230 152 Q 280 144 350 150" fill="none" stroke="#64b5f6" strokeWidth="4" opacity="0.7" />
-        <text x="160" y="168" fontSize="8" fill="#1565c0" opacity="0.8">Krishna River</text>
+        <text x="160" y="168" fontSize="8" fill="#1565c0" opacity="0.8">{L('Krishna River', 'కృష్ణా నది')}</text>
 
         {list.map((farmer, i) => {
           const pos = PIN_POSITIONS[i] ?? { x: 195 + i * 20, y: 110 }
@@ -69,7 +69,7 @@ export default function RegionMap({
         </g>
 
         <circle cx="195" cy="110" r="3" fill="#f44336" />
-        <text x="200" y="107" fontSize="7" fill="#c62828">Tadepalligudem</text>
+        <text x="200" y="107" fontSize="7" fill="#c62828">{L('Tadepalligudem', 'తాడేపల్లిగూడెం')}</text>
       </svg>
     </div>
   )

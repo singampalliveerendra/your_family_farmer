@@ -166,7 +166,7 @@ export default function FarmCover({
                   type="button"
                   onClick={() => setLightbox(true)}
                   className="block rounded-full focus:outline-none"
-                  aria-label="View full photo"
+                  aria-label={L('View full photo', 'పూర్తి ఫోటో చూడండి')}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -277,7 +277,7 @@ export default function FarmCover({
           type="button"
           onClick={() => setLightbox(false)}
           className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4"
-          aria-label="Close photo"
+          aria-label={L('Close photo', 'ఫోటో మూసివేయి')}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img

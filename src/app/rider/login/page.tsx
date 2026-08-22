@@ -27,7 +27,7 @@ export default function RiderLoginPage() {
       body: JSON.stringify({ phone, password }),
     }).catch(() => null)
     setSubmitting(false)
-    if (!r) { setError('Network error.'); return }
+    if (!r) { setError(L('Network error.', 'నెట్‌వర్క్ లోపం.')); return }
     const json = await r.json().catch(() => ({}))
     if (!r.ok || !json?.ok) { setError(json?.error ?? 'Login failed.'); return }
     router.replace('/rider/dashboard')
@@ -102,7 +102,7 @@ export default function RiderLoginPage() {
           <p>
             New here?{' '}
             <Link href="/rider/signup" className="text-green-700 font-bold underline">
-              Sign up to deliver
+              {L('Sign up to deliver', 'డెలివరీ కోసం నమోదు')}
             </Link>
           </p>
         </div>

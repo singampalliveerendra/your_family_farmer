@@ -59,7 +59,7 @@ export default function FarmerComplaintsPage() {
       r = await farmerFetch('/api/farmer/complaints')
     } catch (e) {
       if (isFarmerSessionExpired(e)) return
-      setError('Could not load. Check your connection.'); setLoading(false); return
+      setError(L('Could not load. Check your connection.', 'లోడ్ కాలేదు. మీ కనెక్షన్ చూడండి.')); setLoading(false); return
     }
     const json = await r.json().catch(() => ({}))
     if (!r.ok) { setError(json?.error ?? 'Could not load complaints.'); setLoading(false); return }

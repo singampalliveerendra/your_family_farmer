@@ -56,7 +56,7 @@ export default function RiderComplaintsPage() {
   const refresh = useCallback(async () => {
     setLoading(true); setError('')
     const r = await fetch('/api/rider/complaints', { credentials: 'same-origin' }).catch(() => null)
-    if (!r) { setError('Could not load. Check your connection.'); setLoading(false); return }
+    if (!r) { setError(L('Could not load. Check your connection.', 'లోడ్ కాలేదు. మీ కనెక్షన్ చూడండి.')); setLoading(false); return }
     if (r.status === 401) { router.replace('/rider/login'); return }
     const json = await r.json().catch(() => ({}))
     if (!r.ok) { setError(json?.error ?? 'Could not load complaints.'); setLoading(false); return }

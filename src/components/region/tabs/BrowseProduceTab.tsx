@@ -160,7 +160,7 @@ export default function BrowseProduceTab({
                     )}
                     {item.method === 'natural' && (
                       <span className="bg-green-100 text-green-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                        Natural
+                        {L('Natural', 'సహజం')}
                       </span>
                     )}
                     {(item.delivery_mode === 'courier' || item.delivery_mode === 'both') && (

@@ -196,7 +196,7 @@ export function DeclineReasonSheet({
           <textarea
             value={custom}
             onChange={(e) => { setCustom(e.target.value); if (e.target.value.trim()) setSelected(null) }}
-            placeholder="e.g. Heavy rain damaged the harvest"
+            placeholder={L('e.g. Heavy rain damaged the harvest', 'ఉదా. భారీ వర్షం వల్ల పంట పాడైంది')}
             rows={2}
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none resize-none"
           />
