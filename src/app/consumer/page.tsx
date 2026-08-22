@@ -17,7 +17,7 @@ import LocationSearch from '@/components/LocationSearch'
 import { matchesProduceQuery, matchesCategoryKeywords } from '@/lib/produceSearch'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
-import { localizeName } from '@/lib/localizeName'
+import { localizeName, localizeUnit } from '@/lib/localizeName'
 import { harvestClock } from '@/lib/harvest'
 import { isSoldOutListing } from '@/lib/produceStatus'
 import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
@@ -773,7 +773,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
       }
       const curQty = inCart?.qty ?? 0
       if (curQty >= fresh) {
-        setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${fresh} ${unit}`)
+        setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${fresh} ${localizeUnit(unit, lang)}`)
         return
       }
       if (curQty + 1 > fresh) {
@@ -817,7 +817,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
 
   const handleInc = () => {
     if (liveStock !== null && inCart.qty >= liveStock) {
-      setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${liveStock} ${unit}`)
+      setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${liveStock} ${localizeUnit(unit, lang)}`)
       return
     }
     setStockMsg('')
@@ -845,7 +845,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
                 href={produceHref}
                 className="relative snap-center shrink-0 w-full h-40 block"
               >
-                <Image src={url} alt={item.name} fill sizes="(max-width: 640px) 100vw, 400px" className="object-cover" />
+                <Image src={url} alt={localizeName(item.name, lang)} fill sizes="(max-width: 640px) 100vw, 400px" className="object-cover" />
               </Link>
             ))}
           </div>
@@ -962,7 +962,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
         {/* Distance (only when location set) */}
         {distanceKm != null && (
           <p className="text-[11px] font-semibold text-blue-700 truncate mt-0.5">
-            📍 {distanceApprox ? '~' : ''}{formatDistance(distanceKm)} away
+            📍 {distanceApprox ? '~' : ''}{formatDistance(distanceKm, L)} {L('away', 'దూరంలో')}
           </p>
         )}
 
@@ -986,7 +986,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
         <div className="mt-1.5">
           <span className="font-extrabold text-[18px] text-[#1a5c2a]">
             {item.price_tier_1_price ? `₹${item.price_tier_1_price}` : '—'}
-            <span className="text-[12px] font-medium text-[#666]">/{unit}</span>
+            <span className="text-[12px] font-medium text-[#666]">/{localizeUnit(unit, lang)}</span>
           </span>
         </div>
 
@@ -999,7 +999,9 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
                 isOutOfStock ? 'bg-red-50 text-red-600' : 'bg-[#f5f5f5] text-[#666]'
               }`}
             >
-              {isOutOfStock ? L('Sold out', 'అయిపోయింది') : `${liveStock} ${unit} left`}
+              {isOutOfStock
+                ? L('Sold out', 'అయిపోయింది')
+                : `${liveStock} ${localizeUnit(unit, lang)} ${L('left', 'మిగిలింది')}`}
             </span>
           </div>
         )}
@@ -1046,7 +1048,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
               </button>
               <EditableQty
                 qty={inCart.qty}
-                unit={unit}
+                unit={localizeUnit(unit, lang)}
                 max={liveStock}
                 onChange={(n) => { setQty(cartKey, n); setStockMsg('') }}
                 inputClassName="font-extrabold text-green-900 text-sm"

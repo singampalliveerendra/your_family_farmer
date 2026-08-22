@@ -11,7 +11,7 @@ import { useCart, CartFab, EditableQty } from '@/components/consumer/Cart'
 import { supabase } from '@/lib/supabase'
 import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
 import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
-import { localizeName } from '@/lib/localizeName'
+import { localizeName, localizeUnit } from '@/lib/localizeName'
 import { harvestClock } from '@/lib/harvest'
 import { normalizeUrl, linkHost } from '@/lib/links'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
@@ -179,6 +179,9 @@ export default function HarvestDetailPage() {
   }
 
   const unit = harvest.unit || item.unit || 'kg'
+  // Display only. `unit` itself stays exactly as stored — it travels into the
+  // cart and then the order row, so a Telugu string there would corrupt data.
+  const unitLabel = localizeUnit(unit, lang)
   const emoji = item.emoji ?? '🌿'
   const method = item.method?.toLowerCase() ?? 'natural'
   const methodShort = METHOD_SHORT[method] ?? 'Natural'
@@ -206,7 +209,7 @@ export default function HarvestDetailPage() {
     if (fresh !== null) {
       if (fresh <= 0) { setStockMsg(L('Out of stock', 'అయిపోయింది')); return }
       const curQty = inCart?.qty ?? 0
-      if (curQty >= fresh) { setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${fresh} ${unit}`); return }
+      if (curQty >= fresh) { setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${fresh} ${unitLabel}`); return }
     }
     addItem({
       listingId: item.id,
@@ -237,7 +240,7 @@ export default function HarvestDetailPage() {
 
   const handleInc = () => {
     if (liveStock !== null && inCart.qty >= liveStock) {
-      setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${liveStock} ${unit}`); return
+      setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${liveStock} ${unitLabel}`); return
     }
     setStockMsg('')
     setQty(harvest.id, inCart.qty + 1)
@@ -246,10 +249,10 @@ export default function HarvestDetailPage() {
   // Price tiers shown as a small "buy more, save more" table.
   const tiers: { label: string; price: number }[] = []
   if (item.price_tier_1_price != null) {
-    tiers.push({ label: `${L('Up to', 'వరకు')} ${item.price_tier_1_qty ?? 1} ${unit}`, price: item.price_tier_1_price })
+    tiers.push({ label: `${L('Up to', 'వరకు')} ${item.price_tier_1_qty ?? 1} ${unitLabel}`, price: item.price_tier_1_price })
   }
   if (item.price_tier_2_qty != null && item.price_tier_2_price != null) {
-    tiers.push({ label: `${item.price_tier_2_qty}+ ${unit}`, price: item.price_tier_2_price })
+    tiers.push({ label: `${item.price_tier_2_qty}+ ${unitLabel}`, price: item.price_tier_2_price })
   }
   if (item.price_tier_3_price != null) {
     tiers.push({ label: `${L('Bulk', 'బల్క్')}`, price: item.price_tier_3_price })
@@ -351,13 +354,13 @@ export default function HarvestDetailPage() {
               <span className="text-3xl font-extrabold text-green-800">
                 {item.price_tier_1_price ? `₹${item.price_tier_1_price}` : '—'}
               </span>
-              <span className="text-sm text-gray-500">/{unit}</span>
+              <span className="text-sm text-gray-500">/{unitLabel}</span>
             </div>
           </div>
 
           {liveStock != null && (
             <p className={`text-xs font-semibold mt-1 ${liveStock === 0 ? 'text-red-600' : 'text-gray-500'}`}>
-              {liveStock === 0 ? L('Out of stock', 'అయిపోయింది') : `${liveStock} ${unit} ${L('left', 'మిగిలి ఉంది')}`}
+              {liveStock === 0 ? L('Out of stock', 'అయిపోయింది') : `${liveStock} ${unitLabel} ${L('left', 'మిగిలి ఉంది')}`}
             </p>
           )}
 
@@ -367,7 +370,7 @@ export default function HarvestDetailPage() {
               <div className="flex flex-wrap gap-2">
                 {tiers.map((t) => (
                   <div key={t.label} className="bg-green-50 rounded-lg px-2.5 py-1.5">
-                    <p className="text-xs font-bold text-green-900">₹{t.price}<span className="font-medium text-gray-500">/{unit}</span></p>
+                    <p className="text-xs font-bold text-green-900">₹{t.price}<span className="font-medium text-gray-500">/{unitLabel}</span></p>
                     <p className="text-[10px] text-gray-500">{t.label}</p>
                   </div>
                 ))}
@@ -518,7 +521,7 @@ export default function HarvestDetailPage() {
             <button onClick={() => { setQty(harvest.id, inCart.qty - 1); setStockMsg('') }} className="w-9 h-9 rounded-lg bg-white border border-green-300 text-green-800 text-xl font-bold" aria-label={L('Decrease', 'తగ్గించు')}>−</button>
             <EditableQty
               qty={inCart.qty}
-              unit={unit}
+              unit={unitLabel}
               max={liveStock}
               onChange={(n) => { setQty(harvest.id, n); setStockMsg('') }}
               inputClassName="font-extrabold text-green-900 text-base"

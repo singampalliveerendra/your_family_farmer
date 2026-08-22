@@ -49,10 +49,12 @@ export function nearestTown(lat: number, lng: number): string {
   return best.name
 }
 
-export function formatDistance(km: number): string {
-  if (km < 1) return `${Math.round(km * 1000)} m`
-  if (km < 10) return `${km.toFixed(1)} km`
-  return `${Math.round(km)} km`
+// The unit is part of the label a buyer reads, so it follows the language too.
+// `L` defaults to English so existing callers that don't pass one still work.
+export function formatDistance(km: number, L: (en: string, te: string) => string = (en) => en): string {
+  if (km < 1) return `${Math.round(km * 1000)} ${L('m', 'మీ')}`
+  if (km < 10) return `${km.toFixed(1)} ${L('km', 'కి.మీ')}`
+  return `${Math.round(km)} ${L('km', 'కి.మీ')}`
 }
 
 // Look up a town in AP_TOWNS by name. Case-insensitive, also matches when the

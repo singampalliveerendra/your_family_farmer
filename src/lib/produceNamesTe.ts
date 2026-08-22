@@ -167,6 +167,110 @@ export const PRODUCE_NAME_TE: Record<string, string> = {
   'butter': 'వెన్న',
   'buttermilk': 'మజ్జిగ',
   'paneer': 'పన్నీర్',
+
+  // ── Telugu names written in Latin script ─────────────────────────────
+  // What farmers actually type into the produce form. "Pasupu", "Pesalu" and
+  // "Boppayi" are Telugu words spelled in English letters, so neither the
+  // English keys above nor a Telugu-script lookup matches them — the card just
+  // showed them untranslated. Spelling is not standardised, so common variants
+  // are listed rather than guessed at.
+
+  // Vegetables
+  'tamata': 'టమాటా',
+  'tamota': 'టమాటా',
+  'vankaya': 'వంకాయ',
+  'bendakaya': 'బెండకాయ',
+  'sorakaya': 'సొరకాయ',
+  'beerakaya': 'బీరకాయ',
+  'kakarakaya': 'కాకరకాయ',
+  'potlakaya': 'పొట్లకాయ',
+  'dondakaya': 'దొండకాయ',
+  'munagakaya': 'మునగకాయ',
+  'gummadikaya': 'గుమ్మడికాయ',
+  'dosakaya': 'దోసకాయ',
+  'ullipaya': 'ఉల్లిపాయ',
+  'ulligadda': 'ఉల్లిగడ్డ',
+  'bangaladumpa': 'బంగాళాదుంప',
+  'chikkudu': 'చిక్కుడు',
+  'goru chikkudu': 'గోరు చిక్కుడు',
+  'mullangi': 'ముల్లంగి',
+  'chilagadadumpa': 'చిలగడదుంప',
+  'chamadumpa': 'చామదుంప',
+  'kanda': 'కంద',
+  'mirapakaya': 'మిరపకాయ',
+  'pachimirchi': 'పచ్చిమిర్చి',
+  'pachi mirapakaya': 'పచ్చిమిరపకాయ',
+
+  // Greens
+  'palakura': 'పాలకూర',
+  'thotakura': 'తోటకూర',
+  'menthikura': 'మెంతికూర',
+  'chukkakura': 'చుక్కకూర',
+  'bachalikura': 'బచ్చలికూర',
+  'karivepaku': 'కరివేపాకు',
+  'kothimeera': 'కొత్తిమీర',
+  'pudina': 'పుదీన',
+
+  // Fruits
+  'boppayi': 'బొప్పాయి',
+  'aratipandu': 'అరటిపండు',
+  'aratikaya': 'అరటికాయ',
+  'mamidi': 'మామిడి',
+  'jama': 'జామ',
+  'nimma': 'నిమ్మ',
+  'danimma': 'దానిమ్మ',
+  'kobbari': 'కొబ్బరి',
+  'puchakaya': 'పుచ్చకాయ',
+  'battayi': 'బత్తాయి',
+  'batayi': 'బత్తాయి',
+  'sitaphalam': 'సీతాఫలం',
+  'panasa': 'పనస',
+  'draksha': 'ద్రాక్ష',
+
+  // Grains / pulses
+  'biyyam': 'బియ్యం',
+  'pesalu': 'పెసలు',
+  'minumulu': 'మినుములు',
+  'kandulu': 'కందులు',
+  'kandi pappu': 'కందిపప్పు',
+  'senagalu': 'శనగలు',
+  'verusenaga': 'వేరుశనగ',
+  'palli': 'పల్లీలు',
+  'nuvvulu': 'నువ్వులు',
+  'godhuma': 'గోధుమ',
+  'jonna': 'జొన్న',
+  'jonnalu': 'జొన్నలు',
+  'sajjalu': 'సజ్జలు',
+  'ragulu': 'రాగులు',
+  'mokkajonna': 'మొక్కజొన్న',
+  'ulavalu': 'ఉలవలు',
+  'bobbarlu': 'బొబ్బర్లు',
+  'alasandalu': 'అలసందలు',
+
+  // Spices
+  'pasupu': 'పసుపు',
+  'miriyalu': 'మిరియాలు',
+  'jeelakarra': 'జీలకర్ర',
+  'dhaniyalu': 'ధనియాలు',
+  'aavalu': 'ఆవాలు',
+  'menthulu': 'మెంతులు',
+  'yaalakulu': 'యాలకులు',
+  'chintapandu': 'చింతపండు',
+  'vamu': 'వాము',
+  'allam': 'అల్లం',
+  'vellulli': 'వెల్లుల్లి',
+
+  // Dairy / other
+  'neyyi': 'నెయ్యి',
+  'aavu neyyi': 'ఆవు నెయ్యి',
+  'cow ghee': 'ఆవు నెయ్యి',
+  'paalu': 'పాలు',
+  'perugu': 'పెరుగు',
+  'majjiga': 'మజ్జిగ',
+  'venna': 'వెన్న',
+  'bellam': 'బెల్లం',
+  'tene': 'తేనె',
+  'gudlu': 'గుడ్లు',
 }
 
 /** Look up the Telugu name for an English produce name (case-insensitive). */

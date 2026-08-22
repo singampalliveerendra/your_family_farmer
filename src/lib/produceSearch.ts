@@ -44,7 +44,15 @@ function dictionaryHits(text: string): string[] {
   const hits: string[] = []
   const add = (value: string) => {
     const te = produceNameToTe(value)
-    if (te) hits.push(te)
+    if (te) {
+      hits.push(te)
+      // Follow the Telugu word back to its OTHER English spellings. Several
+      // names share one Telugu word ("turmeric" and the transliterated
+      // "pasupu" are both పసుపు), so this one hop is what lets a listing
+      // named "Pasupu" answer a search for "turmeric".
+      const siblings = TE_TO_EN.get(te.normalize('NFC'))
+      if (siblings) hits.push(...siblings)
+    }
     const ens = TE_TO_EN.get(value.normalize('NFC'))
     if (ens) hits.push(...ens)
   }

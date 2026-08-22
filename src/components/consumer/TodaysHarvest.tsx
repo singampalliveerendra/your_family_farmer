@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { useCart } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
-import { localizeName } from '@/lib/localizeName'
+import { localizeName, localizeUnit } from '@/lib/localizeName'
 import { harvestClock } from '@/lib/harvest'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
 import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
@@ -164,7 +164,7 @@ export default function TodaysHarvest() {
       >
         <div className="h-24 w-full bg-green-50 flex items-center justify-center relative">
           {cover ? (
-            <Image src={cover} alt={item.name} fill sizes="144px" className="object-cover" />
+            <Image src={cover} alt={localizeName(item.name, lang)} fill sizes="144px" className="object-cover" />
           ) : (
             <span className="text-4xl">{emoji}</span>
           )}
@@ -212,7 +212,7 @@ export default function TodaysHarvest() {
           <p className="text-[13px] font-bold text-gray-900 truncate">{localizeName(item.name, lang)}</p>
           <p className={`text-[10px] font-semibold truncate mt-0.5 ${kind === 'fresh' ? 'text-green-700' : 'text-blue-700'}`}>⏱ {clock}</p>
           {item.price_tier_1_price != null && (
-            <p className="text-xs font-extrabold text-green-800 mt-0.5">₹{item.price_tier_1_price}<span className="text-[10px] font-medium text-gray-400">/{item.unit || 'kg'}</span></p>
+            <p className="text-xs font-extrabold text-green-800 mt-0.5">₹{item.price_tier_1_price}<span className="text-[10px] font-medium text-gray-400">/{localizeUnit(item.unit || 'kg', lang)}</span></p>
           )}
         </div>
       </Link>

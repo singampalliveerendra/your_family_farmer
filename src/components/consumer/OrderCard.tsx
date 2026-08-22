@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
-import { localizeName } from '@/lib/localizeName'
+import { localizeName, localizeUnit } from '@/lib/localizeName'
 import { cashDue } from '@/lib/payment'
 import type { MyReview } from '@/components/consumer/ProduceReviewBox'
 
@@ -227,7 +227,7 @@ export default function OrderCard({
                 </p>
               )}
               <p className="text-xs text-gray-500 mt-0.5">
-                {order.quantity} {order.unit || 'kg'}
+                {order.quantity} {localizeUnit(order.unit || 'kg', lang)}
                 {order.total_price ? ` · ₹${order.total_price}` : ''}
               </p>
               {/* Platform fee collected on this order (₹0 when none applied)
