@@ -14,12 +14,16 @@ type LanguageContextType = {
   L: (en: string, te: string) => string
 }
 
+// Telugu is the default. Nearly every buyer and farmer in the districts this
+// serves reads Telugu first, so English is the opt-in, not the baseline. The
+// fallback below only applies outside a LanguageProvider; the real default is
+// the useState seed in the provider.
 const LanguageContext = createContext<LanguageContextType>({
-  lang: 'en',
+  lang: 'te',
   setLang: () => {},
-  tx: t.en,
-  bi: (key) => t.en[key] ?? '',
-  L: (en) => en,
+  tx: t.te,
+  bi: (key) => (t.te as Record<string, string>)[key] ?? t.en[key] ?? '',
+  L: (_en, te) => te,
 })
 
 // Mirror the language into a (non-HttpOnly) cookie so server routes — which
@@ -31,13 +35,21 @@ function writeLangCookie(lang: Language) {
 }
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Language>('en')
+  // Telugu until told otherwise. Seeding the state (rather than flipping it in
+  // the effect below) keeps the server-rendered markup and the first client
+  // render in the same language, so there is no English flash before Telugu
+  // paints — which on a slow 4G phone would be most of the first second.
+  const [lang, setLangState] = useState<Language>('te')
 
   useEffect(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('yff_lang') : null
     if (saved === 'en' || saved === 'te') {
       setLangState(saved)
       writeLangCookie(saved)
+    } else {
+      // Never chosen. Write the default out so server routes localise their
+      // error messages to Telugu too, instead of falling back to English.
+      writeLangCookie('te')
     }
   }, [])
 
