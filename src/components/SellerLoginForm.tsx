@@ -283,7 +283,11 @@ export default function SellerLoginForm({ accountType }: { accountType: SellerTy
             ) : (
               <>
                 {L('Growing your own produce?', 'మీ సొంత పంటలు పండిస్తున్నారా?')}{' '}
-                <Link href="/farmer/login" className="text-green-700 font-bold underline whitespace-nowrap">
+                {/* ?switch=1 so the farmer form is shown even when a live
+                    session already exists — one phone can hold both a farmer
+                    and an aggregator account, and this link is how a seller
+                    signed into one reaches the other. */}
+                <Link href="/farmer/login?switch=1" className="text-green-700 font-bold underline whitespace-nowrap">
                   🌾 {L('Farmer login', 'రైతు లాగిన్')}
                 </Link>
               </>

@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { ENTRY_COOKIE, entryDestination } from '@/lib/entryRole'
+import { FARMER_SESSION_COOKIE_NAME, verifyFarmerSessionToken } from '@/lib/farmer-session'
 
 /* gogrameen.in — the front door.
  *
@@ -28,6 +29,14 @@ export default async function Home({
   const [store, params] = await Promise.all([cookies(), searchParams])
   const entry = store.get(ENTRY_COOKIE)?.value
 
-  if (params.pwa === '1' || entry) redirect(entryDestination(entry))
+  // Is the seller still signed in? Verifying the token here — rather than
+  // letting the dashboard find out on the client — means a logged-out seller
+  // goes straight to the login form instead of loading the whole dashboard
+  // bundle first only to be bounced off it. Signature check only, no DB round
+  // trip: /api/auth/me revalidates against `farmers` a moment later anyway.
+  const sellerSignedIn =
+    verifyFarmerSessionToken(store.get(FARMER_SESSION_COOKIE_NAME)?.value) !== null
+
+  if (params.pwa === '1' || entry) redirect(entryDestination(entry, sellerSignedIn))
   redirect('/home')
 }

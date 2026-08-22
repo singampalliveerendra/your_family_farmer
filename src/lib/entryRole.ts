@@ -19,14 +19,27 @@ export type EntryRole = 'consumer' | 'seller'
 
 const DESTINATIONS: Record<EntryRole, string> = {
   consumer: '/consumer',
-  // Farmers and aggregators share SellerLoginForm behind /farmer/login, which
-  // is also where an aggregator can switch across.
-  seller: '/farmer/login',
+  // Both kinds of seller start here: the dashboard reads account_type and
+  // forwards an aggregator to /aggregator/dashboard on its own.
+  seller: '/farmer/dashboard',
 }
 
-/** Where `/` should send someone, given the raw cookie value. */
-export function entryDestination(raw: string | undefined): string {
-  return raw === 'seller' ? DESTINATIONS.seller : DESTINATIONS.consumer
+// Farmers and aggregators share SellerLoginForm behind /farmer/login, which is
+// also where an aggregator can switch across.
+export const SELLER_LOGIN = '/farmer/login'
+
+/**
+ * Where `/` should send someone, given the raw cookie value.
+ *
+ * `/` is the installed app's start_url, so this runs on EVERY launch. Sending
+ * sellers to the login page unconditionally is what made the app ask for a
+ * password every single time it was opened, even though the `yff_farmer`
+ * cookie is good for 30 days. Pass whether that cookie is live and a signed-in
+ * seller opens on their dashboard; only a genuinely logged-out one sees a form.
+ */
+export function entryDestination(raw: string | undefined, sellerSignedIn = false): string {
+  if (raw !== 'seller') return DESTINATIONS.consumer
+  return sellerSignedIn ? DESTINATIONS.seller : SELLER_LOGIN
 }
 
 /** Remember the choice before raising the install prompt. Client-only. */
