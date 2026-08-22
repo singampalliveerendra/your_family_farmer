@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { purchaseCountsFor } from '@/lib/purchaseCounts'
 import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
+import { matchesProduceQuery, matchesCategoryKeywords } from '@/lib/produceSearch'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -52,15 +53,9 @@ export async function GET(request: NextRequest) {
 
   let filtered = produce ?? []
 
-  if (q) {
-    const query = q.toLowerCase()
-    filtered = filtered.filter(
-      (p) =>
-        p.name?.toLowerCase().includes(query) ||
-        p.variety?.toLowerCase().includes(query) ||
-        p.description?.toLowerCase().includes(query)
-    )
-  }
+  // Bilingual: each listing is indexed under its English AND Telugu names, so
+  // ?q=టమాటా finds a listing stored as "Tomato" (and ?q=tomato finds "టమాటా").
+  if (q) filtered = filtered.filter((p) => matchesProduceQuery(p, q))
 
   if (method && method !== 'all') {
     filtered = filtered.filter((p) =>
@@ -73,9 +68,7 @@ export async function GET(request: NextRequest) {
     // Prefer the farmer's explicit category (#9); only fall back to guessing from
     // the crop name for older listings that don't have a category set yet.
     filtered = filtered.filter((p) =>
-      p.category
-        ? p.category === category
-        : keywords.some((kw) => p.name?.toLowerCase().includes(kw))
+      p.category ? p.category === category : matchesCategoryKeywords(p, keywords)
     )
   }
 

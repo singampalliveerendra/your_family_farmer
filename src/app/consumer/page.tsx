@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase'
 import { haversineKm, nearestTown, formatDistance, farmerCoords, townByName } from '@/lib/location'
 import { todayInIndia, isPastDate } from '@/lib/date'
 import LocationSearch from '@/components/LocationSearch'
+import { matchesProduceQuery, matchesCategoryKeywords } from '@/lib/produceSearch'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
@@ -307,24 +308,17 @@ export default function ConsumerPage() {
   // of the previous category while a request is in flight.
   const filtered = useMemo<ProduceListing[]>(() => {
     let items = available
-    const q = search.trim().toLowerCase()
-    if (q) {
-      items = items.filter(
-        (p) =>
-          p.name?.toLowerCase().includes(q) ||
-          p.variety?.toLowerCase().includes(q) ||
-          p.description?.toLowerCase().includes(q)
-      )
-    }
+    const q = search.trim()
+    // matchesProduceQuery indexes each listing under BOTH languages, so a
+    // Telugu query finds an English-named crop and vice versa.
+    if (q) items = items.filter((p) => matchesProduceQuery(p, q))
     if (method !== 'all') {
       items = items.filter((p) => p.method?.toLowerCase().includes(method.toLowerCase()))
     }
     if (category !== 'all') {
       const keywords = CATEGORY_KEYWORDS[category] ?? []
       items = items.filter((p) =>
-        p.category
-          ? p.category === category
-          : keywords.some((kw) => p.name?.toLowerCase().includes(kw))
+        p.category ? p.category === category : matchesCategoryKeywords(p, keywords)
       )
     }
     return items

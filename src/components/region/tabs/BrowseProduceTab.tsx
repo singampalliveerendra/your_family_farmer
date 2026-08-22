@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
+import { matchesProduceQuery } from '@/lib/produceSearch'
 import { useCart } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
@@ -59,12 +60,8 @@ export default function BrowseProduceTab({
     // Never surface a sold-out listing as orderable. stock_qty === 0 means it
     // ran out (a null/undefined stock means "unlimited", so keep those).
     if (p.stock_qty === 0) return false
-    if (!search.trim()) return true
-    const q = search.toLowerCase()
-    return (
-      p.name.toLowerCase().includes(q) ||
-      (p.variety ?? '').toLowerCase().includes(q)
-    )
+    // Bilingual — matches whether the crop was stored in English or Telugu.
+    return matchesProduceQuery(p, search)
   })
 
   const handleAddToCart = (item: ProduceItem) => {
