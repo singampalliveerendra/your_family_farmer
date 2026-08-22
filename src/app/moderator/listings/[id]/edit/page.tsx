@@ -51,6 +51,7 @@ export default function EditListingPage() {
         category: (l.category as string) ?? '',
         unit: (l.unit as string) ?? 'kg',
         stock_qty: numStr(l.stock_qty as number | null),
+        sale_step: numStr(l.sale_step as number | null) || '1',
         description: (l.description as string) ?? '',
         video_url: (l.video_url as string) ?? '',
         brix: numStr(l.brix as number | null),

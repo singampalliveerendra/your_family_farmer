@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase'
 import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
 import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
 import { localizeName, localizeUnit } from '@/lib/localizeName'
+import { normalizeStep, stepUp, stepDown, formatQty } from '@/lib/saleStep'
 import { harvestClock } from '@/lib/harvest'
 import { normalizeUrl, linkHost } from '@/lib/links'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
@@ -66,6 +67,8 @@ type Listing = {
   rating_avg?: number | null
   review_count?: number | null
   price_tier_1_qty?: number | null
+  /** Smallest sellable quantity, in this listing's unit. Null/absent = 1. */
+  sale_step?: number | null
   price_tier_1_price?: number | null
   price_tier_2_qty?: number | null
   price_tier_2_price?: number | null
@@ -179,6 +182,8 @@ export default function HarvestDetailPage() {
   }
 
   const unit = harvest.unit || item.unit || 'kg'
+  // Smallest quantity this produce sells in (250 g mirchi, 1 kg rice).
+  const saleStep = normalizeStep(item.sale_step, unit)
   // Display only. `unit` itself stays exactly as stored — it travels into the
   // cart and then the order row, so a Telugu string there would corrupt data.
   const unitLabel = localizeUnit(unit, lang)
@@ -209,7 +214,7 @@ export default function HarvestDetailPage() {
     if (fresh !== null) {
       if (fresh <= 0) { setStockMsg(L('Out of stock', 'అయిపోయింది')); return }
       const curQty = inCart?.qty ?? 0
-      if (curQty >= fresh) { setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${fresh} ${unitLabel}`); return }
+      if (curQty >= fresh) { setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${formatQty(fresh)} ${unitLabel}`); return }
     }
     addItem({
       listingId: item.id,
@@ -222,6 +227,7 @@ export default function HarvestDetailPage() {
       unit,
       stockQty: fresh != null ? fresh : (harvest.stock_qty ?? undefined),
       pricePerKg: item.price_tier_1_price ?? undefined,
+      saleStep: item.sale_step ?? undefined,
       priceTier1Qty: item.price_tier_1_qty ?? undefined,
       priceTier1Price: item.price_tier_1_price ?? undefined,
       priceTier2Qty: item.price_tier_2_qty ?? undefined,
@@ -235,24 +241,24 @@ export default function HarvestDetailPage() {
       farmerPickupLocations: farmer.pickup_locations ?? [],
       farmerPickupSlots: normalizePickupSchedule(farmer.pickup_slots, farmer.pickup_locations ?? []),
       farmerPickupPhones: normalizePickupPhones(farmer.pickup_location_phones, farmer.pickup_locations ?? []),
-    }, 1)
+    })
   }
 
   const handleInc = () => {
     if (liveStock !== null && inCart.qty >= liveStock) {
-      setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${liveStock} ${unitLabel}`); return
+      setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${formatQty(liveStock)} ${unitLabel}`); return
     }
     setStockMsg('')
-    setQty(harvest.id, inCart.qty + 1)
+    setQty(harvest.id, stepUp(inCart.qty, saleStep, liveStock))
   }
 
   // Price tiers shown as a small "buy more, save more" table.
   const tiers: { label: string; price: number }[] = []
   if (item.price_tier_1_price != null) {
-    tiers.push({ label: `${L('Up to', 'వరకు')} ${item.price_tier_1_qty ?? 1} ${unitLabel}`, price: item.price_tier_1_price })
+    tiers.push({ label: `${L('Up to', 'వరకు')} ${formatQty(item.price_tier_1_qty ?? 1)} ${unitLabel}`, price: item.price_tier_1_price })
   }
   if (item.price_tier_2_qty != null && item.price_tier_2_price != null) {
-    tiers.push({ label: `${item.price_tier_2_qty}+ ${unitLabel}`, price: item.price_tier_2_price })
+    tiers.push({ label: `${formatQty(item.price_tier_2_qty)}+ ${unitLabel}`, price: item.price_tier_2_price })
   }
   if (item.price_tier_3_price != null) {
     tiers.push({ label: `${L('Bulk', 'బల్క్')}`, price: item.price_tier_3_price })
@@ -360,7 +366,7 @@ export default function HarvestDetailPage() {
 
           {liveStock != null && (
             <p className={`text-xs font-semibold mt-1 ${liveStock === 0 ? 'text-red-600' : 'text-gray-500'}`}>
-              {liveStock === 0 ? L('Out of stock', 'అయిపోయింది') : `${liveStock} ${unitLabel} ${L('left', 'మిగిలి ఉంది')}`}
+              {liveStock === 0 ? L('Out of stock', 'అయిపోయింది') : `${formatQty(liveStock)} ${unitLabel} ${L('left', 'మిగిలి ఉంది')}`}
             </p>
           )}
 
@@ -518,9 +524,10 @@ export default function HarvestDetailPage() {
           </button>
         ) : (
           <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl h-12 px-3">
-            <button onClick={() => { setQty(harvest.id, inCart.qty - 1); setStockMsg('') }} className="w-9 h-9 rounded-lg bg-white border border-green-300 text-green-800 text-xl font-bold" aria-label={L('Decrease', 'తగ్గించు')}>−</button>
+            <button onClick={() => { setQty(harvest.id, stepDown(inCart.qty, saleStep)); setStockMsg('') }} className="w-9 h-9 rounded-lg bg-white border border-green-300 text-green-800 text-xl font-bold" aria-label={L('Decrease', 'తగ్గించు')}>−</button>
             <EditableQty
               qty={inCart.qty}
+              step={saleStep}
               unit={unitLabel}
               max={liveStock}
               onChange={(n) => { setQty(harvest.id, n); setStockMsg('') }}

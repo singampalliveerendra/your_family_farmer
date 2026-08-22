@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { unitAllowsFractions } from '@/lib/saleStep'
 import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
 import { purchaseCountsFor } from '@/lib/purchaseCounts'
 import { normalizeUrl } from '@/lib/links'
@@ -169,6 +170,9 @@ export async function POST(req: NextRequest) {
     harvest_frequency_count: toNum(b.harvest_frequency_count),
     harvest_date: harvestDate,
     shelf_life_days: shelfLife,
+    // Smallest sellable quantity. Forced to whole units on piece/bunch, where
+    // a fraction cannot be sold, and defaulted to 1 — the old behaviour.
+    sale_step: unitAllowsFractions(unit) ? (toNum(b.sale_step) ?? 1) : 1,
     status: 'available',
   }
   // Aggregator attribution: which of the seller's source farmers grows this.

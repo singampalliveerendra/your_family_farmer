@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName, localizeUnit } from '@/lib/localizeName'
 import { cashDue } from '@/lib/payment'
+import { formatQty } from '@/lib/saleStep'
 import type { MyReview } from '@/components/consumer/ProduceReviewBox'
 
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
@@ -227,7 +228,7 @@ export default function OrderCard({
                 </p>
               )}
               <p className="text-xs text-gray-500 mt-0.5">
-                {order.quantity} {localizeUnit(order.unit || 'kg', lang)}
+                {formatQty(order.quantity)} {localizeUnit(order.unit || 'kg', lang)}
                 {order.total_price ? ` · ₹${order.total_price}` : ''}
               </p>
               {/* Platform fee collected on this order (₹0 when none applied)

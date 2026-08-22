@@ -9,6 +9,7 @@ import { isOrderPaid, isPaymentClaimed } from '@/lib/payment'
 import { harvestClock } from '@/lib/harvest'
 import { requireFarmerSession } from '@/lib/farmer-auth-client'
 import { useFarmerRiders } from '@/lib/farmer-riders'
+import { formatQty } from '@/lib/saleStep'
 import {
   type DeliveryStatus,
   deliveryReached,
@@ -319,7 +320,7 @@ export default function FarmerOrderDetailPage() {
                     {order.produce_name || '—'}
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {order.quantity} {order.unit || 'kg'}
+                    {formatQty(order.quantity)} {order.unit || 'kg'}
                     {order.total_price ? ` · ₹${order.total_price}` : ''}
                   </p>
                 </div>

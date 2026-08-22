@@ -29,6 +29,8 @@ type IncomingItem = {
 
 // Pragmatic email check — we only need to reject obvious junk, not enforce
 // RFC 5322. The real signal is whether the buyer can be reached.
+import { normalizeStep, snapToStep, roundQty, formatQty } from '@/lib/saleStep'
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 // 4-digit handover code, generated server-side at order placement. The
@@ -46,6 +48,7 @@ type ListingRow = {
   stock_qty: number | null
   status: string | null
   farmer_id: string
+  sale_step: number | null
   price_tier_1_qty: number | null
   price_tier_1_price: number | null
   price_tier_2_qty: number | null
@@ -271,7 +274,7 @@ export async function POST(req: NextRequest) {
   const { data: listings } = await supabase
     .from('produce_listings')
     .select(
-      'id, name, unit, stock_qty, status, farmer_id, price_tier_1_qty, price_tier_1_price, price_tier_2_qty, price_tier_2_price, price_tier_3_price',
+      'id, name, unit, stock_qty, status, farmer_id, sale_step, price_tier_1_qty, price_tier_1_price, price_tier_2_qty, price_tier_2_price, price_tier_3_price',
     )
     .in('id', listingIds) as { data: ListingRow[] | null }
 
@@ -345,6 +348,15 @@ export async function POST(req: NextRequest) {
       if (!harvest || harvest.produce_listing_id !== listing.id) {
         return bad(`${listing.name} is no longer available.`)
       }
+    }
+
+    // The step is the farmer's, so it is enforced here and not only in the UI:
+    // a crafted request must not be able to order 0.137 kg of something nobody
+    // can weigh out. Every offered step divides 1 evenly, so quantities from
+    // carts saved before this feature existed are still on the grid.
+    const step = normalizeStep(listing.sale_step, listing.unit)
+    if (snapToStep(item.qty, step) !== roundQty(item.qty)) {
+      return bad(`${listing.name} is sold in multiples of ${formatQty(step)} ${listing.unit || 'kg'}.`)
     }
 
     const unitPrice = getTierPrice(item.qty, {

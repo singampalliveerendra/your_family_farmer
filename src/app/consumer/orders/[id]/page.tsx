@@ -9,6 +9,7 @@ import { localizeName } from '@/lib/localizeName'
 import { isOrderPaid, isPaymentClaimed } from '@/lib/payment'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { supabase } from '@/lib/supabase'
+import { formatQty } from '@/lib/saleStep'
 import ComplaintModal from '@/components/consumer/ComplaintModal'
 import ProduceReviewBox, { type MyReview } from '@/components/consumer/ProduceReviewBox'
 import { canBuyerCancel } from '@/components/consumer/OrderCard'
@@ -325,7 +326,7 @@ export default function OrderDetailsPage() {
                     {localizeName(order.produce_name, lang) || '—'}
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {order.quantity} {order.unit || 'kg'}
+                    {formatQty(order.quantity)} {order.unit || 'kg'}
                     {order.total_price ? ` · ₹${order.total_price}` : ''}
                   </p>
                 </div>
@@ -764,7 +765,7 @@ function ReceiptOverlay({ order, onClose }: { order: Order; onClose: () => void 
 
         <div className="border-t border-dashed border-gray-300 py-3 space-y-1.5">
           <div className="flex justify-between text-xs">
-            <span className="text-gray-700">{localizeName(order.produce_name, lang)} × {order.quantity} {order.unit || 'kg'}</span>
+            <span className="text-gray-700">{localizeName(order.produce_name, lang)} × {formatQty(order.quantity)} {order.unit || 'kg'}</span>
             <span className="font-semibold text-gray-900">₹{order.total_price ?? 0}</span>
           </div>
           {platformFeePaid > 0 && (

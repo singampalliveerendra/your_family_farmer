@@ -19,6 +19,7 @@ import HarvestManager from '@/components/HarvestManager'
 import PayoutDetailsForm from '@/components/farmer/PayoutDetailsForm'
 import SourceFarmerPicker, { useSourceFarmers } from '@/components/SourceFarmerPicker'
 import { isLikelyUrl, normalizeUrl } from '@/lib/links'
+import { STEP_CHOICES, unitAllowsFractions, formatQty } from '@/lib/saleStep'
 import {
   clearFarmerLocalSession,
   farmerFetch,
@@ -95,6 +96,8 @@ type ListingRow = {
   stock_qty: number | null
   price_tier_1_price: number | null
   price_tier_1_qty: number | null
+  /** Smallest sellable quantity, in this listing's unit. Null = 1. */
+  sale_step?: number | null
   price_tier_2_price: number | null
   price_tier_2_qty: number | null
   price_tier_3_price: number | null
@@ -2208,6 +2211,11 @@ function ProduceListingForm({
   // #9 — explicit produce category (drives the consumer category filter).
   const [category, setCategory] = useState(editData?.category ?? '')
   const [unit, setUnit] = useState(editData?.unit ?? 'kg')
+  // Smallest quantity a buyer may order. Stored on the listing, so every
+  // harvest under it inherits the same step. '1' is the existing behaviour.
+  const [saleStep, setSaleStep] = useState(
+    editData?.sale_step != null ? String(editData.sale_step) : '1',
+  )
   // Aggregators: which of their farmers grows this produce. Asked here, once,
   // instead of on every harvest (client request 2026-08-14). Renders nothing
   // for a plain farmer.
@@ -2377,6 +2385,9 @@ function ProduceListingForm({
         unit,
         variety: variety.trim() || null,
         stock_qty: qty ? Number(qty) : null,
+        // A part-unit step is meaningless on piece/bunch, so it is forced back
+        // to whole units when the farmer switches to one of those.
+        sale_step: unitAllowsFractions(unit) ? Number(saleStep) || 1 : 1,
         description: description.trim() || null,
         brix: brix ? Number(brix) : null,
         soil_organic_carbon: soc ? Number(soc) : null,
@@ -2588,6 +2599,34 @@ function ProduceListingForm({
             ))}
           </select>
         </div>
+
+        {/* Sale step. Sits directly under Unit because it is read IN that unit
+            — "1/4" means a quarter kilo only once the unit says kg. Hidden for
+            piece/bunch, where a fraction cannot be sold. */}
+        {unitAllowsFractions(unit) && (
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+              {L('Sell in multiples of', 'ఎంత మోతాదులో అమ్మాలి')}
+            </label>
+            <select
+              value={saleStep}
+              onChange={(e) => setSaleStep(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+            >
+              {STEP_CHOICES.map((o) => (
+                <option key={o.value} value={String(o.value)}>
+                  {L(o.en, o.te)} {unit}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-gray-500">
+              {L(
+                `Buyers order in steps of this much. Pick 1/4 for mirchi and a buyer's "+" adds ${formatQty(0.25)} ${unit} at a time, not a whole ${unit}.`,
+                `కొనుగోలుదారులు ఈ మోతాదులో ఆర్డర్ చేస్తారు. మిరపకు 1/4 ఎంచుకుంటే "+" నొక్కినప్పుడు ${formatQty(0.25)} ${unit} చొప్పున కలుస్తుంది, పూర్తి ${unit} కాదు.`,
+              )}
+            </p>
+          </div>
+        )}
 
         {/* Name + variety */}
         <div className="space-y-2">

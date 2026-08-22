@@ -15,6 +15,7 @@ import { haversineKm, nearestTown, formatDistance, farmerCoords, townByName } fr
 import { todayInIndia, isPastDate } from '@/lib/date'
 import LocationSearch from '@/components/LocationSearch'
 import { matchesProduceQuery, matchesCategoryKeywords } from '@/lib/produceSearch'
+import { normalizeStep, stepUp, stepDown, formatQty } from '@/lib/saleStep'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName, localizeUnit } from '@/lib/localizeName'
@@ -69,6 +70,8 @@ type ProduceListing = {
   status: string
   price_tier_1_price?: number
   price_tier_1_qty?: number
+  /** Smallest sellable quantity, in this listing's unit. Null/absent = 1. */
+  sale_step?: number | null
   price_tier_2_price?: number
   price_tier_2_qty?: number
   price_tier_3_price?: number
@@ -702,6 +705,9 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
   const produceHref = harvest ? `/consumer/harvest/${harvest.id}` : `/consumer/produce/${item.id}`
   const cartKey     = harvest ? harvest.id : item.id
   const unit        = harvest?.unit || item.unit || 'kg'
+  // Smallest quantity this produce sells in — 250 g mirchi, 1 kg rice. Set on
+  // the listing, so every harvest under it inherits the same step.
+  const saleStep    = normalizeStep(item.sale_step, unit)
 
   // Clock + freshness: from THIS harvest when it's a harvest card, else the
   // produce's fallback (latest logged / Edit-form harvest date).
@@ -773,7 +779,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
       }
       const curQty = inCart?.qty ?? 0
       if (curQty >= fresh) {
-        setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${fresh} ${localizeUnit(unit, lang)}`)
+        setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${formatQty(fresh)} ${localizeUnit(unit, lang)}`)
         return
       }
       if (curQty + 1 > fresh) {
@@ -798,6 +804,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
       emoji: item.emoji,
       unit,
       stockQty: fresh != null ? fresh : (baseStock ?? undefined),
+      saleStep: item.sale_step ?? undefined,
       pricePerKg: item.price_tier_1_price,
       priceTier1Qty: item.price_tier_1_qty,
       priceTier1Price: item.price_tier_1_price,
@@ -812,16 +819,16 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
       farmerPickupLocations: farmer.pickup_locations ?? [],
       farmerPickupSlots: normalizePickupSchedule(farmer.pickup_slots, farmer.pickup_locations ?? []),
       farmerPickupPhones: normalizePickupPhones(farmer.pickup_location_phones, farmer.pickup_locations ?? []),
-    }, 1)
+    })
   }
 
   const handleInc = () => {
     if (liveStock !== null && inCart.qty >= liveStock) {
-      setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${liveStock} ${localizeUnit(unit, lang)}`)
+      setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${formatQty(liveStock)} ${localizeUnit(unit, lang)}`)
       return
     }
     setStockMsg('')
-    setQty(cartKey, inCart.qty + 1)
+    setQty(cartKey, stepUp(inCart.qty, saleStep, liveStock))
   }
 
   return (
@@ -1001,7 +1008,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
             >
               {isOutOfStock
                 ? L('Sold out', 'అయిపోయింది')
-                : `${liveStock} ${localizeUnit(unit, lang)} ${L('left', 'మిగిలింది')}`}
+                : `${formatQty(liveStock)} ${localizeUnit(unit, lang)} ${L('left', 'మిగిలింది')}`}
             </span>
           </div>
         )}
@@ -1040,7 +1047,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
           ) : (
             <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl h-10 px-2">
               <button
-                onClick={() => { setQty(cartKey, inCart.qty - 1); setStockMsg('') }}
+                onClick={() => { setQty(cartKey, stepDown(inCart.qty, saleStep)); setStockMsg('') }}
                 className="w-7 h-7 rounded-lg bg-white border border-green-300 text-green-800 text-lg font-bold leading-none"
                 aria-label={L('Decrease', 'తగ్గించు')}
               >
@@ -1050,6 +1057,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
                 qty={inCart.qty}
                 unit={localizeUnit(unit, lang)}
                 max={liveStock}
+                step={saleStep}
                 onChange={(n) => { setQty(cartKey, n); setStockMsg('') }}
                 inputClassName="font-extrabold text-green-900 text-sm"
                 unitClassName="font-extrabold text-green-900 text-sm"

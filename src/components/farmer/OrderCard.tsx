@@ -12,6 +12,7 @@ import {
 } from '@/lib/delivery'
 import { isOrderPaid, isPaymentClaimed as isPaymentClaimed_, isDepositPaid, cashDue } from '@/lib/payment'
 import { harvestClock } from '@/lib/harvest'
+import { formatQty } from '@/lib/saleStep'
 
 // Re-exported so existing importers keep working; the flow itself lives in
 // @/lib/delivery, shared with the farmer order-detail page.
@@ -280,7 +281,7 @@ export default function OrderCard({
             <div className="flex flex-wrap items-center gap-1.5 text-sm">
               <span className="font-semibold text-gray-800">{order.produce_name || '—'}</span>
               <span className="text-gray-300">·</span>
-              <span className="text-gray-600">{order.quantity} {order.unit || 'kg'}</span>
+              <span className="text-gray-600">{formatQty(order.quantity)} {order.unit || 'kg'}</span>
               {order.total_price != null && order.total_price > 0 && (
                 <>
                   <span className="text-gray-300">·</span>
@@ -376,7 +377,7 @@ export default function OrderCard({
           <div className="flex flex-wrap items-center gap-1.5 text-sm">
             <span className="font-semibold text-gray-800">{order.produce_name || '—'}</span>
             <span className="text-gray-300">·</span>
-            <span className="text-gray-600">{order.quantity} {order.unit || 'kg'}</span>
+            <span className="text-gray-600">{formatQty(order.quantity)} {order.unit || 'kg'}</span>
             {order.total_price != null && order.total_price > 0 && (
               <>
                 <span className="text-gray-300">·</span>

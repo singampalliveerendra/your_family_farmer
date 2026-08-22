@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
 import { isOrderPaid, isPaymentClaimed } from '@/lib/payment'
+import { formatQty } from '@/lib/saleStep'
 import type { FarmerOrder } from './OrderCard'
 
 /* ─── Decline success / refund confirmation sheet ──────────── */
@@ -127,7 +128,7 @@ export function DeclineReasonSheet({
         <div className="bg-gray-50 rounded-xl px-3 py-2 text-xs text-gray-700">
           <span className="font-semibold">{order.buyer_name || 'Buyer'}</span>
           {order.produce_name && <> · {order.produce_name}</>}
-          {order.quantity != null && <> · {order.quantity} {order.unit || 'kg'}</>}
+          {order.quantity != null && <> · {formatQty(order.quantity)} {order.unit || 'kg'}</>}
         </div>
 
         {/* "Are you sure?" warning — declining can't be undone. */}

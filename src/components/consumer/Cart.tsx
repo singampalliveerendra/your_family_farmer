@@ -71,6 +71,10 @@ export type CartItem = {
   harvestedAt?: string
   shelfLifeDays?: number
   qty: number
+  // Smallest quantity this produce sells in (250 g mirchi, 1 kg rice). Carried
+  // on the line so the cart can step it without re-reading the listing.
+  // Absent on lines added before the feature existed — those read as 1.
+  saleStep?: number
   name: string
   variety?: string
   emoji?: string
@@ -104,6 +108,8 @@ export const cartKeyOf = (item: { listingId: string; harvestId?: string }): stri
 export type ConsumerInfo = { name: string; phone: string }
 
 // Loose email check for guest checkout — just enough to catch typos.
+import { DEFAULT_STEP, normalizeStep, snapToStep, stepUp, stepDown, formatQty, roundQty } from '@/lib/saleStep'
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const CART_KEY = 'yff_cart_v1'
@@ -155,12 +161,16 @@ export function useCart() {
     }
   }, [])
 
-  const addItem = useCallback((item: Omit<CartItem, 'qty'>, qty = 1) => {
+  const addItem = useCallback((item: Omit<CartItem, 'qty'>, qty?: number) => {
     const next = { ...readCart() }
     const key = cartKeyOf(item)
     const existing = next[key]
-    const rawQty = Math.max(1, (existing?.qty ?? 0) + qty)
-    const newQty = item.stockQty != null ? Math.min(rawQty, item.stockQty) : rawQty
+    // One step is the default add AND the minimum: "add to cart" on a 250 g
+    // mirchi puts 250 g in, not a kilo.
+    const step = normalizeStep(item.saleStep, item.unit)
+    const added = qty ?? step
+    const rawQty = roundQty(Math.max(step, (existing?.qty ?? 0) + added))
+    const newQty = snapToStep(rawQty, step, item.stockQty ?? null)
     const merged = { ...item, qty: newQty }
     const { price } = getActiveTier(newQty, merged)
     next[key] = { ...merged, pricePerKg: price ?? item.pricePerKg }
@@ -169,10 +179,13 @@ export function useCart() {
 
   const setQty = useCallback((listingId: string, qty: number) => {
     const next = { ...readCart() }
+    // 0 still means "remove" — stepDown() returns 0 rather than parking the
+    // line at a fraction of a step the farmer cannot weigh out.
     if (qty <= 0) delete next[listingId]
     else if (next[listingId]) {
       const existing = next[listingId]
-      const cappedQty = existing.stockQty != null ? Math.min(qty, existing.stockQty) : qty
+      const step = normalizeStep(existing.saleStep, existing.unit)
+      const cappedQty = snapToStep(qty, step, existing.stockQty ?? null)
       const updated = { ...existing, qty: cappedQty }
       const { price } = getActiveTier(cappedQty, updated)
       next[listingId] = { ...updated, pricePerKg: price ?? updated.pricePerKg }
@@ -1777,9 +1790,12 @@ export function CartSheet({
                             </p>
                             {it.pricePerKg && (
                               <>
-                                <p className="text-xs text-gray-500">₹{it.pricePerKg}/{it.unit || 'kg'} × {it.qty}</p>
+                                <p className="text-xs text-gray-500">₹{it.pricePerKg}/{it.unit || 'kg'} × {formatQty(it.qty)}</p>
                                 <span className="inline-block mt-1 text-sm font-extrabold text-green-800 bg-green-100 px-2 py-0.5 rounded-md">
-                                  ₹{it.pricePerKg * it.qty}
+                                  {/* Rounded to the rupee, matching how the
+                                      subtotal below is computed — a 0.25 line
+                                      would otherwise show a paise tail. */}
+                                  ₹{Math.round(it.pricePerKg * it.qty)}
                                 </span>
                                 {(() => {
                                   const itemFee = computePlatformFee(it.pricePerKg * it.qty, platformFeePercent)
@@ -1802,14 +1818,15 @@ export function CartSheet({
                             qty={it.qty}
                             maxQty={it.stockQty}
                             unit={it.unit || 'kg'}
+                            step={normalizeStep(it.saleStep, it.unit)}
                             onSet={(n) => setQty(cartKeyOf(it), n)}
-                            onDec={() => setQty(cartKeyOf(it), it.qty - 1)}
+                            onDec={() => setQty(cartKeyOf(it), stepDown(it.qty, normalizeStep(it.saleStep, it.unit)))}
                             onInc={() => {
                               if (it.stockQty != null && it.qty >= it.stockQty) {
                                 showToast(L('No more stock available', 'స్టాక్ అయిపోయింది'))
                                 return
                               }
-                              setQty(cartKeyOf(it), it.qty + 1)
+                              setQty(cartKeyOf(it), stepUp(it.qty, normalizeStep(it.saleStep, it.unit), it.stockQty ?? null))
                             }}
                           />
                           <button
@@ -2315,6 +2332,7 @@ export function EditableQty({
   qty,
   unit = 'kg',
   max,
+  step = DEFAULT_STEP,
   onChange,
   inputClassName = '',
   unitClassName = '',
@@ -2322,24 +2340,37 @@ export function EditableQty({
   qty: number
   unit?: string
   max?: number | null
+  /** Smallest sellable quantity. A typed value is snapped onto this grid. */
+  step?: number
   onChange: (n: number) => void
   inputClassName?: string
   unitClassName?: string
 }) {
   const { L } = useLang()
-  const [text, setText] = useState(String(qty))
+  const [text, setText] = useState(formatQty(qty))
   const focused = useRef(false)
   // Keep the field in sync with the cart when the change came from elsewhere
   // (− / + buttons, another card), but never clobber what the user is typing.
   useEffect(() => {
-    if (!focused.current) setText(String(qty))
+    if (!focused.current) setText(formatQty(qty))
   }, [qty])
 
+  // A part-unit step means the field has to accept a decimal point. Only one,
+  // and only when the step is actually fractional — on a whole-unit listing
+  // typing "1.5" should stay impossible.
+  const fractional = step > 0 && !Number.isInteger(step)
+  const sanitize = (raw: string) => {
+    const cleaned = fractional ? raw.replace(/[^0-9.]/g, '') : raw.replace(/[^0-9]/g, '')
+    if (!fractional) return cleaned
+    const [head, ...rest] = cleaned.split('.')
+    return rest.length ? `${head}.${rest.join('')}` : head
+  }
+
   const commit = () => {
-    let n = Math.floor(Number(text))
-    if (!Number.isFinite(n) || n < 1) n = 1
-    if (max != null && n > max) n = max
-    setText(String(n))
+    // Snap rather than floor: "0.4" on a 250 g step is 0.5, not a half-step
+    // order nobody can weigh out.
+    const n = snapToStep(Number(text), step, max)
+    setText(formatQty(n))
     if (n !== qty) onChange(n)
   }
 
@@ -2350,12 +2381,12 @@ export function EditableQty({
     >
       <input
         type="text"
-        inputMode="numeric"
-        pattern="[0-9]*"
+        inputMode={fractional ? 'decimal' : 'numeric'}
+        pattern={fractional ? '[0-9.]*' : '[0-9]*'}
         value={text}
         aria-label={L('Quantity', 'పరిమాణం')}
         onFocus={(e) => { focused.current = true; e.currentTarget.select() }}
-        onChange={(e) => setText(e.target.value.replace(/[^0-9]/g, ''))}
+        onChange={(e) => setText(sanitize(e.target.value))}
         onBlur={() => { focused.current = false; commit() }}
         onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur() }}
         style={{ width: `${Math.max(String(text).length, 1) + 1}ch`, borderBottom: '1px dotted currentColor' }}
@@ -2373,6 +2404,7 @@ function QtyStepper({
   onSet,
   unit = 'kg',
   maxQty,
+  step = DEFAULT_STEP,
 }: {
   qty: number
   onDec: () => void
@@ -2380,6 +2412,7 @@ function QtyStepper({
   onSet: (n: number) => void
   unit?: string
   maxQty?: number
+  step?: number
 }) {
   const { L } = useLang()
   const atMax = maxQty != null && qty >= maxQty
@@ -2393,7 +2426,7 @@ function QtyStepper({
         −
       </button>
       <span className="w-16 text-center font-bold text-sm text-gray-900 flex items-center justify-center">
-        <EditableQty qty={qty} unit={unit} max={maxQty} onChange={onSet} />
+        <EditableQty qty={qty} unit={unit} max={maxQty} step={step} onChange={onSet} />
       </span>
       <button
         onClick={onInc}

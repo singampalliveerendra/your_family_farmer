@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import HarvestManager from '@/components/HarvestManager'
 import { useSourceFarmers, sourceFarmerLabel } from '@/components/SourceFarmerPicker'
+import { STEP_CHOICES } from '@/lib/saleStep'
 
 // Shared add/edit form for a farmer's harvest listing, used by both
 //   /moderator/listings/new          (mode="create")
@@ -29,6 +30,7 @@ export type ListingFormValues = {
   method: string
   category: string
   unit: string
+  sale_step: string
   stock_qty: string
   description: string
   video_url: string
@@ -60,7 +62,7 @@ export type ListingFormValues = {
 }
 
 export const EMPTY_LISTING_FORM: ListingFormValues = {
-  name: '', variety: '', method: 'natural', category: '', unit: 'kg',
+  name: '', variety: '', method: 'natural', category: '', unit: 'kg', sale_step: '1',
   stock_qty: '', description: '', video_url: '', brix: '', harvest_date: '', shelf_life_days: '',
   price_tier_1_qty: '1', price_tier_1_price: '',
   price_tier_2_qty: '', price_tier_2_price: '',
@@ -358,6 +360,13 @@ export default function ListingForm({
         <Field label="Unit">
           <select value={form.unit} onChange={set('unit')} className={inputCls}>
             {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+        </Field>
+        <Field label="Sell in multiples of">
+          <select value={form.sale_step} onChange={set('sale_step')} className={inputCls}>
+            {STEP_CHOICES.map((o) => (
+              <option key={o.value} value={String(o.value)}>{o.en} {form.unit}</option>
+            ))}
           </select>
         </Field>
         <Field label="Stock available">

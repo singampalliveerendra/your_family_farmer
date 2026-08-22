@@ -10,6 +10,7 @@ import { DeclineReasonSheet, DeclineSuccessSheet } from '@/components/farmer/Dec
 import { ordersInReportWindow } from '@/lib/orderReport'
 import OrderReportSheet from '@/components/farmer/OrderReportSheet'
 import { farmerFetch, isFarmerSessionExpired, requireFarmerSession } from '@/lib/farmer-auth-client'
+import { formatQty } from '@/lib/saleStep'
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'shipped' | 'completed' | 'declined' | 'cancelled'
 type TimeFilter = 'today' | 'week' | 'month' | 'all'
@@ -619,7 +620,7 @@ function HistoryCard({ order }: { order: Order }) {
           <div className="flex flex-wrap items-center gap-1.5 text-sm">
             <span className="font-semibold text-gray-800">{order.produce_name || '—'}</span>
             <span className="text-gray-300">·</span>
-            <span className="text-gray-600">{order.quantity} {order.unit || 'kg'}</span>
+            <span className="text-gray-600">{formatQty(order.quantity)} {order.unit || 'kg'}</span>
             {order.total_price != null && order.total_price > 0 && (
               <>
                 <span className="text-gray-300">·</span>

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { unitAllowsFractions } from '@/lib/saleStep'
 import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
 import { normalizeUrl } from '@/lib/links'
 
@@ -203,6 +204,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     unit,
     variety: String(b.variety ?? '').trim() || null,
     stock_qty: toNonNeg(b.stock_qty),
+    // Mirrors the farmer form: whole units only where a fraction can't be sold.
+    sale_step: unitAllowsFractions(unit) ? (toPos(b.sale_step) ?? 1) : 1,
     description: String(b.description ?? '').trim() || null,
     video_url: normalizeUrl(b.video_url as string | null | undefined),
     brix: toNonNeg(b.brix),
