@@ -165,6 +165,10 @@ type PreviewData = {
   // buyer would see — and is exactly the number a farmer would price against.
   unit: string
   step: number
+  // Cover photo — the just-picked blob: URL, or the saved one on an edit. The
+  // preview used to show the emoji even when a photo was attached, which hid
+  // the single thing a farmer most wants to check before publishing.
+  image: string
 }
 
 /**
@@ -2353,6 +2357,7 @@ function ProduceListingForm({
     stock: qty || '—',
     unit,
     step: unitAllowsFractions(unit) ? Number(saleStep) || 1 : 1,
+    image: imagePreview || existingImageUrl,
   }
 
   const handlePublish = async () => {
@@ -3197,9 +3202,18 @@ function PreviewModal({ data, onClose }: { data: PreviewData; onClose: () => voi
         </div>
         <div className="p-4">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden max-w-[180px] mx-auto">
-            <div className={`${bg} flex items-center justify-center py-8`}>
-              <span className="text-5xl">{data.emoji}</span>
-            </div>
+            {/* h-40 in both states because that is what the buyer's card
+                uses — a shorter emoji tile would preview a card nobody sees.
+                A plain <img>: the picked file is a blob: URL, which next/image
+                cannot optimise. */}
+            {data.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={data.image} alt="" className="w-full h-40 object-cover" />
+            ) : (
+              <div className={`${bg} h-40 flex items-center justify-center`}>
+                <span className="text-5xl">{data.emoji}</span>
+              </div>
+            )}
             <div className="p-3">
               <h3 className="font-extrabold text-gray-900 text-base">{data.name}</h3>
               {data.variety && <p className="text-xs text-gray-400 mt-0.5">{data.variety}</p>}
