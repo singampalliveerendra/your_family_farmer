@@ -43,6 +43,12 @@ ALTER TABLE produce_listings
   ADD CONSTRAINT produce_listings_sale_step_positive
   CHECK (sale_step IS NULL OR sale_step > 0);
 
+-- 5. PostgREST answers from a cached copy of the schema, and it is that cache
+--    that produces "Could not find the 'sale_step' column of 'produce_listings'
+--    in the schema cache" in the app. Supabase reloads it on DDL by itself, but
+--    saying so costs nothing and removes the "did it just not refresh?" doubt.
+NOTIFY pgrst, 'reload schema';
+
 -- Verify:
 SELECT column_name, data_type, numeric_precision, numeric_scale
 FROM information_schema.columns

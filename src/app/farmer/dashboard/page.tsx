@@ -20,6 +20,7 @@ import PayoutDetailsForm from '@/components/farmer/PayoutDetailsForm'
 import SourceFarmerPicker, { useSourceFarmers } from '@/components/SourceFarmerPicker'
 import { isLikelyUrl, normalizeUrl } from '@/lib/links'
 import { STEP_CHOICES, unitAllowsFractions, formatQty } from '@/lib/saleStep'
+import { localizeUnit } from '@/lib/localizeName'
 import {
   clearFarmerLocalSession,
   farmerFetch,
@@ -159,6 +160,25 @@ type PreviewData = {
   price: string
   method: string
   stock: string
+  // The card prices and counts stock in the listing's OWN unit. Hardcoding kg
+  // here showed a gram listing as "₹5/kg · 4 kg left", which is not what any
+  // buyer would see — and is exactly the number a farmer would price against.
+  unit: string
+  step: number
+}
+
+/**
+ * PostgREST reports a column the schema cache doesn't know as PGRST204 —
+ * "Could not find the 'sale_step' column of 'produce_listings' in the schema
+ * cache". `sale_step` only exists once scripts/sale-step-migration.sql has been
+ * run, and on an environment where it hasn't, sending the field would fail the
+ * ENTIRE save: a farmer couldn't publish a harvest at all. So that one case is
+ * detected and the save retried without it, with the farmer told the step
+ * specifically didn't stick.
+ */
+function isMissingColumnError(msg: string | null | undefined, column: string): boolean {
+  if (!msg) return false
+  return msg.includes(column) && /schema cache|column/i.test(msg)
 }
 
 // 📦 is a generic L('Other', 'ఇతర') icon so a farmer can list any produce
@@ -2239,6 +2259,10 @@ function ProduceListingForm({
   )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // Set when the save went through but the sale step could not be stored,
+  // because scripts/sale-step-migration.sql has not run on this environment.
+  // A silent drop is what made the step look broken in the first place.
+  const [stepNotSaved, setStepNotSaved] = useState(false)
   const [preview, setPreview] = useState(false)
   const [published, setPublished] = useState(false)
   const [publishedSlug, setPublishedSlug] = useState('')
@@ -2327,6 +2351,8 @@ function ProduceListingForm({
     price: price1 || '—',
     method: farmingMethod,
     stock: qty || '—',
+    unit,
+    step: unitAllowsFractions(unit) ? Number(saleStep) || 1 : 1,
   }
 
   const handlePublish = async () => {
@@ -2413,20 +2439,32 @@ function ProduceListingForm({
         ...(isAggregator && sourceFarmerId ? { source_farmer_id: sourceFarmerId } : {}),
       }
 
-      let res: Response
-      try {
-        res = await farmerFetch('/api/farmer/update-listing', {
+      const sendEdit = async (body: Record<string, unknown>) => {
+        const r = await farmerFetch('/api/farmer/update-listing', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ listingId: editData.id, payload: editPayload }),
+          body: JSON.stringify({ listingId: editData.id, payload: body }),
         })
+        return { res: r, json: await r.json().catch(() => ({})) }
+      }
+
+      let res: Response
+      let json: { error?: string; status?: string }
+      try {
+        ;({ res, json } = await sendEdit(editPayload))
+        // Pre-migration environment: retry without the step rather than losing
+        // the farmer's whole edit to a column that doesn't exist yet.
+        if (!res.ok && isMissingColumnError(json.error, 'sale_step')) {
+          delete editPayload.sale_step
+          ;({ res, json } = await sendEdit(editPayload))
+          if (res.ok) setStepNotSaved(true)
+        }
       } catch (e) {
         if (isFarmerSessionExpired(e)) return
         setLoading(false)
         setError(L('Network error — is the server running?', 'నెట్‌వర్క్ లోపం — సర్వర్ నడుస్తోందా?'))
         return
       }
-      const json = await res.json().catch(() => ({}))
       if (!res.ok) { setLoading(false); setError(json.error ?? 'Could not save changes'); return }
       // Quality fields are best-effort: their columns may not exist until
       // scripts/produce-quality-fields-migration.sql is applied, so they must
@@ -2460,6 +2498,11 @@ function ProduceListingForm({
       emoji,
       method: farmingMethod,
       unit,
+      // Insert used to drop this entirely, so a farmer who picked "1/4" got a
+      // listing that still sold whole units — the choice vanished silently and
+      // only an Edit-and-save could ever set it. Forced to 1 on piece/bunch,
+      // matching the edit path and the moderator's API.
+      sale_step: unitAllowsFractions(unit) ? Number(saleStep) || 1 : 1,
     }
     if (variety.trim()) payload.variety = variety.trim()
     if (qty) payload.stock_qty = Number(qty)
@@ -2484,12 +2527,18 @@ function ProduceListingForm({
       if (deliveryRadius) payload.delivery_radius_km = Number(deliveryRadius)
     }
 
-    const insertPayload = { ...payload, farmer_id: farmerId, status: 'available' }
-    const { data: inserted, error: err } = await supabase
-      .from('produce_listings')
-      .insert(insertPayload)
-      .select('id')
-      .single()
+    const insertPayload: Record<string, unknown> = { ...payload, farmer_id: farmerId, status: 'available' }
+    const doInsert = (body: Record<string, unknown>) =>
+      supabase.from('produce_listings').insert(body).select('id').single()
+
+    let { data: inserted, error: err } = await doInsert(insertPayload)
+    // Same pre-migration fallback as the edit path: publish the harvest without
+    // the step rather than refuse the whole listing.
+    if (err && isMissingColumnError(err.message, 'sale_step')) {
+      delete insertPayload.sale_step
+      ;({ data: inserted, error: err } = await doInsert(insertPayload))
+      if (!err) setStepNotSaved(true)
+    }
 
     if (err) { setLoading(false); setError(err.message); return }
 
@@ -2518,6 +2567,15 @@ function ProduceListingForm({
         <div className="text-4xl">✅</div>
         <p className="font-extrabold text-green-800 text-lg">{tx.publishedTitle}</p>
         <p className="text-green-700 text-sm">{tx.listingLive}</p>
+        {stepNotSaved && (
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+            {L(
+              'Saved — but "sell in multiples of" could not be stored on this server yet, so this harvest sells in whole units.',
+              'సేవ్ అయింది — కానీ "ఎంత మోతాదులో అమ్మాలి" ఈ సర్వర్‌లో ఇంకా నిల్వ కాలేదు, కాబట్టి ఇది పూర్తి యూనిట్లలో అమ్ముడవుతుంది.',
+            )}
+          </p>
+        )}
+
         <Link
           href={`/farmer/${publishedSlug}`}
           className="inline-block bg-green-700 text-white font-bold px-6 py-3 rounded-xl text-sm"
@@ -2533,6 +2591,15 @@ function ProduceListingForm({
       <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-6 text-center space-y-3">
         <div className="text-4xl">✅</div>
         <p className="font-extrabold text-green-800 text-lg">{tx.savedTitle}</p>
+        {stepNotSaved && (
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+            {L(
+              'Saved — but "sell in multiples of" could not be stored on this server yet, so this harvest sells in whole units.',
+              'సేవ్ అయింది — కానీ "ఎంత మోతాదులో అమ్మాలి" ఈ సర్వర్‌లో ఇంకా నిల్వ కాలేదు, కాబట్టి ఇది పూర్తి యూనిట్లలో అమ్ముడవుతుంది.',
+            )}
+          </p>
+        )}
+
       </div>
     )
   }
@@ -3109,7 +3176,8 @@ function ProduceListingForm({
 
 /* ─── Preview modal ─────────────────────────────────────────── */
 function PreviewModal({ data, onClose }: { data: PreviewData; onClose: () => void }) {
-  const { tx, L } = useLang()
+  const { tx, L, lang } = useLang()
+  const unitLabel = localizeUnit(data.unit, lang) || data.unit
   const EMOJI_BG: Record<string, string> = {
     '🍅': 'bg-red-100', '🥬': 'bg-green-100', '🥭': 'bg-orange-100',
     '🍆': 'bg-purple-100', '🥕': 'bg-orange-100', '🌽': 'bg-yellow-100',
@@ -3138,20 +3206,34 @@ function PreviewModal({ data, onClose }: { data: PreviewData; onClose: () => voi
               <div className="flex items-center justify-between mt-2">
                 <span className="text-green-700 font-black text-lg">
                   {data.price !== '—' ? `₹${data.price}` : '—'}
-                  <span className="text-xs font-normal text-gray-400">/kg</span>
+                  <span className="text-xs font-normal text-gray-400">/{unitLabel}</span>
                 </span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800">
                   {data.method}
                 </span>
               </div>
               {data.stock !== '—' && (
-                <p className="text-xs text-gray-400 mt-1">{data.stock} kg left</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {formatQty(Number(data.stock))} {unitLabel} {L('left', 'మిగిలింది')}
+                </p>
               )}
               <div className="mt-2 w-full bg-green-700 text-white text-xs font-bold py-2.5 rounded-xl text-center">
                 {tx.previewOrderBtn}
               </div>
             </div>
           </div>
+          {/* Outside the card on purpose: the buyer's card carries no such
+              line, and a preview that invents one stops being a preview. The
+              step still needs saying, because it is the one choice on the form
+              whose effect is invisible until someone taps "+". */}
+          {data.step !== 1 && (
+            <p className="text-[11px] text-gray-500 text-center mt-3">
+              {L(
+                `Buyers order this in steps of ${formatQty(data.step)} ${unitLabel}.`,
+                `కొనుగోలుదారులు దీన్ని ${formatQty(data.step)} ${unitLabel} మోతాదులో ఆర్డర్ చేస్తారు.`,
+              )}
+            </p>
+          )}
           <p className="text-xs text-gray-400 text-center mt-3">
             {tx.previewFooter}
           </p>
