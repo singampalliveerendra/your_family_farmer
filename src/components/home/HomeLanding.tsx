@@ -417,7 +417,7 @@ export default function HomeLanding({
             putting it here. */}
         <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
           <a
-            href="mailto:gograameen@zohomail.in"
+            href="mailto:GovuGrameenam@gmail.com"
             className="inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-lime-100 transition hover:border-lime-300/50 hover:text-white"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9}
@@ -425,18 +425,18 @@ export default function HomeLanding({
               <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" />
               <path d="m3 7 8.2 5.6a1.5 1.5 0 0 0 1.6 0L21 7" />
             </svg>
-            gograameen@zohomail.in
+            GovuGrameenam@gmail.com
           </a>
 
           <a
-            href="tel:+917893074271"
+            href="tel:+919603174271"
             className="inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-lime-100 transition hover:border-lime-300/50 hover:text-white"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9}
                  strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-lime-300" aria-hidden>
               <path d="M6.2 3.5h3l1.5 4-2 1.4a12.5 12.5 0 0 0 6.4 6.4l1.4-2 4 1.5v3a2 2 0 0 1-2.2 2A17.5 17.5 0 0 1 4.2 5.7a2 2 0 0 1 2-2.2Z" />
             </svg>
-            7893074271
+            9603174271
           </a>
         </div>
 
