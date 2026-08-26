@@ -298,8 +298,7 @@ export const t = {
 
     // Preview modal
     previewHeading: 'Preview — how buyers see this',
-    previewOrderBtn: 'Order',
-    previewFooter: 'This is how the card appears to buyers.',
+    previewFooter: 'This is how the page appears to buyers.',
 
     // Session expired
     sessionExpired: 'Session expired',
@@ -667,8 +666,7 @@ export const t = {
 
     // Preview modal
     previewHeading: 'ప్రివ్యూ — కొనుగోలుదారులకు ఎలా కనిపిస్తుంది',
-    previewOrderBtn: 'ఆర్డర్',
-    previewFooter: 'కొనుగోలుదారులకు కార్డ్ ఇలా కనిపిస్తుంది.',
+    previewFooter: 'కొనుగోలుదారులకు పేజీ ఇలా కనిపిస్తుంది.',
 
     // Session expired
     sessionExpired: 'సెషన్ ముగిసింది',

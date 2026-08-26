@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
@@ -18,9 +18,9 @@ import { type CropBalance } from '@/lib/demand-supply'
 import HarvestManager from '@/components/HarvestManager'
 import PayoutDetailsForm from '@/components/farmer/PayoutDetailsForm'
 import SourceFarmerPicker, { useSourceFarmers } from '@/components/SourceFarmerPicker'
-import { isLikelyUrl, normalizeUrl } from '@/lib/links'
-import { STEP_CHOICES, unitAllowsFractions, formatQty } from '@/lib/saleStep'
-import { localizeUnit } from '@/lib/localizeName'
+import { isLikelyUrl, normalizeUrl, linkHost } from '@/lib/links'
+import { STEP_CHOICES, unitAllowsFractions, formatQty, stepUp, stepDown } from '@/lib/saleStep'
+import { localizeName, localizeUnit } from '@/lib/localizeName'
 import {
   clearFarmerLocalSession,
   farmerFetch,
@@ -160,15 +160,32 @@ type PreviewData = {
   price: string
   method: string
   stock: string
-  // The card prices and counts stock in the listing's OWN unit. Hardcoding kg
+  // The page prices and counts stock in the listing's OWN unit. Hardcoding kg
   // here showed a gram listing as "₹5/kg · 4 kg left", which is not what any
   // buyer would see — and is exactly the number a farmer would price against.
   unit: string
   step: number
-  // Cover photo — the just-picked blob: URL, or the saved one on an edit. The
-  // preview used to show the emoji even when a photo was attached, which hid
+  // Cover photo first, then the extra photos — the order the buyer's gallery
+  // swipes through. A just-picked file is a blob: URL, a saved one an https one.
+  // The preview used to show the emoji even when a photo was attached, which hid
   // the single thing a farmer most wants to check before publishing.
-  image: string
+  images: string[]
+  // Everything below is on the buyer's PAGE but was absent from the old card
+  // preview: the tier table, the details chips, the story fields, the seller.
+  tier1Qty: string
+  price2: string
+  tier2Qty: string
+  price3: string
+  category: string
+  brix: string
+  soilPh: string
+  pesticide: string
+  description: string
+  howWeGrow: string
+  videoUrl: string
+  farmerName: string
+  farmerVillage: string
+  isAggregator: boolean
 }
 
 /**
@@ -831,6 +848,8 @@ export default function FarmerDashboard() {
             farmerId={farmer!.id}
             farmerSlug={farmer!.slug}
             farmerRegion={farmer!.region_slug}
+            farmerName={farmer!.name}
+            farmerVillage={farmer!.village}
             defaultMethod={farmer!.method}
             farmerSoilPh={farmer!.soil_ph ?? null}
             onClose={() => setShowForm(false)}
@@ -848,6 +867,8 @@ export default function FarmerDashboard() {
           farmerId={farmer.id}
           farmerSlug={farmer.slug}
           farmerRegion={farmer.region_slug}
+          farmerName={farmer.name}
+          farmerVillage={farmer.village}
           defaultMethod={farmer.method ?? 'natural'}
           farmerSoilPh={farmer.soil_ph ?? null}
           onClose={() => setShowListings(false)}
@@ -2161,6 +2182,10 @@ function ProduceListingForm({
   farmerId,
   farmerSlug = '',
   farmerRegion = '',
+  // Name + village only feed the preview's farmer card — the buyer's page shows
+  // who is selling right under the price, so a preview without it isn't the page.
+  farmerName = '',
+  farmerVillage = '',
   defaultMethod,
   farmerSoilPh = null,
   editData,
@@ -2171,6 +2196,8 @@ function ProduceListingForm({
   farmerId: string
   farmerSlug?: string
   farmerRegion?: string
+  farmerName?: string
+  farmerVillage?: string
   defaultMethod: string
   farmerSoilPh?: number | null
   editData?: ListingRow | null
@@ -2357,7 +2384,21 @@ function ProduceListingForm({
     stock: qty || '—',
     unit,
     step: unitAllowsFractions(unit) ? Number(saleStep) || 1 : 1,
-    image: imagePreview || existingImageUrl,
+    images: [imagePreview || existingImageUrl, ...extraPreviews, ...existingExtraUrls].filter(Boolean),
+    tier1Qty: price1Qty,
+    price2,
+    tier2Qty: price2Qty,
+    price3,
+    category,
+    brix,
+    soilPh,
+    pesticide,
+    description,
+    howWeGrow,
+    videoUrl,
+    farmerName,
+    farmerVillage,
+    isAggregator,
   }
 
   const handlePublish = async () => {
@@ -3180,85 +3221,264 @@ function ProduceListingForm({
 }
 
 /* ─── Preview modal ─────────────────────────────────────────── */
+// A mock of the buyer's produce page (src/app/consumer/produce/[id]/page.tsx),
+// drawn from whatever is in the form right now. It used to be the little grid
+// card, which answered "is my photo right?" but nothing else: the tier table,
+// the details chips, the seller card and the description all live on the PAGE,
+// and the page is what Publish actually creates. Mirrors that file's markup —
+// when one changes, change the other.
+//
+// Deliberately left out: reviews, the harvest clock and the freshness lines.
+// They come from rows that don't exist yet (or aren't on this form), and a
+// preview that invents them stops being a preview.
+const PREVIEW_METHOD_SHORT: Record<string, string> = {
+  natural: 'Natural', organic: 'Organic', low_chemical: 'Semi-org', chemical: 'Chemical',
+}
+const PREVIEW_CATEGORY_LABEL: Record<string, string> = {
+  vegetables: 'Vegetables', fruits: 'Fruits', grains: 'Grains & Pulses', leafy: 'Leafy Greens',
+  spices: 'Spices', other: 'Other',
+}
+
 function PreviewModal({ data, onClose }: { data: PreviewData; onClose: () => void }) {
   const { tx, L, lang } = useLang()
   const unitLabel = localizeUnit(data.unit, lang) || data.unit
-  const EMOJI_BG: Record<string, string> = {
-    '🍅': 'bg-red-100', '🥬': 'bg-green-100', '🥭': 'bg-orange-100',
-    '🍆': 'bg-purple-100', '🥕': 'bg-orange-100', '🌽': 'bg-yellow-100',
-    '🍌': 'bg-yellow-100', '🫑': 'bg-green-100', '🌿': 'bg-green-50',
-    '🌾': 'bg-amber-100', '🍓': 'bg-red-50',
+  const methodShort = PREVIEW_METHOD_SHORT[data.method] ?? 'Natural'
+  const stock = data.stock !== '—' && Number.isFinite(Number(data.stock)) ? Number(data.stock) : null
+  const priceNum = data.price !== '—' && Number.isFinite(Number(data.price)) ? Number(data.price) : null
+  const video = normalizeUrl(data.videoUrl)
+
+  // Swipe gallery, as on the buyer's page.
+  const [activeImg, setActiveImg] = useState(0)
+  const galleryRef = useRef<HTMLDivElement>(null)
+  const onGalleryScroll = () => {
+    const el = galleryRef.current
+    if (!el) return
+    setActiveImg(Math.round(el.scrollLeft / el.clientWidth))
   }
-  const bg = EMOJI_BG[data.emoji] ?? 'bg-green-50'
+
+  // The bottom bar is live on purpose. The sale step is the one field on the
+  // form whose effect is invisible until someone taps "+", so here the farmer
+  // gets to tap it. Local state only — nothing is written to a cart.
+  const [qty, setQty] = useState<number | null>(null)
+  const atMax = qty != null && stock != null && qty >= stock
+  const soldOut = stock === 0
+
+  // The same "buy more, save more" table the buyer's page builds.
+  const tiers: { label: string; price: number }[] = []
+  if (priceNum != null) {
+    tiers.push({ label: `${L('Up to', 'వరకు')} ${formatQty(Number(data.tier1Qty) || 1)} ${unitLabel}`, price: priceNum })
+  }
+  if (data.tier2Qty && data.price2) {
+    tiers.push({ label: `${formatQty(Number(data.tier2Qty))}+ ${unitLabel}`, price: Number(data.price2) })
+  }
+  if (data.price3) {
+    tiers.push({ label: L('Bulk', 'బల్క్'), price: Number(data.price3) })
+  }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[80] flex items-end justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-          <p className="font-bold text-gray-800 text-sm">
-            {tx.previewHeading}
-          </p>
-          <button onClick={onClose} className="text-gray-400 text-2xl leading-none">×</button>
+    <div className="fixed inset-0 bg-black/60 z-[80] flex items-end sm:items-center justify-center sm:p-4">
+      <div className="bg-gray-50 w-full max-w-lg h-[94vh] sm:h-[88vh] rounded-t-2xl sm:rounded-2xl overflow-hidden flex flex-col">
+        {/* Preview chrome — NOT part of the buyer's page. Labelled so a farmer
+            can never mistake the mock for the live listing. */}
+        <div className="flex items-center justify-between px-4 py-2.5 bg-white border-b border-gray-200 shrink-0">
+          <p className="font-bold text-gray-800 text-sm">👁 {tx.previewHeading}</p>
+          <button onClick={onClose} className="text-gray-400 text-2xl leading-none" aria-label={tx.close}>×</button>
         </div>
-        <div className="p-4">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden max-w-[180px] mx-auto">
-            {/* h-40 in both states because that is what the buyer's card
-                uses — a shorter emoji tile would preview a card nobody sees.
-                A plain <img>: the picked file is a blob: URL, which next/image
-                cannot optimise. */}
-            {data.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={data.image} alt="" className="w-full h-40 object-cover" />
-            ) : (
-              <div className={`${bg} h-40 flex items-center justify-center`}>
-                <span className="text-5xl">{data.emoji}</span>
-              </div>
-            )}
-            <div className="p-3">
-              <h3 className="font-extrabold text-gray-900 text-base">{data.name}</h3>
-              {data.variety && <p className="text-xs text-gray-400 mt-0.5">{data.variety}</p>}
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-green-700 font-black text-lg">
-                  {data.price !== '—' ? `₹${data.price}` : '—'}
-                  <span className="text-xs font-normal text-gray-400">/{unitLabel}</span>
-                </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800">
-                  {data.method}
-                </span>
-              </div>
-              {data.stock !== '—' && (
-                <p className="text-xs text-gray-400 mt-1">
-                  {formatQty(Number(data.stock))} {unitLabel} {L('left', 'మిగిలింది')}
-                </p>
-              )}
-              <div className="mt-2 w-full bg-green-700 text-white text-xs font-bold py-2.5 rounded-xl text-center">
-                {tx.previewOrderBtn}
+
+        <div className="flex-1 overflow-y-auto">
+          {/* The buyer's green header. Flat and non-interactive: this is a
+              picture of the page, and a Back link inside a modal goes nowhere. */}
+          <div className="bg-green-900 px-4 py-3 flex items-center justify-between">
+            <span className="text-green-200 text-sm font-semibold">{L('← Back', '← తిరిగి')}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-white text-sm font-semibold">↗ {L('Share', 'షేర్')}</span>
+              <div className="flex items-center bg-white/10 rounded-full p-0.5 text-xs font-bold">
+                <span className={`px-3 py-1 rounded-full ${lang === 'en' ? 'bg-white text-green-800' : 'text-white/80'}`}>EN</span>
+                <span className={`px-3 py-1 rounded-full ${lang === 'te' ? 'bg-white text-green-800' : 'text-white/80'}`}>తె</span>
               </div>
             </div>
           </div>
-          {/* Outside the card on purpose: the buyer's card carries no such
-              line, and a preview that invents one stops being a preview. The
-              step still needs saying, because it is the one choice on the form
-              whose effect is invisible until someone taps "+". */}
-          {data.step !== 1 && (
-            <p className="text-[11px] text-gray-500 text-center mt-3">
-              {L(
-                `Buyers order this in steps of ${formatQty(data.step)} ${unitLabel}.`,
-                `కొనుగోలుదారులు దీన్ని ${formatQty(data.step)} ${unitLabel} మోతాదులో ఆర్డర్ చేస్తారు.`,
+
+          {/* Gallery. A plain <img>: a just-picked file is a blob: URL, which
+              next/image cannot optimise. */}
+          <div className="relative bg-white">
+            {data.images.length ? (
+              <>
+                <div
+                  ref={galleryRef}
+                  onScroll={onGalleryScroll}
+                  className="flex w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+                >
+                  {data.images.map((url) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={url} src={url} alt="" className="snap-center shrink-0 w-full h-72 object-cover" />
+                  ))}
+                </div>
+                {data.images.length > 1 && (
+                  <div className="absolute bottom-7 left-0 right-0 flex justify-center gap-1.5 pointer-events-none drop-shadow">
+                    {data.images.map((_, i) => (
+                      <span key={i} className={`h-1.5 rounded-full transition-all ${i === activeImg ? 'w-4 bg-white' : 'w-1.5 bg-white/70'}`} />
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="w-full h-72 bg-green-50 flex items-center justify-center text-7xl">{data.emoji}</div>
+            )}
+            <span className="absolute top-3 right-3 bg-green-700 text-white text-[11px] font-bold rounded-full px-2 py-1 shadow">
+              {methodShort}
+            </span>
+          </div>
+
+          <div className="px-4 -mt-4 relative space-y-3 pb-4">
+            {/* Name + price card */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+              <h1 className="text-xl font-extrabold text-gray-900 leading-tight">{localizeName(data.name, lang)}</h1>
+              {data.variety && <p className="text-sm text-gray-500 mt-0.5">{localizeName(data.variety, lang)}</p>}
+
+              <div className="mt-3">
+                <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">
+                  🧑‍🌾 {L('Farmer Price', 'రైతు ధర')}
+                </p>
+                <div className="mt-0.5 flex items-baseline gap-1">
+                  <span className="text-3xl font-extrabold text-green-800">
+                    {priceNum != null ? `₹${data.price}` : '—'}
+                  </span>
+                  <span className="text-sm text-gray-500">/{unitLabel}</span>
+                </div>
+              </div>
+
+              {stock != null && (
+                <p className={`text-xs font-semibold mt-1 ${soldOut ? 'text-red-600' : 'text-gray-500'}`}>
+                  {soldOut ? L('Sold out', 'అయిపోయింది') : `${formatQty(stock)} ${unitLabel} ${L('left', 'మిగిలి ఉంది')}`}
+                </p>
               )}
-            </p>
-          )}
-          <p className="text-xs text-gray-400 text-center mt-3">
-            {tx.previewFooter}
-          </p>
+
+              {tiers.length > 1 && (
+                <div className="mt-3 border-t border-gray-100 pt-3">
+                  <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide mb-1.5">{L('Buy more, save more', 'ఎక్కువ కొంటే తక్కువ ధర')}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {tiers.map((t) => (
+                      <div key={t.label} className="bg-green-50 rounded-lg px-2.5 py-1.5">
+                        <p className="text-xs font-bold text-green-900">₹{t.price}<span className="font-medium text-gray-500">/{unitLabel}</span></p>
+                        <p className="text-[10px] text-gray-500">{t.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Seller card */}
+            {data.farmerName && (
+              <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center justify-between">
+                <div className="min-w-0">
+                  {data.isAggregator && (
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{L('Sold by', 'అమ్మేవారు')}</p>
+                  )}
+                  <p className="text-sm font-bold text-gray-900 truncate">
+                    {data.isAggregator ? '🤝' : '👨‍🌾'} {data.farmerName}
+                  </p>
+                  {data.farmerVillage && <p className="text-xs text-gray-500 truncate">{data.farmerVillage}</p>}
+                  {data.isAggregator && (
+                    <p className="text-[11px] text-gray-500 leading-snug mt-1">
+                      {L(
+                        'An aggregator. Each harvest names the farmer who grew it.',
+                        'ఒక సమీకరణదారు. ప్రతి కోతలో దానిని పండించిన రైతు పేరు ఉంటుంది.',
+                      )}
+                    </p>
+                  )}
+                </div>
+                <span className="text-green-700 text-sm font-semibold whitespace-nowrap">{L('View profile', 'ప్రొఫైల్ చూడండి')} ›</span>
+              </div>
+            )}
+
+            {/* Quality / details */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-3">
+              <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">{L('Details', 'వివరాలు')}</p>
+              <div className="flex flex-wrap gap-1.5">
+                <span className="bg-green-100 text-green-800 text-[11px] font-semibold px-2 py-0.5 rounded-full">{methodShort}</span>
+                {data.category && PREVIEW_CATEGORY_LABEL[data.category] && (
+                  <span className="bg-gray-100 text-gray-700 text-[11px] font-semibold px-2 py-0.5 rounded-full">{PREVIEW_CATEGORY_LABEL[data.category]}</span>
+                )}
+                {data.pesticide && (
+                  <span className="bg-blue-100 text-blue-800 text-[11px] font-semibold px-2 py-0.5 rounded-full">{data.pesticide}</span>
+                )}
+                {data.soilPh && (
+                  <span className="bg-purple-100 text-purple-800 text-[11px] font-semibold px-2 py-0.5 rounded-full">pH {data.soilPh}</span>
+                )}
+                {data.brix && (
+                  <span className="bg-amber-100 text-amber-800 text-[11px] font-semibold px-2 py-0.5 rounded-full">BRIX {data.brix}</span>
+                )}
+              </div>
+
+              {data.howWeGrow && (
+                <div>
+                  <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">🌱 {L('How we grow', 'మేము ఎలా పండిస్తాము')}</p>
+                  <p className="text-sm text-gray-600 leading-snug whitespace-pre-line mt-0.5">{data.howWeGrow}</p>
+                </div>
+              )}
+
+              {video && (
+                <div>
+                  <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">🎥 {L('Video', 'వీడియో')}</p>
+                  <p className="inline-flex items-center gap-1.5 mt-1 text-sm font-semibold text-green-700 underline">
+                    {L('Watch video', 'వీడియో చూడండి')}
+                    {linkHost(data.videoUrl) && (
+                      <span className="text-xs text-gray-500 no-underline">({linkHost(data.videoUrl)})</span>
+                    )}
+                  </p>
+                </div>
+              )}
+
+              {data.description && (
+                <div>
+                  <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">{L('Description', 'వివరణ')}</p>
+                  <p className="text-sm text-gray-600 leading-snug whitespace-pre-line mt-0.5">{data.description}</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-        <div className="px-4 pb-4">
-          <button
-            onClick={onClose}
-            className="w-full border-2 border-gray-300 text-gray-700 font-semibold py-3 rounded-xl text-sm"
-          >
-            {tx.close}
-          </button>
+
+        {/* The buyer's sticky bar. Tapping it really does step the quantity —
+            that is the only way to SEE what the sale step does. */}
+        <div className="bg-white border-t border-gray-200 px-4 py-3 shrink-0">
+          {soldOut ? (
+            <button disabled className="w-full h-12 bg-gray-200 text-gray-500 font-bold rounded-xl cursor-not-allowed">
+              {L('Sold out', 'అయిపోయింది')}
+            </button>
+          ) : qty == null ? (
+            <button
+              onClick={() => setQty(data.step)}
+              className="w-full h-12 bg-green-800 active:opacity-90 text-white font-bold rounded-xl"
+            >
+              {L('+ Add to cart', '+ కార్ట్‌లో చేర్చు')}
+            </button>
+          ) : (
+            <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl h-12 px-3">
+              <button
+                onClick={() => {
+                  const next = stepDown(qty, data.step)
+                  setQty(next < data.step ? null : next)
+                }}
+                className="w-9 h-9 rounded-lg bg-white border border-green-300 text-green-800 text-xl font-bold"
+                aria-label={L('Decrease', 'తగ్గించు')}
+              >
+                −
+              </button>
+              <span className="font-extrabold text-green-900 text-base">{formatQty(qty)} {unitLabel}</span>
+              <button
+                onClick={() => setQty(stepUp(qty, data.step, stock))}
+                disabled={atMax}
+                className={`w-9 h-9 rounded-lg text-xl font-bold ${atMax ? 'bg-gray-200 text-gray-400' : 'bg-green-700 text-white'}`}
+                aria-label={L('Increase', 'పెంచు')}
+              >
+                +
+              </button>
+            </div>
+          )}
+          <p className="text-[11px] text-gray-400 text-center mt-2">{tx.previewFooter}</p>
         </div>
       </div>
     </div>
@@ -3270,6 +3490,8 @@ function ManageListingsModal({
   farmerId,
   farmerSlug = '',
   farmerRegion = '',
+  farmerName = '',
+  farmerVillage = '',
   defaultMethod,
   farmerSoilPh = null,
   onClose,
@@ -3278,6 +3500,8 @@ function ManageListingsModal({
   farmerId: string
   farmerSlug?: string
   farmerRegion?: string
+  farmerName?: string
+  farmerVillage?: string
   defaultMethod: string
   farmerSoilPh?: number | null
   onClose: () => void
@@ -3435,6 +3659,8 @@ function ManageListingsModal({
               farmerId={farmerId}
               farmerSlug={farmerSlug}
               farmerRegion={farmerRegion}
+              farmerName={farmerName}
+              farmerVillage={farmerVillage}
               defaultMethod={defaultMethod}
               farmerSoilPh={farmerSoilPh}
               editData={editingRow}
@@ -3461,6 +3687,8 @@ function ManageListingsModal({
               farmerId={farmerId}
               farmerSlug={farmerSlug}
               farmerRegion={farmerRegion}
+              farmerName={farmerName}
+              farmerVillage={farmerVillage}
               defaultMethod={defaultMethod}
               farmerSoilPh={farmerSoilPh}
               pinnedHeader
