@@ -298,7 +298,10 @@ export const t = {
 
     // Preview modal
     previewHeading: 'Preview — how buyers see this',
+    previewTabCard: 'Card',
+    previewTabPage: 'Page',
     previewFooter: 'This is how the page appears to buyers.',
+    previewFooterCard: 'This is the card buyers see in the list. Tap Page for the full view.',
 
     // Session expired
     sessionExpired: 'Session expired',
@@ -666,7 +669,10 @@ export const t = {
 
     // Preview modal
     previewHeading: 'ప్రివ్యూ — కొనుగోలుదారులకు ఎలా కనిపిస్తుంది',
+    previewTabCard: 'కార్డ్',
+    previewTabPage: 'పేజీ',
     previewFooter: 'కొనుగోలుదారులకు పేజీ ఇలా కనిపిస్తుంది.',
+    previewFooterCard: 'జాబితాలో కొనుగోలుదారులకు కనిపించే కార్డ్ ఇది. పూర్తి వివరాలకు పేజీ నొక్కండి.',
 
     // Session expired
     sessionExpired: 'సెషన్ ముగిసింది',

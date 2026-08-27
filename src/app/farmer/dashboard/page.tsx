@@ -3221,30 +3221,263 @@ function ProduceListingForm({
 }
 
 /* ─── Preview modal ─────────────────────────────────────────── */
-// A mock of the buyer's produce page (src/app/consumer/produce/[id]/page.tsx),
-// drawn from whatever is in the form right now. It used to be the little grid
-// card, which answered "is my photo right?" but nothing else: the tier table,
-// the details chips, the seller card and the description all live on the PAGE,
-// and the page is what Publish actually creates. Mirrors that file's markup —
-// when one changes, change the other.
+// Two previews, because a listing has two faces and the farmer's photo and
+// price have to survive both: the CARD as it sits in the buyer's grid
+// (src/app/consumer/page.tsx → ProduceCard), and the PAGE that opens when the
+// card is tapped (src/app/consumer/produce/[id]/page.tsx). The card opens
+// first — it is what a buyer sees before deciding to tap at all. Both mirror
+// that file's markup; when one changes, change the other.
 //
-// Deliberately left out: reviews, the harvest clock and the freshness lines.
-// They come from rows that don't exist yet (or aren't on this form), and a
-// preview that invents them stops being a preview.
+// Deliberately left out of both: reviews, the harvest clock, the freshness
+// countdown, the distance line and Share. They come from rows an unpublished
+// listing cannot have (or from the buyer's own location), and a preview that
+// invents them stops being a preview.
 const PREVIEW_METHOD_SHORT: Record<string, string> = {
   natural: 'Natural', organic: 'Organic', low_chemical: 'Semi-org', chemical: 'Chemical',
+}
+// The card's method pill is a solid colour, unlike the page's — matching
+// METHOD_PILL / METHOD_SHORT on the buyer's grid, Telugu included: the pill
+// sits in a 390px grid column's corner, where the long Telugu word would wrap.
+const PREVIEW_CARD_METHOD: Record<string, { en: string; te: string; pill: string }> = {
+  natural:      { en: 'Natural',  te: 'సహజం',     pill: 'bg-green-600 text-white' },
+  organic:      { en: 'Organic',  te: 'సేంద్రీయ',   pill: 'bg-blue-600 text-white' },
+  low_chemical: { en: 'Semi-org', te: 'సెమీ',      pill: 'bg-amber-500 text-white' },
+  chemical:     { en: 'Chemical', te: 'రసాయన',    pill: 'bg-red-500 text-white' },
+}
+// Emoji-tile tint, as PRODUCE_BG on the grid — only ever seen with no photo.
+const PREVIEW_PRODUCE_BG: Record<string, string> = {
+  '🍌': '#fff8e1', '🥭': '#fff8e1', '🍓': '#fff8e1', '🥥': '#fff8e1', '🍇': '#fff8e1', '🍋': '#fff8e1',
+  '🍅': '#fce4ec', '🍆': '#fce4ec', '🫑': '#fce4ec', '🥕': '#fce4ec', '🌽': '#fce4ec', '🧅': '#fce4ec', '🧄': '#fce4ec',
+  '🥬': '#e8f5e9', '🥦': '#e8f5e9', '🌿': '#e8f5e9', '🫒': '#e8f5e9',
 }
 const PREVIEW_CATEGORY_LABEL: Record<string, string> = {
   vegetables: 'Vegetables', fruits: 'Fruits', grains: 'Grains & Pulses', leafy: 'Leafy Greens',
   spices: 'Spices', other: 'Other',
 }
 
+// An untouched number field arrives as '—'.
+const previewNum = (v: string) => (v !== '—' && v.trim() !== '' && Number.isFinite(Number(v)) ? Number(v) : null)
+
 function PreviewModal({ data, onClose }: { data: PreviewData; onClose: () => void }) {
+  const { tx } = useLang()
+  const [tab, setTab] = useState<'card' | 'page'>('card')
+
+  // The quantity is held here, not in either view, so switching tabs doesn't
+  // reset what the farmer just stepped up. Local state only — nothing is
+  // written to a cart.
+  const [qty, setQty] = useState<number | null>(null)
+
+  const tabClass = (active: boolean) =>
+    `flex-1 py-2 rounded-lg text-sm font-bold ${active ? 'bg-white text-green-800 shadow-sm' : 'text-gray-500'}`
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-[80] flex items-end sm:items-center justify-center sm:p-4">
+      <div className="bg-gray-50 w-full max-w-lg h-[94vh] sm:h-[88vh] rounded-t-2xl sm:rounded-2xl overflow-hidden flex flex-col">
+        {/* Preview chrome — NOT part of what the buyer sees. Labelled so a
+            farmer can never mistake the mock for the live listing. */}
+        <div className="bg-white border-b border-gray-200 shrink-0">
+          <div className="flex items-center justify-between px-4 py-2.5">
+            <p className="font-bold text-gray-800 text-sm">👁 {tx.previewHeading}</p>
+            <button onClick={onClose} className="text-gray-400 text-2xl leading-none" aria-label={tx.close}>×</button>
+          </div>
+          {/* Card ↔ Page. Two buttons abreast, thumb-sized, because this is the
+              one control on the sheet a farmer is meant to tap twice. */}
+          <div className="flex gap-1 mx-4 mb-2.5 bg-gray-100 rounded-xl p-1">
+            <button onClick={() => setTab('card')} className={tabClass(tab === 'card')}>
+              🖼 {tx.previewTabCard}
+            </button>
+            <button onClick={() => setTab('page')} className={tabClass(tab === 'page')}>
+              📄 {tx.previewTabPage}
+            </button>
+          </div>
+        </div>
+
+        {tab === 'card' ? (
+          <PreviewCardView data={data} qty={qty} setQty={setQty} />
+        ) : (
+          <PreviewPageView data={data} qty={qty} setQty={setQty} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+type PreviewViewProps = {
+  data: PreviewData
+  qty: number | null
+  setQty: (n: number | null) => void
+}
+
+/* The buyer's grid tile, at the width it actually gets: a 390px phone runs
+   grid-cols-2 with a 12px gutter and an 8px gap, so the column is ~179px.
+   Showing it any wider would preview a card nobody sees — the whole question
+   this view answers is whether the name and price survive that column. */
+function PreviewCardView({ data, qty, setQty }: PreviewViewProps) {
+  const { tx, L, lang } = useLang()
+  const unitLabel = localizeUnit(data.unit, lang) || data.unit
+  const stock = previewNum(data.stock)
+  const priceNum = previewNum(data.price)
+  const soldOut = stock === 0
+  const atMax = qty != null && stock != null && qty >= stock
+  const method = PREVIEW_CARD_METHOD[data.method] ?? PREVIEW_CARD_METHOD.natural
+  const bg = PREVIEW_PRODUCE_BG[data.emoji] ?? '#f5f5f5'
+
+  // Swipe gallery, as on the buyer's card.
+  const [activeImg, setActiveImg] = useState(0)
+  const galleryRef = useRef<HTMLDivElement>(null)
+  const onGalleryScroll = () => {
+    const el = galleryRef.current
+    if (!el) return
+    setActiveImg(Math.round(el.scrollLeft / el.clientWidth))
+  }
+
+  return (
+    <>
+      {/* The grid's own grey backdrop, so the white tile reads as a tile. */}
+      <div className="flex-1 overflow-y-auto bg-gray-100 p-4 flex justify-center items-start">
+        <div className="bg-white rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.08)] flex flex-col w-[179px]">
+          {/* Image — fixed 160px, method pill top-right, dots bottom-centre.
+              Sold out desaturates the photo and lays a ribbon over it. A plain
+              <img>: a just-picked file is a blob: URL, which next/image cannot
+              optimise. */}
+          <div className={`relative h-40 w-full flex-shrink-0 ${soldOut ? 'grayscale opacity-60' : ''}`}>
+            {data.images.length ? (
+              <div
+                ref={galleryRef}
+                onScroll={onGalleryScroll}
+                className="flex h-full w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+              >
+                {data.images.map((url) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={url} src={url} alt="" className="snap-center shrink-0 w-full h-40 object-cover" />
+                ))}
+              </div>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: bg }}>
+                <span className="text-5xl">{data.emoji}</span>
+              </div>
+            )}
+            <span className={`absolute top-2 right-2 ${method.pill} text-[10px] font-bold rounded-full px-1.5 py-0.5 shadow-sm`}>
+              {L(method.en, method.te)}
+            </span>
+            {soldOut && (
+              <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 bg-black/55 text-white text-[11px] font-black tracking-widest text-center py-1 pointer-events-none">
+                {L('SOLD OUT', 'అయిపోయింది')}
+              </span>
+            )}
+            {data.images.length > 1 && (
+              <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 pointer-events-none">
+                {data.images.map((_, i) => (
+                  <span key={i} className={`h-1.5 rounded-full transition-all ${i === activeImg ? 'w-4 bg-white' : 'w-1.5 bg-white/60'}`} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="p-3 flex flex-col flex-1 min-w-0">
+            {/* Name + variety — one line each, ellipsis on overflow. This is
+                where a long harvest name gets cut, and seeing the cut is the
+                point of the card preview. */}
+            <h3 className="font-bold text-[15px] leading-[1.2] text-gray-900 truncate">
+              {localizeName(data.name, lang)}
+            </h3>
+            {data.variety && (
+              <p className="text-[12px] text-[#666] truncate mt-0.5">{localizeName(data.variety, lang)}</p>
+            )}
+
+            {data.isAggregator && (
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 rounded-full px-2 py-0.5">
+                  🤝 {L('Aggregator', 'సమీకరణదారు')}
+                </span>
+              </div>
+            )}
+
+            {data.farmerName && (
+              <div className="flex items-center justify-between gap-1.5 mt-1">
+                <p className="text-[11px] text-[#666] truncate min-w-0">
+                  {data.isAggregator ? '🤝' : '👨‍🌾'} {data.farmerName}{data.farmerVillage ? ` · ${data.farmerVillage}` : ''}
+                </p>
+                <span className="flex-shrink-0 text-[11px] font-semibold text-[#1a5c2a] whitespace-nowrap">
+                  {tx.viewProfile} ›
+                </span>
+              </div>
+            )}
+
+            <div className="mt-1.5">
+              <span className="font-extrabold text-[18px] text-[#1a5c2a]">
+                {priceNum != null ? `₹${data.price}` : '—'}
+                <span className="text-[12px] font-medium text-[#666]">/{unitLabel}</span>
+              </span>
+            </div>
+
+            {stock != null && (
+              <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${soldOut ? 'bg-red-50 text-red-600' : 'bg-[#f5f5f5] text-[#666]'}`}>
+                  {soldOut
+                    ? L('Sold out', 'అయిపోయింది')
+                    : `${formatQty(stock)} ${unitLabel} ${L('left', 'మిగిలింది')}`}
+                </span>
+              </div>
+            )}
+
+            {/* CTA — pinned to the bottom, fixed 40px. Live, like the page's
+                bar: the sale step is the one field on the form whose effect is
+                invisible until someone taps "+". */}
+            <div className="mt-auto pt-2.5">
+              {soldOut ? (
+                <button disabled className="w-full h-10 bg-gray-200 text-gray-500 font-bold rounded-xl text-sm cursor-not-allowed">
+                  {L('Sold out', 'అయిపోయింది')}
+                </button>
+              ) : qty == null ? (
+                <button
+                  onClick={() => setQty(data.step)}
+                  className="w-full h-10 bg-[#1a5c2a] active:opacity-90 text-white font-bold rounded-xl text-sm whitespace-nowrap"
+                >
+                  {L('+ Add', 'చేర్చు')}
+                </button>
+              ) : (
+                <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl h-10 px-2">
+                  <button
+                    onClick={() => {
+                      const next = stepDown(qty, data.step)
+                      setQty(next < data.step ? null : next)
+                    }}
+                    className="w-7 h-7 rounded-lg bg-white border border-green-300 text-green-800 text-lg font-bold leading-none"
+                    aria-label={L('Decrease', 'తగ్గించు')}
+                  >
+                    −
+                  </button>
+                  <span className="font-extrabold text-green-900 text-sm truncate px-1">{formatQty(qty)} {unitLabel}</span>
+                  <button
+                    onClick={() => setQty(stepUp(qty, data.step, stock))}
+                    disabled={atMax}
+                    className={`w-7 h-7 rounded-lg text-lg font-bold leading-none ${atMax ? 'bg-gray-200 text-gray-400' : 'bg-green-700 text-white'}`}
+                    aria-label={L('Increase', 'పెంచు')}
+                  >
+                    +
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white border-t border-gray-200 px-4 py-3 shrink-0">
+        <p className="text-[11px] text-gray-400 text-center">{tx.previewFooterCard}</p>
+      </div>
+    </>
+  )
+}
+
+/* The page the card opens onto. */
+function PreviewPageView({ data, qty, setQty }: PreviewViewProps) {
   const { tx, L, lang } = useLang()
   const unitLabel = localizeUnit(data.unit, lang) || data.unit
   const methodShort = PREVIEW_METHOD_SHORT[data.method] ?? 'Natural'
-  const stock = data.stock !== '—' && Number.isFinite(Number(data.stock)) ? Number(data.stock) : null
-  const priceNum = data.price !== '—' && Number.isFinite(Number(data.price)) ? Number(data.price) : null
+  const stock = previewNum(data.stock)
+  const priceNum = previewNum(data.price)
   const video = normalizeUrl(data.videoUrl)
 
   // Swipe gallery, as on the buyer's page.
@@ -3256,10 +3489,6 @@ function PreviewModal({ data, onClose }: { data: PreviewData; onClose: () => voi
     setActiveImg(Math.round(el.scrollLeft / el.clientWidth))
   }
 
-  // The bottom bar is live on purpose. The sale step is the one field on the
-  // form whose effect is invisible until someone taps "+", so here the farmer
-  // gets to tap it. Local state only — nothing is written to a cart.
-  const [qty, setQty] = useState<number | null>(null)
   const atMax = qty != null && stock != null && qty >= stock
   const soldOut = stock === 0
 
@@ -3276,212 +3505,203 @@ function PreviewModal({ data, onClose }: { data: PreviewData; onClose: () => voi
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-[80] flex items-end sm:items-center justify-center sm:p-4">
-      <div className="bg-gray-50 w-full max-w-lg h-[94vh] sm:h-[88vh] rounded-t-2xl sm:rounded-2xl overflow-hidden flex flex-col">
-        {/* Preview chrome — NOT part of the buyer's page. Labelled so a farmer
-            can never mistake the mock for the live listing. */}
-        <div className="flex items-center justify-between px-4 py-2.5 bg-white border-b border-gray-200 shrink-0">
-          <p className="font-bold text-gray-800 text-sm">👁 {tx.previewHeading}</p>
-          <button onClick={onClose} className="text-gray-400 text-2xl leading-none" aria-label={tx.close}>×</button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          {/* The buyer's green header. Flat and non-interactive: this is a
-              picture of the page, and a Back link inside a modal goes nowhere. */}
-          <div className="bg-green-900 px-4 py-3 flex items-center justify-between">
-            <span className="text-green-200 text-sm font-semibold">{L('← Back', '← తిరిగి')}</span>
-            <div className="flex items-center gap-3">
-              <span className="text-white text-sm font-semibold">↗ {L('Share', 'షేర్')}</span>
-              <div className="flex items-center bg-white/10 rounded-full p-0.5 text-xs font-bold">
-                <span className={`px-3 py-1 rounded-full ${lang === 'en' ? 'bg-white text-green-800' : 'text-white/80'}`}>EN</span>
-                <span className={`px-3 py-1 rounded-full ${lang === 'te' ? 'bg-white text-green-800' : 'text-white/80'}`}>తె</span>
-              </div>
+    <>
+      <div className="flex-1 overflow-y-auto">
+        {/* The buyer's green header. Flat and non-interactive: this is a
+            picture of the page, and a Back link inside a modal goes nowhere. */}
+        <div className="bg-green-900 px-4 py-3 flex items-center justify-between">
+          <span className="text-green-200 text-sm font-semibold">{L('← Back', '← తిరిగి')}</span>
+          <div className="flex items-center gap-3">
+            <span className="text-white text-sm font-semibold">↗ {L('Share', 'షేర్')}</span>
+            <div className="flex items-center bg-white/10 rounded-full p-0.5 text-xs font-bold">
+              <span className={`px-3 py-1 rounded-full ${lang === 'en' ? 'bg-white text-green-800' : 'text-white/80'}`}>EN</span>
+              <span className={`px-3 py-1 rounded-full ${lang === 'te' ? 'bg-white text-green-800' : 'text-white/80'}`}>తె</span>
             </div>
           </div>
+        </div>
 
-          {/* Gallery. A plain <img>: a just-picked file is a blob: URL, which
-              next/image cannot optimise. */}
-          <div className="relative bg-white">
-            {data.images.length ? (
-              <>
-                <div
-                  ref={galleryRef}
-                  onScroll={onGalleryScroll}
-                  className="flex w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide"
-                >
-                  {data.images.map((url) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img key={url} src={url} alt="" className="snap-center shrink-0 w-full h-72 object-cover" />
+        {/* Gallery. A plain <img>: a just-picked file is a blob: URL, which
+            next/image cannot optimise. */}
+        <div className="relative bg-white">
+          {data.images.length ? (
+            <>
+              <div
+                ref={galleryRef}
+                onScroll={onGalleryScroll}
+                className="flex w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+              >
+                {data.images.map((url) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={url} src={url} alt="" className="snap-center shrink-0 w-full h-72 object-cover" />
+                ))}
+              </div>
+              {data.images.length > 1 && (
+                <div className="absolute bottom-7 left-0 right-0 flex justify-center gap-1.5 pointer-events-none drop-shadow">
+                  {data.images.map((_, i) => (
+                    <span key={i} className={`h-1.5 rounded-full transition-all ${i === activeImg ? 'w-4 bg-white' : 'w-1.5 bg-white/70'}`} />
                   ))}
                 </div>
-                {data.images.length > 1 && (
-                  <div className="absolute bottom-7 left-0 right-0 flex justify-center gap-1.5 pointer-events-none drop-shadow">
-                    {data.images.map((_, i) => (
-                      <span key={i} className={`h-1.5 rounded-full transition-all ${i === activeImg ? 'w-4 bg-white' : 'w-1.5 bg-white/70'}`} />
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="w-full h-72 bg-green-50 flex items-center justify-center text-7xl">{data.emoji}</div>
-            )}
-            <span className="absolute top-3 right-3 bg-green-700 text-white text-[11px] font-bold rounded-full px-2 py-1 shadow">
-              {methodShort}
-            </span>
-          </div>
+              )}
+            </>
+          ) : (
+            <div className="w-full h-72 bg-green-50 flex items-center justify-center text-7xl">{data.emoji}</div>
+          )}
+          <span className="absolute top-3 right-3 bg-green-700 text-white text-[11px] font-bold rounded-full px-2 py-1 shadow">
+            {methodShort}
+          </span>
+        </div>
 
-          <div className="px-4 -mt-4 relative space-y-3 pb-4">
-            {/* Name + price card */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-              <h1 className="text-xl font-extrabold text-gray-900 leading-tight">{localizeName(data.name, lang)}</h1>
-              {data.variety && <p className="text-sm text-gray-500 mt-0.5">{localizeName(data.variety, lang)}</p>}
+        <div className="px-4 -mt-4 relative space-y-3 pb-4">
+          {/* Name + price card */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+            <h1 className="text-xl font-extrabold text-gray-900 leading-tight">{localizeName(data.name, lang)}</h1>
+            {data.variety && <p className="text-sm text-gray-500 mt-0.5">{localizeName(data.variety, lang)}</p>}
 
-              <div className="mt-3">
-                <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">
-                  🧑‍🌾 {L('Farmer Price', 'రైతు ధర')}
-                </p>
-                <div className="mt-0.5 flex items-baseline gap-1">
-                  <span className="text-3xl font-extrabold text-green-800">
-                    {priceNum != null ? `₹${data.price}` : '—'}
-                  </span>
-                  <span className="text-sm text-gray-500">/{unitLabel}</span>
-                </div>
+            <div className="mt-3">
+              <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">
+                🧑‍🌾 {L('Farmer Price', 'రైతు ధర')}
+              </p>
+              <div className="mt-0.5 flex items-baseline gap-1">
+                <span className="text-3xl font-extrabold text-green-800">
+                  {priceNum != null ? `₹${data.price}` : '—'}
+                </span>
+                <span className="text-sm text-gray-500">/{unitLabel}</span>
               </div>
-
-              {stock != null && (
-                <p className={`text-xs font-semibold mt-1 ${soldOut ? 'text-red-600' : 'text-gray-500'}`}>
-                  {soldOut ? L('Sold out', 'అయిపోయింది') : `${formatQty(stock)} ${unitLabel} ${L('left', 'మిగిలి ఉంది')}`}
-                </p>
-              )}
-
-              {tiers.length > 1 && (
-                <div className="mt-3 border-t border-gray-100 pt-3">
-                  <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide mb-1.5">{L('Buy more, save more', 'ఎక్కువ కొంటే తక్కువ ధర')}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {tiers.map((t) => (
-                      <div key={t.label} className="bg-green-50 rounded-lg px-2.5 py-1.5">
-                        <p className="text-xs font-bold text-green-900">₹{t.price}<span className="font-medium text-gray-500">/{unitLabel}</span></p>
-                        <p className="text-[10px] text-gray-500">{t.label}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* Seller card */}
-            {data.farmerName && (
-              <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center justify-between">
-                <div className="min-w-0">
-                  {data.isAggregator && (
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{L('Sold by', 'అమ్మేవారు')}</p>
-                  )}
-                  <p className="text-sm font-bold text-gray-900 truncate">
-                    {data.isAggregator ? '🤝' : '👨‍🌾'} {data.farmerName}
-                  </p>
-                  {data.farmerVillage && <p className="text-xs text-gray-500 truncate">{data.farmerVillage}</p>}
-                  {data.isAggregator && (
-                    <p className="text-[11px] text-gray-500 leading-snug mt-1">
-                      {L(
-                        'An aggregator. Each harvest names the farmer who grew it.',
-                        'ఒక సమీకరణదారు. ప్రతి కోతలో దానిని పండించిన రైతు పేరు ఉంటుంది.',
-                      )}
-                    </p>
-                  )}
-                </div>
-                <span className="text-green-700 text-sm font-semibold whitespace-nowrap">{L('View profile', 'ప్రొఫైల్ చూడండి')} ›</span>
-              </div>
+            {stock != null && (
+              <p className={`text-xs font-semibold mt-1 ${soldOut ? 'text-red-600' : 'text-gray-500'}`}>
+                {soldOut ? L('Sold out', 'అయిపోయింది') : `${formatQty(stock)} ${unitLabel} ${L('left', 'మిగిలి ఉంది')}`}
+              </p>
             )}
 
-            {/* Quality / details */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-3">
-              <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">{L('Details', 'వివరాలు')}</p>
-              <div className="flex flex-wrap gap-1.5">
-                <span className="bg-green-100 text-green-800 text-[11px] font-semibold px-2 py-0.5 rounded-full">{methodShort}</span>
-                {data.category && PREVIEW_CATEGORY_LABEL[data.category] && (
-                  <span className="bg-gray-100 text-gray-700 text-[11px] font-semibold px-2 py-0.5 rounded-full">{PREVIEW_CATEGORY_LABEL[data.category]}</span>
-                )}
-                {data.pesticide && (
-                  <span className="bg-blue-100 text-blue-800 text-[11px] font-semibold px-2 py-0.5 rounded-full">{data.pesticide}</span>
-                )}
-                {data.soilPh && (
-                  <span className="bg-purple-100 text-purple-800 text-[11px] font-semibold px-2 py-0.5 rounded-full">pH {data.soilPh}</span>
-                )}
-                {data.brix && (
-                  <span className="bg-amber-100 text-amber-800 text-[11px] font-semibold px-2 py-0.5 rounded-full">BRIX {data.brix}</span>
-                )}
-              </div>
-
-              {data.howWeGrow && (
-                <div>
-                  <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">🌱 {L('How we grow', 'మేము ఎలా పండిస్తాము')}</p>
-                  <p className="text-sm text-gray-600 leading-snug whitespace-pre-line mt-0.5">{data.howWeGrow}</p>
+            {tiers.length > 1 && (
+              <div className="mt-3 border-t border-gray-100 pt-3">
+                <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide mb-1.5">{L('Buy more, save more', 'ఎక్కువ కొంటే తక్కువ ధర')}</p>
+                <div className="flex flex-wrap gap-2">
+                  {tiers.map((t) => (
+                    <div key={t.label} className="bg-green-50 rounded-lg px-2.5 py-1.5">
+                      <p className="text-xs font-bold text-green-900">₹{t.price}<span className="font-medium text-gray-500">/{unitLabel}</span></p>
+                      <p className="text-[10px] text-gray-500">{t.label}</p>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
+            )}
+          </div>
 
-              {video && (
-                <div>
-                  <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">🎥 {L('Video', 'వీడియో')}</p>
-                  <p className="inline-flex items-center gap-1.5 mt-1 text-sm font-semibold text-green-700 underline">
-                    {L('Watch video', 'వీడియో చూడండి')}
-                    {linkHost(data.videoUrl) && (
-                      <span className="text-xs text-gray-500 no-underline">({linkHost(data.videoUrl)})</span>
+          {/* Seller card */}
+          {data.farmerName && (
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center justify-between">
+              <div className="min-w-0">
+                {data.isAggregator && (
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{L('Sold by', 'అమ్మేవారు')}</p>
+                )}
+                <p className="text-sm font-bold text-gray-900 truncate">
+                  {data.isAggregator ? '🤝' : '👨‍🌾'} {data.farmerName}
+                </p>
+                {data.farmerVillage && <p className="text-xs text-gray-500 truncate">{data.farmerVillage}</p>}
+                {data.isAggregator && (
+                  <p className="text-[11px] text-gray-500 leading-snug mt-1">
+                    {L(
+                      'An aggregator. Each harvest names the farmer who grew it.',
+                      'ఒక సమీకరణదారు. ప్రతి కోతలో దానిని పండించిన రైతు పేరు ఉంటుంది.',
                     )}
                   </p>
-                </div>
-              )}
-
-              {data.description && (
-                <div>
-                  <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">{L('Description', 'వివరణ')}</p>
-                  <p className="text-sm text-gray-600 leading-snug whitespace-pre-line mt-0.5">{data.description}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* The buyer's sticky bar. Tapping it really does step the quantity —
-            that is the only way to SEE what the sale step does. */}
-        <div className="bg-white border-t border-gray-200 px-4 py-3 shrink-0">
-          {soldOut ? (
-            <button disabled className="w-full h-12 bg-gray-200 text-gray-500 font-bold rounded-xl cursor-not-allowed">
-              {L('Sold out', 'అయిపోయింది')}
-            </button>
-          ) : qty == null ? (
-            <button
-              onClick={() => setQty(data.step)}
-              className="w-full h-12 bg-green-800 active:opacity-90 text-white font-bold rounded-xl"
-            >
-              {L('+ Add to cart', '+ కార్ట్‌లో చేర్చు')}
-            </button>
-          ) : (
-            <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl h-12 px-3">
-              <button
-                onClick={() => {
-                  const next = stepDown(qty, data.step)
-                  setQty(next < data.step ? null : next)
-                }}
-                className="w-9 h-9 rounded-lg bg-white border border-green-300 text-green-800 text-xl font-bold"
-                aria-label={L('Decrease', 'తగ్గించు')}
-              >
-                −
-              </button>
-              <span className="font-extrabold text-green-900 text-base">{formatQty(qty)} {unitLabel}</span>
-              <button
-                onClick={() => setQty(stepUp(qty, data.step, stock))}
-                disabled={atMax}
-                className={`w-9 h-9 rounded-lg text-xl font-bold ${atMax ? 'bg-gray-200 text-gray-400' : 'bg-green-700 text-white'}`}
-                aria-label={L('Increase', 'పెంచు')}
-              >
-                +
-              </button>
+                )}
+              </div>
+              <span className="text-green-700 text-sm font-semibold whitespace-nowrap">{L('View profile', 'ప్రొఫైల్ చూడండి')} ›</span>
             </div>
           )}
-          <p className="text-[11px] text-gray-400 text-center mt-2">{tx.previewFooter}</p>
+
+          {/* Quality / details */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-3">
+            <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">{L('Details', 'వివరాలు')}</p>
+            <div className="flex flex-wrap gap-1.5">
+              <span className="bg-green-100 text-green-800 text-[11px] font-semibold px-2 py-0.5 rounded-full">{methodShort}</span>
+              {data.category && PREVIEW_CATEGORY_LABEL[data.category] && (
+                <span className="bg-gray-100 text-gray-700 text-[11px] font-semibold px-2 py-0.5 rounded-full">{PREVIEW_CATEGORY_LABEL[data.category]}</span>
+              )}
+              {data.pesticide && (
+                <span className="bg-blue-100 text-blue-800 text-[11px] font-semibold px-2 py-0.5 rounded-full">{data.pesticide}</span>
+              )}
+              {data.soilPh && (
+                <span className="bg-purple-100 text-purple-800 text-[11px] font-semibold px-2 py-0.5 rounded-full">pH {data.soilPh}</span>
+              )}
+              {data.brix && (
+                <span className="bg-amber-100 text-amber-800 text-[11px] font-semibold px-2 py-0.5 rounded-full">BRIX {data.brix}</span>
+              )}
+            </div>
+
+            {data.howWeGrow && (
+              <div>
+                <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">🌱 {L('How we grow', 'మేము ఎలా పండిస్తాము')}</p>
+                <p className="text-sm text-gray-600 leading-snug whitespace-pre-line mt-0.5">{data.howWeGrow}</p>
+              </div>
+            )}
+
+            {video && (
+              <div>
+                <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">🎥 {L('Video', 'వీడియో')}</p>
+                <p className="inline-flex items-center gap-1.5 mt-1 text-sm font-semibold text-green-700 underline">
+                  {L('Watch video', 'వీడియో చూడండి')}
+                  {linkHost(data.videoUrl) && (
+                    <span className="text-xs text-gray-500 no-underline">({linkHost(data.videoUrl)})</span>
+                  )}
+                </p>
+              </div>
+            )}
+
+            {data.description && (
+              <div>
+                <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">{L('Description', 'వివరణ')}</p>
+                <p className="text-sm text-gray-600 leading-snug whitespace-pre-line mt-0.5">{data.description}</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* The buyer's sticky bar. Tapping it really does step the quantity —
+          that is the only way to SEE what the sale step does. */}
+      <div className="bg-white border-t border-gray-200 px-4 py-3 shrink-0">
+        {soldOut ? (
+          <button disabled className="w-full h-12 bg-gray-200 text-gray-500 font-bold rounded-xl cursor-not-allowed">
+            {L('Sold out', 'అయిపోయింది')}
+          </button>
+        ) : qty == null ? (
+          <button
+            onClick={() => setQty(data.step)}
+            className="w-full h-12 bg-green-800 active:opacity-90 text-white font-bold rounded-xl"
+          >
+            {L('+ Add to cart', '+ కార్ట్‌లో చేర్చు')}
+          </button>
+        ) : (
+          <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl h-12 px-3">
+            <button
+              onClick={() => {
+                const next = stepDown(qty, data.step)
+                setQty(next < data.step ? null : next)
+              }}
+              className="w-9 h-9 rounded-lg bg-white border border-green-300 text-green-800 text-xl font-bold"
+              aria-label={L('Decrease', 'తగ్గించు')}
+            >
+              −
+            </button>
+            <span className="font-extrabold text-green-900 text-base">{formatQty(qty)} {unitLabel}</span>
+            <button
+              onClick={() => setQty(stepUp(qty, data.step, stock))}
+              disabled={atMax}
+              className={`w-9 h-9 rounded-lg text-xl font-bold ${atMax ? 'bg-gray-200 text-gray-400' : 'bg-green-700 text-white'}`}
+              aria-label={L('Increase', 'పెంచు')}
+            >
+              +
+            </button>
+          </div>
+        )}
+        <p className="text-[11px] text-gray-400 text-center mt-2">{tx.previewFooter}</p>
+      </div>
+    </>
   )
 }
 
