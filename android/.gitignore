@@ -1,0 +1,19 @@
+*.iml
+.gradle
+/local.properties
+# The whole of .idea, not the template's selective list: Studio runs on Windows
+# against the synced copy, and scripts/sync-android-to-windows.sh excludes
+# .idea/ — so the directory here is stale by construction and could never
+# match what the IDE is actually using.
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Release signing — never commit the keystore or its passwords.
+keystore.properties
+*.keystore
+*.jks
