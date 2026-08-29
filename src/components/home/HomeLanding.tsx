@@ -10,6 +10,7 @@ import HomeApkCta from '@/components/home/HomeApkCta'
 import RoleSelect from '@/components/home/RoleSelect'
 import HomeSettings from '@/components/home/HomeSettings'
 import { useHomeTheme } from '@/lib/homeTheme'
+import { activeSocialLinks } from '@/lib/social'
 
 /* The body of /home.
  *
@@ -31,6 +32,9 @@ type Pair = [string, string]
 /* The header's section nav. Every target is a section further down this same
  * page — there is no separate About or Contact route to send people to, and a
  * landing page should not bounce a visitor off itself. */
+// Resolved once: the list is a constant, not state.
+const SOCIALS = activeSocialLinks()
+
 const NAV: { href: string; label: Pair }[] = [
   { href: '#android', label: ['Android app', 'ఆండ్రాయిడ్ యాప్'] },
   { href: '#how', label: ['How it works', 'ఎలా పనిచేస్తుంది'] },
@@ -489,6 +493,42 @@ export default function HomeLanding({
             9603174271
           </a>
         </div>
+
+        {/* Social. Round icon buttons rather than another pill row: these are
+            recognised by their logo, not read as text, and a wide pill would
+            compete with the contact links above — which are the ones we
+            actually want tapped. Brand colours on purpose; a lime Instagram
+            glyph stops being an Instagram glyph. */}
+        {SOCIALS.length > 0 && (
+          <div className="mt-7 flex items-center justify-center gap-3">
+            {SOCIALS.map((s) => (
+              <a
+                key={s.name}
+                href={s.url}
+                target="_blank"
+                // noreferrer as well as noopener: without it the opened tab can
+                // read window.opener and we leak the referring page.
+                rel="noopener noreferrer"
+                aria-label={L(`Go Grameen on ${s.label}`, `${s.label} లో Go Grameen`)}
+                title={s.label}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-green-900/10 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-lime-600/40 hover:shadow dark:border-white/10 dark:bg-white/5 dark:shadow-none dark:hover:border-lime-300/50"
+              >
+                {s.name === 'instagram' ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9}
+                       strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] text-[#E1306C]" aria-hidden>
+                    <rect x="3" y="3" width="18" height="18" rx="5.2" />
+                    <circle cx="12" cy="12" r="3.8" />
+                    <circle cx="17.4" cy="6.6" r="1.1" fill="currentColor" stroke="none" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="h-[18px] w-[18px] text-[#1877F2]" aria-hidden>
+                    <path d="M22 12a10 10 0 1 0-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.5 1.49-3.89 3.77-3.89.75 0 1.54.06 2.24.19v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0 0 22 12Z" />
+                  </svg>
+                )}
+              </a>
+            ))}
+          </div>
+        )}
 
         <p className="mt-7 text-xs text-green-900/45 dark:text-lime-100/40">
           Go Grameen · Your Family Farmer
