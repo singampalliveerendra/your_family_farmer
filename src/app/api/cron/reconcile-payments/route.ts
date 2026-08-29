@@ -11,18 +11,26 @@ export const dynamic = 'force-dynamic'
 // older than 15 minutes we ask Razorpay what really happened and mark it
 // paid if a payment was captured.
 //
-// Authorised by CRON_SECRET: Vercel automatically sends it as a Bearer token
-// when the CRON_SECRET env var is set, so external callers can't trigger it.
+// Authorised by CRON_SECRET: Vercel automatically sends it as a Bearer token,
+// so external callers can't trigger it.
+//
+// A missing CRON_SECRET is a MISCONFIGURATION, not permission to skip the check.
+// This used to be `if (secret) { ...verify... }`, which meant forgetting the env
+// var silently published the endpoint — and it loops over pending orders hitting
+// the Razorpay API, so an open one is both a data leak and a way to burn our
+// rate limit. Fail closed instead.
 const STALE_MINUTES = 15
 const BATCH_LIMIT = 100
 
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET
-  if (secret) {
-    const auth = req.headers.get('authorization')
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
-    }
+  if (!secret) {
+    console.error('[YFF cron/reconcile-payments] CRON_SECRET is not set — refusing to run.')
+    return NextResponse.json({ error: 'Server misconfigured.' }, { status: 500 })
+  }
+  const auth = req.headers.get('authorization')
+  if (auth !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
   }
 
   const supabase = createClient(

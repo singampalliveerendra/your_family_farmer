@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { FARMER_PUBLIC_COLUMNS } from '@/lib/farmerColumns'
 import { notFound } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
@@ -57,7 +58,7 @@ export default async function FarmerPage({ params }: { params: Promise<{ slug: s
 
   const { data: farmer } = await supabase
     .from('farmers')
-    .select('*')
+    .select(FARMER_PUBLIC_COLUMNS)
     .eq('slug', slug)
     .eq('active', true)
     .single()

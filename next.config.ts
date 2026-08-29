@@ -31,6 +31,64 @@ const allowedSupabaseHosts = [
   ...new Set([PROD_SUPABASE_HOST, supabaseHostFromEnv()].filter(Boolean) as string[]),
 ];
 
+// Security headers applied to every route.
+//
+// Kept deliberately boring: these four are safe on any page and cost nothing.
+// Frame protection is DENY rather than SAMEORIGIN because the app renders no
+// iframes of its own — Razorpay's checkout embeds ITS frame inside our page,
+// which frame-src governs, not this header. Clickjacking a checkout flow is the
+// attack this shuts out.
+//
+// Permissions-Policy allows geolocation on our own origin because three
+// surfaces genuinely use it (the farmer dashboard's farm pin, the consumer
+// "near me" filter, and the moderator farmer form). Camera and microphone are
+// unused, so they are denied outright.
+const SECURITY_HEADERS = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=(self), payment=(self)",
+  },
+  // Vercel terminates TLS and already redirects to HTTPS; this stops a browser
+  // that has seen the site once from ever trying plaintext again.
+  {
+    key: "Strict-Transport-Security",
+    value: "max-age=63072000; includeSubDomains; preload",
+  },
+];
+
+// Content-Security-Policy, in REPORT-ONLY mode on purpose.
+//
+// A CSP that is wrong doesn't degrade — it silently blocks a script, and the
+// script most likely to break here is Razorpay's checkout, i.e. the one path
+// where breakage costs real money. Report-Only lets the browser tell us what
+// WOULD have been blocked while everything keeps working.
+//
+// 'unsafe-inline'/'unsafe-eval' in script-src are placeholders: Next injects
+// inline bootstrap and hydration scripts, so enforcing without them needs a
+// nonce threaded through the document. That is the follow-up work; shipping
+// this in report-only first is what tells us whether anything ELSE is lurking.
+//
+// TO ENFORCE: watch the reports for a week, tighten the directives that fire,
+// then rename the header to "Content-Security-Policy". Do not enforce blind.
+const CSP_REPORT_ONLY = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com",
+  // No fonts.googleapis.com / fonts.gstatic.com: the brand faces are committed
+  // to the repo and served from our own origin (see src/app/layout.tsx).
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self' data:",
+  "img-src 'self' data: blob: https://*.supabase.co",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.razorpay.com https://lumberjack.razorpay.com",
+  "frame-src https://api.razorpay.com https://checkout.razorpay.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+
 const nextConfig: NextConfig = {
   // Pin the workspace root to this project. A stray package-lock.json in the
   // home directory was making Next/Turbopack infer the wrong root.
@@ -44,6 +102,40 @@ const nextConfig: NextConfig = {
       hostname,
       pathname: "/storage/v1/object/public/**",
     })),
+  },
+  // The Android build, served as a plain static file out of public/. Path is
+  // duplicated from src/lib/apkRelease.ts because next.config.ts cannot use
+  // the `@/` alias — keep the two in step.
+  //
+  // Without the explicit type Vercel serves the .apk as octet-stream, which
+  // some Android browsers hand to a file manager instead of the package
+  // installer. must-revalidate matters just as much: a new build reuses this
+  // filename, and a cached copy would keep handing out the old app forever.
+  async headers() {
+    return [
+      {
+        // Every route.
+        source: "/:path*",
+        headers: [
+          ...SECURITY_HEADERS,
+          { key: "Content-Security-Policy-Report-Only", value: CSP_REPORT_ONLY },
+        ],
+      },
+      {
+        source: "/downloads/gogrameen.apk",
+        headers: [
+          {
+            key: "Content-Type",
+            value: "application/vnd.android.package-archive",
+          },
+          {
+            key: "Content-Disposition",
+            value: 'attachment; filename="GoGrameen.apk"',
+          },
+          { key: "Cache-Control", value: "public, max-age=0, must-revalidate" },
+        ],
+      },
+    ];
   },
 };
 

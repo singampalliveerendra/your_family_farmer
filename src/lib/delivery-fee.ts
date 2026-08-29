@@ -183,3 +183,53 @@ export function planDeliveryRefund(
 
   return { owed, allocations }
 }
+
+// ── One batch's share of the checkout charge ──────────────────────────────
+//
+// The batches of a multi-farmer checkout arrive as SEPARATE POSTs sharing a
+// checkout_id, so when the first one lands the server genuinely cannot see the
+// other farmers' lines yet. That is why a client hint exists at all. The rule
+// that makes the hint safe:
+//
+//   the client flag may only turn the charge ON, never off.
+//
+// Claiming `true` costs the caller money, so it is not an attack. Claiming
+// `false` was the attack — and it is now overridden the moment our own data
+// (this batch's lines, or the sibling rows already written under the same
+// checkout_id) says the rider is involved.
+//
+// Likewise `base` vs `extra` is decided by counting sibling rows, not by the
+// client's old `deliveryFarmerIndex`, which could be forged to buy the cheaper
+// "extra" rate on a batch that should have carried "base".
+export type BatchDeliveryInputs = {
+  charges: DeliveryCharges
+  /** Does any line in THIS batch ship by our rider? Server-derived. */
+  batchHomeDelivery: boolean
+  /** Does any row already written under this checkout_id ship by our rider? */
+  siblingHomeDelivery: boolean
+  /** How many order rows already exist under this checkout_id. */
+  siblingCount: number
+  /** Did the caller send a checkout_id at all? Legacy single-farmer posts don't. */
+  hasCheckoutId: boolean
+  /** The client's whole-cart hint. Can only ever turn the charge ON. */
+  clientChargeApplies: boolean
+}
+
+export function resolveBatchDeliveryFee({
+  charges,
+  batchHomeDelivery,
+  siblingHomeDelivery,
+  siblingCount,
+  hasCheckoutId,
+  clientChargeApplies,
+}: BatchDeliveryInputs): number {
+  const charged = batchHomeDelivery || siblingHomeDelivery || clientChargeApplies
+  if (!charged) return 0
+  // First batch of the checkout carries the base charge, every later one the
+  // extra. Without a checkout_id there is only one batch, so it is by
+  // definition the first — never the discounted "extra".
+  const isFirstBatch = hasCheckoutId ? siblingCount === 0 : true
+  return isFirstBatch
+    ? Math.max(0, Math.round(charges.base))
+    : Math.max(0, Math.round(charges.extra))
+}

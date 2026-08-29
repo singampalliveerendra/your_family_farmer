@@ -2,10 +2,16 @@ import { createHmac, timingSafeEqual } from 'crypto'
 import type { NextRequest, NextResponse } from 'next/server'
 import { getSessionSecret } from '@/lib/session'
 
-// Moderator session. Like the owner/admin panel, access is gated by a single
-// MODERATOR_PASSWORD env var — there is no moderator user table (for the first
-// 3 months the founders themselves are the moderator). Successful password
-// check sets this cookie; every moderator endpoint verifies it. The HMAC is
+// Moderator session. Moderators are real per-person accounts in the `moderators`
+// table with scrypt-hashed passwords, each stamped with the region_slug they
+// manage; /api/moderator/login verifies against that table. (This was once a
+// single shared MODERATOR_PASSWORD env var — scripts/moderator-auth-migration.sql
+// replaced it. The stale comment that still described the env var outlived the
+// change by months, which is exactly the sort of thing that gets believed during
+// an incident, so: the table is the source of truth.)
+//
+// A successful password check sets this cookie; every moderator endpoint
+// verifies it. The HMAC is
 // namespaced with `moderator:` so a consumer, farmer, rider, or admin token
 // cannot be replayed against moderator routes — that is what keeps the
 // /moderator area invisible to every other role.
@@ -19,16 +25,6 @@ function b64url(buf: Buffer): string {
 function sign(payload: string): string {
   const secret = getSessionSecret()
   return b64url(createHmac('sha256', secret).update(`moderator:${payload}`).digest())
-}
-
-export function getModeratorPassword(): string {
-  const pw = process.env.MODERATOR_PASSWORD
-  if (!pw || pw.length < 8) {
-    throw new Error(
-      'MODERATOR_PASSWORD env var is missing or too short. Set an 8+ char value in your environment.',
-    )
-  }
-  return pw
 }
 
 // The zone the request's moderator manages. Read from their signed session

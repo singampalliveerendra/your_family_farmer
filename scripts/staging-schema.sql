@@ -705,7 +705,9 @@ CREATE POLICY "public read demand_intents" ON public.demand_intents FOR SELECT T
 CREATE POLICY "public update demand_intents" ON public.demand_intents FOR UPDATE TO public USING (true) WITH CHECK (true);
 CREATE POLICY "public delete demand_intents" ON public.demand_intents FOR DELETE TO public USING (true);
 CREATE POLICY "farmer_follows public read" ON public.farmer_follows FOR SELECT TO public USING (true);
-CREATE POLICY "Allow insert farmers" ON public.farmers FOR INSERT TO anon WITH CHECK (true);
+-- NOTE: these two farmers policies are row-unrestricted, but the columns anon
+-- can touch are narrowed by the GRANTs at the foot of this file. See
+-- scripts/farmers-column-lockdown.sql for the reasoning.
 CREATE POLICY "Allow update farmers" ON public.farmers FOR UPDATE TO anon USING (true) WITH CHECK (true);
 CREATE POLICY "Public read farmers" ON public.farmers FOR SELECT TO public USING (true);
 CREATE POLICY "harvests public delete" ON public.harvests FOR DELETE TO public USING (true);
@@ -735,3 +737,40 @@ CREATE POLICY "public_select_reviews" ON public.reviews FOR SELECT TO public USI
 CREATE POLICY "anon insert wa_clicks" ON public.wa_clicks FOR INSERT TO anon WITH CHECK (true);
 CREATE POLICY "anyone can insert wa_clicks" ON public.wa_clicks FOR INSERT TO public WITH CHECK (true);
 CREATE POLICY "anyone can read wa_clicks" ON public.wa_clicks FOR SELECT TO public USING (true);
+
+
+-- ============================================================================
+-- Column-level grants (scripts/farmers-column-lockdown.sql)
+--
+-- RLS policies filter ROWS, never COLUMNS. `farmers` holds password_hash,
+-- bank_account_number, bank_ifsc and activation_code alongside public profile
+-- data, and the anon key is public by design (it ships in the JS bundle), so
+-- the blanket table grants made those four columns world-readable and
+-- world-writable. Column grants compose with RLS -- a query must satisfy both.
+-- ============================================================================
+
+REVOKE ALL ON public.farmers FROM anon, authenticated;
+
+GRANT SELECT (
+  id, slug, name, village, district, state, phone, method,
+  farm_size_acres, farming_since_year, story_quote, soil_organic_carbon,
+  soil_ph, brix_reading, water_source, delivery_available,
+  pickup_available, farm_visit_day, rating_avg, rating_count,
+  buyer_count, region_slug, active, created_at, pickup_locations,
+  cover_photo_url, photo_url, pesticide_cert_url, pickup_slots,
+  lat, lng, location_name, upi_id, upi_qr_code_url, cod_enabled,
+  farm_address, registered_by_moderator, facebook_url, instagram_url,
+  youtube_url, pickup_location_phones, account_type, contact_person,
+  how_we_aggregate, business_cert_url, organic_certificate_url,
+  terms_accepted_at, approval_status
+) ON public.farmers TO anon, authenticated;
+
+GRANT UPDATE (
+  name, village, district, method, slug, pickup_locations, farm_address,
+  cover_photo_url, photo_url, pesticide_cert_url, upi_id, upi_qr_code_url,
+  cod_enabled, contact_person, how_we_aggregate, business_cert_url,
+  organic_certificate_url, pickup_slots, pickup_location_phones,
+  lat, lng, location_name, phone, farm_size_acres, soil_organic_carbon,
+  water_source, story_quote, farming_since_year, soil_ph,
+  facebook_url, instagram_url, youtube_url
+) ON public.farmers TO anon, authenticated;

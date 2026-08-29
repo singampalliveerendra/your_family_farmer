@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Noto_Serif_Telugu } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { LanguageProvider } from "@/lib/LanguageContext";
 import { ConsumerAuthProvider } from "@/lib/ConsumerAuthContext";
@@ -10,20 +10,39 @@ import InstallCounter from "@/components/InstallCounter";
 /* Brand type. Fraunces carries the Latin wordmark (soft, slightly wonky serif
    — the farm-to-table look); it has no Telugu glyphs, so Noto Serif Telugu
    sits next to it in the same stack and the browser falls back per glyph when
-   the UI is in Telugu. Both are self-hosted by next/font, so the wordmark
-   costs no third-party round-trip on 4G. Only the logo lockup uses them —
-   body copy stays on the system stack. */
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  axes: ["SOFT", "WONK", "opsz"],
+   the UI is in Telugu. Only the logo lockup uses them — body copy stays on the
+   system stack.
+
+   The .woff2 files are committed under ./fonts and loaded with next/font/local
+   rather than next/font/google. next/font/google also self-hosts the files it
+   serves, so this changes nothing for the user on 4G — what it removes is the
+   BUILD-time fetch of fonts.googleapis.com. That fetch is a hard dependency:
+   with Google unreachable (an offline CI runner, a locked-down network) the
+   build fails outright rather than degrading, which is a poor reason to be
+   unable to ship.
+
+   Both files are the Google-hosted variable originals, subset exactly as the
+   old config asked for (Fraunces latin, Noto Serif Telugu telugu). Fraunces
+   keeps all four axes — opsz, wght, SOFT and WONK — which globals.css depends
+   on: `font-variation-settings: "SOFT" 40, "WONK" 1, "opsz" 60`. If you ever
+   re-download these, verify the axes survived or the wordmark quietly loses
+   its shape. */
+const fraunces = localFont({
+  src: "./fonts/Fraunces-latin-var.woff2",
+  weight: "100 900",
+  style: "normal",
   display: "swap",
   variable: "--font-brand",
+  fallback: ["Georgia", "serif"],
 });
 
-const notoSerifTelugu = Noto_Serif_Telugu({
-  subsets: ["telugu"],
+const notoSerifTelugu = localFont({
+  src: "./fonts/NotoSerifTelugu-telugu-var.woff2",
+  weight: "100 900",
+  style: "normal",
   display: "swap",
   variable: "--font-brand-te",
+  fallback: ["Georgia", "serif"],
 });
 
 export const metadata: Metadata = {
@@ -59,7 +78,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`h-full ${fraunces.variable} ${notoSerifTelugu.variable}`}>
+    // suppressHydrationWarning covers THIS element's attributes only, not the
+    // tree below it. Two pre-paint scripts deliberately stamp classes onto
+    // <html> before React hydrates — `splash-skip` below, and `gg-dark` from
+    // app/home/page.tsx — so the server's className never matches the client's
+    // by design. Without this React logs a mismatch on every visit where
+    // either one fires.
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`h-full ${fraunces.variable} ${notoSerifTelugu.variable}`}
+    >
       <body className="min-h-full bg-gray-50 antialiased">
         {/* Runs before first paint: if the splash already played this session,
             mark <html> so CSS hides the overlay instantly (no green flash on

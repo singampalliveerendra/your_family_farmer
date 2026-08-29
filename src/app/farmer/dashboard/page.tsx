@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { FARMER_PUBLIC_COLUMNS } from '@/lib/farmerColumns'
 import Link from 'next/link'
 import NextImage from 'next/image'
 import LanguageToggle from '@/components/LanguageToggle'
@@ -281,7 +282,7 @@ export default function FarmerDashboard() {
 
     const { data: farmerData } = await supabase
       .from('farmers')
-      .select('*')
+      .select(FARMER_PUBLIC_COLUMNS)
       .eq('id', farmerId)
       .maybeSingle()
 
@@ -1283,7 +1284,7 @@ function ProfileEditModal({
       .from('farmers')
       .update(payload)
       .eq('id', farmer.id)
-      .select('*')
+      .select(FARMER_PUBLIC_COLUMNS)
       .single()
 
     if (err || !data) {

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { FARMER_PUBLIC_COLUMNS } from '@/lib/farmerColumns'
 import { notFound } from 'next/navigation'
 import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
 import RegionTopBar from '@/components/region/RegionTopBar'
@@ -35,7 +36,7 @@ export default async function RegionPage({ params }: { params: Promise<{ slug: s
 
   const { data: farmers } = await supabase
     .from('farmers')
-    .select('*')
+    .select(FARMER_PUBLIC_COLUMNS)
     .eq('region_slug', slug)
     .eq('active', true)
     .order('created_at', { ascending: true })

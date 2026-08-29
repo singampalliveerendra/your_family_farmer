@@ -5,7 +5,7 @@ import { getConsumerSessionFromRequest } from '@/lib/session'
 import { createGuestOrderToken } from '@/lib/guest-order-token'
 import { getTierPrice } from '@/lib/pricing'
 import { normalizePhone } from '@/lib/phone'
-import { getDeliveryCharges } from '@/lib/delivery-fee'
+import { getDeliveryCharges, resolveBatchDeliveryFee } from '@/lib/delivery-fee'
 import { getPlatformFeePercent, computePlatformFee } from '@/lib/platform-fee'
 import { getCodDepositPercent, computeCodSplit } from '@/lib/cod'
 import { ORDERABLE_STATUSES } from '@/lib/produceStatus'
@@ -82,10 +82,13 @@ export async function POST(req: NextRequest) {
         deliveryAltPhone?: string | null
         idempotencyKey?: string | null
         // Multi-farmer checkout: a shared id linking this farmer's batch to the
-        // other farmers' batches, and this farmer's position in the checkout.
-        // deliveryChargeApplies is the whole-cart gate (does ANY line ship by
-        // our rider); deliveryFarmerIndex is 0 for the first farmer (who carries
-        // the base charge) and ≥1 for each additional farmer (who carries extra).
+        // other farmers' batches.
+        //
+        // deliveryChargeApplies is a HINT only — it can turn the delivery charge
+        // on but never off (see the fee computation below). deliveryFarmerIndex
+        // is accepted for backward compatibility with deployed clients and then
+        // ignored: which batch carries the base charge is decided from the
+        // sibling rows, not from what the caller claims its position is.
         checkoutId?: string | null
         deliveryChargeApplies?: boolean
         deliveryFarmerIndex?: number
@@ -104,14 +107,10 @@ export async function POST(req: NextRequest) {
   const checkoutId = typeof body.checkoutId === 'string' && UUID_RE.test(body.checkoutId)
     ? body.checkoutId
     : null
-  // Whether the delivery charge applies to this checkout at all (client-computed
-  // across every farmer's lines: true when ANY line ships by our rider).
+  // The client's view of whether the delivery charge applies across the whole
+  // cart. Honoured only as a way to turn the charge ON — see the fee
+  // computation below for why a `false` here is never taken at face value.
   const deliveryChargeApplies = body.deliveryChargeApplies === true
-  // This farmer's position in the checkout: 0 = first farmer (base charge), ≥1 =
-  // an additional farmer (extra charge). Clamped; only the sign/zero matters.
-  const deliveryFarmerIndex = Number.isFinite(body.deliveryFarmerIndex) && Number(body.deliveryFarmerIndex) > 0
-    ? 1
-    : 0
 
   if (!farmerId || !UUID_RE.test(farmerId)) return bad('Invalid farmer.')
   if (paymentMethod !== 'upi' && paymentMethod !== 'cod' && paymentMethod !== 'razorpay') {
@@ -319,12 +318,37 @@ export async function POST(req: NextRequest) {
   // the old way (no checkoutId sent), we fall back to that farmer's own lines.
   const { base: deliveryBase, extra: deliveryExtra } = await getDeliveryCharges(supabase)
   const anyHomeDelivery = items.some((it) => rowDeliveryTypeOf(it) === 'home_delivery')
-  const chargeGate = checkoutId ? deliveryChargeApplies : anyHomeDelivery
-  const deliveryFee = !chargeGate
-    ? 0
-    : deliveryFarmerIndex === 0
-      ? Math.max(0, Math.round(deliveryBase))
-      : Math.max(0, Math.round(deliveryExtra))
+
+  // Everything else in this route recomputes from the database rather than
+  // trusting the client (prices from produce_listings, buyer from
+  // consumers_auth, stock from the claim RPC). The delivery fee used to be the
+  // exception: the gate was just `body.deliveryChargeApplies`, so posting
+  // `deliveryChargeApplies: false` alongside home_delivery items bought free
+  // delivery, and `deliveryFarmerIndex: 1` bought the cheaper "extra" rate on a
+  // batch that should have carried "base".
+  //
+  // The decision now lives in resolveBatchDeliveryFee (src/lib/delivery-fee.ts),
+  // which is pure and unit-tested; read the rule there. All this route does is
+  // feed it server-derived facts.
+  let siblingCount = 0
+  let siblingHomeDelivery = false
+  if (checkoutId) {
+    const { data: siblings } = await supabase
+      .from('orders')
+      .select('delivery_type')
+      .eq('checkout_id', checkoutId)
+    siblingCount = siblings?.length ?? 0
+    siblingHomeDelivery = (siblings ?? []).some((r) => r.delivery_type === 'home_delivery')
+  }
+
+  const deliveryFee = resolveBatchDeliveryFee({
+    charges: { base: deliveryBase, extra: deliveryExtra },
+    batchHomeDelivery: anyHomeDelivery,
+    siblingHomeDelivery,
+    siblingCount,
+    hasCheckoutId: !!checkoutId,
+    clientChargeApplies: deliveryChargeApplies,
+  })
 
   // Validate first (price + ownership) before we touch any stock. Stock
   // claims happen below with the RPC so two cart submits can't oversell.
