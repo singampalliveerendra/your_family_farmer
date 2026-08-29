@@ -32,10 +32,19 @@ describe('SOCIAL_LINKS', () => {
     expect(ig?.url).toContain('instagram.com/go_grameen')
   })
 
+  it('points at the real Facebook account, query string intact', () => {
+    const fb = SOCIAL_LINKS.find((s) => s.name === 'facebook')
+    // The id lives in a query string, not the path. A URL builder that drops
+    // or re-encodes it lands on Facebook's "page not found".
+    expect(new URL(fb!.url).searchParams.get('id')).toBe('61594097484138')
+  })
+
   it('hides a channel that has no url yet rather than linking nowhere', () => {
     const live = activeSocialLinks()
-    expect(live.every((s) => s.url !== '')).toBe(true)
-    // Whitespace is not a url either.
-    expect(activeSocialLinks().some((s) => s.url.trim() === '')).toBe(false)
+    expect(live.every((s) => s.url.trim() !== '')).toBe(true)
+  })
+
+  it('shows both channels now that each has a url', () => {
+    expect(activeSocialLinks().map((s) => s.name)).toEqual(['instagram', 'facebook'])
   })
 })

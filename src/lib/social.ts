@@ -29,10 +29,9 @@ export const SOCIAL_LINKS: SocialLink[] = [
   {
     name: 'facebook',
     label: 'Facebook',
-    // TODO: paste the exact page URL from the browser's address bar. Until it
-    // is filled in this link is hidden rather than guessed — a wrong link on
-    // the front door sends people to a stranger's page.
-    url: '',
+    // A numeric profile.php id, not a vanity handle — that is simply what this
+    // account has. Keep the query string: without ?id= it is a dead link.
+    url: 'https://www.facebook.com/profile.php?id=61594097484138',
   },
 ]
 
