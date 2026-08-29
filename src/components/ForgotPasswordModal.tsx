@@ -219,8 +219,17 @@ export default function ForgotPasswordModal({
           {/* STEP 2 — otp */}
           {step === 'otp' && (
             <>
+              {/* Deliberately conditional wording. /api/otp/send answers the same
+                  { ok: true } whether or not the number has an account, so that it
+                  can't be used to enumerate who is a farmer / rider / consumer /
+                  moderator. This copy has to match that: promising "OTP sent"
+                  outright would be a lie for an unregistered number and would leave
+                  the user staring at a code that is never going to arrive. */}
               <p className="text-sm text-gray-600">
-                {L(`OTP sent to ${maskPhone(phoneDigits)}`, `${maskPhone(phoneDigits)}కు OTP పంపబడింది ✅`)}
+                {L(
+                  `If ${maskPhone(phoneDigits)} has an account, the OTP is on its way on WhatsApp.`,
+                  `${maskPhone(phoneDigits)}కు ఖాతా ఉంటే, WhatsApp లో OTP వస్తుంది.`,
+                )}
               </p>
               <div className="flex justify-between gap-2" onPaste={onOtpPaste}>
                 {otp.map((d, i) => (

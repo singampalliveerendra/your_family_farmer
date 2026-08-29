@@ -4,7 +4,9 @@ import { reqLang, tr } from '@/lib/serverLang'
 import { normalizePhone } from '@/lib/phone'
 import { rateLimit } from '@/lib/rate-limit'
 import { findAccount, USER_TYPES, type UserType } from '@/lib/otp-accounts'
-import { sendOtp } from '@/lib/twofactor'
+import { generateOtp, hashOtp, OTP_TTL_MS } from '@/lib/otp'
+import { sendTemplate } from '@/lib/whatsapp'
+import { OTP_TEMPLATE } from '@/lib/notify'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -47,29 +49,69 @@ export async function POST(req: NextRequest) {
     .lt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
 
   // Only send OTPs to numbers that actually have an account on this surface.
+  //
+  // A miss returns the SAME { ok: true } a hit does. Answering "no account
+  // found" here turned this endpoint into an account-enumeration oracle: post a
+  // number with each of the four userType values and the status code tells you
+  // whether it belongs to a farmer, rider, consumer or moderator. /moderator/login
+  // already returns an identical error for both cases; this matches it.
+  //
+  // The caller shows "if that number has an account, the code is on its way"
+  // either way, so the UX is unchanged for a real user and blank for a prober.
   const account = await findAccount(supabase, userType, phone)
   if (!account) {
-    return err(tr(lang, 'No account found with this number', 'ఈ నంబర్‌తో ఖాతా లేదు'), 404)
+    return NextResponse.json({ ok: true })
   }
 
-  const result = await sendOtp(phone)
-  if (!result.ok) {
-    console.error('[YFF otp/send] 2factor failed:', result.error)
-    return err(tr(lang, 'Could not send OTP. Please try again.', 'OTP పంపడం విఫలమైంది, మళ్ళీ ప్రయత్నించండి'), 502)
-  }
+  // We mint and store the code ourselves — WhatsApp is only the delivery pipe,
+  // so unlike the old 2factor AUTOGEN flow there is no provider-side session.
+  // Store the row FIRST: a code the user receives must always be verifiable.
+  const code = generateOtp()
+  const { data: inserted, error: insertErr } = await supabase
+    .from('otp_sessions')
+    .insert({
+      phone,
+      code_hash: hashOtp(phone, code),
+      purpose: 'forgot_password',
+      user_type: userType,
+      expires_at: new Date(Date.now() + OTP_TTL_MS).toISOString(),
+    })
+    .select('id')
+    .maybeSingle()
 
-  const { error: insertErr } = await supabase.from('otp_sessions').insert({
-    phone,
-    session_id: result.sessionId,
-    purpose: 'forgot_password',
-    user_type: userType,
-  })
-  if (insertErr) {
-    console.error('[YFF otp/send] insert failed:', insertErr.code, insertErr.message)
-    if (insertErr.message?.includes('does not exist') || insertErr.code === '42P01') {
+  if (insertErr || !inserted) {
+    console.error('[YFF otp/send] insert failed:', insertErr?.code, insertErr?.message)
+    if (insertErr?.message?.includes('code_hash')) {
+      return err('otp_sessions is missing code_hash. Run scripts/whatsapp-otp-migration.sql in Supabase first.', 500)
+    }
+    if (insertErr?.message?.includes('does not exist') || insertErr?.code === '42P01') {
       return err('otp_sessions table is missing. Run scripts/otp-sessions-migration.sql in Supabase first.', 500)
     }
     return err('Could not start password reset. Please try again.', 500)
+  }
+
+  const result = await sendTemplate({
+    phone,
+    template: OTP_TEMPLATE,
+    lang,
+    body: [code],
+    // Fills the template's "Copy code" button so the user can tap instead of
+    // retyping — required on Meta authentication templates.
+    urlButtonParam: code,
+  })
+
+  if (!result.ok) {
+    console.error('[YFF otp/send] whatsapp failed:', result.error)
+    // Nothing was delivered, so leave no usable code behind.
+    await supabase.from('otp_sessions').delete().eq('id', inserted.id)
+    return err(
+      tr(
+        lang,
+        'Could not send the OTP on WhatsApp. Check that this number has WhatsApp, then try again.',
+        'WhatsApp లో OTP పంపడం విఫలమైంది. ఈ నంబర్‌కు WhatsApp ఉందో చూసి మళ్ళీ ప్రయత్నించండి.',
+      ),
+      502,
+    )
   }
 
   return NextResponse.json({ ok: true })

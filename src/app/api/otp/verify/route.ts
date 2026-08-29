@@ -5,7 +5,7 @@ import { randomBytes } from 'crypto'
 import { normalizePhone } from '@/lib/phone'
 import { rateLimit } from '@/lib/rate-limit'
 import { USER_TYPES, type UserType } from '@/lib/otp-accounts'
-import { verifyOtp } from '@/lib/twofactor'
+import { MAX_OTP_ATTEMPTS, otpMatches } from '@/lib/otp'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
   const { data: sessions } = await supabase
     .from('otp_sessions')
-    .select('id, session_id, expires_at, used')
+    .select('id, code_hash, expires_at, used, attempts')
     .eq('phone', phone)
     .eq('user_type', userType)
     .eq('purpose', 'forgot_password')
@@ -63,8 +63,20 @@ export async function POST(req: NextRequest) {
     return err(tr(lang, 'OTP expired, please resend', 'OTP గడువు తీరింది, మళ్ళీ పంపండి'), 400)
   }
 
-  const result = await verifyOtp(session.session_id, otp)
-  if (!result.ok) {
+  // Per-code attempt ceiling. The IP/phone rate limiter above is per-process
+  // only (see src/lib/rate-limit.ts), so on a multi-instance deploy this
+  // DB-backed counter is what actually bounds guessing at 1-in-200,000.
+  const attempts = session.attempts ?? 0
+  if (attempts >= MAX_OTP_ATTEMPTS) {
+    await supabase.from('otp_sessions').update({ used: true }).eq('id', session.id)
+    return err(tr(lang, 'OTP expired, please resend', 'OTP గడువు తీరింది, మళ్ళీ పంపండి'), 400)
+  }
+
+  if (!otpMatches(phone, otp, session.code_hash)) {
+    await supabase
+      .from('otp_sessions')
+      .update({ attempts: attempts + 1 })
+      .eq('id', session.id)
     return err(tr(lang, 'Incorrect OTP, try again', 'తప్పు OTP, మళ్ళీ ప్రయత్నించండి'), 400)
   }
 

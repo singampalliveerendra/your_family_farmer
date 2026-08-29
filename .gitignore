@@ -54,3 +54,9 @@ next-env.d.ts
 mod.md
 moderator.pdf
 GoGrameen_Moderator_Spec_v2*
+
+# Build artefacts and briefs — binaries don't belong in git (they bloat the
+# repo permanently and can't be diffed). Ship the APK via a GitHub Release or
+# public/downloads instead.
+*.apk
+*.pdf
