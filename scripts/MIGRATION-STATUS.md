@@ -17,6 +17,8 @@ Last staging audit: **2026-07-24** (all present).
 | Migration | Schema footprint (what to check) | Staging | Prod |
 |---|---|:--:|:--:|
 | **farmers-column-lockdown** (SECURITY) | `has_column_privilege('anon','public.farmers','password_hash','SELECT')` is **false** | ✅ (2026-08-29) | ▫️ **RUN THIS FIRST** |
+| **whatsapp-migration** (BLOCKS OTP) | `otp_sessions.code_hash` + `otp_sessions.attempts`, `notifications` table | ✅ | ▫️ **RUN BEFORE DEPLOYING TO PROD** — password reset breaks without it |
+| sale-step-migration | `produce_listings.sale_step` | ✅ | ✅ (verified 2026-08-25 via /api/produce) |
 | consumer-intents-migration | `demand_intents.consumer_id` + UPDATE/DELETE policies | ✅ | ✅ (applied 2026-07-24) |
 | realtime-orders-migration | `orders` in `supabase_realtime` pub + `orders` REPLICA IDENTITY FULL | ✅ | ▫️ (run at go-live) |
 | delivery-charge-migration | `platform_settings.delivery_base_fee/extra_fee`, `orders.checkout_id/delivery_fee_refunded` | ✅ | ▫️ |
