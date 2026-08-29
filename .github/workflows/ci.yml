@@ -1,0 +1,38 @@
+# Runs on every push and pull request. Nothing here talks to Supabase, Razorpay
+# or Vercel — the unit suite is hermetic (see vitest.setup.ts) and the build
+# uses placeholder public env vars, so CI needs no secrets at all.
+name: CI
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Lint
+        # The existing lint debt is being paid down separately; this reports it
+        # without failing the build. Flip to a hard failure once it is at zero.
+        run: npm run lint || true
+
+      - name: Audit dependencies
+        # High/critical CVEs fail the build. A dependency with a known remote
+        # exploit is a production incident waiting to happen, not a chore.
+        run: npm audit --audit-level=high

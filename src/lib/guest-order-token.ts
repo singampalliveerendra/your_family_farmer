@@ -19,8 +19,14 @@ function b64url(buf: Buffer): string {
   return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
+// Length-prefixed so the join character can't create an ambiguity: without the
+// count, the single id "a,b" would canonicalise to exactly the same string as
+// the pair ["a", "b"], and one token would authorize both. Order ids are
+// Postgres UUIDs and can never contain a comma, so this is belt-and-braces —
+// but it costs a byte and removes the whole class.
 function canonicalIds(orderIds: string[]): string {
-  return [...orderIds].map((id) => id.toLowerCase()).sort().join(',')
+  const ids = [...orderIds].map((id) => id.toLowerCase()).sort()
+  return `${ids.length}:${ids.join(',')}`
 }
 
 function sign(payload: string): string {
