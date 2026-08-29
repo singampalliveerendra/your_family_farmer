@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* `dark:` is keyed to a class, not to the OS.
+ *
+ * Only /home has a dark theme; every other surface in this app is light-only
+ * and carries no `dark:` utilities, so matching `prefers-color-scheme` would
+ * be wrong twice over — it would hand the old dark page to anyone whose phone
+ * is in dark mode, and it would leave them no way to ask for the light one.
+ * The class is set by the pre-paint script in app/home/page.tsx and flipped
+ * by src/lib/homeTheme.ts. */
+@custom-variant dark (&:where(.gg-dark, .gg-dark *));
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: #f9fafb;

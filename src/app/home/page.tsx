@@ -54,5 +54,23 @@ export default async function HomePage() {
   // the right trade for a marketing number that must not cost a query on
   // every visit.
   const [shots, installs] = await Promise.all([farmShots(6), installCount()])
-  return <HomeLanding shots={shots} installs={installs} />
+  return (
+    <>
+      {/* Restores a saved dark-mode choice BEFORE the first paint.
+          Without this the page always paints light — the server has no way to
+          know the preference — and anyone who chose dark gets a white flash on
+          every visit. It has to be inline and synchronous for that reason; an
+          effect runs after the browser has already painted.
+          Keys are duplicated from src/lib/homeTheme.ts, which cannot be
+          imported here: this string is executed by the browser, not bundled. */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html:
+            "try{if(localStorage.getItem('yff_home_theme')==='dark')" +
+            "document.documentElement.classList.add('gg-dark')}catch(e){}",
+        }}
+      />
+      <HomeLanding shots={shots} installs={installs} />
+    </>
+  )
 }

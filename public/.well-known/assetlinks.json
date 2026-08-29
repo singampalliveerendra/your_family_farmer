@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "in.gogrameen.app.staging",
+      "sha256_cert_fingerprints": [
+        "EA:8A:DD:F4:43:FB:DE:87:54:D6:B0:0C:68:9A:48:0E:C3:27:B2:C3:6F:13:F2:61:90:93:E4:8A:4A:E1:64:58"
+      ]
+    }
+  }
+]

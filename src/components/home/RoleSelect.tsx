@@ -52,21 +52,21 @@ export default function RoleSelect() {
           href={r.href}
           /* Three cards in a two-column grid leaves an odd one out, so the last
              one spans the full width rather than sitting in a lopsided gap. */
-          className="gghome-card gghome-rise group flex items-center gap-3.5 rounded-2xl border border-white/10 bg-white/5 p-4 text-left backdrop-blur-sm transition hover:border-lime-300/50 hover:bg-white/10 sm:last:col-span-2"
+          className="gghome-card gghome-rise group flex items-center gap-3.5 rounded-2xl border border-green-900/10 bg-white p-4 text-left shadow-sm backdrop-blur-sm transition hover:border-lime-600/50 hover:bg-lime-50 dark:border-white/10 dark:bg-white/5 dark:shadow-none dark:hover:border-lime-300/50 dark:hover:bg-white/10 sm:last:col-span-2"
           style={{ animationDelay: `${0.05 * i}s` }}
         >
           <span
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-lime-300/15 text-2xl ring-1 ring-lime-300/25"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-lime-100 text-2xl ring-1 ring-lime-600/20 dark:bg-lime-300/15 dark:ring-lime-300/25"
             aria-hidden
           >
             {r.emoji}
           </span>
           <span className="min-w-0">
-            <span className="block font-extrabold text-white">{L(r.title[0], r.title[1])}</span>
-            <span className="block text-sm text-lime-100/60 leading-snug">{L(r.blurb[0], r.blurb[1])}</span>
+            <span className="block font-extrabold text-green-950 dark:text-white">{L(r.title[0], r.title[1])}</span>
+            <span className="block text-sm text-green-900/65 leading-snug dark:text-lime-100/60">{L(r.blurb[0], r.blurb[1])}</span>
           </span>
           <span
-            className="ml-auto shrink-0 text-lime-300/50 transition group-hover:translate-x-1 group-hover:text-lime-300"
+            className="ml-auto shrink-0 text-lime-600/60 transition group-hover:translate-x-1 group-hover:text-lime-700 dark:text-lime-300/50 dark:group-hover:text-lime-300"
             aria-hidden
           >
             →

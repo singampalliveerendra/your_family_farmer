@@ -6,7 +6,10 @@ import { useLang } from '@/lib/LanguageContext'
 import { SproutMark } from '@/components/BrandLogo'
 import LanguageToggle from '@/components/LanguageToggle'
 import HomeInstallCta from '@/components/home/HomeInstallCta'
+import HomeApkCta from '@/components/home/HomeApkCta'
 import RoleSelect from '@/components/home/RoleSelect'
+import HomeSettings from '@/components/home/HomeSettings'
+import { useHomeTheme } from '@/lib/homeTheme'
 
 /* The body of /home.
  *
@@ -29,6 +32,7 @@ type Pair = [string, string]
  * page — there is no separate About or Contact route to send people to, and a
  * landing page should not bounce a visitor off itself. */
 const NAV: { href: string; label: Pair }[] = [
+  { href: '#android', label: ['Android app', 'ఆండ్రాయిడ్ యాప్'] },
   { href: '#how', label: ['How it works', 'ఎలా పనిచేస్తుంది'] },
   { href: '#about', label: ['About', 'మా గురించి'] },
   { href: '#contact', label: ['Contact', 'సంప్రదించండి'] },
@@ -121,9 +125,13 @@ export default function HomeLanding({
   installs: number | null
 }) {
   const { L } = useLang()
+  // The language pill is a white-on-translucent-white lockup built for the
+  // dark header; on the light page that pill is invisible, so it switches
+  // to the variant made for white headers.
+  const theme = useHomeTheme()
 
   return (
-    <main className="gghome relative min-h-screen overflow-x-hidden bg-[#04140b] text-white">
+    <main className="gghome relative min-h-screen overflow-x-hidden bg-[#f6f9f0] text-green-950 dark:bg-[#04140b] dark:text-white">
       {/* Scoped to .gghome and prefixed, so nothing here can reach any other
           page's styles. Keyframes only — layout stays in Tailwind. */}
       <style>{`
@@ -135,20 +143,26 @@ export default function HomeLanding({
         .gghome-float { animation: gghome-float 7s ease-in-out infinite }
         .gghome-blob  { animation: gghome-drift 18s ease-in-out infinite }
         .gghome-grad  {
-          background: linear-gradient(100deg, #d9f99d, #4ade80, #a3e635, #d9f99d);
+          background: linear-gradient(100deg, #4d7c0f, #15803d, #3f6212, #4d7c0f);
           background-size: 200% 100%;
           -webkit-background-clip: text; background-clip: text; color: transparent;
           animation: gghome-sheen 7s linear infinite;
         }
+        .gg-dark .gghome-grad { background-image: linear-gradient(100deg, #d9f99d, #4ade80, #a3e635, #d9f99d) }
         .gghome-card { transition: transform .25s ease, border-color .25s ease, background-color .25s ease }
         .gghome-card:hover { transform: translateY(-3px) }
         .gghome-grid {
           background-image:
-            linear-gradient(rgba(163,230,53,.07) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(163,230,53,.07) 1px, transparent 1px);
+            linear-gradient(rgba(22,101,52,.07) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(22,101,52,.07) 1px, transparent 1px);
           background-size: 46px 46px;
           mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
           -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
+        }
+        .gg-dark .gghome-grid {
+          background-image:
+            linear-gradient(rgba(163,230,53,.07) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(163,230,53,.07) 1px, transparent 1px);
         }
         /* The header nav jumps down the page; ease it so the reader keeps
            their bearings. Scoped to this page — the tag unmounts with it. */
@@ -164,9 +178,9 @@ export default function HomeLanding({
       {/* ── Ambient background ─────────────────────────────────────── */}
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="gghome-grid absolute inset-x-0 top-0 h-[70vh]" />
-        <div className="gghome-blob absolute -left-24 -top-24 h-80 w-80 rounded-full bg-emerald-500/20 blur-3xl" />
-        <div className="gghome-blob absolute -right-20 top-40 h-96 w-96 rounded-full bg-lime-400/15 blur-3xl" style={{ animationDelay: '3s' }} />
-        <div className="gghome-blob absolute bottom-0 left-1/3 h-80 w-80 rounded-full bg-teal-400/10 blur-3xl" style={{ animationDelay: '6s' }} />
+        <div className="gghome-blob absolute -left-24 -top-24 h-80 w-80 rounded-full bg-emerald-400/20 blur-3xl dark:bg-emerald-500/20" />
+        <div className="gghome-blob absolute -right-20 top-40 h-96 w-96 rounded-full bg-lime-300/35 blur-3xl dark:bg-lime-400/15" style={{ animationDelay: '3s' }} />
+        <div className="gghome-blob absolute bottom-0 left-1/3 h-80 w-80 rounded-full bg-teal-300/25 blur-3xl dark:bg-teal-400/10" style={{ animationDelay: '6s' }} />
       </div>
 
       {/* ── Header ─────────────────────────────────────────────────── */}
@@ -175,7 +189,7 @@ export default function HomeLanding({
           {/* min-w-0 + truncate: at 390px the wordmark gives way before the
               Download pill does, so the CTA can never be pushed off-screen. */}
           <div className="flex min-w-0 items-center gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-green-500 to-green-700 ring-1 ring-white/15">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-green-500 to-green-700 ring-1 ring-green-900/10 dark:ring-white/15">
               <SproutMark className="h-5 w-5 text-[#f4f7ec]" />
             </span>
             <span className="brand-wordmark truncate text-[15px] font-bold leading-none">Go Grameen</span>
@@ -185,14 +199,15 @@ export default function HomeLanding({
               below sm, so the row still fits at 390px — which is also why the
               language toggle runs at its `sm` size here. */}
           <div className="flex shrink-0 items-center gap-2">
-            <LanguageToggle size="sm" />
+            <LanguageToggle size="sm" variant={theme === 'dark' ? 'dark' : 'light'} />
             <Link
               href="/consumer"
-              className="hidden rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-bold text-lime-100 backdrop-blur-sm transition hover:border-lime-300/50 hover:text-white sm:inline-flex"
+              className="hidden rounded-full border border-green-900/12 bg-white px-4 py-2 text-xs font-bold text-green-900/75 shadow-sm backdrop-blur-sm transition hover:border-lime-600/40 hover:text-green-950 dark:border-white/15 dark:bg-white/5 dark:text-lime-100 dark:shadow-none dark:hover:border-lime-300/50 dark:hover:text-white sm:inline-flex"
             >
               {L('Open the app →', 'యాప్ తెరవండి →')}
             </Link>
             <HomeInstallCta size="compact" />
+            <HomeSettings />
           </div>
         </div>
 
@@ -206,7 +221,7 @@ export default function HomeLanding({
             <a
               key={n.href}
               href={n.href}
-              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold text-lime-100 backdrop-blur-sm transition hover:border-lime-300/50 hover:bg-white/10 hover:text-white"
+              className="rounded-full border border-green-900/10 bg-white px-4 py-2 text-xs font-bold text-green-900/75 shadow-sm backdrop-blur-sm transition hover:border-lime-600/40 hover:bg-lime-50 hover:text-green-950 dark:border-white/10 dark:bg-white/5 dark:text-lime-100 dark:shadow-none dark:hover:border-lime-300/50 dark:hover:bg-white/10 dark:hover:text-white"
             >
               {L(n.label[0], n.label[1])}
             </a>
@@ -218,8 +233,8 @@ export default function HomeLanding({
       <section className="relative z-10 mx-auto max-w-6xl px-4 pt-10 pb-16 sm:pt-16">
         <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_.9fr]">
           <div>
-            <span className="gghome-rise inline-flex items-center gap-2 rounded-full border border-lime-300/25 bg-lime-300/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-lime-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-lime-300" />
+            <span className="gghome-rise inline-flex items-center gap-2 rounded-full border border-lime-600/30 bg-lime-100 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-green-800 dark:border-lime-300/25 dark:bg-lime-300/10 dark:text-lime-200">
+              <span className="h-1.5 w-1.5 rounded-full bg-lime-600 dark:bg-lime-300" />
               {L('Farm direct · Harvested today', 'నేరుగా పొలం నుండి · నేడే కోత')}
             </span>
 
@@ -231,7 +246,7 @@ export default function HomeLanding({
               <span className="gghome-grad">{L('No middlemen.', 'మధ్యవర్తులు లేరు.')}</span>
             </h1>
 
-            <p className="gghome-rise mt-5 max-w-md text-base leading-relaxed text-lime-100/70 sm:text-lg" style={{ animationDelay: '.16s' }}>
+            <p className="gghome-rise mt-5 max-w-md text-base leading-relaxed text-green-900/75 dark:text-lime-100/70 sm:text-lg" style={{ animationDelay: '.16s' }}>
               {L(
                 'Go Grameen connects farmers directly to consumers.',
                 'గో గ్రామీణ్ రైతులను నేరుగా వినియోగదారులతో కలుపుతుంది.',
@@ -246,7 +261,7 @@ export default function HomeLanding({
               <HomeInstallCta count={installs} />
               <Link
                 href="/consumer"
-                className="w-full rounded-2xl border border-white/15 px-6 py-4 text-center text-sm font-bold text-white transition hover:border-lime-300/50 hover:bg-white/5 sm:w-auto"
+                className="w-full rounded-2xl border border-green-900/15 bg-white px-6 py-4 text-center text-sm font-bold text-green-950 shadow-sm transition hover:border-lime-600/50 hover:bg-lime-50 dark:border-white/15 dark:bg-transparent dark:text-white dark:shadow-none dark:hover:border-lime-300/50 dark:hover:bg-white/5 sm:w-auto"
               >
                 {L('Browse today’s harvest', 'నేటి కోతలు చూడండి')}
               </Link>
@@ -260,7 +275,7 @@ export default function HomeLanding({
                 {shots.slice(0, 4).map((s, i) => (
                   <div
                     key={s.id}
-                    className={`gghome-float relative aspect-square overflow-hidden rounded-3xl border border-white/10 shadow-2xl ${i % 2 ? 'mt-6' : ''}`}
+                    className={`gghome-float relative aspect-square overflow-hidden rounded-3xl border border-green-900/10 shadow-xl dark:border-white/10 dark:shadow-2xl ${i % 2 ? 'mt-6' : ''}`}
                     style={{ animationDelay: `${i * 0.9}s` }}
                   >
                     <Image
@@ -283,7 +298,7 @@ export default function HomeLanding({
       </section>
 
       {/* ── Pull quote ─────────────────────────────────────────────── */}
-      <section className="relative z-10 border-y border-white/10 bg-black/20 py-14 backdrop-blur-sm">
+      <section className="relative z-10 border-y border-green-900/10 bg-lime-50/70 py-14 backdrop-blur-sm dark:border-white/10 dark:bg-black/20">
         <div className="mx-auto max-w-4xl px-4 text-center">
           <p className="brand-wordmark text-2xl font-bold leading-snug sm:text-4xl">
             {L('“The farmer sets the price.', '“ధరను రైతే నిర్ణయిస్తారు.')}
@@ -300,10 +315,45 @@ export default function HomeLanding({
         <h2 className="brand-wordmark text-center text-2xl font-bold sm:text-3xl">
           {L('Where would you like to start?', 'మీరు ఎక్కడ మొదలుపెడతారు?')}
         </h2>
-        <p className="mx-auto mt-2 mb-8 max-w-md text-center text-sm text-lime-100/60">
+        <p className="mx-auto mt-2 mb-8 max-w-md text-center text-sm text-green-900/65 dark:text-lime-100/60">
           {L('One app, three ways in. You can switch any time.', 'ఒకే యాప్, మూడు దారులు. ఎప్పుడైనా మారవచ్చు.')}
         </p>
         <RoleSelect />
+      </section>
+
+      {/* ── Android app (direct APK) ───────────────────────────────── */}
+      {/* Deliberately its own section, and not folded into the closing CTA:
+          that one offers the browser install, this one hands over a real
+          signed APK. Sits mid-page rather than in the hero because the hero's
+          Download button already means the browser install — two download
+          buttons in one row would be a coin toss for the visitor. Promote
+          this one to the hero once the APK is the app we actually want on
+          people's phones. */}
+      <section id="android" className="relative z-10 mx-auto max-w-4xl px-4 py-16 scroll-mt-4">
+        <div className="relative overflow-hidden rounded-3xl border border-lime-600/25 bg-gradient-to-br from-lime-50 to-emerald-50 p-8 text-center shadow-sm backdrop-blur-sm dark:border-lime-300/25 dark:from-emerald-950/80 dark:to-green-900/60 dark:shadow-none sm:p-12">
+          <div aria-hidden className="gghome-blob pointer-events-none absolute -left-16 -bottom-16 h-64 w-64 rounded-full bg-lime-300/35 blur-3xl dark:bg-lime-400/15" />
+
+          <span className="inline-flex items-center gap-2 rounded-full border border-lime-600/30 bg-lime-100 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-green-800 dark:border-lime-300/25 dark:bg-lime-300/10 dark:text-lime-200">
+            <span className="h-1.5 w-1.5 rounded-full bg-lime-600 dark:bg-lime-300" />
+            {L('Android', 'ఆండ్రాయిడ్')}
+          </span>
+
+          <h2 className="brand-wordmark mt-4 text-3xl font-bold leading-tight sm:text-4xl">
+            {L('Get the', 'ఆండ్రాయిడ్ యాప్')}{' '}
+            <span className="gghome-grad">{L('Android app', 'పొందండి')}</span>
+          </h2>
+
+          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-green-900/75 dark:text-lime-100/70">
+            {L(
+              'Install it straight from here. It is not on the Play Store yet, so your phone will ask you to allow the install — we show you how.',
+              'ఇక్కడి నుండే ఇన్‌స్టాల్ చేసుకోండి. ఇంకా ప్లే స్టోర్‌లో లేదు, కాబట్టి మీ ఫోన్ అనుమతి అడుగుతుంది — ఎలాగో మేము చూపిస్తాం.',
+            )}
+          </p>
+
+          <div className="mt-8 flex flex-col items-center">
+            <HomeApkCta />
+          </div>
+        </div>
       </section>
 
       {/* ── Features (the nav's "About": what Go Grameen is) ───────── */}
@@ -315,31 +365,31 @@ export default function HomeLanding({
           {FEATURES.map((f, i) => (
             <div
               key={f.title[0]}
-              className="gghome-card gghome-rise rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm hover:border-lime-300/40"
+              className="gghome-card gghome-rise rounded-2xl border border-green-900/10 bg-white p-5 shadow-sm backdrop-blur-sm hover:border-lime-600/40 dark:border-white/10 dark:bg-white/5 dark:shadow-none dark:hover:border-lime-300/40"
               style={{ animationDelay: `${0.05 * i}s` }}
             >
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-lime-300/15 text-xl ring-1 ring-lime-300/25" aria-hidden>
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-lime-100 text-xl ring-1 ring-lime-600/20 dark:bg-lime-300/15 dark:ring-lime-300/25" aria-hidden>
                 {f.icon}
               </span>
-              <h3 className="mt-4 font-extrabold text-white">{L(f.title[0], f.title[1])}</h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-lime-100/60">{L(f.body[0], f.body[1])}</p>
+              <h3 className="mt-4 font-extrabold text-green-950 dark:text-white">{L(f.title[0], f.title[1])}</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-green-900/65 dark:text-lime-100/60">{L(f.body[0], f.body[1])}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* ── How it works ───────────────────────────────────────────── */}
-      <section id="how" className="relative z-10 border-y border-white/10 bg-black/20 py-16 backdrop-blur-sm scroll-mt-4">
+      <section id="how" className="relative z-10 border-y border-green-900/10 bg-lime-50/70 py-16 backdrop-blur-sm dark:border-white/10 dark:bg-black/20 scroll-mt-4">
         <div className="mx-auto max-w-5xl px-4">
           <h2 className="brand-wordmark text-center text-2xl font-bold sm:text-3xl">
             {L('Three taps to fresh food', 'మూడు ట్యాప్‌లలో తాజా ఆహారం')}
           </h2>
           <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
             {STEPS.map((s) => (
-              <div key={s.n} className="relative rounded-2xl border border-white/10 bg-white/5 p-6">
-                <span className="brand-wordmark block text-4xl font-bold text-lime-300/30">{s.n}</span>
-                <h3 className="mt-2 font-extrabold text-white">{L(s.title[0], s.title[1])}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-lime-100/60">{L(s.body[0], s.body[1])}</p>
+              <div key={s.n} className="relative rounded-2xl border border-green-900/10 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-white/5 dark:shadow-none">
+                <span className="brand-wordmark block text-4xl font-bold text-lime-600/35 dark:text-lime-300/30">{s.n}</span>
+                <h3 className="mt-2 font-extrabold text-green-950 dark:text-white">{L(s.title[0], s.title[1])}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-green-900/65 dark:text-lime-100/60">{L(s.body[0], s.body[1])}</p>
               </div>
             ))}
           </div>
@@ -352,7 +402,7 @@ export default function HomeLanding({
           <h2 className="brand-wordmark text-center text-2xl font-bold sm:text-3xl">
             {L('On the app right now', 'ఇప్పుడు యాప్‌లో ఉన్నవి')}
           </h2>
-          <p className="mt-2 text-center text-sm text-lime-100/60">
+          <p className="mt-2 text-center text-sm text-green-900/65 dark:text-lime-100/60">
             {L('Real listings from real farms — not stock photos.', 'నిజమైన పొలాల నుండి నిజమైన ఉత్పత్తులు — స్టాక్ ఫోటోలు కాదు.')}
           </p>
           <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -360,7 +410,7 @@ export default function HomeLanding({
               <Link
                 key={s.id}
                 href="/consumer"
-                className="gghome-card group relative aspect-square overflow-hidden rounded-2xl border border-white/10"
+                className="gghome-card group relative aspect-square overflow-hidden rounded-2xl border border-green-900/10 dark:border-white/10"
               >
                 <Image
                   src={s.image_url}
@@ -382,9 +432,9 @@ export default function HomeLanding({
       {/* id is the target the header pill uses on iOS, where there is no
           install dialog and the manual steps have to be reachable. */}
       <section id="install" className="relative z-10 mx-auto max-w-4xl px-4 pb-20 scroll-mt-20">
-        <div className="relative overflow-hidden rounded-3xl border border-lime-300/25 bg-gradient-to-br from-green-900/80 to-emerald-950/80 p-8 text-center backdrop-blur-sm sm:p-14">
-          <div aria-hidden className="gghome-blob pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-lime-400/20 blur-3xl" />
-          <SproutMark className="mx-auto h-10 w-10 text-lime-300" />
+        <div className="relative overflow-hidden rounded-3xl border border-lime-600/25 bg-gradient-to-br from-emerald-50 to-lime-50 p-8 text-center shadow-sm backdrop-blur-sm dark:border-lime-300/25 dark:from-green-900/80 dark:to-emerald-950/80 dark:shadow-none sm:p-14">
+          <div aria-hidden className="gghome-blob pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-lime-300/40 blur-3xl dark:bg-lime-400/20" />
+          <SproutMark className="mx-auto h-10 w-10 text-lime-600 dark:text-lime-300" />
           {/* Telugu puts the verb last, so the sentence is split into three
               slots and the trailing one is empty in English. */}
           <h2 className="brand-wordmark mt-4 text-3xl font-bold leading-tight sm:text-4xl">
@@ -392,7 +442,7 @@ export default function HomeLanding({
             <span className="gghome-grad">{L('on your home screen', 'మీ హోమ్ స్క్రీన్‌లో')}</span>
             {L('', ' పెట్టుకోండి')}
           </h2>
-          <p className="mx-auto mt-3 max-w-md text-sm text-lime-100/70">
+          <p className="mx-auto mt-3 max-w-md text-sm text-green-900/75 dark:text-lime-100/70">
             {L(
               'No Play Store. No download. It installs straight from your browser and opens like any other app.',
               'ప్లే స్టోర్ అవసరం లేదు. డౌన్‌లోడ్ లేదు. బ్రౌజర్ నుండే ఇన్‌స్టాల్ అయి మిగతా యాప్‌ల లాగే తెరుచుకుంటుంది.',
@@ -405,11 +455,11 @@ export default function HomeLanding({
       </section>
 
       {/* ── Footer ─────────────────────────────────────────────────── */}
-      <footer id="contact" className="relative z-10 border-t border-white/10 px-4 py-10 text-center scroll-mt-4">
-        <div className="mt-1 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs font-semibold text-lime-100/60">
-          <Link href="/consumer" className="hover:text-lime-300">{L('Browse harvests', 'కోతలు చూడండి')}</Link>
-          <Link href="/farmer/login" className="hover:text-lime-300">{L('Farmer login', 'రైతు లాగిన్')}</Link>
-          <Link href="/aggregator/login" className="hover:text-lime-300">{L('Aggregator login', 'అగ్రిగేటర్ లాగిన్')}</Link>
+      <footer id="contact" className="relative z-10 border-t border-green-900/10 px-4 py-10 text-center dark:border-white/10 scroll-mt-4">
+        <div className="mt-1 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs font-semibold text-green-900/65 dark:text-lime-100/60">
+          <Link href="/consumer" className="hover:text-lime-700 dark:hover:text-lime-300">{L('Browse harvests', 'కోతలు చూడండి')}</Link>
+          <Link href="/farmer/login" className="hover:text-lime-700 dark:hover:text-lime-300">{L('Farmer login', 'రైతు లాగిన్')}</Link>
+          <Link href="/aggregator/login" className="hover:text-lime-700 dark:hover:text-lime-300">{L('Aggregator login', 'అగ్రిగేటర్ లాగిన్')}</Link>
         </div>
 
         {/* Contact. Real mailto:/tel: links, not plain text — on a phone the
@@ -418,10 +468,10 @@ export default function HomeLanding({
         <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
           <a
             href="mailto:GovuGrameenam@gmail.com"
-            className="inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-lime-100 transition hover:border-lime-300/50 hover:text-white"
+            className="inline-flex items-center gap-2.5 rounded-full border border-green-900/10 bg-white px-4 py-2.5 text-sm font-semibold text-green-900 shadow-sm transition hover:border-lime-600/40 hover:text-green-950 dark:border-white/10 dark:bg-white/5 dark:text-lime-100 dark:shadow-none dark:hover:border-lime-300/50 dark:hover:text-white"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9}
-                 strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-lime-300" aria-hidden>
+                 strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-lime-700 dark:text-lime-300" aria-hidden>
               <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" />
               <path d="m3 7 8.2 5.6a1.5 1.5 0 0 0 1.6 0L21 7" />
             </svg>
@@ -430,17 +480,17 @@ export default function HomeLanding({
 
           <a
             href="tel:+919603174271"
-            className="inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-lime-100 transition hover:border-lime-300/50 hover:text-white"
+            className="inline-flex items-center gap-2.5 rounded-full border border-green-900/10 bg-white px-4 py-2.5 text-sm font-semibold text-green-900 shadow-sm transition hover:border-lime-600/40 hover:text-green-950 dark:border-white/10 dark:bg-white/5 dark:text-lime-100 dark:shadow-none dark:hover:border-lime-300/50 dark:hover:text-white"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9}
-                 strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-lime-300" aria-hidden>
+                 strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-lime-700 dark:text-lime-300" aria-hidden>
               <path d="M6.2 3.5h3l1.5 4-2 1.4a12.5 12.5 0 0 0 6.4 6.4l1.4-2 4 1.5v3a2 2 0 0 1-2.2 2A17.5 17.5 0 0 1 4.2 5.7a2 2 0 0 1 2-2.2Z" />
             </svg>
             9603174271
           </a>
         </div>
 
-        <p className="mt-7 text-xs text-lime-100/40">
+        <p className="mt-7 text-xs text-green-900/45 dark:text-lime-100/40">
           Go Grameen · Your Family Farmer
         </p>
       </footer>

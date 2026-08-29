@@ -55,8 +55,10 @@ mod.md
 moderator.pdf
 GoGrameen_Moderator_Spec_v2*
 
-# Build artefacts and briefs — binaries don't belong in git (they bloat the
-# repo permanently and can't be diffed). Ship the APK via a GitHub Release or
-# public/downloads instead.
+# Stray APKs and the PDF briefs: binaries bloat the repo permanently and can't
+# be diffed. The ONE exception is public/downloads/, which the site actually
+# serves — /home links straight at it (see src/lib/apkRelease.ts), so it has to
+# be in the repo or the download button 404s.
 *.apk
+!public/downloads/*.apk
 *.pdf
