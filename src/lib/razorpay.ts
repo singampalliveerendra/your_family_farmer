@@ -156,3 +156,53 @@ export async function fetchPaymentMethodLabel(paymentId: string): Promise<string
     return null
   }
 }
+
+/**
+ * What actually settled for a payment, straight from Razorpay.
+ *
+ * The checkout callback's HMAC proves Razorpay issued the payment id against
+ * our order id — it says nothing about whether the money was captured or how
+ * much of it. With partial payments enabled, a perfectly-signed callback can
+ * point at a capture worth a fraction of the order. So /verify asks here before
+ * marking anything paid.
+ *
+ * `expectedAmount` is the order's own amount as Razorpay recorded it at create
+ * time, which is the figure our server computed — comparing the payment against
+ * it needs no trust in the client.
+ *
+ * Returns null when Razorpay can't be reached. The caller treats that as
+ * "unknown, proceed on the signature alone" rather than failing a real payment
+ * because of a transient API error — the webhook is the backstop either way.
+ */
+export async function fetchPaymentSettlement(paymentId: string): Promise<
+  { status: string; amount: number; orderId: string | null; expectedAmount: number | null } | null
+> {
+  try {
+    const client = getRazorpayClient()
+    const p = await client.payments.fetch(paymentId) as unknown as {
+      status?: string; amount?: number | string; order_id?: string | null
+    }
+    const orderId = p.order_id ? String(p.order_id) : null
+
+    let expectedAmount: number | null = null
+    if (orderId) {
+      try {
+        const o = await client.orders.fetch(orderId) as unknown as { amount?: number | string }
+        const amt = Number(o.amount)
+        if (Number.isFinite(amt)) expectedAmount = amt
+      } catch {
+        // Order lookup is best-effort; the status check below still applies.
+      }
+    }
+
+    return {
+      status: String(p.status ?? ''),
+      amount: Number(p.amount) || 0,
+      orderId,
+      expectedAmount,
+    }
+  } catch (e) {
+    console.error('[YFF razorpay] payment settlement lookup failed:', e)
+    return null
+  }
+}

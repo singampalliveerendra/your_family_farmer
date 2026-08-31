@@ -242,6 +242,10 @@ type UpiPaymentState = {
   qrCodeUrl?: string
   amount: number
   orderIds: string[]
+  // Guest checkout has no session cookie, so the post-payment routes are
+  // authorised by this short-lived token from /api/orders/place — it is bound to
+  // exactly these order ids. Absent (and unnecessary) for signed-in buyers.
+  guestToken?: string
   farmerId: string
   buyerName: string
   buyerPhone: string
@@ -477,11 +481,19 @@ export function CartSheet({
       // Surface the UTR as the Transaction ID on the success screen.
       setUpiScreen({ ...screen, transactionId: utrRef.trim() })
     }
-    await Promise.all(
-      screen.orderIds.map((id) =>
-        supabase.from('orders').update(updateData).eq('id', id)
-      )
-    )
+    // Server-side: the route re-derives who may touch these rows from the
+    // session cookie (or the guest token) and only ever sets
+    // 'pending_confirmation' — the browser can no longer name a payment status.
+    await fetch('/api/consumer/orders/payment-claimed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        orderIds: screen.orderIds,
+        utr: utrRef.trim() || undefined,
+        guestToken: screen.guestToken,
+      }),
+    }).catch(() => null)
     clearFarmer(screen.farmerId)
     localStorage.removeItem(UPI_PENDING_KEY)
     localStorage.removeItem(UPI_LAUNCHED_KEY)
@@ -683,6 +695,7 @@ export function CartSheet({
         ok: true; orderIds: string[]; total: number
         platformFee: number; deliveryFee: number
         codDeposit: number; codBalanceDue: number
+        guestToken?: string
       }
     | { ok: false; error: string }
   > => {
@@ -735,6 +748,7 @@ export function CartSheet({
       deliveryFee: Number(json.deliveryFee) || 0,
       codDeposit: Number(json.codDeposit) || 0,
       codBalanceDue: Number(json.codBalanceDue) || 0,
+      guestToken: typeof json.guestToken === 'string' ? json.guestToken : undefined,
     }
   }
 
@@ -746,7 +760,7 @@ export function CartSheet({
   // a confirmed order the buyer never paid a deposit on.
   const payCodDeposit = async (
     group: CartItem[],
-    placed: { orderIds: string[]; total: number; codDeposit: number; codBalanceDue: number },
+    placed: { orderIds: string[]; total: number; codDeposit: number; codBalanceDue: number; guestToken?: string },
   ) => {
     const f = group[0]
     const buyerPhone = phone.replace(/\D/g, '').slice(-10)
@@ -759,7 +773,7 @@ export function CartSheet({
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderIds: placed.orderIds }),
+        body: JSON.stringify({ orderIds: placed.orderIds, guestToken: placed.guestToken }),
       })
         .then((r) => r.json().catch(() => null))
         .catch(() => null),
@@ -770,7 +784,7 @@ export function CartSheet({
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderIds: placed.orderIds }),
+        body: JSON.stringify({ orderIds: placed.orderIds, guestToken: placed.guestToken }),
       }).catch(() => {})
     }
 
@@ -795,6 +809,7 @@ export function CartSheet({
       amount: placed.codDeposit,
       codBalanceDue: placed.codBalanceDue,
       orderIds: placed.orderIds,
+      guestToken: placed.guestToken,
       farmerId: f.farmerId,
       buyerName: name.trim(),
       buyerPhone,
@@ -903,6 +918,7 @@ export function CartSheet({
       qrCodeUrl: undefined,
       amount: result.total,
       orderIds: result.orderIds,
+      guestToken: result.guestToken,
       farmerId: f.farmerId,
       buyerName: name.trim(),
       buyerPhone,
@@ -959,6 +975,7 @@ export function CartSheet({
       qrCodeUrl,
       amount: result.total,
       orderIds: result.orderIds,
+      guestToken: result.guestToken,
       farmerId: f.farmerId,
       buyerName: name.trim(),
       buyerPhone: buyerPhone,
@@ -1001,7 +1018,7 @@ export function CartSheet({
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderIds: result.orderIds }),
+        body: JSON.stringify({ orderIds: result.orderIds, guestToken: result.guestToken }),
       })
         .then((r) => r.json().catch(() => null))
         .catch(() => null),
@@ -1033,6 +1050,7 @@ export function CartSheet({
       platformFee: Math.max(0, Number(createRes.platformFee) || result.platformFee || 0),
       deliveryFee: Math.max(0, Number(createRes.deliveryFee) || result.deliveryFee || 0),
       orderIds: result.orderIds,
+      guestToken: result.guestToken,
       farmerId: f.farmerId,
       buyerName: name.trim(),
       buyerPhone,
@@ -1057,7 +1075,7 @@ export function CartSheet({
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderIds: result.orderIds }),
+        body: JSON.stringify({ orderIds: result.orderIds, guestToken: result.guestToken }),
       }).catch(() => {})
     }
 
@@ -1147,12 +1165,16 @@ export function CartSheet({
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderIds: ids }),
+        body: JSON.stringify({ orderIds: ids, guestBatches }),
       }).catch(() => {})
 
     // 1. Place every farmer's orders (status pending), gathering all ids and the
     //    running subtotal. If any group fails, undo the ones already placed.
     const allOrderIds: string[] = []
+    // Guest checkout mints one token per placement, each bound to that farmer's
+    // ids only — no single token can cover the combined batch, so we carry them
+    // all and let the server require their union to match.
+    const guestBatches: Array<{ orderIds: string[]; token: string }> = []
     let subtotal = 0
     for (const group of farmerGroups) {
       const result = await placeOrderViaApi(group, 'razorpay')
@@ -1163,6 +1185,7 @@ export function CartSheet({
         return
       }
       allOrderIds.push(...result.orderIds)
+      if (result.guestToken) guestBatches.push({ orderIds: result.orderIds, token: result.guestToken })
       subtotal += result.total
     }
 
@@ -1173,7 +1196,7 @@ export function CartSheet({
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderIds: allOrderIds }),
+        body: JSON.stringify({ orderIds: allOrderIds, guestBatches }),
       })
         .then((r) => r.json().catch(() => null))
         .catch(() => null),
@@ -1322,11 +1345,12 @@ export function CartSheet({
   const handleCashOnPickup = async () => {
     if (!upiScreen) return
     setSwitchingToCash(true)
-    await Promise.all(
-      upiScreen.orderIds.map((id) =>
-        supabase.from('orders').update({ payment_method: 'cod', payment_status: 'pending' }).eq('id', id)
-      )
-    )
+    await fetch('/api/consumer/orders/switch-to-cod', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ orderIds: upiScreen.orderIds, guestToken: upiScreen.guestToken }),
+    }).catch(() => null)
     clearFarmer(upiScreen.farmerId)
     localStorage.removeItem(UPI_PENDING_KEY)
     localStorage.removeItem(UPI_LAUNCHED_KEY)

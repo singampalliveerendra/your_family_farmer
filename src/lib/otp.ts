@@ -23,7 +23,7 @@ export const MAX_OTP_ATTEMPTS = 5
 const STAGING_OTP = '123456'
 
 function isStaging(): boolean {
-  return process.env.VERCEL_ENV === 'preview'
+  return process.env.YFF_ENV === 'staging' || process.env.VERCEL_ENV === 'preview'
 }
 
 /** Cryptographically random 6-digit code, zero-padded. Math.random() is not

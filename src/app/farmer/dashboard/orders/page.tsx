@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useOrderPolling } from '@/lib/useOrderPolling'
 import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
 import OrderCard, { type FarmerOrder as Order, isResolved } from '@/components/farmer/OrderCard'
@@ -80,13 +81,14 @@ function OrdersPageInner() {
     // Explicit columns: handover_otp is deliberately NOT fetched — the pickup
     // code must come from the customer, so the farmer's browser never sees it.
     // Every status is fetched (this page is the full orders hub).
-    const { data } = await supabase
-      .from('orders')
-      .select('id, farmer_id, order_code, produce_listing_id, harvest_id, harvest:harvests(harvested_at, shelf_life_days), produce_name, quantity, unit, total_price, delivery_fee, platform_fee, buyer_name, buyer_phone, pickup_location, pickup_phone, status, payment_method, payment_status, utr_number, decline_reason, refund_status, refund_amount, refunded_at, delivery_type, delivery_status, delivery_boy_id, assigned_at, picked_up_at, out_for_delivery_at, delivered_at, collected_at, shipped_at, received_at, fulfillment_date, created_at, acknowledged_at')
-      .eq('farmer_id', farmerId)
-      .order('created_at', { ascending: false })
+    // Read through the API route, not the anon key. The farmer id is taken from
+    // the signed session cookie server-side, so the scoping is enforced rather
+    // than merely requested — the old .eq('farmer_id', ...) here was a filter
+    // anyone could change or drop.
+    const r = await fetch('/api/farmer/orders?scope=all', { credentials: 'same-origin' }).catch(() => null)
+    const json = r && r.ok ? await r.json().catch(() => null) : null
 
-    setOrders((data ?? []) as Order[])
+    setOrders((json?.orders ?? []) as Order[])
     setLoading(false)
   }, [])
 
@@ -111,18 +113,10 @@ function OrdersPageInner() {
   // cancelled order — until a manual refresh. Refetch (silently) on any order
   // change for this farmer, and whenever the tab regains focus as a safety net
   // for dropped websockets on spotty 4G.
-  useEffect(() => {
-    if (!farmerId) return
-    const channel = supabase
-      .channel(`farmer_orders_page_${farmerId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders', filter: `farmer_id=eq.${farmerId}` },
-        () => { void load(true) },
-      )
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [farmerId, load])
+  // Polling, not realtime: `orders` is no longer readable with the anon key, and
+  // a postgres_changes subscription on a table the role can't SELECT goes quiet
+  // without erroring. See src/lib/useOrderPolling.ts.
+  useOrderPolling(() => load(true), !!farmerId)
 
   useEffect(() => {
     const refetch = () => { if (document.visibilityState === 'visible') void load(true) }
@@ -144,16 +138,15 @@ function OrdersPageInner() {
     setOrders((prev) => prev.map((o) => (o.id === orderId
       ? { ...o, fulfillment_date: value, ...(reason ? { reschedule_reason: reason } : {}) }
       : o)))
-    // Date first — this always succeeds.
-    await supabase.from('orders').update({ fulfillment_date: value }).eq('id', orderId)
-    // Reason is best-effort: the reschedule_reason / rescheduled_at columns may
-    // not exist until scripts/reschedule-reason-migration.sql is applied, so a
-    // missing column must never block the date change itself.
-    if (reason) {
-      await supabase.from('orders')
-        .update({ reschedule_reason: reason, rescheduled_at: new Date().toISOString() })
-        .eq('id', orderId)
-    }
+    // Date and reason go in ONE authenticated call, so a buyer can never see a
+    // new date still carrying the previous reason.
+    const r = await fetch(`/api/farmer/orders/${orderId}/schedule`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ fulfillmentDate: value, reason: reason ?? '' }),
+    }).catch(() => null)
+    if (!r || !r.ok) await load(true)
   }
 
   // Approving requires a pickup/delivery date; the order then stays as approved
@@ -165,13 +158,13 @@ function OrdersPageInner() {
     // declined) since this list loaded, the update matches 0 rows so we never
     // resurrect a cancelled/declined order into 'approved'. Re-sync and tell the
     // farmer instead of silently flipping it back to active.
-    const { data, error } = await supabase
-      .from('orders')
-      .update({ status: 'approved', fulfillment_date: date, confirmed_at: new Date().toISOString() })
-      .eq('id', orderId)
-      .eq('status', 'pending')
-      .select('id')
-    if (error || !data?.length) {
+    const r = await fetch(`/api/farmer/orders/${orderId}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ fulfillmentDate: date }),
+    }).catch(() => null)
+    if (!r || !r.ok) {
       await load(true)
       setProcessingOrderId(null)
       alert(L('This order can no longer be approved — the buyer may have cancelled it.', 'ఈ ఆర్డర్‌ను ఇప్పుడు ఆమోదించలేరు — కొనుగోలుదారు రద్దు చేసి ఉండవచ్చు.'))
@@ -313,26 +306,35 @@ function OrdersPageInner() {
 
   const handleMarkPaid = async (orderId: string) => {
     setProcessingPaidId(orderId)
-    await supabase.from('orders').update({ payment_status: 'completed', paid_at: new Date().toISOString() }).eq('id', orderId)
+    const r = await fetch(`/api/farmer/orders/${orderId}/payment-status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ status: 'completed' }),
+    }).catch(() => null)
+    if (!r || !r.ok) {
+      await load(true)
+      setProcessingPaidId(null)
+      const msg = r ? (await r.json().catch(() => null))?.error : null
+      alert(msg ?? L('Could not update. Please try again.', 'నవీకరించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
+      return
+    }
     setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, payment_status: 'completed' } : o)))
     setProcessingPaidId(null)
   }
 
   const handleUpdatePaymentStatus = async (orderId: string, status: 'completed' | 'failed' | 'pending') => {
     setProcessingPaidId(orderId)
-    const update: Record<string, string> = { payment_status: status }
-    if (status === 'completed') {
-      update.status = 'approved'
-      update.paid_at = new Date().toISOString()
-      update.confirmed_at = new Date().toISOString()
-    }
-    // "Received & Approve" flips status to 'approved'; guard it on the order
-    // still being pending so a buyer-cancelled order can't be resurrected. A
-    // plain payment_status change (failed/pending) is harmless to apply.
-    let query = supabase.from('orders').update(update).eq('id', orderId)
-    if (status === 'completed') query = query.eq('status', 'pending')
-    const { data, error } = await query.select('id')
-    if (status === 'completed' && (error || !data?.length)) {
+    // "Received & Approve" flips status to 'approved'; the route guards it on the
+    // order still being pending so a buyer-cancelled order can't be resurrected.
+    // A plain payment_status change (failed/pending) is harmless to apply.
+    const r = await fetch(`/api/farmer/orders/${orderId}/payment-status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ status }),
+    }).catch(() => null)
+    if (!r || !r.ok) {
       await load(true)
       setProcessingPaidId(null)
       alert(L('This order can no longer be approved — the buyer may have cancelled it.', 'ఈ ఆర్డర్‌ను ఇప్పుడు ఆమోదించలేరు — కొనుగోలుదారు రద్దు చేసి ఉండవచ్చు.'))

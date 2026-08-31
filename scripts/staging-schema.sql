@@ -700,6 +700,18 @@ ALTER TABLE public.platform_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.harvests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.farmer_follows ENABLE ROW LEVEL SECURITY;
 
+-- ===== BROWSER (anon) ACCESS =====
+-- `orders` has NO anon policy and NO anon grant on purpose: the browser does
+-- not authenticate to Postgres, so RLS has no auth.uid() to scope rows by.
+-- Every order read and write goes through an API route that verifies the
+-- app's signed session cookie and queries with the service role. See
+-- scripts/anon-lockdown-orders-reviews.sql for the full reasoning.
+-- Do not "restore" a USING(true) policy here to make a screen work — move the
+-- query behind a route instead.
+--
+-- `reviews` is readable by anon for APPROVED rows only, via column-level GRANT
+-- (reviewer_phone is excluded as PII). Writes go through /api/reviews, which
+-- enforces the rate limits a direct insert would skip.
 CREATE POLICY "public insert demand_intents" ON public.demand_intents FOR INSERT TO public WITH CHECK (true);
 CREATE POLICY "public read demand_intents" ON public.demand_intents FOR SELECT TO public USING (true);
 CREATE POLICY "public update demand_intents" ON public.demand_intents FOR UPDATE TO public USING (true) WITH CHECK (true);
@@ -719,11 +731,6 @@ CREATE POLICY "Public read media" ON public.media FOR SELECT TO public USING (tr
 CREATE POLICY "media public delete" ON public.media FOR DELETE TO public USING (true);
 CREATE POLICY "media public update" ON public.media FOR UPDATE TO public USING (true) WITH CHECK (true);
 CREATE POLICY "Public insert notify" ON public.notify_requests FOR INSERT TO public WITH CHECK (true);
-CREATE POLICY "authenticated insert orders" ON public.orders FOR INSERT TO public WITH CHECK (true);
-CREATE POLICY "public read orders" ON public.orders FOR SELECT TO public USING (true);
-CREATE POLICY "public_insert" ON public.orders FOR INSERT TO public WITH CHECK (true);
-CREATE POLICY "public_select" ON public.orders FOR SELECT TO public USING (true);
-CREATE POLICY "public_update" ON public.orders FOR UPDATE TO public USING (true);
 CREATE POLICY "Public read platform settings" ON public.platform_settings FOR SELECT TO public USING (true);
 CREATE POLICY "Allow insert produce" ON public.produce_listings FOR INSERT TO anon WITH CHECK (true);
 CREATE POLICY "Public read produce" ON public.produce_listings FOR SELECT TO public USING (true);
@@ -732,8 +739,6 @@ CREATE POLICY "produce_listings public update" ON public.produce_listings FOR UP
 CREATE POLICY "produce_reviews public read" ON public.produce_reviews FOR SELECT TO public USING ((approved = true));
 CREATE POLICY "Public read regions" ON public.regions FOR SELECT TO public USING (true);
 CREATE POLICY "Public read reviews" ON public.reviews FOR SELECT TO public USING ((approved = true));
-CREATE POLICY "public_insert_reviews" ON public.reviews FOR INSERT TO public WITH CHECK (true);
-CREATE POLICY "public_select_reviews" ON public.reviews FOR SELECT TO public USING (true);
 CREATE POLICY "anon insert wa_clicks" ON public.wa_clicks FOR INSERT TO anon WITH CHECK (true);
 CREATE POLICY "anyone can insert wa_clicks" ON public.wa_clicks FOR INSERT TO public WITH CHECK (true);
 CREATE POLICY "anyone can read wa_clicks" ON public.wa_clicks FOR SELECT TO public USING (true);

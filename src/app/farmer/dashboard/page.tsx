@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useOrderPolling } from '@/lib/useOrderPolling'
 import { FARMER_PUBLIC_COLUMNS } from '@/lib/farmerColumns'
 import Link from 'next/link'
 import NextImage from 'next/image'
@@ -145,6 +146,13 @@ type DashboardListing = {
 
 // The Order shape, DeliveryStatus and isResolved() now live in the shared
 // farmer OrderCard component and are imported above.
+
+// Every column FarmerOrder needs, as ONE single-quoted literal. It must stay a
+// literal: joining or concatenating widens the type to `string`, which makes
+// supabase-js degrade every consumer to GenericStringError (the same trap
+// src/lib/farmerColumns.ts documents for farmers).
+const FARMER_ORDER_COLUMNS =
+  'id, farmer_id, order_code, produce_listing_id, harvest_id, harvest:harvests(harvested_at, shelf_life_days), produce_name, quantity, unit, total_price, delivery_fee, platform_fee, buyer_name, buyer_phone, pickup_location, pickup_phone, status, payment_method, payment_status, cod_deposit, cod_balance_due, utr_number, decline_reason, refund_status, refund_amount, refunded_at, delivery_type, delivery_status, delivery_boy_id, assigned_at, picked_up_at, out_for_delivery_at, delivered_at, collected_at, shipped_at, received_at, fulfillment_date, created_at, acknowledged_at'
 
 const UNIT_OPTIONS = (L: (en: string, te: string) => string) => [
   { value: 'kg', label: 'kg' },
@@ -297,34 +305,31 @@ export default function FarmerDashboard() {
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
 
-    const [listingsRes, pendingRes, approvedRes, monthlyRes, todayRes] = await Promise.all([
+    // Orders come from the authenticated route (farmer id from the session
+    // cookie); listings still read the public catalogue with the anon key.
+    // `todayStart`/`monthStart` are the FARMER's local midnight, so they are
+    // passed up rather than recomputed server-side, where the clock is UTC.
+    const ordersUrl = `/api/farmer/orders?scope=active&todayStart=${encodeURIComponent(todayStart.toISOString())}&monthStart=${encodeURIComponent(monthStart.toISOString())}`
+    const [listingsRes, ordersRes] = await Promise.all([
       // Full (lightweight) listing rows so the dashboard can show them inline
       // with a quick suspend/resume; the active-listings count is derived below.
       supabase.from('produce_listings').select('id, name, emoji, status, price_tier_1_price, unit, stock_qty, rating_avg, review_count').eq('farmer_id', farmerData.id).order('created_at', { ascending: false }),
-      // Active orders = still pending, OR approved but not yet picked up/delivered,
-      // OR buyer-cancelled but not yet acknowledged by the farmer. Approved orders
-      // stay here so the farmer keeps the scheduled date in view until the buyer
-      // collects (or the rider delivers); a buyer-cancelled order stays until the
-      // farmer taps Acknowledge so the cancellation never goes unnoticed.
-      supabase.from('orders').select('*').eq('farmer_id', farmerData.id).or('status.eq.pending,status.eq.approved,and(status.eq.cancelled,acknowledged_at.is.null)').order('created_at', { ascending: false }),
-      supabase.from('orders').select('id, total_price').eq('farmer_id', farmerData.id).eq('status', 'approved').gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString()),
-      supabase.from('orders').select('id, total_price, created_at').eq('farmer_id', farmerData.id).eq('status', 'approved').gte('created_at', monthStart.toISOString()),
-      // Today's orders — every order placed since local midnight, any status,
-      // to match the Orders list opened by the tile's ?time=today link.
-      supabase.from('orders').select('id', { count: 'exact', head: true }).eq('farmer_id', farmerData.id).gte('created_at', todayStart.toISOString()),
+      fetch(ordersUrl, { credentials: 'same-origin' })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
     ])
 
     setListings((listingsRes.data ?? []) as DashboardListing[])
     // Drop approved orders that are already resolved (collected / delivered).
-    const activeOrders = (pendingRes.data ?? []).filter((o) => !isResolved(o as Order)) as Order[]
+    const activeOrders = ((ordersRes?.orders ?? []) as Order[]).filter((o) => !isResolved(o))
     setPendingOrders(activeOrders)
-    setTodayCount(todayRes.count ?? 0)
-    const approved = approvedRes.data ?? []
+    setTodayCount(ordersRes?.todayCount ?? 0)
+    const approved = (ordersRes?.weekOrders ?? []) as Array<{ total_price: number | null }>
     setApprovedCount(approved.length)
     setTotalRevenue(approved.reduce((sum, o) => sum + (o.total_price ?? 0), 0))
 
     // Monthly earnings
-    const monthly = monthlyRes.data ?? []
+    const monthly = (ordersRes?.monthOrders ?? []) as Array<{ total_price: number | null; created_at: string }>
     setMonthlyRevenue(monthly.reduce((sum, o) => sum + (o.total_price ?? 0), 0))
     setMonthlyOrderCount(monthly.length)
 
@@ -386,6 +391,19 @@ export default function FarmerDashboard() {
   // Fires a browser notification when:
   //   - A new pending order is inserted
   //   - An existing order's payment_status flips to payment_claimed (incl. retries)
+  // New-order / status-change notifications.
+  //
+  // This used to ride on a Supabase realtime subscription, which read `orders`
+  // with the anon key. That key can no longer see the table (the whole point of
+  // the lockdown), and postgres_changes on an unreadable table simply goes
+  // quiet — no error on the channel — so the farmer would have stopped being
+  // told about new orders with nothing to show why.
+  //
+  // Instead we diff each poll against the previous snapshot. The transitions we
+  // care about are exactly the ones the realtime handlers watched for: a new
+  // pending order, a buyer cancelling, a buyer claiming payment, and a buyer
+  // confirming receipt.
+  const prevOrdersRef = useRef<Map<string, Order> | null>(null)
   useEffect(() => {
     if (!farmer) return
 
@@ -398,79 +416,58 @@ export default function FarmerDashboard() {
       } catch { /* some browsers throw on background tabs — ignore */ }
     }
 
-    const channel = supabase
-      .channel(`orders_${farmer.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'orders', filter: `farmer_id=eq.${farmer.id}` },
-        (payload) => {
-          const row = payload.new as Order
-          // A freshly inserted order is placed today, so it counts toward the
-          // "Today's orders" tile regardless of its initial status.
-          setTodayCount((c) => c + 1)
-          if (row.status !== 'pending') return
-          setPendingOrders((prev) => prev.some((o) => o.id === row.id) ? prev : [row, ...prev])
+    const prev = prevOrdersRef.current
+    const next = new Map(pendingOrders.map((o) => [o.id, o]))
+
+    // First load after mount seeds the baseline: everything already on screen is
+    // pre-existing, not news.
+    if (prev === null) { prevOrdersRef.current = next; return }
+
+    for (const [id, row] of next) {
+      const before = prev.get(id)
+      if (!before) {
+        // Newly appeared in the active list.
+        if (row.status === 'pending') {
           fireNotification(
             `New order from ${row.buyer_name ?? 'buyer'}`,
             `${row.produce_name ?? ''} ${row.quantity ?? ''} ${row.unit ?? ''}${row.total_price ? ` · ₹${row.total_price}` : ''}`.trim(),
           )
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'orders', filter: `farmer_id=eq.${farmer.id}` },
-        (payload) => {
-          const row = payload.new as Order
-          const prev = payload.old as Partial<Order>
-          // An order stays in the active list while it's pending, approved-and-
-          // awaiting fulfillment, or buyer-cancelled-but-not-yet-acknowledged.
-          // Anything else (declined, resolved, acknowledged cancel) drops out.
-          const stillActive =
-            row.status === 'pending'
-            || (row.status === 'approved' && !isResolved(row))
-            || (row.status === 'cancelled' && !row.acknowledged_at)
-          if (!stillActive) {
-            // Buyer just confirmed receipt of a courier order — tell the farmer
-            // before it drops out of the active list and into history.
-            if (row.received_at && !prev.received_at) {
-              fireNotification(
-                L('Order received ✓', 'అందుకున్నారు'),
-                `${row.buyer_name ?? 'Buyer'} confirmed they received ${row.produce_name ?? 'the order'}`,
-              )
-            }
-            setPendingOrders((cur) => cur.filter((o) => o.id !== row.id))
-            return
-          }
-          // Still active (pending, approved-and-awaiting, or a fresh buyer
-          // cancellation): update or insert.
-          setPendingOrders((cur) => {
-            const exists = cur.some((o) => o.id === row.id)
-            return exists ? cur.map((o) => o.id === row.id ? row : o) : [row, ...cur]
-          })
-          // Buyer just cancelled — surface it so the farmer notices instead of
-          // the order quietly slipping away.
-          if (row.status === 'cancelled' && prev.status !== 'cancelled') {
-            fireNotification(
-              L('Order cancelled by buyer', 'కొనుగోలుదారు ఆర్డర్ రద్దు చేశారు'),
-              `${row.buyer_name ?? 'Buyer'} cancelled ${row.produce_name ?? 'an order'}`,
-            )
-          }
-          // Fire notification when buyer claims payment (covers initial pay AND retry)
-          const becameClaimed =
-            (row.payment_status === 'payment_claimed' || row.payment_status === 'pending_confirmation')
-            && prev.payment_status !== row.payment_status
-          if (becameClaimed) {
-            fireNotification(
-              `Buyer paid — verify payment`,
-              `${row.buyer_name ?? 'Buyer'} sent ₹${row.total_price ?? '?'} for ${row.produce_name ?? 'order'}`,
-            )
-          }
-        },
-      )
-      .subscribe()
+        }
+        continue
+      }
+      if (row.status === 'cancelled' && before.status !== 'cancelled') {
+        fireNotification(
+          L('Order cancelled by buyer', 'కొనుగోలుదారు ఆర్డర్ రద్దు చేశారు'),
+          `${row.buyer_name ?? 'Buyer'} cancelled ${row.produce_name ?? 'an order'}`,
+        )
+      }
+      const becameClaimed =
+        (row.payment_status === 'payment_claimed' || row.payment_status === 'pending_confirmation')
+        && before.payment_status !== row.payment_status
+      if (becameClaimed) {
+        fireNotification(
+          `Buyer paid — verify payment`,
+          `${row.buyer_name ?? 'Buyer'} sent ₹${row.total_price ?? '?'} for ${row.produce_name ?? 'order'}`,
+        )
+      }
+    }
 
-    return () => { supabase.removeChannel(channel) }
-  }, [farmer])
+    // Dropped out of the active list: the only one worth surfacing is a buyer
+    // confirming receipt, which would otherwise slip straight into history.
+    for (const [id, before] of prev) {
+      if (next.has(id)) continue
+      if (before.received_at) continue
+      fireNotification(
+        L('Order received ✓', 'అందుకున్నారు'),
+        `${before.buyer_name ?? 'Buyer'} confirmed they received ${before.produce_name ?? 'the order'}`,
+      )
+    }
+
+    prevOrdersRef.current = next
+  }, [farmer, pendingOrders, L])
+
+  // Poll for order changes while the tab is visible (replaces realtime).
+  useOrderPolling(() => { loadDashboard() }, !!farmer)
 
   // Safety net for the realtime subscription: on slow/spotty 4G the websocket
   // can silently drop while the farmer is on another app. Refetch whenever the

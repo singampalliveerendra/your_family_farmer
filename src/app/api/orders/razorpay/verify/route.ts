@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
-import { verifyGuestOrderToken } from '@/lib/guest-order-token'
-import { verifyPaymentSignature, fetchPaymentMethodLabel } from '@/lib/razorpay'
+import { authorizeGuestBatches } from '@/lib/guest-batch-auth'
+import { verifyPaymentSignature, fetchPaymentMethodLabel, fetchPaymentSettlement } from '@/lib/razorpay'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
         razorpayPaymentId?: string
         razorpaySignature?: string
         guestToken?: string
+        guestBatches?: Array<{ orderIds: string[]; token: string }>
       }
     | null
 
@@ -61,8 +62,28 @@ export async function POST(req: NextRequest) {
     if (orders.some((o) => o.consumer_id !== null)) {
       return NextResponse.json({ error: 'Not your order.' }, { status: 403 })
     }
-    if (!verifyGuestOrderToken(body?.guestToken, orders.map((o) => o.id))) {
+    if (!authorizeGuestBatches(orders.map((o) => o.id), body?.guestToken, body?.guestBatches)) {
       return NextResponse.json({ error: 'Please log in.' }, { status: 401 })
+    }
+  }
+
+  // The signature proves Razorpay issued this payment against this order, but
+  // not that the money actually landed or that the full amount was taken. With
+  // partial payments enabled on an account, a signed callback can reference a
+  // capture worth a fraction of the order. Ask Razorpay directly and only accept
+  // a captured payment whose amount covers what we asked for.
+  const settlement = await fetchPaymentSettlement(razorpayPaymentId)
+  if (settlement) {
+    if (settlement.status !== 'captured') {
+      return NextResponse.json({ error: 'Payment is not complete.' }, { status: 400 })
+    }
+    if (settlement.orderId && settlement.orderId !== razorpayOrderId) {
+      console.warn('[YFF] razorpay payment/order mismatch for', razorpayPaymentId)
+      return NextResponse.json({ error: 'Payment could not be verified.' }, { status: 400 })
+    }
+    if (settlement.expectedAmount != null && settlement.amount < settlement.expectedAmount) {
+      console.warn('[YFF] razorpay underpayment on', razorpayOrderId, settlement.amount, '<', settlement.expectedAmount)
+      return NextResponse.json({ error: 'The payment did not cover the order total.' }, { status: 400 })
     }
   }
 
@@ -88,6 +109,10 @@ export async function POST(req: NextRequest) {
       ...(methodLabel ? { payment_method_detail: methodLabel } : {}),
     })
     .eq('razorpay_order_id', razorpayOrderId)
+    // Guarded like the webhook is. Without this, a replayed /verify on a COD
+    // order the rider had already closed ('completed') would drag it back to
+    // 'deposit_paid' and ask for the cash a second time.
+    .not('payment_status', 'in', '("completed","paid")')
 
   if (error) {
     console.error('[YFF] razorpay verify update failed:', error.message)

@@ -10,6 +10,7 @@ import { getPlatformFeePercent, computePlatformFee } from '@/lib/platform-fee'
 import { getCodDepositPercent, computeCodSplit } from '@/lib/cod'
 import { ORDERABLE_STATUSES } from '@/lib/produceStatus'
 import { normalizePickupPhones } from '@/lib/pickup-slots'
+import { rateLimit } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -95,6 +96,15 @@ export async function POST(req: NextRequest) {
         guest?: { name?: string; email?: string; phone?: string } | null
       }
     | null
+
+  // Throttle placement. This route claims stock, so an unauthenticated loop can
+  // zero out a farmer's inventory without ever paying — and guest checkout makes
+  // it reachable with no account at all. Generous enough that a real buyer
+  // checking out from several farmers in one session never sees it.
+  const placeIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  if (!rateLimit(`place:ip:${placeIp}`, 30, 10 * 60 * 1000)) {
+    return bad('Too many orders from this connection. Please wait a few minutes.', 429)
+  }
 
   if (!body) return bad('Invalid request body.')
   const { farmerId, paymentMethod, pickupLocation, items } = body

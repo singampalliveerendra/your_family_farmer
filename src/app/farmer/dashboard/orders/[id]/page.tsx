@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
@@ -9,6 +9,7 @@ import { isOrderPaid, isPaymentClaimed } from '@/lib/payment'
 import { harvestClock } from '@/lib/harvest'
 import { requireFarmerSession } from '@/lib/farmer-auth-client'
 import { useFarmerRiders } from '@/lib/farmer-riders'
+import { useOrderPolling } from '@/lib/useOrderPolling'
 import { formatQty } from '@/lib/saleStep'
 import {
   type DeliveryStatus,
@@ -75,8 +76,15 @@ type Order = {
   harvest?: { harvested_at: string; shelf_life_days?: number | null } | Array<{ harvested_at: string; shelf_life_days?: number | null }> | null
 }
 
-const ORDER_COLUMNS =
-  'id, farmer_id, order_code, produce_name, quantity, unit, total_price, platform_fee, buyer_name, buyer_phone, pickup_location, pickup_phone, status, payment_method, payment_status, utr_number, decline_reason, refund_status, refund_amount, refunded_at, created_at, confirmed_at, paid_at, delivery_type, delivery_status, delivery_boy_id, delivery_address, delivery_city, delivery_landmark, delivery_pincode, delivery_alt_phone, assigned_at, picked_up_at, out_for_delivery_at, delivered_at, collected_at, shipped_at, received_at, fulfillment_date, acknowledged_at, harvest_id, harvest:harvests(harvested_at, shelf_life_days)'
+// Fetch this order through the authenticated farmer route. The column list now
+// lives server-side in src/lib/orderColumns.ts — the page no longer talks to
+// Postgres directly, so it no longer needs to know the schema.
+async function fetchOrder(orderId: string): Promise<Order | null> {
+  const r = await fetch(`/api/farmer/orders/${orderId}`, { credentials: 'same-origin' }).catch(() => null)
+  if (!r || !r.ok) return null
+  const json = await r.json().catch(() => null)
+  return (json?.order ?? null) as Order | null
+}
 
 export default function FarmerOrderDetailPage() {
   const params = useParams<{ id: string }>()
@@ -98,26 +106,14 @@ export default function FarmerOrderDetailPage() {
       const farmerId = await requireFarmerSession()
       if (!farmerId || cancelled) return
 
-      // Scope the read to this farmer's own orders so the detail page can never
-      // surface another farmer's order, even via a guessed id.
-      const { data } = await supabase
-        .from('orders')
-        .select(ORDER_COLUMNS)
-        .eq('id', id)
-        .eq('farmer_id', farmerId)
-        .maybeSingle()
+      // Read through the API route: it scopes to the farmer id in the signed
+      // session cookie, so another farmer's order cannot be surfaced even with a
+      // guessed id — and the reschedule reason comes back in the same response
+      // instead of a second best-effort query.
+      const data = await fetchOrder(id)
       if (cancelled) return
       if (!data) { setNotFound(true); setLoading(false); return }
-
-      // Best-effort reschedule reason: the column may not exist until its
-      // migration is applied, so fetch it separately and ignore failure.
-      const { data: rs } = await supabase
-        .from('orders')
-        .select('reschedule_reason')
-        .eq('id', id)
-        .maybeSingle()
-      if (cancelled) return
-      setOrder({ ...(data as Order), reschedule_reason: (rs as { reschedule_reason?: string | null } | null)?.reschedule_reason ?? null })
+      setOrder(data)
       setLoading(false)
     })()
 
@@ -128,43 +124,15 @@ export default function FarmerOrderDetailPage() {
   // delivers, payment confirms…), refetch it instantly so the farmer sees the
   // new status without refreshing. The read stays scoped to this farmer's own
   // order, exactly like the initial load — realtime only triggers the refetch.
-  useEffect(() => {
-    if (!id) return
-    const reload = async () => {
-      const farmerId = await requireFarmerSession()
-      if (!farmerId) return
-      const { data } = await supabase
-        .from('orders')
-        .select(ORDER_COLUMNS)
-        .eq('id', id)
-        .eq('farmer_id', farmerId)
-        .maybeSingle()
-      if (!data) return
-      const { data: rs } = await supabase
-        .from('orders')
-        .select('reschedule_reason')
-        .eq('id', id)
-        .maybeSingle()
-      setOrder({ ...(data as Order), reschedule_reason: (rs as { reschedule_reason?: string | null } | null)?.reschedule_reason ?? null })
-    }
-    const channel = supabase
-      .channel(`farmer_order_${id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
-        () => { void reload() },
-      )
-      .subscribe()
-    // Safety net for dropped websockets on spotty 4G.
-    const onVisible = () => { if (document.visibilityState === 'visible') void reload() }
-    document.addEventListener('visibilitychange', onVisible)
-    window.addEventListener('focus', onVisible)
-    return () => {
-      supabase.removeChannel(channel)
-      document.removeEventListener('visibilitychange', onVisible)
-      window.removeEventListener('focus', onVisible)
-    }
+  // Polling replaces the realtime subscription — `orders` is no longer readable
+  // with the anon key, and postgres_changes on an unreadable table goes quiet
+  // without erroring. useOrderPolling also refetches on tab focus, which is what
+  // the old visibilitychange safety net was for.
+  const reload = useCallback(async () => {
+    const data = await fetchOrder(id)
+    if (data) setOrder(data)
   }, [id])
+  useOrderPolling(reload, !!id)
 
   // Assigned rider's contact for home deliveries (mirrors the card). Read via
   // the farmer API, not straight from delivery_boys: that table is service-role

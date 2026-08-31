@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
-import { verifyGuestOrderToken } from '@/lib/guest-order-token'
+import { authorizeGuestBatches } from '@/lib/guest-batch-auth'
 import { getRazorpayClient, getRazorpayKeyId } from '@/lib/razorpay'
 
 export const runtime = 'nodejs'
@@ -21,6 +21,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   const rawIds = (body as { orderIds?: unknown } | null)?.orderIds
   const guestToken = (body as { guestToken?: unknown } | null)?.guestToken
+  // Multi-farmer guest checkout: /api/orders/place is called once per farmer and
+  // mints a token bound to THAT farmer's ids, so a single token can never cover
+  // the whole batch. The client sends one {orderIds, token} pair per placement
+  // and we require their union to be exactly the batch being charged.
+  const guestBatches = (body as { guestBatches?: unknown } | null)?.guestBatches
   const orderIds = Array.isArray(rawIds) ? rawIds.map((x) => String(x)) : []
   if (orderIds.length === 0) return NextResponse.json({ error: 'Missing order ids.' }, { status: 400 })
   if (orderIds.length > 50) return NextResponse.json({ error: 'Too many orders.' }, { status: 400 })
@@ -69,7 +74,7 @@ export async function POST(req: NextRequest) {
     if (orders.some((o) => o.consumer_id !== null)) {
       return NextResponse.json({ error: 'Not your order.' }, { status: 403 })
     }
-    if (typeof guestToken !== 'string' || !verifyGuestOrderToken(guestToken, orderIds)) {
+    if (!authorizeGuestBatches(orderIds, guestToken, guestBatches)) {
       return NextResponse.json({ error: 'Please log in.' }, { status: 401 })
     }
   }

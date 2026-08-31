@@ -19,7 +19,7 @@ const GRAPH_VERSION = 'v21.0'
 const STAGING_MESSAGE_ID = 'staging-wa-message'
 
 function isStaging(): boolean {
-  return process.env.VERCEL_ENV === 'preview'
+  return process.env.YFF_ENV === 'staging' || process.env.VERCEL_ENV === 'preview'
 }
 
 export type WhatsAppLang = 'en' | 'te'

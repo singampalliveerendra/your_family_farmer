@@ -16,7 +16,8 @@ Last staging audit: **2026-07-24** (all present).
 
 | Migration | Schema footprint (what to check) | Staging | Prod |
 |---|---|:--:|:--:|
-| **farmers-column-lockdown** (SECURITY) | `has_column_privilege('anon','public.farmers','password_hash','SELECT')` is **false** | ✅ (2026-08-29) | ▫️ **RUN THIS FIRST** |
+| **farmers-column-lockdown** (SECURITY) | `has_column_privilege('anon','public.farmers','password_hash','SELECT')` is **false** | ✅ (2026-08-29) | ✅ (verified 2026-08-31 — both SELECT and UPDATE return false) |
+| **anon-lockdown-orders-reviews** (SECURITY) | `has_table_privilege('anon','public.orders','SELECT')` is **false**; zero policies on `orders` | ▫️ **APPLY AFTER DEPLOYING the order API routes** | ▫️ same, prod second |
 | **whatsapp-migration** (BLOCKS OTP) | `otp_sessions.code_hash` + `otp_sessions.attempts`, `notifications` table | ✅ | ▫️ **RUN BEFORE DEPLOYING TO PROD** — password reset breaks without it |
 | sale-step-migration | `produce_listings.sale_step` | ✅ | ✅ (verified 2026-08-25 via /api/produce) |
 | consumer-intents-migration | `demand_intents.consumer_id` + UPDATE/DELETE policies | ✅ | ✅ (applied 2026-07-24) |

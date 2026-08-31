@@ -73,7 +73,10 @@ export default async function FarmerPage({ params }: { params: Promise<{ slug: s
 
   const { data: reviews } = await supabase
     .from('reviews')
-    .select('*')
+    // Explicit columns, NOT select('*'): reviewer_phone is PII the browser must
+    // not read, so the anon role holds column-level GRANTs here. `select *`
+    // expands to every column and would fail the whole query with 42501.
+    .select('id, farmer_id, produce_listing_id, reviewer_name, reviewer_location, star_rating, review_text, produce_ordered, created_at, approved')
     .eq('farmer_id', farmer.id)
     .eq('approved', true)
     .order('created_at', { ascending: false })
