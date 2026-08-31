@@ -196,7 +196,7 @@ export default function HomeLanding({
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-green-500 to-green-700 ring-1 ring-green-900/10 dark:ring-white/15">
               <SproutMark className="h-5 w-5 text-[#f4f7ec]" />
             </span>
-            <span className="brand-wordmark truncate text-[15px] font-bold leading-none">Go Grameen</span>
+            <span className="brand-wordmark truncate text-[15px] font-bold leading-none">{L('Go Grameen', 'గో గ్రామీణ్')}</span>
           </div>
           {/* Download is what the page is for, so it takes the loud pill up
               here too. "Open the app" drops to a quiet secondary link and hides
@@ -509,7 +509,7 @@ export default function HomeLanding({
                 // noreferrer as well as noopener: without it the opened tab can
                 // read window.opener and we leak the referring page.
                 rel="noopener noreferrer"
-                aria-label={L(`Go Grameen on ${s.label}`, `${s.label} లో Go Grameen`)}
+                aria-label={L(`Go Grameen on ${s.label}`, `${s.label} లో గో గ్రామీణ్`)}
                 title={s.label}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-green-900/10 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-lime-600/40 hover:shadow dark:border-white/10 dark:bg-white/5 dark:shadow-none dark:hover:border-lime-300/50"
               >
@@ -531,7 +531,7 @@ export default function HomeLanding({
         )}
 
         <p className="mt-7 text-xs text-green-900/45 dark:text-lime-100/40">
-          Go Grameen · Your Family Farmer
+          {L('Go Grameen · Your Family Farmer', 'గో గ్రామీణ్ · మీ కుటుంబ రైతు')}
         </p>
       </footer>
     </main>
