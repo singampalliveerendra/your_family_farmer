@@ -18,7 +18,7 @@ Last staging audit: **2026-07-24** (all present).
 |---|---|:--:|:--:|
 | **farmers-column-lockdown** (SECURITY) | `has_column_privilege('anon','public.farmers','password_hash','SELECT')` is **false** | ✅ (2026-08-29) | ✅ (verified 2026-08-31 — both SELECT and UPDATE return false) |
 | **anon-lockdown-orders-reviews** (SECURITY) | `has_table_privilege('anon','public.orders','SELECT')` is **false**; zero policies on `orders` | ▫️ **APPLY AFTER DEPLOYING the order API routes** | ▫️ same, prod second |
-| **whatsapp-migration** (BLOCKS OTP) | `otp_sessions.code_hash` + `otp_sessions.attempts`, `notifications` table | ✅ | ▫️ **RUN BEFORE DEPLOYING TO PROD** — password reset breaks without it |
+| **whatsapp-migration** (BLOCKS OTP) | `otp_sessions.code_hash` + `otp_sessions.attempts`, `notifications` table | ✅ (staging) | n/a — **prod deliberately stays on 2Factor.** The WhatsApp switch was reverted on `main` (see below); apply this only when re-applying it. |
 | sale-step-migration | `produce_listings.sale_step` | ✅ | ✅ (verified 2026-08-25 via /api/produce) |
 | consumer-intents-migration | `demand_intents.consumer_id` + UPDATE/DELETE policies | ✅ | ✅ (applied 2026-07-24) |
 | realtime-orders-migration | `orders` in `supabase_realtime` pub + `orders` REPLICA IDENTITY FULL | ✅ | ▫️ (run at go-live) |
