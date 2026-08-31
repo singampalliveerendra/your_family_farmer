@@ -178,7 +178,7 @@ export default function HomeLanding({
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-green-500 to-green-700 ring-1 ring-white/15">
               <SproutMark className="h-5 w-5 text-[#f4f7ec]" />
             </span>
-            <span className="brand-wordmark truncate text-[15px] font-bold leading-none">Go Grameen</span>
+            <span className="brand-wordmark truncate text-[15px] font-bold leading-none">{L('Go Grameen', 'గో గ్రామీణ్')}</span>
           </div>
           {/* Download is what the page is for, so it takes the loud pill up
               here too. "Open the app" drops to a quiet secondary link and hides
@@ -441,7 +441,7 @@ export default function HomeLanding({
         </div>
 
         <p className="mt-7 text-xs text-lime-100/40">
-          Go Grameen · Your Family Farmer
+          {L('Go Grameen · Your Family Farmer', 'గో గ్రామీణ్ · మీ కుటుంబ రైతు')}
         </p>
       </footer>
     </main>
