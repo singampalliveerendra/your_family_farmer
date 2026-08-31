@@ -12,6 +12,25 @@ given database. Re-verify with the snapshot query at the bottom.
 
 Last staging audit: **2026-07-24** (all present).
 
+## OTP: prod is on 2Factor, deliberately
+
+`main` runs 2factor.in. The WhatsApp Cloud API migration is **finished** and
+lives on `staging`; it was reverted on `main` in **421c751** so production could
+keep the SMS gateway for now.
+
+To switch production to WhatsApp later:
+
+1. `git revert 421c751` on `main`. A plain `staging` -> `main` merge will **not**
+   bring it back — the commit is already in main's history, so git considers it
+   merged and skips it. This is the single easiest thing to get wrong here.
+2. Restore `tests/lib/otp.test.ts` (removed with the revert; it imports
+   `@/lib/otp`, which only exists in the WhatsApp implementation).
+3. Run `scripts/whatsapp-migration.sql` on prod, verify `otp_sessions.code_hash`
+   and `.attempts` exist, and set `WHATSAPP_TOKEN` + `WHATSAPP_PHONE_NUMBER_ID`.
+4. Deploy. `TWOFACTOR_API_KEY` can then be retired.
+
+Until then prod needs `TWOFACTOR_API_KEY` set, or password reset is broken.
+
 ## Recent / high-value migrations
 
 | Migration | Schema footprint (what to check) | Staging | Prod |
