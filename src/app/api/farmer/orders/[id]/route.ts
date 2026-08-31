@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
-import { FARMER_ORDER_DETAIL_COLUMNS } from '@/lib/orderColumns'
+import { FARMER_ORDER_DETAIL_COLUMNS, FARMER_ORDER_RESCHEDULE_COLUMNS } from '@/lib/orderColumns'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,12 +24,21 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  const { data, error } = await supabase
-    .from('orders')
-    .select(FARMER_ORDER_DETAIL_COLUMNS)
-    .eq('id', id)
-    .eq('farmer_id', session.farmerId)
-    .maybeSingle()
+  const load = (cols: string) =>
+    supabase
+      .from('orders')
+      .select(cols)
+      .eq('id', id)
+      .eq('farmer_id', session.farmerId)
+      .maybeSingle()
+
+  // Ask for the reschedule columns, but never let their absence take the page
+  // down — an environment that hasn't run reschedule-reason-migration.sql should
+  // show the order without a reason, exactly as it did before.
+  let { data, error } = await load(FARMER_ORDER_DETAIL_COLUMNS + FARMER_ORDER_RESCHEDULE_COLUMNS)
+  if (error) {
+    ;({ data, error } = await load(FARMER_ORDER_DETAIL_COLUMNS))
+  }
 
   if (error) {
     console.error('[YFF farmer/orders/[id]] load failed:', error.message)
