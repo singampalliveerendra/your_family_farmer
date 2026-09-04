@@ -11,6 +11,8 @@ import { useCart, CartFab, EditableQty } from '@/components/consumer/Cart'
 import { supabase } from '@/lib/supabase'
 import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
 import { isSoldOutWithHarvests } from '@/lib/produceStatus'
+import { formatHarvestDate, nextHarvestDate } from '@/lib/harvestSchedule'
+import PreorderConfirm from '@/components/consumer/PreorderConfirm'
 import { localizeName, localizeUnit } from '@/lib/localizeName'
 import { normalizeStep, stepUp, stepDown, formatQty } from '@/lib/saleStep'
 import { harvestClock } from '@/lib/harvest'
@@ -115,6 +117,9 @@ export default function ProduceDetailPage() {
   // Every unpaused pick's stock — the authority on whether anything is left
   // once this produce has harvests at all (see isSoldOutWithHarvests).
   const [harvestStocks, setHarvestStocks] = useState<Array<{ stock_qty: number | null }>>([])
+  // Open when the buyer has tapped Add on a produce whose harvest is finished
+  // and has not yet answered the "wait for the next one?" sheet.
+  const [askPreorder, setAskPreorder] = useState(false)
 
   // Swipe gallery
   const [activeImg, setActiveImg] = useState(0)
@@ -209,17 +214,35 @@ export default function ProduceDetailPage() {
   // whose stock_qty is null but that the auto-flip already marked 'sold_out'.
   // And where the produce has logged picks, those outrank the template's number
   // entirely — orders decrement the harvest, so the template's count goes stale.
+  // Nothing left of the CURRENT harvest. This is no longer a dead end: the
+  // produce stays buyable as a pre-order against the farmer's next pick, so the
+  // name says what it is — out of stock today — rather than "sold out", which
+  // in this shop wrongly implied "and that is the end of it".
   const isOutOfStock = (liveStock !== null && liveStock <= 0) || isSoldOutWithHarvests(item, harvestStocks)
-  const atMax = liveStock !== null && inCart != null && inCart.qty >= liveStock
+  // When the farmer's cadence gives us one, the date the next pick is due.
+  const nextHarvestAt = nextHarvestDate({
+    lastHarvestedAt: latestHarvest?.at ?? item.harvest_date ?? null,
+    frequency: item.harvest_frequency,
+    frequencyCount: item.harvest_frequency_count,
+    availabilityTo: item.availability_to,
+  })
+  const nextHarvestLabel = formatHarvestDate(nextHarvestAt)
+  // A pre-order is not drawn from stock, so nothing caps it: with liveStock at
+  // 0 every quantity control below would otherwise read "you already have the
+  // maximum" and refuse to go up from one step.
+  const stockCap = inCart?.preorder === true ? null : liveStock
+  const atMax = stockCap !== null && inCart != null && inCart.qty >= stockCap
 
-  const doAdd = async () => {
+  const doAdd = async (preorder = false) => {
     if (!farmer) return
     setAdding(true); setStockMsg('')
     const { data } = await supabase.from('produce_listings').select('stock_qty').eq('id', item.id).single()
     const fresh = data?.stock_qty ?? null
     if (fresh !== null) setLiveStock(fresh)
     setAdding(false)
-    if (fresh !== null) {
+    // A pre-order deliberately skips both stock guards: there is nothing left
+    // to check it against, which is the whole reason the buyer was asked.
+    if (fresh !== null && !preorder) {
       if (fresh <= 0) { setStockMsg(L('Out of stock', 'అయిపోయింది')); return }
       const curQty = inCart?.qty ?? 0
       if (curQty >= fresh) { setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${formatQty(fresh)} ${unitLabel}`); return }
@@ -230,7 +253,11 @@ export default function ProduceDetailPage() {
       variety: item.variety ?? undefined,
       emoji: item.emoji ?? undefined,
       unit,
-      stockQty: fresh != null ? fresh : (item.stock_qty ?? undefined),
+      // undefined, not 0: snapToStep caps a line at stockQty, so a zero here
+      // would clamp the pre-order to nothing the moment it was added.
+      stockQty: preorder ? undefined : (fresh != null ? fresh : (item.stock_qty ?? undefined)),
+      preorder: preorder || undefined,
+      preorderExpectedDate: preorder ? (nextHarvestAt ?? undefined) : undefined,
       pricePerKg: item.price_tier_1_price ?? undefined,
       saleStep: item.sale_step ?? undefined,
       priceTier1Qty: item.price_tier_1_qty ?? undefined,
@@ -250,11 +277,11 @@ export default function ProduceDetailPage() {
   }
 
   const handleInc = () => {
-    if (liveStock !== null && inCart.qty >= liveStock) {
-      setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${formatQty(liveStock)} ${unitLabel}`); return
+    if (stockCap !== null && inCart.qty >= stockCap) {
+      setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${formatQty(stockCap)} ${unitLabel}`); return
     }
     setStockMsg('')
-    setQty(item.id, stepUp(inCart.qty, saleStep, liveStock))
+    setQty(item.id, stepUp(inCart.qty, saleStep, stockCap))
   }
 
   // Price tiers shown as a small "buy more, save more" table.
@@ -373,8 +400,12 @@ export default function ProduceDetailPage() {
           </div>
 
           {(liveStock != null || isOutOfStock) && (
-            <p className={`text-xs font-semibold mt-1 ${isOutOfStock ? 'text-red-600' : 'text-gray-500'}`}>
-              {isOutOfStock ? L('Sold out', 'అయిపోయింది') : `${formatQty(liveStock)} ${unitLabel} ${L('left', 'మిగిలి ఉంది')}`}
+            <p className={`text-xs font-semibold mt-1 ${isOutOfStock ? 'text-amber-700' : 'text-gray-500'}`}>
+              {isOutOfStock
+                ? (nextHarvestLabel
+                    ? L(`Next harvest around ${nextHarvestLabel}`, `తదుపరి కోత సుమారు ${nextHarvestLabel}`)
+                    : L('Waiting for the next harvest', 'తదుపరి కోత కోసం వేచి ఉంది'))
+                : `${formatQty(liveStock)} ${unitLabel} ${L('left', 'మిగిలి ఉంది')}`}
             </p>
           )}
 
@@ -520,13 +551,14 @@ export default function ProduceDetailPage() {
           <Link href={farmerHref} className="flex items-center justify-center w-full h-12 bg-green-800 text-white font-bold rounded-xl">
             {L('View farmer', 'రైతును చూడండి')}
           </Link>
-        ) : isOutOfStock ? (
-          <button disabled className="w-full h-12 bg-gray-200 text-gray-500 font-bold rounded-xl cursor-not-allowed">
-            {L('Sold out', 'అయిపోయింది')}
-          </button>
         ) : !inCart ? (
           <button
-            onClick={() => requireAuth(() => { void doAdd() })}
+            onClick={() => requireAuth(() => {
+              // Out of stock is now a question, not a wall: ask before anything
+              // reaches the cart, and only add once they have said yes.
+              if (isOutOfStock) { setAskPreorder(true); return }
+              void doAdd()
+            })}
             disabled={adding}
             className="w-full h-12 bg-green-800 active:opacity-90 text-white font-bold rounded-xl disabled:opacity-60"
           >
@@ -539,7 +571,7 @@ export default function ProduceDetailPage() {
               qty={inCart.qty}
               step={saleStep}
               unit={unitLabel}
-              max={liveStock}
+              max={stockCap}
               onChange={(n) => { setQty(item.id, n); setStockMsg('') }}
               inputClassName="font-extrabold text-green-900 text-base"
               unitClassName="font-extrabold text-green-900"
@@ -553,6 +585,15 @@ export default function ProduceDetailPage() {
 
       {showReviews && (
         <ProduceReviewsModal listingId={item.id} produceName={item.name} onClose={() => setShowReviews(false)} />
+      )}
+
+      {askPreorder && (
+        <PreorderConfirm
+          produceName={localizeName(item.name, lang)}
+          expectedDate={nextHarvestAt}
+          onConfirm={() => { setAskPreorder(false); void doAdd(true) }}
+          onCancel={() => setAskPreorder(false)}
+        />
       )}
     </main>
   )

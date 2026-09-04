@@ -10,6 +10,8 @@ import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useCart, CartFab, EditableQty } from '@/components/consumer/Cart'
 import { supabase } from '@/lib/supabase'
 import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
+import { formatHarvestDate, nextHarvestDate } from '@/lib/harvestSchedule'
+import PreorderConfirm from '@/components/consumer/PreorderConfirm'
 import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
 import { localizeName, localizeUnit } from '@/lib/localizeName'
 import { normalizeStep, stepUp, stepDown, formatQty } from '@/lib/saleStep'
@@ -74,6 +76,11 @@ type Listing = {
   price_tier_2_price?: number | null
   price_tier_3_price?: number | null
   farmer_id: string
+  // Availability window + harvesting cadence — what lets a spent pick say when
+  // the next one is due (src/lib/harvestSchedule.ts).
+  availability_to?: string | null
+  harvest_frequency?: string | null
+  harvest_frequency_count?: number | null
 }
 
 type Harvest = {
@@ -109,6 +116,8 @@ export default function HarvestDetailPage() {
   const [notFound, setNotFound] = useState(false)
   const [liveStock, setLiveStock] = useState<number | null>(null)
   const [stockMsg, setStockMsg] = useState('')
+  // Open while the buyer decides whether to wait for the next harvest.
+  const [askPreorder, setAskPreorder] = useState(false)
   const [adding, setAdding] = useState(false)
   const [showReviews, setShowReviews] = useState(false)
 
@@ -197,13 +206,24 @@ export default function HarvestDetailPage() {
   const sourceFarmer = harvest.source_farmer ?? null
   const canAdd = !!farmer && !!farmer.phone
   const inCart = cart[harvest.id]
+  // This PICK is spent. The produce is not: the farmer harvests it again, so the
+  // page offers to wait for that instead of dead-ending on "Out of stock".
   const isOutOfStock = liveStock !== null && liveStock <= 0
-  const atMax = liveStock !== null && inCart != null && inCart.qty >= liveStock
+  // A pre-order draws on no stock, so nothing caps its quantity.
+  const stockCap = inCart?.preorder === true ? null : liveStock
+  const atMax = stockCap !== null && inCart != null && inCart.qty >= stockCap
+  const nextHarvestAt = nextHarvestDate({
+    lastHarvestedAt: harvest.harvested_at,
+    frequency: item.harvest_frequency,
+    frequencyCount: item.harvest_frequency_count,
+    availabilityTo: item.availability_to,
+  })
+  const nextHarvestLabel = formatHarvestDate(nextHarvestAt)
 
   // Freshness comes from THIS harvest, falling back to the template's shelf life.
   const harvestShelf = harvest.shelf_life_days ?? item.shelf_life_days ?? null
 
-  const doAdd = async () => {
+  const doAdd = async (preorder = false) => {
     if (!farmer) return
     setAdding(true); setStockMsg('')
     // Re-read this harvest's own stock so we never add past what's left.
@@ -211,21 +231,33 @@ export default function HarvestDetailPage() {
     const fresh = data?.stock_qty ?? null
     if (fresh !== null) setLiveStock(fresh)
     setAdding(false)
-    if (fresh !== null) {
+    // A pre-order is not drawn from this pick, so its stock says nothing here.
+    if (fresh !== null && !preorder) {
       if (fresh <= 0) { setStockMsg(L('Out of stock', 'అయిపోయింది')); return }
       const curQty = inCart?.qty ?? 0
       if (curQty >= fresh) { setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${formatQty(fresh)} ${unitLabel}`); return }
     }
     addItem({
       listingId: item.id,
+      // The cart still keys the line by this harvest — that is what keeps one
+      // line per pick, and what lets this page see its own line in the cart.
+      // What a pre-order must NOT carry is the freshness of a pick it will not
+      // be filled from: "harvested 3 days ago, eat within 2" is a lie about
+      // produce that has not been picked yet. The ORDER's harvest link is
+      // dropped server-side for the same reason (see /api/orders/place).
       harvestId: harvest.id,
-      harvestedAt: harvest.harvested_at,
-      shelfLifeDays: harvestShelf ?? undefined,
+      ...(preorder ? {} : {
+        harvestedAt: harvest.harvested_at,
+        shelfLifeDays: harvestShelf ?? undefined,
+      }),
       name: item.name,
       variety: item.variety ?? undefined,
       emoji: item.emoji ?? undefined,
       unit,
-      stockQty: fresh != null ? fresh : (harvest.stock_qty ?? undefined),
+      // undefined, not 0: stockQty caps the line, and a pre-order has no cap.
+      stockQty: preorder ? undefined : (fresh != null ? fresh : (harvest.stock_qty ?? undefined)),
+      preorder: preorder || undefined,
+      preorderExpectedDate: preorder ? (nextHarvestAt ?? undefined) : undefined,
       pricePerKg: item.price_tier_1_price ?? undefined,
       saleStep: item.sale_step ?? undefined,
       priceTier1Qty: item.price_tier_1_qty ?? undefined,
@@ -245,11 +277,11 @@ export default function HarvestDetailPage() {
   }
 
   const handleInc = () => {
-    if (liveStock !== null && inCart.qty >= liveStock) {
+    if (stockCap !== null && inCart.qty >= stockCap) {
       setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${formatQty(liveStock)} ${unitLabel}`); return
     }
     setStockMsg('')
-    setQty(harvest.id, stepUp(inCart.qty, saleStep, liveStock))
+    setQty(harvest.id, stepUp(inCart.qty, saleStep, stockCap))
   }
 
   // Price tiers shown as a small "buy more, save more" table.
@@ -366,7 +398,11 @@ export default function HarvestDetailPage() {
 
           {liveStock != null && (
             <p className={`text-xs font-semibold mt-1 ${liveStock === 0 ? 'text-red-600' : 'text-gray-500'}`}>
-              {liveStock === 0 ? L('Out of stock', 'అయిపోయింది') : `${formatQty(liveStock)} ${unitLabel} ${L('left', 'మిగిలి ఉంది')}`}
+              {liveStock === 0
+                ? (nextHarvestLabel
+                    ? L(`This pick is finished — next harvest around ${nextHarvestLabel}`, `ఈ కోత అయిపోయింది — తదుపరి కోత సుమారు ${nextHarvestLabel}`)
+                    : L('This pick is finished — waiting for the next harvest', 'ఈ కోత అయిపోయింది — తదుపరి కోత కోసం వేచి ఉంది'))
+                : `${formatQty(liveStock)} ${unitLabel} ${L('left', 'మిగిలి ఉంది')}`}
             </p>
           )}
 
@@ -510,13 +546,13 @@ export default function HarvestDetailPage() {
           <Link href={farmerHref} className="flex items-center justify-center w-full h-12 bg-green-800 text-white font-bold rounded-xl">
             {L('View farmer', 'రైతును చూడండి')}
           </Link>
-        ) : isOutOfStock ? (
-          <button disabled className="w-full h-12 bg-gray-200 text-gray-500 font-bold rounded-xl cursor-not-allowed">
-            {L('Out of stock', 'అయిపోయింది')}
-          </button>
         ) : !inCart ? (
           <button
-            onClick={() => requireAuth(() => { void doAdd() })}
+            onClick={() => requireAuth(() => {
+              // Spent pick: ask before anything reaches the cart.
+              if (isOutOfStock) { setAskPreorder(true); return }
+              void doAdd()
+            })}
             disabled={adding}
             className="w-full h-12 bg-green-800 active:opacity-90 text-white font-bold rounded-xl disabled:opacity-60"
           >
@@ -529,7 +565,7 @@ export default function HarvestDetailPage() {
               qty={inCart.qty}
               step={saleStep}
               unit={unitLabel}
-              max={liveStock}
+              max={stockCap}
               onChange={(n) => { setQty(harvest.id, n); setStockMsg('') }}
               inputClassName="font-extrabold text-green-900 text-base"
               unitClassName="font-extrabold text-green-900"
@@ -543,6 +579,15 @@ export default function HarvestDetailPage() {
 
       {showReviews && (
         <ProduceReviewsModal listingId={item.id} produceName={item.name} onClose={() => setShowReviews(false)} />
+      )}
+
+      {askPreorder && (
+        <PreorderConfirm
+          produceName={localizeName(item.name, lang)}
+          expectedDate={nextHarvestAt}
+          onConfirm={() => { setAskPreorder(false); void doAdd(true) }}
+          onCancel={() => setAskPreorder(false)}
+        />
       )}
     </main>
   )

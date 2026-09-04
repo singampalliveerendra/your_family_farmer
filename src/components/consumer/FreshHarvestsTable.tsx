@@ -241,17 +241,17 @@ function HarvestTable({ variant }: { variant: Variant }) {
               <tr
                 key={r.id}
                 onClick={() => router.push(`/consumer/harvest/${r.id}`)}
-                className={`border-b border-gray-50 last:border-0 cursor-pointer active:bg-green-50 ${soldOut ? 'bg-gray-50/60' : ''}`}
+                className="border-b border-gray-50 last:border-0 cursor-pointer active:bg-green-50"
               >
                 <td className="pl-4 pr-2 py-3">
                   <span className="flex items-center gap-1.5 min-w-0">
-                    <span className={`text-lg shrink-0 ${soldOut ? 'grayscale opacity-60' : ''}`}>{item.emoji || '🌿'}</span>
-                    <span className={`text-sm font-bold truncate ${soldOut ? 'text-gray-500' : 'text-gray-900'}`}>
+                    <span className="text-lg shrink-0">{item.emoji || '🌿'}</span>
+                    <span className="text-sm font-bold truncate text-gray-900">
                       {localizeName(item.name, lang)}
                     </span>
                     {soldOut && (
-                      <span className="shrink-0 text-[9px] font-black uppercase tracking-wide text-red-600 bg-red-50 rounded-full px-1.5 py-0.5">
-                        {L('Sold out', 'అయిపోయింది')}
+                      <span className="shrink-0 text-[9px] font-black uppercase tracking-wide text-amber-800 bg-amber-100 rounded-full px-1.5 py-0.5">
+                        {L('Pre-order', 'ముందస్తు')}
                       </span>
                     )}
                   </span>
@@ -259,7 +259,7 @@ function HarvestTable({ variant }: { variant: Variant }) {
                       "Harvested 2 days ago" — this line sits under the name where
                       the prefix reads as noise. The detail page keeps the long
                       form. Indented past the emoji to line up with the name. */}
-                  <span className={`block pl-[26px] text-[11px] font-semibold ${soldOut ? 'text-gray-400' : variant === 'fresh' ? 'text-green-700' : 'text-blue-700'}`}>
+                  <span className={`block pl-[26px] text-[11px] font-semibold ${variant === 'fresh' ? 'text-green-700' : 'text-blue-700'}`}>
                     ⏱ {harvestRelTime(r.harvested_at, L)}
                   </span>
                 </td>
@@ -269,10 +269,12 @@ function HarvestTable({ variant }: { variant: Variant }) {
                     stopPropagation so taps don't also open the details row. */}
                 <td className="pr-2 pl-1 py-3 text-right align-middle">
                   {soldOut ? (
-                    // No stepper and no +: the row is here to say the crop
-                    // exists and has gone, not to sell it.
-                    <span className="text-[11px] font-bold text-gray-400">
-                      {L('Sold out', 'అయిపోయింది')}
+                    // No stepper: this pick is spent, so there is nothing to
+                    // add a kilo of. The row still sells — tapping it opens the
+                    // harvest page, where waiting for the next pick is offered
+                    // and explained before anything reaches the cart.
+                    <span className="text-[11px] font-bold text-amber-700">
+                      {L('Next harvest ›', 'తదుపరి కోత ›')}
                     </span>
                   ) : cart[r.id] ? (
                     <span className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>

@@ -96,6 +96,14 @@ export type CartItem = {
   farmerPickupPhones?: PickupPhones
   farmerUpiId?: string
   farmerQrCodeUrl?: string
+  // Pre-order: added after the buyer was told the latest harvest is finished
+  // and agreed to wait (see PreorderConfirm). `preorderExpectedDate` is the
+  // next-harvest date they were shown, in YYYY-MM-DD.
+  //
+  // A pre-order line carries NO stockQty — there is no stock to cap it against,
+  // and a 0 there would have snapToStep quietly clamp the line to nothing.
+  preorder?: boolean
+  preorderExpectedDate?: string
 }
 
 export type CartState = Record<string, CartItem>
@@ -109,6 +117,7 @@ export type ConsumerInfo = { name: string; phone: string }
 
 // Loose email check for guest checkout — just enough to catch typos.
 import { DEFAULT_STEP, normalizeStep, snapToStep, stepUp, stepDown, formatQty, roundQty } from '@/lib/saleStep'
+import { formatHarvestDate } from '@/lib/harvestSchedule'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -723,6 +732,11 @@ export function CartSheet({
           harvestId: it.harvestId,
           qty: it.qty,
           deliveryType: deliveryOf(it),
+          // Consent to wait for the next harvest. The server still tries to
+          // claim stock for the line and only makes it a pre-order if there is
+          // genuinely none, so this can never turn an in-stock buy into a wait.
+          preorder: it.preorder === true ? true : undefined,
+          preorderExpectedDate: it.preorder === true ? it.preorderExpectedDate : undefined,
         })),
         deliveryAddress: groupHasDelivery ? deliveryAddress.trim() : null,
         deliveryCity: groupHasDelivery ? deliveryCity.trim() : null,
@@ -1812,6 +1826,22 @@ export function CartSheet({
                             <p className="font-semibold text-sm text-gray-900 truncate">
                               {localizeName(it.name, lang)}
                             </p>
+                            {/* The buyer agreed to wait for this one. Repeated
+                                here because the agreement happened pages ago,
+                                and this is the screen where they part with the
+                                money — nobody should reach payment without the
+                                wait still in front of them. */}
+                            {it.preorder && (
+                              <p className="inline-flex items-center gap-1 mt-0.5 text-[10px] font-bold text-amber-800 bg-amber-100 rounded-full px-1.5 py-0.5">
+                                <span aria-hidden>🌾</span>
+                                {(() => {
+                                  const when = formatHarvestDate(it.preorderExpectedDate)
+                                  return when
+                                    ? L(`Pre-order · next harvest ~${when}`, `ముందస్తు ఆర్డర్ · తదుపరి కోత ~${when}`)
+                                    : L('Pre-order · next harvest', 'ముందస్తు ఆర్డర్ · తదుపరి కోత')
+                                })()}
+                              </p>
+                            )}
                             {it.pricePerKg && (
                               <>
                                 <p className="text-xs text-gray-500">₹{it.pricePerKg}/{it.unit || 'kg'} × {formatQty(it.qty)}</p>

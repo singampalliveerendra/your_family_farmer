@@ -383,6 +383,29 @@ export default function ListingForm({
         <Field label="Shelf life (days) *">
           <input value={form.shelf_life_days} onChange={set('shelf_life_days')} type="number" min="1" step="1" required className={inputCls} placeholder="e.g. 5" />
         </Field>
+        {/* Availability window + harvesting cadence — mirrors the farmer's own
+            produce form (farmer↔moderator parity). The shop reads these to name
+            the next harvest date when the current pick has run out, so a
+            moderator-created listing must be able to carry them too. */}
+        <Field label="Available from">
+          <input value={form.availability_from} onChange={set('availability_from')} type="date" className={inputCls} />
+        </Field>
+        <Field label="Available to">
+          <input value={form.availability_to} onChange={set('availability_to')} type="date" min={form.availability_from || undefined} className={inputCls} />
+        </Field>
+        <Field label="Harvesting frequency">
+          <select value={form.harvest_frequency} onChange={set('harvest_frequency')} className={inputCls}>
+            <option value="">Not set</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </Field>
+        {form.harvest_frequency && (
+          <Field label="Times per cycle">
+            <input value={form.harvest_frequency_count} onChange={set('harvest_frequency_count')} type="number" min="1" step="1" className={inputCls} placeholder="1" />
+          </Field>
+        )}
       </div>
 
       {/* Harvest timings — the same panel the farmer gets inside their Edit

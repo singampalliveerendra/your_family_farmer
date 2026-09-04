@@ -5,6 +5,9 @@ import { getConsumerSessionFromRequest } from '@/lib/session'
 import { createGuestOrderToken } from '@/lib/guest-order-token'
 import { getTierPrice } from '@/lib/pricing'
 import { normalizePhone } from '@/lib/phone'
+import { isSelfOrder } from '@/lib/sellerBuyerLink'
+import { isMissingColumnError } from '@/lib/missingColumn'
+import { preorderExpectedDate } from '@/lib/harvestSchedule'
 import { getDeliveryCharges, resolveBatchDeliveryFee } from '@/lib/delivery-fee'
 import { getPlatformFeePercent, computePlatformFee } from '@/lib/platform-fee'
 import { getCodDepositPercent, computeCodSplit } from '@/lib/cod'
@@ -26,6 +29,18 @@ type IncomingItem = {
   harvestId?: string
   qty: number
   deliveryType?: 'self_pickup' | 'home_delivery'
+  // The buyer saw "this harvest is finished, the next one is expected <date>"
+  // and chose to wait. Consent ONLY — it never creates a pre-order on its own:
+  // the stock claim below still runs, and a line that claims successfully is an
+  // ordinary order however this flag is set. A crafted request can therefore
+  // not turn an in-stock purchase into a pre-order, or conjure one where the
+  // buyer never agreed to wait.
+  preorder?: boolean
+  // The date they were shown, echoed back so the farmer sees the promise that
+  // was actually made. Display-only and bounds-checked below; the buyer can
+  // only mis-date their own order, and the farmer approves or declines it
+  // either way.
+  preorderExpectedDate?: string
 }
 
 // Pragmatic email check — we only need to reject obvious junk, not enforce
@@ -263,11 +278,18 @@ export async function POST(req: NextRequest) {
   // Farmer COD acceptance check
   const { data: farmer } = await supabase
     .from('farmers')
-    .select('id, cod_enabled, pickup_location_phones')
+    .select('id, phone, cod_enabled, pickup_location_phones')
     .eq('id', farmerId)
     .maybeSingle()
 
   if (!farmer) return bad('Farmer not found.', 404)
+
+  // A seller in buyer view is one tap from their own listing — previewing it is
+  // the point — so an accidental order against themselves is easy and would be
+  // entirely real. Refuse it here, where every checkout path passes.
+  if (isSelfOrder(buyerPhone, farmer.phone)) {
+    return bad('This is your own listing. You cannot place an order with yourself.')
+  }
   if (paymentMethod === 'cod' && farmer.cod_enabled !== true) {
     return bad('This farmer is not accepting Cash on Delivery.')
   }
@@ -542,7 +564,11 @@ export async function POST(req: NextRequest) {
       }
     }
   }
-  for (const item of items) {
+  // Lines that found no stock AND carry the buyer's consent to wait. Indexes
+  // into `items`, which is 1:1 with `rows`.
+  const preorderRows = new Set<number>()
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
     const listing = listingById.get(item.listingId)!
     const { data: ok, error: rpcErr } = item.harvestId
       ? await supabase.rpc('decrement_harvest_stock', { p_harvest_id: item.harvestId, p_qty: item.qty })
@@ -553,10 +579,38 @@ export async function POST(req: NextRequest) {
       return bad('Could not place order. Please try again.', 500)
     }
     if (!ok) {
+      // Nothing left to claim. The buyer who agreed to wait gets a pre-order
+      // against the next harvest instead of a dead end; everyone else gets the
+      // same refusal as before. Note this is also the honest answer to the race
+      // where the last kilo went while they were typing their address: without
+      // consent on the line, we still refuse rather than quietly converting a
+      // purchase into a wait.
+      if (item.preorder === true) {
+        preorderRows.add(i)
+        continue
+      }
       await revertClaims()
       return bad(`${listing.name} just sold out. Please reduce the quantity and try again.`)
     }
     claimed.push({ harvestId: item.harvestId, listingId: item.listingId, qty: item.qty })
+  }
+
+  // Stamp the pre-order columns, following the same rule as harvest_id above:
+  // only when the cart actually contains one, and then on every row (false/null
+  // elsewhere) so the bulk insert has a uniform column set. An ordinary
+  // checkout therefore never names these columns at all, and is unaffected on an
+  // environment where scripts/preorder-migration.sql has not been run.
+  if (preorderRows.size > 0) {
+    rows.forEach((row, i) => {
+      const isPre = preorderRows.has(i)
+      row.is_preorder = isPre
+      row.preorder_expected_date = isPre ? preorderExpectedDate(items[i].preorderExpectedDate) : null
+      // A pre-order is for the NEXT pick, so it must not point at the finished
+      // harvest the buyer happened to be looking at — that row's stock is spent,
+      // and leaving the link would put the order on a sold-out pick in every
+      // farmer and rider view that groups by harvest.
+      if (isPre) row.harvest_id = null
+    })
   }
 
   const { data: inserted, error: insertErr } = await supabase
@@ -568,6 +622,17 @@ export async function POST(req: NextRequest) {
     console.error('[YFF] place-order insert failed:', insertErr?.message)
     // Roll the stock back so the row isn't lost.
     await revertClaims()
+    // The pre-order columns are the one part of this insert that may not exist
+    // yet. Fail loudly rather than retrying without them: a pre-order saved as
+    // an ordinary order would show the farmer a paid order against stock they
+    // do not have, with nothing anywhere to say the buyer agreed to wait.
+    if (isMissingColumnError(insertErr?.message, 'is_preorder')) {
+      console.error('[YFF] pre-order placed but scripts/preorder-migration.sql has not been run on this database')
+      return bad(
+        'Pre-orders are not switched on yet. Please try again later, or order something that is in stock.',
+        503,
+      )
+    }
     return bad('Could not place order. Please try again.', 500)
   }
 

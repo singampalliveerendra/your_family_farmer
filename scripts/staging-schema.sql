@@ -285,7 +285,9 @@ CREATE TABLE IF NOT EXISTS public."orders" (
   "cod_deposit_paid_at" timestamp with time zone,
   "cash_collected_at" timestamp with time zone,
   "cash_collected_by" uuid,
-  "deposit_forfeited_at" timestamp with time zone
+  "deposit_forfeited_at" timestamp with time zone,
+  "is_preorder" boolean DEFAULT false NOT NULL,
+  "preorder_expected_date" date
 );
 
 CREATE TABLE IF NOT EXISTS public."otp_sessions" (

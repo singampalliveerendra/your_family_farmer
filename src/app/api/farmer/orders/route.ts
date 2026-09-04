@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest, refreshFarmerSessionCookie } from '@/lib/farmer-session'
-import { FARMER_ORDER_COLUMNS } from '@/lib/orderColumns'
+import { FARMER_ORDER_COLUMNS, FARMER_ORDER_PREORDER_COLUMNS } from '@/lib/orderColumns'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -31,12 +31,20 @@ export async function GET(req: NextRequest) {
   )
 
   if (scope === 'all') {
-    const { data, error } = await supabase
+    // Ask for the pre-order columns, then drop them if this database has not
+    // run scripts/preorder-migration.sql — the farmer's order list must never
+    // go blank over a column that only adds a badge.
+    const listAll = (columns: string) => supabase
       .from('orders')
-      .select(FARMER_ORDER_COLUMNS)
+      .select(columns)
       .eq('farmer_id', session.farmerId)
       .order('created_at', { ascending: false })
       .limit(500)
+
+    let { data, error } = await listAll(FARMER_ORDER_COLUMNS + FARMER_ORDER_PREORDER_COLUMNS)
+    if (error) {
+      ;({ data, error } = await listAll(FARMER_ORDER_COLUMNS))
+    }
 
     if (error) {
       console.error('[YFF farmer/orders] list failed:', error.message)
@@ -60,13 +68,15 @@ export async function GET(req: NextRequest) {
     : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString()
 
-  const [activeRes, weekRes, monthRes, todayRes] = await Promise.all([
-    supabase
-      .from('orders')
-      .select(FARMER_ORDER_COLUMNS)
-      .eq('farmer_id', session.farmerId)
-      .or('status.eq.pending,status.eq.approved,and(status.eq.cancelled,acknowledged_at.is.null)')
-      .order('created_at', { ascending: false }),
+  const activeList = (columns: string) => supabase
+    .from('orders')
+    .select(columns)
+    .eq('farmer_id', session.farmerId)
+    .or('status.eq.pending,status.eq.approved,and(status.eq.cancelled,acknowledged_at.is.null)')
+    .order('created_at', { ascending: false })
+
+  const [activeFirst, weekRes, monthRes, todayRes] = await Promise.all([
+    activeList(FARMER_ORDER_COLUMNS + FARMER_ORDER_PREORDER_COLUMNS),
     supabase
       .from('orders')
       .select('id, total_price')
@@ -85,6 +95,13 @@ export async function GET(req: NextRequest) {
       .eq('farmer_id', session.farmerId)
       .gte('created_at', todayStart),
   ])
+
+  // Same fallback as the 'all' branch: without the pre-order migration the
+  // select fails outright, and a dashboard with no orders on it is far worse
+  // than one without a pre-order badge.
+  const activeRes = activeFirst.error
+    ? await activeList(FARMER_ORDER_COLUMNS)
+    : activeFirst
 
   if (activeRes.error) {
     console.error('[YFF farmer/orders] active failed:', activeRes.error.message)

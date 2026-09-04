@@ -40,3 +40,12 @@ export const FARMER_ORDER_DETAIL_COLUMNS =
  * them and falls back to the list without them if the column isn't there.
  */
 export const FARMER_ORDER_RESCHEDULE_COLUMNS = ', reschedule_reason, rescheduled_at'
+
+/**
+ * The pre-order columns, kept SEPARATE for exactly the reason the reschedule
+ * ones above are: scripts/preorder-migration.sql may not have been run on this
+ * database yet, and Postgres fails the WHOLE select on an unknown column. Asked
+ * for first, dropped on error — an environment without the migration shows its
+ * orders as it always did, rather than showing nothing at all.
+ */
+export const FARMER_ORDER_PREORDER_COLUMNS = ', is_preorder, preorder_expected_date'

@@ -21,6 +21,8 @@ import { useLang } from '@/lib/LanguageContext'
 import { localizeName, localizeUnit } from '@/lib/localizeName'
 import { harvestClock } from '@/lib/harvest'
 import { isSoldOutListing } from '@/lib/produceStatus'
+import { formatHarvestDate, nextHarvestDate } from '@/lib/harvestSchedule'
+import PreorderConfirm from '@/components/consumer/PreorderConfirm'
 import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
 
 const DEFAULT_REGION = 'tadepalligudem'
@@ -96,6 +98,11 @@ type ProduceListing = {
   // `harvests` table — drives the "Harvested 2 hours ago" clock on the card.
   latest_harvested_at?: string | null
   latest_shelf_life_days?: number | null
+  // Availability window + harvesting cadence (farmer's produce form). Read here
+  // to tell a buyer WHEN the next pick is due once the current one has run out.
+  availability_to?: string | null
+  harvest_frequency?: string | null
+  harvest_frequency_count?: number | null
 }
 
 // One logged harvest of a produce (template). The main grid shows a separate
@@ -727,6 +734,8 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
   const [liveStock, setLiveStock] = useState<number | null>(baseStock)
   const [stockMsg, setStockMsg]   = useState('')
   const [adding, setAdding]       = useState(false)
+  // Open while the buyer decides whether to wait for the next harvest.
+  const [askPreorder, setAskPreorder] = useState(false)
 
   // All photos for this produce (cover first) — an Amazon/Flipkart-style swipe
   // gallery on the card. activeImg tracks which slide is centred, for the dots.
@@ -750,14 +759,29 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
     || (harvest
       ? liveStock !== null && liveStock <= 0
       : (liveStock !== null && liveStock <= 0) || isSoldOutListing(item))
-  const atMax        = liveStock !== null && inCart != null && inCart.qty >= liveStock
+  // A pre-order line is not drawn from stock, so nothing caps it — with
+  // liveStock at 0 the +/- controls would otherwise sit at "maximum reached".
+  const stockCap     = inCart?.preorder === true ? null : liveStock
+  const atMax        = stockCap !== null && inCart != null && inCart.qty >= stockCap
+  // When the farmer set a cadence, the date the next pick is due.
+  const nextHarvestAt = nextHarvestDate({
+    lastHarvestedAt: harvest?.harvested_at ?? item.latest_harvested_at ?? item.harvest_date ?? null,
+    frequency: item.harvest_frequency,
+    frequencyCount: item.harvest_frequency_count,
+    availabilityTo: item.availability_to,
+  })
+  const nextHarvestLabel = formatHarvestDate(nextHarvestAt)
 
   const handleAdd = async () => {
     if (!farmer) return
-    requireAuth(() => { void doAdd() })
+    requireAuth(() => {
+      // Out of stock is a question now, not a wall — see PreorderConfirm.
+      if (isOutOfStock) { setAskPreorder(true); return }
+      void doAdd()
+    })
   }
 
-  const doAdd = async () => {
+  const doAdd = async (preorder = false) => {
     if (!farmer) return
     setAdding(true)
     setStockMsg('')
@@ -772,7 +796,9 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
     if (fresh !== null) setLiveStock(fresh)
     setAdding(false)
 
-    if (fresh !== null) {
+    // A pre-order deliberately skips every stock guard below: there is nothing
+    // to check it against, which is exactly what the buyer just agreed to.
+    if (fresh !== null && !preorder) {
       if (fresh <= 0) {
         setStockMsg(L('Out of stock', 'అయిపోయింది'))
         return
@@ -792,18 +818,28 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
       listingId: item.id,
       // Harvest card → tie the cart line to this harvest (own date/shelf/stock),
       // so two harvests of the same produce are separate lines.
+      // The cart keeps keying the line by this harvest, so one pick stays one
+      // line. A pre-order just does not inherit its freshness — it will be
+      // filled from the NEXT pick, so this one's harvest time and shelf life
+      // would be a lie. The order's harvest link is dropped server-side.
       ...(harvest
         ? {
             harvestId: harvest.id,
-            harvestedAt: harvest.harvested_at,
-            shelfLifeDays: harvest.shelf_life_days ?? item.shelf_life_days ?? undefined,
+            ...(preorder ? {} : {
+              harvestedAt: harvest.harvested_at,
+              shelfLifeDays: harvest.shelf_life_days ?? item.shelf_life_days ?? undefined,
+            }),
           }
         : {}),
       name: item.name,
       variety: item.variety,
       emoji: item.emoji,
       unit,
-      stockQty: fresh != null ? fresh : (baseStock ?? undefined),
+      // undefined, not 0, on a pre-order: snapToStep caps a line at stockQty,
+      // so a zero would clamp it to nothing the moment it was added.
+      stockQty: preorder ? undefined : (fresh != null ? fresh : (baseStock ?? undefined)),
+      preorder: preorder || undefined,
+      preorderExpectedDate: preorder ? (nextHarvestAt ?? undefined) : undefined,
       saleStep: item.sale_step ?? undefined,
       pricePerKg: item.price_tier_1_price,
       priceTier1Qty: item.price_tier_1_qty,
@@ -823,23 +859,23 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
   }
 
   const handleInc = () => {
-    if (liveStock !== null && inCart.qty >= liveStock) {
-      setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${formatQty(liveStock)} ${localizeUnit(unit, lang)}`)
+    if (stockCap !== null && inCart.qty >= stockCap) {
+      setStockMsg(`${L('Maximum available', 'గరిష్ట పరిమాణం')}: ${formatQty(stockCap)} ${localizeUnit(unit, lang)}`)
       return
     }
     setStockMsg('')
-    setQty(cartKey, stepUp(inCart.qty, saleStep, liveStock))
+    setQty(cartKey, stepUp(inCart.qty, saleStep, stockCap))
   }
 
   return (
     <div className="bg-white rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.08)] flex flex-col h-full">
       {/* Image — fixed 160px. Multiple photos become a swipe gallery (swipe
           right-to-left for the rest); method pill top-right, dots bottom-centre.
-          Sold out → the photo desaturates and carries a SOLD OUT ribbon, so the
-          tile reads as unavailable at a glance while still showing the crop.
-          Only the image dims: the name, farmer and price stay legible, since the
-          point of keeping the tile is that the buyer can still read it. */}
-      <div className={`relative h-40 w-full flex-shrink-0 ${isOutOfStock ? 'grayscale opacity-60' : ''}`}>
+          Out of stock no longer dims the tile or stamps SOLD OUT across it: the
+          produce is still buyable as a pre-order against the farmer's next pick,
+          and a grey photo under a live "+ Add" button would contradict itself.
+          The stock badge below carries the news instead. */}
+      <div className="relative h-40 w-full flex-shrink-0">
         {gallery.length ? (
           <div
             ref={galleryRef}
@@ -885,11 +921,6 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
             }}
           />
         </div>
-        {isOutOfStock && (
-          <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 bg-black/55 text-white text-[11px] font-black tracking-widest text-center py-1 pointer-events-none">
-            {L('SOLD OUT', 'అయిపోయింది')}
-          </span>
-        )}
         {gallery.length > 1 && (
           <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 pointer-events-none">
             {gallery.map((_, i) => (
@@ -997,17 +1028,19 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
           </span>
         </div>
 
-        {/* Stock badge. Sold out wins even when stock_qty is null — an older
-            listing can carry the status without a number. */}
+        {/* Stock badge. With nothing left it names the next harvest instead of
+            declaring the produce dead — amber (waiting), never red (gone). */}
         {(liveStock != null || isOutOfStock) && (
           <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
             <span
               className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${
-                isOutOfStock ? 'bg-red-50 text-red-600' : 'bg-[#f5f5f5] text-[#666]'
+                isOutOfStock ? 'bg-amber-50 text-amber-800' : 'bg-[#f5f5f5] text-[#666]'
               }`}
             >
               {isOutOfStock
-                ? L('Sold out', 'అయిపోయింది')
+                ? (nextHarvestLabel
+                    ? L(`Next harvest ~${nextHarvestLabel}`, `తదుపరి కోత ~${nextHarvestLabel}`)
+                    : L('Next harvest soon', 'తదుపరి కోత త్వరలో'))
                 : `${formatQty(liveStock)} ${localizeUnit(unit, lang)} ${L('left', 'మిగిలింది')}`}
             </span>
           </div>
@@ -1029,20 +1062,19 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
             >
               {L('View', 'చూడండి')}
             </Link>
-          ) : isOutOfStock ? (
-            <button
-              disabled
-              className="w-full h-10 bg-gray-200 text-gray-500 font-bold rounded-xl text-sm cursor-not-allowed"
-            >
-              {L('Sold out', 'అయిపోయింది')}
-            </button>
           ) : !inCart ? (
             <button
               onClick={handleAdd}
               disabled={adding}
-              className="w-full h-10 bg-[#1a5c2a] active:opacity-90 text-white font-bold rounded-xl text-sm disabled:opacity-60 whitespace-nowrap"
+              className={`w-full h-10 active:opacity-90 text-white font-bold rounded-xl text-sm disabled:opacity-60 whitespace-nowrap ${
+                isOutOfStock ? 'bg-amber-700' : 'bg-[#1a5c2a]'
+              }`}
             >
-              {adding ? L('Checking...', 'తనిఖీ') : L('+ Add', 'చేర్చు')}
+              {adding
+                ? L('Checking...', 'తనిఖీ')
+                : isOutOfStock
+                  ? L('Pre-order', 'ముందస్తు ఆర్డర్')
+                  : L('+ Add', 'చేర్చు')}
             </button>
           ) : (
             <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl h-10 px-2">
@@ -1056,7 +1088,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
               <EditableQty
                 qty={inCart.qty}
                 unit={localizeUnit(unit, lang)}
-                max={liveStock}
+                max={stockCap}
                 step={saleStep}
                 onChange={(n) => { setQty(cartKey, n); setStockMsg('') }}
                 inputClassName="font-extrabold text-green-900 text-sm"
@@ -1084,6 +1116,15 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
           listingId={item.id}
           produceName={localizeName(item.name, lang)}
           onClose={() => setShowReviews(false)}
+        />
+      )}
+
+      {askPreorder && (
+        <PreorderConfirm
+          produceName={localizeName(item.name, lang)}
+          expectedDate={nextHarvestAt}
+          onConfirm={() => { setAskPreorder(false); void doAdd(true) }}
+          onCancel={() => setAskPreorder(false)}
         />
       )}
     </div>
