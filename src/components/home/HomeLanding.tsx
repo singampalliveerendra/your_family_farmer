@@ -243,11 +243,11 @@ export default function HomeLanding({
             </span>
 
             <h1 className="gghome-rise brand-wordmark mt-5 text-4xl font-bold leading-[1.05] sm:text-6xl" style={{ animationDelay: '.08s' }}>
-              {L('Real food.', 'నిజమైన ఆహారం.')}
+              {L('Food Straight From Farm', 'నేరుగా పొలం నుండి ఆహారం')}
               <br />
-              {L('Real farmers.', 'నిజమైన రైతులు.')}
+              {L('Improving Farmers Income', 'రైతుల ఆదాయం పెంపు')}
               <br />
-              <span className="gghome-grad">{L('No middlemen.', 'మధ్యవర్తులు లేరు.')}</span>
+              <span className="gghome-grad">{L('No Middlemen', 'మధ్యవర్తులు లేరు')}</span>
             </h1>
 
             <p className="gghome-rise mt-5 max-w-md text-base leading-relaxed text-green-900/75 dark:text-lime-100/70 sm:text-lg" style={{ animationDelay: '.16s' }}>
