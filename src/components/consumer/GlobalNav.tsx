@@ -6,6 +6,7 @@ import { useLang } from '@/lib/LanguageContext'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import BrandLogo from '@/components/BrandLogo'
+import { readBuyerView, sellerDashboardPath, type SellerRole } from '@/lib/buyerView'
 
 type ActiveTab = 'consumer' | 'farmer' | 'delivery' | 'moderator'
 
@@ -113,6 +114,12 @@ function RoleMenu({
   const { L } = useLang()
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
+  // A seller who crossed over with the buyer-view switch. They are already
+  // signed in on the seller side, so the "log in as farmer" links below would
+  // be asking them for a password they have just used — the menu offers the way
+  // BACK instead. Read after mount; the cookie is not available during SSR.
+  const [buyerViewRole, setBuyerViewRole] = useState<SellerRole | null>(null)
+  useEffect(() => { setBuyerViewRole(readBuyerView()) }, [])
 
   useEffect(() => {
     if (!open) return
@@ -199,25 +206,40 @@ function RoleMenu({
           >
             {L('🛒 Shop as Consumer', 'కొనుగోలుదారుగా')}
           </Link>
-          <Link
-            href="/farmer/dashboard"
-            onClick={() => setOpen(false)}
-            className="block px-4 py-2.5 text-gray-800 active:bg-gray-100"
-          >
-            {L('🧑‍🌾 Login as Farmer', 'రైతుగా లాగిన్')}
-          </Link>
+          {buyerViewRole ? (
+            <Link
+              href={sellerDashboardPath(buyerViewRole)}
+              onClick={() => setOpen(false)}
+              className="block px-4 py-2.5 text-gray-800 active:bg-gray-100 font-semibold"
+            >
+              {buyerViewRole === 'aggregator'
+                ? L('↩ Back to my aggregator dashboard', '↩ నా సమీకరణదారు డాష్‌బోర్డ్‌కు')
+                : L('↩ Back to my farm dashboard', '↩ నా వ్యవసాయ డాష్‌బోర్డ్‌కు')}
+            </Link>
+          ) : (
+            <Link
+              href="/farmer/dashboard"
+              onClick={() => setOpen(false)}
+              className="block px-4 py-2.5 text-gray-800 active:bg-gray-100"
+            >
+              {L('🧑‍🌾 Login as Farmer', 'రైతుగా లాగిన్')}
+            </Link>
+          )}
           {/* Next to Farmer, since both are selling roles. Points at the login
               page, NOT /aggregator: this is a "switch role" action, and
               /aggregator resolves to the aggregator dashboard, which bounces a
               signed-in farmer straight back to the farmer dashboard — so the
-              menu item looked like it was ignoring the tap. */}
-          <Link
-            href="/aggregator/login"
-            onClick={() => setOpen(false)}
-            className="block px-4 py-2.5 text-gray-800 active:bg-gray-100"
-          >
-            {L('🤝 Login as Aggregator', 'సమీకరణదారుగా లాగిన్')}
-          </Link>
+              menu item looked like it was ignoring the tap. Hidden in buyer
+              view, where the single item above is the whole answer. */}
+          {!buyerViewRole && (
+            <Link
+              href="/aggregator/login"
+              onClick={() => setOpen(false)}
+              className="block px-4 py-2.5 text-gray-800 active:bg-gray-100"
+            >
+              {L('🤝 Login as Aggregator', 'సమీకరణదారుగా లాగిన్')}
+            </Link>
+          )}
           <Link
             href="/rider"
             onClick={() => setOpen(false)}
