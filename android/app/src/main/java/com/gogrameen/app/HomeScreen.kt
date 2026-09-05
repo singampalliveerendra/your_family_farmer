@@ -34,14 +34,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -49,6 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gogrameen.app.ui.LanguageToggle
 import com.gogrameen.app.ui.theme.GgGreen500
 import com.gogrameen.app.ui.theme.GgGreen700
 import com.gogrameen.app.ui.theme.GgTheme
@@ -82,6 +81,10 @@ private data class Role(
     val emoji: String,
     val title: Pair<String, String>,
     val blurb: Pair<String, String>,
+    /* Buyer is the only door that opens so far. Flagged on the role rather than
+       matched on the title at the tap site, so the copy can change without
+       quietly turning the card back into a toast. */
+    val opensCatalogue: Boolean = false,
 )
 
 /* Copy lifted verbatim from RoleSelect.tsx, in its order. Moderator and rider
@@ -92,6 +95,7 @@ private val ROLES = listOf(
         emoji = "🛒",
         title = "I'm a Buyer" to "నేను కొనుగోలుదారుని",
         blurb = "Browse today's harvests and order direct." to "నేటి కోతలు చూసి నేరుగా ఆర్డర్ చేయండి.",
+        opensCatalogue = true,
     ),
     Role(
         emoji = "🧑‍🌾",
@@ -107,11 +111,13 @@ private val ROLES = listOf(
 
 @Composable
 fun HomeScreen(
+    lang: Lang,
+    onToggleLang: () -> Unit,
     dark: Boolean,
     onToggleDark: () -> Unit,
+    onBrowse: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var lang by rememberSaveable { mutableStateOf(Lang.EN) }
     val colors = GgTheme.colors
     val context = LocalContext.current
 
@@ -125,7 +131,7 @@ fun HomeScreen(
         Spacer(Modifier.height(12.dp))
         Header(
             lang = lang,
-            onToggleLang = { lang = if (lang == Lang.EN) Lang.TE else Lang.EN },
+            onToggleLang = onToggleLang,
             dark = dark,
             onToggleDark = onToggleDark,
         )
@@ -150,7 +156,7 @@ fun HomeScreen(
         Spacer(Modifier.height(28.dp))
         OutlineButton(
             label = lang.l("Browse today's harvest", "నేటి కోతలు చూడండి"),
-            onClick = { context.toast("Buyer flow — coming next") },
+            onClick = onBrowse,
         )
 
         Spacer(Modifier.height(40.dp))
@@ -166,7 +172,10 @@ fun HomeScreen(
             RoleCard(
                 role = role,
                 lang = lang,
-                onClick = { context.toast("${role.title.first} — coming next") },
+                onClick = {
+                    if (role.opensCatalogue) onBrowse()
+                    else context.toast("${role.title.first} — coming next")
+                },
             )
             Spacer(Modifier.height(12.dp))
         }
@@ -396,41 +405,6 @@ private fun ThemeChoice(
     )
 }
 
-/* One pill, two halves, the active one filled. The web toggle is two separate
- * buttons; a single tap target is easier to hit one-handed and there are only
- * ever two states to move between. */
-@Composable
-private fun LanguageToggle(lang: Lang, onToggle: () -> Unit) {
-    val colors = GgTheme.colors
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .border(1.dp, colors.border, RoundedCornerShape(999.dp))
-            .background(colors.surface)
-            .clickable(onClick = onToggle)
-            .padding(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        LanguageChip("EN", active = lang == Lang.EN)
-        LanguageChip("తె", active = lang == Lang.TE)
-    }
-}
-
-@Composable
-private fun LanguageChip(label: String, active: Boolean) {
-    val colors = GgTheme.colors
-    Text(
-        text = label,
-        color = if (active) colors.onAccent else colors.textSecondary,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(if (active) colors.accentStrong else Color.Transparent)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    )
-}
-
 @Composable
 private fun Badge(label: String) {
     val colors = GgTheme.colors
@@ -466,21 +440,21 @@ private fun Headline(lang: Lang) {
     val colors = GgTheme.colors
     Column {
         Text(
-            text = lang.l("Real food.", "నిజమైన ఆహారం."),
+            text = lang.l("Food Straight From Farm", "నేరుగా పొలం నుండి ఆహారం"),
             color = colors.textPrimary,
             fontSize = 38.sp,
             lineHeight = 44.sp,
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = lang.l("Real farmers.", "నిజమైన రైతులు."),
+            text = lang.l("Improving Farmers Income", "రైతుల ఆదాయం పెంపు"),
             color = colors.textPrimary,
             fontSize = 38.sp,
             lineHeight = 44.sp,
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = lang.l("No middlemen.", "మధ్యవర్తులు లేరు."),
+            text = lang.l("No Middlemen", "మధ్యవర్తులు లేరు"),
             color = colors.accent,
             fontSize = 38.sp,
             lineHeight = 44.sp,
@@ -555,16 +529,27 @@ private fun RoleCard(role: Role, lang: Lang, onClick: () -> Unit) {
 private fun android.content.Context.toast(message: String) =
     Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
 
+/* The previews drive their own language and theme so both toggles work inside
+ * Studio's interactive preview, where there is no MainActivity holding them. */
+@Composable
+private fun PreviewHome(startDark: Boolean) {
+    var dark by remember { mutableStateOf(startDark) }
+    var lang by remember { mutableStateOf(DEFAULT_LANG) }
+    GoGrameenTheme(dark = dark) {
+        HomeScreen(
+            lang = lang,
+            onToggleLang = { lang = if (lang == Lang.EN) Lang.TE else Lang.EN },
+            dark = dark,
+            onToggleDark = { dark = !dark },
+            onBrowse = {},
+        )
+    }
+}
+
 @Preview(name = "Light", showBackground = true)
 @Composable
-private fun HomeScreenLightPreview() {
-    var dark by remember { mutableStateOf(false) }
-    GoGrameenTheme(dark = dark) { HomeScreen(dark = dark, onToggleDark = { dark = !dark }) }
-}
+private fun HomeScreenLightPreview() = PreviewHome(startDark = false)
 
 @Preview(name = "Dark", showBackground = true, backgroundColor = 0xFF04140B)
 @Composable
-private fun HomeScreenDarkPreview() {
-    var dark by remember { mutableStateOf(true) }
-    GoGrameenTheme(dark = dark) { HomeScreen(dark = dark, onToggleDark = { dark = !dark }) }
-}
+private fun HomeScreenDarkPreview() = PreviewHome(startDark = true)

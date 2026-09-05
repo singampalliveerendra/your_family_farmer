@@ -15,3 +15,11 @@ package com.gogrameen.app
 enum class Lang { EN, TE }
 
 fun Lang.l(en: String, te: String): String = if (this == Lang.EN) en else te
+
+/* What the app opens in before anyone has touched the toggle.
+ *
+ * Named rather than written as a literal at the call site because two places
+ * depend on it — MainActivity, when there is nothing saved in preferences, and
+ * the test that asserts the app opens in English. A literal in both would let
+ * one change without the other noticing. */
+val DEFAULT_LANG = Lang.EN

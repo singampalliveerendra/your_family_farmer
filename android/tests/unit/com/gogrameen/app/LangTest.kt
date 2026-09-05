@@ -13,16 +13,23 @@ class LangTest {
 
     @Test
     fun `EN takes the english branch`() {
-        assertEquals("Real food.", Lang.EN.l("Real food.", "నిజమైన ఆహారం."))
+        // l() is handed the English string first and the Telugu second; in EN it
+        // must return the first one.
+        assertEquals("Food Straight From Farm", Lang.EN.l("Food Straight From Farm", "నేరుగా పొలం నుండి ఆహారం"))
     }
 
     @Test
     fun `TE takes the telugu branch`() {
-        assertEquals("నిజమైన ఆహారం.", Lang.TE.l("Real food.", "నిజమైన ఆహారం."))
+        // The same call in TE must return the second argument. Together with the
+        // test above, this pins the argument ORDER, which is the easy thing to get
+        // backwards.
+        assertEquals("నేరుగా పొలం నుండి ఆహారం", Lang.TE.l("Food Straight From Farm", "నేరుగా పొలం నుండి ఆహారం"))
     }
 
     @Test
     fun `the two branches never return the same string`() {
+        // One string, asked for in both languages, comes back different. Catches a
+        // copy-paste where both branches ended up returning the same argument.
         val en = Lang.EN.l("I'm a Buyer", "నేను కొనుగోలుదారుని")
         val te = Lang.TE.l("I'm a Buyer", "నేను కొనుగోలుదారుని")
         assertNotEquals(en, te)
@@ -30,6 +37,7 @@ class LangTest {
 
     @Test
     fun `there are exactly two languages`() {
+        // Guards the two-branch assumption every l() call site is built on.
         // A third would need a chooser rather than a toggle, and every call
         // site here is a two-branch `if`. This test is the reminder.
         assertEquals(2, Lang.entries.size)
