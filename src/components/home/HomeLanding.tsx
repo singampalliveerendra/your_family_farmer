@@ -348,9 +348,13 @@ export default function HomeLanding({
           </h2>
 
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-green-900/75 dark:text-lime-100/70">
+            {/* Copy follows the APK kill switch in lib/apkRelease.ts: while the
+                button installs the PWA there is no file to allow, so promising
+                an "allow the install" step would be describing a flow the
+                visitor never sees. Restore the sideloading wording with it. */}
             {L(
-              'Install it straight from here. It is not on the Play Store yet, so your phone will ask you to allow the install — we show you how.',
-              'ఇక్కడి నుండే ఇన్‌స్టాల్ చేసుకోండి. ఇంకా ప్లే స్టోర్‌లో లేదు, కాబట్టి మీ ఫోన్ అనుమతి అడుగుతుంది — ఎలాగో మేము చూపిస్తాం.',
+              'Install it straight from here — one tap, no Play Store, and it works on a slow connection.',
+              'ఇక్కడి నుండే ఇన్‌స్టాల్ చేసుకోండి — ఒక్క ట్యాప్, ప్లే స్టోర్ అవసరం లేదు, నెమ్మది కనెక్షన్‌లోనూ పని చేస్తుంది.',
             )}
           </p>
 
