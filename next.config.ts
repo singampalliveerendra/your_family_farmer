@@ -103,14 +103,16 @@ const nextConfig: NextConfig = {
       pathname: "/storage/v1/object/public/**",
     })),
   },
-  // The Android build, served as a plain static file out of public/. Path is
-  // duplicated from src/lib/apkRelease.ts because next.config.ts cannot use
-  // the `@/` alias — keep the two in step.
+  // The /downloads/gogrameen.apk header block was REMOVED on 2026-09-09 with
+  // the file itself: what sat there was the staging build, and prod served it.
   //
-  // Without the explicit type Vercel serves the .apk as octet-stream, which
-  // some Android browsers hand to a file manager instead of the package
-  // installer. must-revalidate matters just as much: a new build reuses this
-  // filename, and a cached copy would keep handing out the old app forever.
+  // When a real prod APK ships, restore a block here alongside it. It needs
+  // Content-Type application/vnd.android.package-archive (without it Vercel
+  // serves octet-stream and some Android browsers hand the file to a file
+  // manager instead of the package installer) and Cache-Control must-revalidate
+  // (a new build reuses the filename, and a cached copy would keep handing out
+  // the old app forever). The path is duplicated from src/lib/apkRelease.ts
+  // because next.config.ts cannot use the `@/` alias — keep the two in step.
   async headers() {
     return [
       {
@@ -119,20 +121,6 @@ const nextConfig: NextConfig = {
         headers: [
           ...SECURITY_HEADERS,
           { key: "Content-Security-Policy-Report-Only", value: CSP_REPORT_ONLY },
-        ],
-      },
-      {
-        source: "/downloads/gogrameen.apk",
-        headers: [
-          {
-            key: "Content-Type",
-            value: "application/vnd.android.package-archive",
-          },
-          {
-            key: "Content-Disposition",
-            value: 'attachment; filename="GoGrameen.apk"',
-          },
-          { key: "Cache-Control", value: "public, max-age=0, must-revalidate" },
         ],
       },
     ];

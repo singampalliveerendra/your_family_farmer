@@ -13,25 +13,30 @@
  * point APK_URL at the public object — nothing else here has to change.
  */
 
-/* KILL SWITCH — false while the file in public/ is the WRONG BUILD.
+/* KILL SWITCH — false, and THE FILE BELOW NO LONGER EXISTS.
  *
- * 2026-09-09: public/downloads/gogrameen.apk is the STAGING flavour. Unpacked,
- * it reports package `in.gogrameen.app.staging`, label "Go Grameen (Test)", and
- * a base URL hardcoded to the staging Vercel deployment. It is byte-identical
- * on prod (same sha256), because APK_URL is one static file in public/ and
- * nothing here is environment-aware — so gogrameen.in was handing every farmer
- * a test app wired to the test server. Orders placed in it land in the staging
- * database and no farmer or moderator ever sees them.
+ * 2026-09-09: public/downloads/gogrameen.apk was the STAGING flavour. Unpacked,
+ * it reported package `in.gogrameen.app.staging`, label "Go Grameen (Test)",
+ * and a base URL hardcoded to the staging Vercel deployment. Prod served a
+ * byte-identical copy (same sha256), because APK_URL is one static file in
+ * public/ and nothing here is environment-aware — so gogrameen.in was handing
+ * every farmer a test app wired to the test server. Orders placed in it land in
+ * the staging database and no farmer or moderator ever sees them.
+ *
+ * Hiding the button was not enough: the file stayed fetchable at its direct URL
+ * for anyone who had saved or shared it. So the APK, its header block in
+ * next.config.ts, and the assetlinks entry that verified it were all deleted.
+ * The constants below are kept as the shape a real release must fill in.
  *
  * While this is false the Android section offers the PWA install instead, which
  * always points at the origin it is served from — the real site.
  *
- * To turn it back on: build the `prod` flavour (android/app/build.gradle.kts
+ * To ship a real one: build the `prod` flavour (android/app/build.gradle.kts
  * pins API_BASE_URL to https://www.gogrameen.in/), sign it with the release
- * keystore, drop it in public/downloads/, update the three lines below AND
- * public/.well-known/assetlinks.json — which still names the .staging package
- * and so currently verifies the test app against the real domain. Then flip
- * this to true.
+ * keystore, put it in public/downloads/, update the three lines below, restore
+ * the header block in next.config.ts, add the prod package + its signing
+ * fingerprint to public/.well-known/assetlinks.json, and flip this to true.
+ * Do all five — flipping this alone serves a 404.
  *
  * NOTE: the prod build's applicationId differs from the test one, so Android
  * treats them as different apps. Anyone who installed "Go Grameen (Test)" must
