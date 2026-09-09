@@ -45,7 +45,7 @@ export default function ComplaintModal({
     setSaving(false)
     if (!r || !r.ok) {
       const j = r ? await r.json().catch(() => ({})) : {}
-      setErr(j?.error ?? 'Could not submit. Try again.')
+      setErr(j?.error ?? L('Could not submit. Try again.', 'సమర్పించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
       return
     }
     onCreated()

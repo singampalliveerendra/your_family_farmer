@@ -107,7 +107,7 @@ export default function SellerLoginForm({ accountType }: { accountType: SellerTy
         setError(json.error ?? '')
         return
       }
-      setError(json.error ?? 'Could not log in. Please try again.')
+      setError(json.error ?? L('Could not log in. Please try again.', 'లాగిన్ కాలేదు. మళ్ళీ ప్రయత్నించండి.'))
       return
     }
     localStorage.setItem('yff_farmer_id', json.farmerId)
@@ -172,7 +172,7 @@ export default function SellerLoginForm({ accountType }: { accountType: SellerTy
             <div className="relative">
               <input
                 type={showPass ? 'text' : 'password'}
-                placeholder="Your password"
+                placeholder={L('Your password', 'మీ పాస్‌వర్డ్')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
@@ -183,7 +183,7 @@ export default function SellerLoginForm({ accountType }: { accountType: SellerTy
                 onClick={() => setShowPass((v) => !v)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-medium px-1"
               >
-                {showPass ? 'Hide' : 'Show'}
+                {showPass ? L('Hide', 'దాచు') : L('Show', 'చూపు')}
               </button>
             </div>
           </div>
@@ -252,7 +252,7 @@ export default function SellerLoginForm({ accountType }: { accountType: SellerTy
             disabled={loading || !canSubmit}
             className="w-full bg-green-700 text-white font-bold py-4 rounded-xl text-base disabled:opacity-50 active:bg-green-800 transition-colors"
           >
-            {loading ? 'Please wait…' : L('Log in', 'లాగిన్')}
+            {loading ? L('Please wait…', 'దయచేసి వేచి ఉండండి…') : L('Log in', 'లాగిన్')}
           </button>
 
           <button
@@ -264,7 +264,7 @@ export default function SellerLoginForm({ accountType }: { accountType: SellerTy
           </button>
 
           <div className="text-xs text-gray-600 text-center pt-1">
-            New here?{' '}
+            {L('New here?', 'కొత్తవారా?')}{' '}
             <Link href={surface.signupHref} className="text-green-700 font-bold underline">
               {L('Create an account', 'ఖాతా సృష్టించండి')}
             </Link>

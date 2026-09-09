@@ -183,7 +183,7 @@ export default function FarmerOrderDetailPage() {
 
   const paymentText = (o: Order) => {
     if (!o.payment_method || o.payment_method === 'cod')
-      return isPaid ? L('Cash — Received', 'నగదు — అందింది') : 'Payment Pending (COD)'
+      return isPaid ? L('Cash — Received', 'నగదు — అందింది') : L('Payment Pending (COD)', 'చెల్లింపు పెండింగ్ (COD)')
     // Online payments come through the Razorpay gateway (stored as 'razorpay';
     // some legacy orders use 'upi'). Never surface the gateway name "razorpay"
     // to the farmer — show "UPI".

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
 import { useLang } from '@/lib/LanguageContext'
+import { methodLabel, categoryLabel } from '@/lib/produceLabels'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useCart, CartFab, EditableQty } from '@/components/consumer/Cart'
@@ -67,13 +68,6 @@ type Listing = {
   farmer_id: string
 }
 
-const METHOD_SHORT: Record<string, string> = {
-  natural: 'Natural', organic: 'Organic', low_chemical: 'Semi-org', chemical: 'Chemical',
-}
-const CATEGORY_LABEL: Record<string, string> = {
-  vegetables: 'Vegetables', fruits: 'Fruits', grains: 'Grains & Pulses', leafy: 'Leafy Greens',
-  spices: 'Spices', other: 'Other',
-}
 
 // A Postgres `date` (or full timestamp) → short readable date, e.g. "5 Jul 2026".
 function fmtDate(d?: string | null): string {
@@ -199,7 +193,7 @@ export default function ProduceDetailPage() {
   const unitLabel = localizeUnit(unit, lang)
   const emoji = item.emoji ?? '🌿'
   const method = item.method?.toLowerCase() ?? 'natural'
-  const methodShort = METHOD_SHORT[method] ?? 'Natural'
+  const methodShort = methodLabel(method, lang)
   const gallery = (item.image_urls && item.image_urls.length ? item.image_urls : (item.image_url ? [item.image_url] : []))
     .filter(Boolean) as string[]
   const farmerHref = farmer ? `/farmer/${farmer.slug}` : '#'
@@ -425,8 +419,8 @@ export default function ProduceDetailPage() {
           <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">{L('Details', 'వివరాలు')}</p>
           <div className="flex flex-wrap gap-1.5">
             <span className="bg-green-100 text-green-800 text-[11px] font-semibold px-2 py-0.5 rounded-full">{methodShort}</span>
-            {item.category && CATEGORY_LABEL[item.category] && (
-              <span className="bg-gray-100 text-gray-700 text-[11px] font-semibold px-2 py-0.5 rounded-full">{CATEGORY_LABEL[item.category]}</span>
+            {categoryLabel(item.category, lang) && (
+              <span className="bg-gray-100 text-gray-700 text-[11px] font-semibold px-2 py-0.5 rounded-full">{categoryLabel(item.category, lang)}</span>
             )}
             {item.pesticide_result && (
               <span className="bg-blue-100 text-blue-800 text-[11px] font-semibold px-2 py-0.5 rounded-full">{item.pesticide_result}</span>

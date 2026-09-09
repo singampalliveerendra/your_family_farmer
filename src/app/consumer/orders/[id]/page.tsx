@@ -150,7 +150,7 @@ export default function OrderDetailsPage() {
         const json = await r.json().catch(() => ({}))
         if (cancelled) return
         if (!r.ok) {
-          setError(json?.error ?? 'Could not load order.')
+          setError(json?.error ?? L('Could not load order.', 'ఆర్డర్ లోడ్ కాలేదు.'))
           setLoading(false)
           return
         }
@@ -760,7 +760,7 @@ function ReceiptOverlay({ order, onClose }: { order: Order; onClose: () => void 
           {order.farmer && (
             <div className="flex justify-between"><span className="text-gray-500">{L('Farmer', 'రైతు')}</span><span className="font-semibold text-gray-900 text-right">{order.farmer.name} · {order.farmer.village}</span></div>
           )}
-          <div className="flex justify-between"><span className="text-gray-500">{L('Payment', 'చెల్లింపు')}</span><span className="font-semibold text-gray-900">{order.payment_method_detail || (order.payment_method === 'cod' ? 'Cash on Delivery' : isOnlinePayment(order.payment_method) ? 'UPI' : order.payment_method || '—')}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">{L('Payment', 'చెల్లింపు')}</span><span className="font-semibold text-gray-900">{order.payment_method_detail || (order.payment_method === 'cod' ? L('Cash on Delivery', 'డెలివరీ సమయంలో నగదు') : isOnlinePayment(order.payment_method) ? 'UPI' : order.payment_method || '—')}</span></div>
         </div>
 
         <div className="border-t border-dashed border-gray-300 py-3 space-y-1.5">
@@ -802,11 +802,11 @@ function DeliveryPanel({ order }: { order: Order }) {
   const ds: DeliveryStatus = (order.delivery_status as DeliveryStatus) || 'unassigned'
 
   const steps: Array<{ key: DeliveryStatus; label: string; sub: string; at: string | null | undefined }> = [
-    { key: 'unassigned', label: 'Order placed', sub: 'Waiting for a delivery boy', at: order.created_at },
-    { key: 'assigned', label: 'Rider assigned', sub: 'On the way to farmer', at: order.assigned_at },
-    { key: 'picked_up', label: 'Picked up', sub: 'Collected from farmer', at: order.picked_up_at },
-    { key: 'out_for_delivery', label: 'Out for delivery', sub: 'On the way to you', at: order.out_for_delivery_at },
-    { key: 'delivered', label: 'Delivered', sub: 'Order completed', at: order.delivered_at },
+    { key: 'unassigned', label: L('Order placed', 'ఆర్డర్ పెట్టారు'), sub: L('Waiting for a delivery boy', 'డెలివరీ బాయ్ కోసం ఎదురుచూస్తున్నాం'), at: order.created_at },
+    { key: 'assigned', label: L('Rider assigned', 'రైడర్ కేటాయించారు'), sub: L('On the way to farmer', 'రైతు వద్దకు వెళ్తున్నారు'), at: order.assigned_at },
+    { key: 'picked_up', label: L('Picked up', 'తీసుకున్నారు'), sub: L('Collected from farmer', 'రైతు నుండి సేకరించారు'), at: order.picked_up_at },
+    { key: 'out_for_delivery', label: L('Out for delivery', 'డెలివరీకి బయలుదేరారు'), sub: L('On the way to you', 'మీ వద్దకు వస్తున్నారు'), at: order.out_for_delivery_at },
+    { key: 'delivered', label: L('Delivered', 'డెలివరీ అయ్యింది'), sub: L('Order completed', 'ఆర్డర్ పూర్తయ్యింది'), at: order.delivered_at },
   ]
 
   const stageIndex = (k: DeliveryStatus) => ['unassigned', 'assigned', 'picked_up', 'out_for_delivery', 'delivered'].indexOf(k)

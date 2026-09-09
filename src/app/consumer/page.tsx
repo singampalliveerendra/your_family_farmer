@@ -11,6 +11,7 @@ import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import ShareButton from '@/components/consumer/ShareButton'
 import FreshHarvestsTable, { UpcomingHarvestsTable } from '@/components/consumer/FreshHarvestsTable'
 import { supabase } from '@/lib/supabase'
+import { METHOD_SHORT, CATEGORY_LABEL } from '@/lib/produceLabels'
 import { haversineKm, nearestTown, formatDistance, farmerCoords, townByName } from '@/lib/location'
 import { todayInIndia, isPastDate } from '@/lib/date'
 import LocationSearch from '@/components/LocationSearch'
@@ -160,25 +161,10 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
   ],
 }
 
-const CATEGORIES = [
-  { key: 'all',        en: 'All',             te: 'అన్నీ' },
-  { key: 'vegetables', en: 'Vegetables',      te: 'కూరగాయలు' },
-  { key: 'fruits',     en: 'Fruits',          te: 'పళ్ళు' },
-  { key: 'grains',     en: 'Grains & Pulses', te: 'ధాన్యాలు' },
-  { key: 'leafy',      en: 'Leafy Greens',    te: 'ఆకు కూరలు' },
-  { key: 'spices',     en: 'Spices',          te: 'మసాలాలు' },
-  { key: 'other',      en: 'Other',           te: 'ఇతర' },
-]
-
-// Short, single-word method label for the small pill on the image corner.
-// Bilingual, and deliberately shorter than the filter dropdown's wording — the
-// pill sits in a 390px grid column's corner, so "సెమీ ఆర్గానిక్" would wrap.
-const METHOD_SHORT: Record<string, { en: string; te: string }> = {
-  natural:      { en: 'Natural',  te: 'సహజం' },
-  organic:      { en: 'Organic',  te: 'సేంద్రీయ' },
-  low_chemical: { en: 'Semi-org', te: 'సెమీ' },
-  chemical:     { en: 'Chemical', te: 'రసాయన' },
-}
+// Order matters — this is the filter row, left to right. The labels themselves
+// come from the shared map so this page and the two detail pages cannot drift.
+const CATEGORIES = (['all', 'vegetables', 'fruits', 'grains', 'leafy', 'spices', 'other'] as const)
+  .map((key) => ({ key, ...CATEGORY_LABEL[key] }))
 
 // Solid pill colour for the method badge over the image (spec: natural=green,
 // organic=blue). White text sits on a solid colour so it reads over any photo.

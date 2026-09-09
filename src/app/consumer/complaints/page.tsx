@@ -20,12 +20,12 @@ type Complaint = {
   raised_by_phone: string | null
 }
 
-const TYPE_LABEL: Record<string, string> = {
-  delivery_delay: 'Delivery delay',
-  quality_complaint: 'Quality problem',
-  payment_issue: 'Payment issue',
-  other: 'Other',
-}
+const TYPE_LABEL = (L: (en: string, te: string) => string): Record<string, string> => ({
+  delivery_delay: L('Delivery delay', 'డెలివరీ ఆలస్యం'),
+  quality_complaint: L('Quality problem', 'నాణ్యత సమస్య'),
+  payment_issue: L('Payment issue', 'చెల్లింపు సమస్య'),
+  other: L('Other', 'ఇతర'),
+})
 
 const STATUS_STYLE: Record<string, string> = {
   open: 'bg-amber-100 text-amber-800',
@@ -54,7 +54,7 @@ export default function ConsumerComplaintsPage() {
     const r = await fetch('/api/consumer/complaints', { credentials: 'same-origin' }).catch(() => null)
     if (!r) { setError(L('Could not load. Check your connection.', 'లోడ్ కాలేదు. మీ కనెక్షన్ చూడండి.')); setLoading(false); return }
     const json = await r.json().catch(() => ({}))
-    if (!r.ok) { setError(json?.error ?? 'Could not load complaints.'); setLoading(false); return }
+    if (!r.ok) { setError(json?.error ?? L('Could not load complaints.', 'ఫిర్యాదులు లోడ్ కాలేదు.')); setLoading(false); return }
     setComplaints((json.complaints ?? []) as Complaint[])
     setLoading(false)
   }, [])
@@ -121,7 +121,7 @@ export default function ConsumerComplaintsPage() {
               <div className="text-center py-12">
                 <div className="text-5xl mb-3">{tab === 'active' ? '✅' : '📭'}</div>
                 <p className="font-semibold text-gray-500 text-sm">
-                  {tab === 'active' ? L('No active complaints', 'ప్రస్తుత ఫిర్యాదులు లేవు') : 'No resolved complaints yet'}
+                  {tab === 'active' ? L('No active complaints', 'ప్రస్తుత ఫిర్యాదులు లేవు') : L('No resolved complaints yet', 'పరిష్కరించిన ఫిర్యాదులు ఇంకా లేవు')}
                 </p>
               </div>
             ) : (
@@ -134,7 +134,7 @@ export default function ConsumerComplaintsPage() {
                           {STATUS_LABEL(L)[c.status]}
                         </span>
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                          {TYPE_LABEL[c.type] ?? c.type}
+                          {TYPE_LABEL(L)[c.type] ?? c.type}
                         </span>
                       </div>
                       <span className="text-[11px] text-gray-400 whitespace-nowrap">

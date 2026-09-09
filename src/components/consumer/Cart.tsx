@@ -737,7 +737,7 @@ export function CartSheet({
     }).catch(() => null)
     if (!r) return { ok: false, error: L('Network error. Please try again.', 'నెట్‌వర్క్ లోపం. మళ్ళీ ప్రయత్నించండి.') }
     const json = await r.json().catch(() => ({}))
-    if (!r.ok || !json?.ok) return { ok: false, error: json?.error ?? 'Could not place order.' }
+    if (!r.ok || !json?.ok) return { ok: false, error: json?.error ?? L('Could not place order.', 'ఆర్డర్ పెట్టలేకపోయాం.') }
     // Order saved — drop the key so a genuinely new order later gets a fresh one.
     delete idempotencyKeys.current[f.farmerId]
     return {
@@ -796,7 +796,7 @@ export function CartSheet({
     }
     if (!createRes?.ok) {
       setPayingOnline(null)
-      showToast(createRes?.error ?? 'Could not start the deposit payment. Please try again.')
+      showToast(createRes?.error ?? L('Could not start the deposit payment. Please try again.', 'డిపాజిట్ చెల్లింపు ప్రారంభించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
       void abandonOrders()
       return
     }
@@ -859,7 +859,7 @@ export function CartSheet({
 
         setPayingOnline(null)
         if (!vr?.ok) {
-          showToast(vr?.error ?? 'Deposit could not be verified. Please contact support.')
+          showToast(vr?.error ?? L('Deposit could not be verified. Please contact support.', 'డిపాజిట్ ధృవీకరించలేకపోయాం. సపోర్ట్‌ను సంప్రదించండి.'))
           return
         }
         clearFarmer(f.farmerId)
@@ -1031,7 +1031,7 @@ export function CartSheet({
     }
     if (!createRes?.ok) {
       setPayingOnline(null)
-      showToast(createRes?.error ?? 'Could not start payment. Please try again.')
+      showToast(createRes?.error ?? L('Could not start payment. Please try again.', 'చెల్లింపు ప్రారంభించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
       return
     }
 
@@ -1118,7 +1118,7 @@ export function CartSheet({
 
         setPayingOnline(null)
         if (!vr?.ok) {
-          showToast(vr?.error ?? 'Payment could not be verified. Please contact support.')
+          showToast(vr?.error ?? L('Payment could not be verified. Please contact support.', 'చెల్లింపు ధృవీకరించలేకపోయాం. సపోర్ట్‌ను సంప్రదించండి.'))
           return
         }
         clearFarmer(f.farmerId)
@@ -1211,7 +1211,7 @@ export function CartSheet({
     if (!createRes?.ok) {
       await abandon(allOrderIds)
       setPayingOnline(null)
-      showToast(createRes?.error ?? 'Could not start payment. Please try again.')
+      showToast(createRes?.error ?? L('Could not start payment. Please try again.', 'చెల్లింపు ప్రారంభించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
       return
     }
 
@@ -1271,7 +1271,7 @@ export function CartSheet({
 
         setPayingOnline(null)
         if (!vr?.ok) {
-          showToast(vr?.error ?? 'Payment could not be verified. Please contact support.')
+          showToast(vr?.error ?? L('Payment could not be verified. Please contact support.', 'చెల్లింపు ధృవీకరించలేకపోయాం. సపోర్ట్‌ను సంప్రదించండి.'))
           return
         }
         clear() // whole cart paid in one go
@@ -1327,7 +1327,7 @@ export function CartSheet({
     }
     const json = await r.json().catch(() => ({}))
     if (!r.ok || !json?.ok) {
-      setProofError(json?.error ?? 'Upload failed.')
+      setProofError(json?.error ?? L('Upload failed.', 'అప్‌లోడ్ విఫలమైంది.'))
       return
     }
     setProofUploaded(true)
@@ -1418,7 +1418,7 @@ export function CartSheet({
           </div>
           <div className="order-success-rise">
             <h2 className="font-extrabold text-gray-900 text-xl">
-              {cashMode ? 'Order placed!' : onlinePaid ? 'Payment successful!' : 'Payment recorded!'}
+              {cashMode ? L('Order placed!', 'ఆర్డర్ పెట్టారు!') : onlinePaid ? L('Payment successful!', 'చెల్లింపు విజయవంతం!') : L('Payment recorded!', 'చెల్లింపు నమోదైంది!')}
             </h2>
             <p className={`font-semibold mt-0.5 ${cashMode ? 'text-amber-700' : 'text-green-700'}`}>
               {cashMode
@@ -1680,9 +1680,9 @@ export function CartSheet({
               className="w-full bg-green-700 text-white font-bold py-4 rounded-xl text-base disabled:opacity-50 active:bg-green-800"
             >
               {submittingResult
-                ? 'Saving...'
+                ? L('Saving...', 'సేవ్ అవుతోంది...')
                 : proofUploading
-                  ? 'Uploading screenshot...'
+                  ? L('Uploading screenshot...', 'స్క్రీన్‌షాట్ అప్‌లోడ్ అవుతోంది...')
                   : !proofUploaded
                     ? L('Attach screenshot first', 'మొదట స్క్రీన్‌షాట్ జతచేయండి')
                     : L('✓ I Have Paid', 'చెల్లించాను')}
@@ -1792,7 +1792,7 @@ export function CartSheet({
                         <p className="text-xs text-green-700">📍 {f.farmerVillage}</p>
                       </div>
                       <span className={`text-[10px] font-bold text-white px-2 py-1 rounded-full whitespace-nowrap ${groupHasDelivery ? 'bg-blue-600' : 'bg-green-700'}`}>
-                        {groupHasDelivery && groupHasPickup ? '🛵 Pickup + Delivery' : groupHasDelivery ? '🛵 Delivery' : 'Pickup'}
+                        {groupHasDelivery && groupHasPickup ? L('🛵 Pickup + Delivery', '🛵 పికప్ + డెలివరీ') : groupHasDelivery ? L('🛵 Delivery', '🛵 డెలివరీ') : L('Pickup', 'పికప్')}
                       </span>
                     </div>
 
@@ -2263,7 +2263,7 @@ export function CartSheet({
                           : 'bg-blue-600 text-white active:bg-blue-700 disabled:opacity-50'
                       }`}
                     >
-                      {payingOnline != null ? 'Opening payment...' : `💳 Order & Pay ₹${cartSubtotal + cartFee}`}
+                      {payingOnline != null ? L('Opening payment...', 'చెల్లింపు తెరుస్తోంది...') : `💳 Order & Pay ₹${cartSubtotal + cartFee}`}
                     </button>
                   )
                 })() : (

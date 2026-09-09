@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { methodLabel } from '@/lib/produceLabels'
 import { useOrderPolling } from '@/lib/useOrderPolling'
 import { FARMER_PUBLIC_COLUMNS } from '@/lib/farmerColumns'
 import Link from 'next/link'
@@ -438,7 +439,7 @@ export default function FarmerDashboard() {
       if (row.status === 'cancelled' && before.status !== 'cancelled') {
         fireNotification(
           L('Order cancelled by buyer', 'కొనుగోలుదారు ఆర్డర్ రద్దు చేశారు'),
-          `${row.buyer_name ?? 'Buyer'} cancelled ${row.produce_name ?? 'an order'}`,
+          `${row.buyer_name ?? L('Buyer', 'కొనుగోలుదారు')} ${L('cancelled', 'రద్దు చేశారు')} ${row.produce_name ?? L('an order', 'ఒక ఆర్డర్')}`,
         )
       }
       const becameClaimed =
@@ -446,8 +447,8 @@ export default function FarmerDashboard() {
         && before.payment_status !== row.payment_status
       if (becameClaimed) {
         fireNotification(
-          `Buyer paid — verify payment`,
-          `${row.buyer_name ?? 'Buyer'} sent ₹${row.total_price ?? '?'} for ${row.produce_name ?? 'order'}`,
+          L('Buyer paid — verify payment', 'కొనుగోలుదారు చెల్లించారు — ధృవీకరించండి'),
+          `${row.buyer_name ?? L('Buyer', 'కొనుగోలుదారు')} ${L('sent', 'పంపారు')} ₹${row.total_price ?? '?'} — ${row.produce_name ?? L('order', 'ఆర్డర్')}`,
         )
       }
     }
@@ -459,7 +460,7 @@ export default function FarmerDashboard() {
       if (before.received_at) continue
       fireNotification(
         L('Order received ✓', 'అందుకున్నారు'),
-        `${before.buyer_name ?? 'Buyer'} confirmed they received ${before.produce_name ?? 'the order'}`,
+        `${before.buyer_name ?? L('Buyer', 'కొనుగోలుదారు')} ${L('confirmed they received', 'అందినట్టు నిర్ధారించారు')} ${before.produce_name ?? L('the order', 'ఆర్డర్')}`,
       )
     }
 
@@ -914,7 +915,7 @@ function NotificationPermissionBanner() {
     const result = await Notification.requestPermission()
     setPerm(result)
     if (result === 'granted') {
-      try { new Notification('YourFamilyFarmer', { body: 'You will be alerted on every new order.' }) } catch {}
+      try { new Notification('YourFamilyFarmer', { body: L('You will be alerted on every new order.', 'ప్రతి కొత్త ఆర్డర్‌కు మీకు తెలియజేస్తాం.') }) } catch {}
     }
   }
 
@@ -1334,7 +1335,7 @@ function ProfileEditModal({
     }
     const json = await res.json().catch(() => ({}))
     setPwLoading(false)
-    if (!res.ok) { setPwError(json.error ?? 'Could not update password.'); return }
+    if (!res.ok) { setPwError(json.error ?? L('Could not update password.', 'పాస్‌వర్డ్ మార్చలేకపోయాం.')); return }
     setPwSuccess(true)
     setCurrentPassword('')
     setNewPassword('')
@@ -2509,7 +2510,7 @@ function ProduceListingForm({
         setError(L('Network error — is the server running?', 'నెట్‌వర్క్ లోపం — సర్వర్ నడుస్తోందా?'))
         return
       }
-      if (!res.ok) { setLoading(false); setError(json.error ?? 'Could not save changes'); return }
+      if (!res.ok) { setLoading(false); setError(json.error ?? L('Could not save changes', 'మార్పులు సేవ్ చేయలేకపోయాం')); return }
       // Quality fields are best-effort: their columns may not exist until
       // scripts/produce-quality-fields-migration.sql is applied, so they must
       // never block the core listing save. Written directly (client-side) here.
@@ -3230,9 +3231,6 @@ function ProduceListingForm({
 // countdown, the distance line and Share. They come from rows an unpublished
 // listing cannot have (or from the buyer's own location), and a preview that
 // invents them stops being a preview.
-const PREVIEW_METHOD_SHORT: Record<string, string> = {
-  natural: 'Natural', organic: 'Organic', low_chemical: 'Semi-org', chemical: 'Chemical',
-}
 // The card's method pill is a solid colour, unlike the page's — matching
 // METHOD_PILL / METHOD_SHORT on the buyer's grid, Telugu included: the pill
 // sits in a 390px grid column's corner, where the long Telugu word would wrap.
@@ -3473,7 +3471,7 @@ function PreviewCardView({ data, qty, setQty }: PreviewViewProps) {
 function PreviewPageView({ data, qty, setQty }: PreviewViewProps) {
   const { tx, L, lang } = useLang()
   const unitLabel = localizeUnit(data.unit, lang) || data.unit
-  const methodShort = PREVIEW_METHOD_SHORT[data.method] ?? 'Natural'
+  const methodShort = methodLabel(data.method, lang)
   const stock = previewNum(data.stock)
   const priceNum = previewNum(data.price)
   const video = normalizeUrl(data.videoUrl)
