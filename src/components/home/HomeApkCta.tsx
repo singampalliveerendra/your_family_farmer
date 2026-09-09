@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
 import { DownloadIcon, reportInstall } from '@/lib/installPrompt'
-import { APK_URL, APK_FILENAME, APK_VERSION, APK_SIZE_LABEL } from '@/lib/apkRelease'
+import { APK_AVAILABLE, APK_URL, APK_FILENAME, APK_VERSION, APK_SIZE_LABEL } from '@/lib/apkRelease'
+import HomeInstallCta from '@/components/home/HomeInstallCta'
 
 /* Direct APK download — the Android app, not the browser install.
  *
@@ -23,6 +24,14 @@ import { APK_URL, APK_FILENAME, APK_VERSION, APK_SIZE_LABEL } from '@/lib/apkRel
 
 export default function HomeApkCta() {
   const { L } = useLang()
+
+  // The APK in public/ is the STAGING build — see the kill switch in
+  // apkRelease.ts. Until a prod-flavour build replaces it, this hands over the
+  // PWA install instead. That is not a downgrade for the visitor: the PWA
+  // installs from whatever origin serves it, so it can only ever point at the
+  // real site, which is exactly the property the committed APK lacks.
+  if (!APK_AVAILABLE) return <HomeInstallCta />
+
   const [sheet, setSheet] = useState(false)
   const [android, setAndroid] = useState(true)
 
