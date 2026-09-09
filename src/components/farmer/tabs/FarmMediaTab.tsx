@@ -72,7 +72,7 @@ export default function FarmMediaTab({ media }: { media: Record<string, unknown>
                   <span className="text-2xl">▶️</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">{video.caption ?? 'Farm video'}</p>
+                  <p className="text-sm font-semibold text-gray-800 truncate">{video.caption ?? L('Farm video', 'పొలం వీడియో')}</p>
                   <div className="flex items-center gap-2 mt-0.5">
                     {video.language && <span className="text-xs text-gray-500">{video.language}</span>}
                     {video.has_subtitles && <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded">CC</span>}

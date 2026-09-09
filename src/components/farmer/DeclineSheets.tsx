@@ -216,7 +216,7 @@ export function DeclineReasonSheet({
             disabled={!canSubmit}
             className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl text-sm disabled:opacity-50 active:bg-red-700"
           >
-            {processing ? 'Declining...' : 'Confirm decline'}
+            {processing ? L('Declining...', 'తిరస్కరిస్తోంది...') : L('Confirm decline', 'తిరస్కరణ నిర్ధారించండి')}
           </button>
         </div>
       </div>

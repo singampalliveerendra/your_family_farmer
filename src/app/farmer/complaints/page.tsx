@@ -24,12 +24,12 @@ const TYPE_OPTIONS = (L: (en: string, te: string) => string) => [
   { value: 'quality_complaint', label: L('Buyer dispute', 'కొనుగోలుదారు వివాదం') },
   { value: 'other', label: L('Something else', 'ఇతర') },
 ]
-const TYPE_LABEL: Record<string, string> = {
-  delivery_delay: 'Pickup / delivery',
-  quality_complaint: 'Buyer dispute',
-  payment_issue: 'Payment issue',
-  other: 'Other',
-}
+const TYPE_LABEL = (L: (en: string, te: string) => string): Record<string, string> => ({
+  delivery_delay: L('Pickup / delivery', 'పికప్ / డెలివరీ'),
+  quality_complaint: L('Buyer dispute', 'కొనుగోలుదారు వివాదం'),
+  payment_issue: L('Payment issue', 'చెల్లింపు సమస్య'),
+  other: L('Other', 'ఇతర'),
+})
 
 const STATUS_STYLE: Record<string, string> = {
   open: 'bg-amber-100 text-amber-800',
@@ -62,7 +62,7 @@ export default function FarmerComplaintsPage() {
       setError(L('Could not load. Check your connection.', 'లోడ్ కాలేదు. మీ కనెక్షన్ చూడండి.')); setLoading(false); return
     }
     const json = await r.json().catch(() => ({}))
-    if (!r.ok) { setError(json?.error ?? 'Could not load complaints.'); setLoading(false); return }
+    if (!r.ok) { setError(json?.error ?? L('Could not load complaints.', 'ఫిర్యాదులు లోడ్ కాలేదు.')); setLoading(false); return }
     setComplaints((json.complaints ?? []) as Complaint[])
     setLoading(false)
   }, [])
@@ -113,7 +113,7 @@ export default function FarmerComplaintsPage() {
           <div className="text-center py-12">
             <div className="text-5xl mb-3">{tab === 'active' ? '✅' : '📭'}</div>
             <p className="font-semibold text-gray-500 text-sm">
-              {tab === 'active' ? L('No active complaints', 'ప్రస్తుత ఫిర్యాదులు లేవు') : 'No resolved complaints yet'}
+              {tab === 'active' ? L('No active complaints', 'ప్రస్తుత ఫిర్యాదులు లేవు') : L('No resolved complaints yet', 'పరిష్కరించిన ఫిర్యాదులు ఇంకా లేవు')}
             </p>
           </div>
         ) : (
@@ -123,7 +123,7 @@ export default function FarmerComplaintsPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_STYLE[c.status]}`}>{STATUS_LABEL(L)[c.status]}</span>
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{TYPE_LABEL[c.type] ?? c.type}</span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{TYPE_LABEL(L)[c.type] ?? c.type}</span>
                   </div>
                   <span className="text-[11px] text-gray-400 whitespace-nowrap">
                     {new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
@@ -171,10 +171,10 @@ function NewComplaint({ onClose, onCreated }: { onClose: () => void; onCreated: 
       })
     } catch (e) {
       if (isFarmerSessionExpired(e)) return
-      setSaving(false); setErr('Could not submit. Try again.'); return
+      setSaving(false); setErr(L('Could not submit. Try again.', 'సమర్పించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.')); return
     }
     setSaving(false)
-    if (!r.ok) { const j = await r.json().catch(() => ({})); setErr(j?.error ?? 'Could not submit. Try again.'); return }
+    if (!r.ok) { const j = await r.json().catch(() => ({})); setErr(j?.error ?? L('Could not submit. Try again.', 'సమర్పించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.')); return }
     onCreated()
   }
 

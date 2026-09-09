@@ -38,7 +38,7 @@ export default function FarmerSignupPage() {
     setLoading(false)
     if (!res) { setError(L('Network error. Please try again.', 'నెట్‌వర్క్ లోపం. మళ్ళీ ప్రయత్నించండి.')); return }
     const json = await res.json().catch(() => ({}))
-    if (!res.ok) { setError(json?.error ?? 'Could not create account.'); return }
+    if (!res.ok) { setError(json?.error ?? L('Could not create account.', 'ఖాతా సృష్టించలేకపోయాం.')); return }
     localStorage.setItem('yff_farmer_id', json.farmerId)
     localStorage.setItem('yff_farmer_slug', json.farmerSlug)
     router.replace('/farmer/dashboard')
@@ -118,7 +118,7 @@ export default function FarmerSignupPage() {
                 onClick={() => setShowPass((v) => !v)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-medium px-1"
               >
-                {showPass ? 'Hide' : 'Show'}
+                {showPass ? L('Hide', 'దాచు') : L('Show', 'చూపు')}
               </button>
             </div>
             <p className="text-[11px] text-gray-500 mt-1">{L('Minimum 6 characters', 'కనీసం 6 అక్షరాలు')}</p>
@@ -133,11 +133,11 @@ export default function FarmerSignupPage() {
             disabled={loading || !canSubmit}
             className="w-full bg-green-700 text-white font-bold py-4 rounded-xl text-base disabled:opacity-50 active:bg-green-800 transition-colors"
           >
-            {loading ? 'Creating account…' : L('Create account', 'ఖాతా సృష్టించండి')}
+            {loading ? L('Creating account…', 'ఖాతా సృష్టిస్తోంది…') : L('Create account', 'ఖాతా సృష్టించండి')}
           </button>
 
           <div className="text-xs text-gray-600 text-center pt-1">
-            Already have an account?{' '}
+            {L('Already have an account?', 'ఇప్పటికే ఖాతా ఉందా?')}{' '}
             <Link href="/farmer/login" className="text-green-700 font-bold underline">
               {L('Log in', 'లాగిన్')}
             </Link>

@@ -276,7 +276,7 @@ function AddProduceForm({ farmerId, onAdded }: { farmerId: string; onAdded: (ite
       setSuccess(true)
       setTimeout(() => { reset(); setOpen(false) }, 1500)
     } else {
-      setError(insertError?.message ?? 'Failed to add produce. Check Supabase RLS policies.')
+      setError(insertError?.message ?? L('Could not add the harvest. Please try again.', 'హార్వెస్ట్ జోడించలేకపోయాం. మళ్ళీ ప్రయత్నించండి.'))
     }
   }
 
@@ -505,7 +505,7 @@ function ProduceCard({
             )}
             {(item.delivery_mode === 'courier' || item.delivery_mode === 'both') && (
               <span className="bg-blue-100 text-blue-800 text-[10px] font-semibold px-2 py-0.5 rounded-full">
-                🛵 {(item.delivery_charge ?? 0) > 0 ? `Delivery ₹${item.delivery_charge}` : 'Free delivery'}
+                🛵 {(item.delivery_charge ?? 0) > 0 ? `Delivery ₹${item.delivery_charge}` : L('Free delivery', 'ఉచిత డెలివరీ')}
                 {item.delivery_radius_km ? ` · ${item.delivery_radius_km}km` : ''}
               </span>
             )}
@@ -537,7 +537,7 @@ function ProduceCard({
         <div className="border-t border-gray-100 px-3 py-2 bg-gray-50">
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-700">
             {item.price_tier_1_price && (
-              <span>{item.price_tier_1_qty ? `1–${item.price_tier_2_qty ? item.price_tier_2_qty - 1 : item.price_tier_1_qty} kg` : 'Per kg'}: <strong>₹{item.price_tier_1_price}</strong></span>
+              <span>{item.price_tier_1_qty ? `1–${item.price_tier_2_qty ? item.price_tier_2_qty - 1 : item.price_tier_1_qty} kg` : L('Per kg', 'కిలోకు')}: <strong>₹{item.price_tier_1_price}</strong></span>
             )}
             {item.price_tier_2_qty && item.price_tier_2_price && (
               <span>{item.price_tier_2_qty}–{item.price_tier_3_qty ? item.price_tier_3_qty - 1 : '+'} kg: <strong>₹{item.price_tier_2_price}</strong></span>

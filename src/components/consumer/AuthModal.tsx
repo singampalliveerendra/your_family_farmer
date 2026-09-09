@@ -154,7 +154,7 @@ export default function AuthModal() {
                 autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={mode === 'login' ? '' : 'At least 6 characters'}
+                placeholder={mode === 'login' ? '' : L('At least 6 characters', 'కనీసం 6 అక్షరాలు')}
                 maxLength={128}
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-16 text-base focus:border-green-500 focus:outline-none"
               />
@@ -163,7 +163,7 @@ export default function AuthModal() {
                 onClick={() => setShowPw((v) => !v)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-semibold"
               >
-                {showPw ? 'Hide' : 'Show'}
+                {showPw ? L('Hide', 'దాచు') : L('Show', 'చూపు')}
               </button>
             </div>
             {mode === 'register' && (
@@ -202,7 +202,9 @@ export default function AuthModal() {
             }`}
           >
             {loading
-              ? (mode === 'login' ? 'Logging in...' : 'Creating account...')
+              ? (mode === 'login'
+                  ? L('Logging in...', 'లాగిన్ అవుతోంది...')
+                  : L('Creating account...', 'ఖాతా సృష్టిస్తోంది...'))
               : (mode === 'login' ? L('Log in', 'లాగిన్') : L('Create account', 'ఖాతా సృష్టించండి'))}
           </button>
 

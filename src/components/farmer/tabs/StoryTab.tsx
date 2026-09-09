@@ -84,7 +84,7 @@ export default function StoryTab({ farmer }: { farmer: Record<string, unknown> }
           <div>
             <h3 className="text-sm font-bold text-amber-900">{tx.visitFarm}</h3>
             <p className="text-xs text-amber-700 mt-1">
-              {tx.visitFarmDesc} {f.farm_visit_day ?? 'Saturday morning'}. {tx.visitFarmDesc2}
+              {tx.visitFarmDesc} {f.farm_visit_day ?? L('Saturday morning', 'శనివారం ఉదయం')}. {tx.visitFarmDesc2}
             </p>
           </div>
           <span className="text-2xl">🌾</span>
