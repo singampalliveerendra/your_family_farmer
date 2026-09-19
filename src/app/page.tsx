@@ -2,6 +2,9 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { ENTRY_COOKIE, entryDestination } from '@/lib/entryRole'
 import { FARMER_SESSION_COOKIE_NAME, verifyFarmerSessionToken } from '@/lib/farmer-session'
+import { CONSUMER_SESSION_COOKIE_NAME, verifySessionToken } from '@/lib/session'
+import { defaultDashboardDestination } from '@/lib/defaultDashboard'
+import { defaultDashboardForSessions } from '@/lib/defaultDashboardStore'
 
 /* gogrameen.in — the front door.
  *
@@ -17,6 +20,11 @@ import { FARMER_SESSION_COOKIE_NAME, verifyFarmerSessionToken } from '@/lib/farm
  * their surface. The cookie is what covers existing installs, whose WebAPK
  * still has the old parameter-less start_url baked in until Chrome refreshes
  * the manifest.
+ *
+ * Ahead of both: a signed-in person's saved Settings → Default dashboard. It
+ * is account-level (stored in the DB, keyed by phone), so it follows them to
+ * a new phone, and it overrides the install-time yff_entry choice. It costs
+ * two small indexed reads, and only for someone holding a session cookie.
  *
  * Everyone else — first visit, a shared link, a QR code — gets /home. */
 export const dynamic = 'force-dynamic'
@@ -34,8 +42,15 @@ export default async function Home({
   // goes straight to the login form instead of loading the whole dashboard
   // bundle first only to be bounced off it. Signature check only, no DB round
   // trip: /api/auth/me revalidates against `farmers` a moment later anyway.
-  const sellerSignedIn =
-    verifyFarmerSessionToken(store.get(FARMER_SESSION_COOKIE_NAME)?.value) !== null
+  const seller = verifyFarmerSessionToken(store.get(FARMER_SESSION_COOKIE_NAME)?.value)
+  const sellerSignedIn = seller !== null
+  const buyer = verifySessionToken(store.get(CONSUMER_SESSION_COOKIE_NAME)?.value)
+
+  const saved = await defaultDashboardForSessions({
+    farmerId: seller?.farmerId,
+    consumerId: buyer?.consumerId,
+  })
+  if (saved) redirect(defaultDashboardDestination(saved, sellerSignedIn))
 
   if (params.pwa === '1' || entry) redirect(entryDestination(entry, sellerSignedIn))
   redirect('/home')

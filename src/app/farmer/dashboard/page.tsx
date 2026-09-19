@@ -10,6 +10,7 @@ import Link from 'next/link'
 import NextImage from 'next/image'
 import LanguageToggle from '@/components/LanguageToggle'
 import BuyerViewSwitch from '@/components/farmer/BuyerViewSwitch'
+import DefaultDashboardSetting from '@/components/DefaultDashboardSetting'
 import { clearBuyerView, readBuyerView } from '@/lib/buyerView'
 import { clearCachedConsumer } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
@@ -262,6 +263,7 @@ export default function FarmerDashboard() {
   const [weeklyEarnings, setWeeklyEarnings] = useState<number[]>([0, 0, 0, 0])
   const [showForm, setShowForm] = useState(false)
   const [showProfileEdit, setShowProfileEdit] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [showListings, setShowListings] = useState(false)
 
   // ?edit=profile opens the profile modal straight away — the "Edit profile"
@@ -574,6 +576,9 @@ export default function FarmerDashboard() {
               className="text-white text-xs underline"
             >
               {tx.editProfile}
+            </button>
+            <button onClick={() => setShowSettings(true)} className="text-white text-xs underline">
+              ⚙️ {L('Settings', 'సెట్టింగ్‌లు')}
             </button>
             <button onClick={handleLogout} className="text-green-500 text-xs underline">
               {tx.logout}
@@ -893,6 +898,35 @@ export default function FarmerDashboard() {
             setShowProfileEdit(false)
           }}
         />
+      )}
+
+      {/* Settings — a bottom sheet, the dashboard's modal pattern. Farmers and
+          aggregators both land here; "Farmer" as a default covers both, since
+          /farmer/dashboard forwards an aggregator on its own. */}
+      {showSettings && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={() => setShowSettings(false)}
+        >
+          <div
+            role="dialog"
+            aria-label={L('Settings', 'సెట్టింగ్‌లు')}
+            className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-extrabold text-gray-900 text-lg">⚙️ {L('Settings', 'సెట్టింగ్‌లు')}</h2>
+              <button
+                onClick={() => setShowSettings(false)}
+                aria-label={L('Close', 'మూసివేయి')}
+                className="text-gray-400 text-2xl leading-none px-1"
+              >
+                ×
+              </button>
+            </div>
+            <DefaultDashboardSetting />
+          </div>
+        </div>
       )}
 
     </main>

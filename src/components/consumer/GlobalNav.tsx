@@ -7,6 +7,7 @@ import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import BrandLogo from '@/components/BrandLogo'
 import { readBuyerView, sellerDashboardPath, type SellerRole } from '@/lib/buyerView'
+import DefaultDashboardSetting from '@/components/DefaultDashboardSetting'
 
 type ActiveTab = 'consumer' | 'farmer' | 'delivery' | 'moderator'
 
@@ -188,6 +189,10 @@ function RoleMenu({
               >
                 {L('🛟 My complaints', 'నా ఫిర్యాదులు')}
               </Link>
+              {/* Settings. Account-level, so only offered once signed in. */}
+              <div className="px-4 py-2.5 border-t border-gray-100 mt-1">
+                <DefaultDashboardSetting />
+              </div>
               <button
                 onClick={() => { setOpen(false); void onLogout() }}
                 className="block w-full text-left px-4 py-2.5 text-red-600 active:bg-red-50 font-semibold"

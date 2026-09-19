@@ -49,6 +49,7 @@ helpers are deterministic. That is why CI can run it with no secrets at all.
 | `lib/location.test.ts` | distance, and placing a farmer who never granted GPS |
 | `lib/source-farmers.test.ts` | the grower record behind an aggregator's produce |
 | `lib/entryRole.test.ts` | where the installed app opens — the login-every-launch fix |
+| `lib/defaultDashboard.test.ts` | Settings → Default dashboard: where `/` opens a signed-in person, and whose phone the setting is filed under |
 | `lib/links.test.ts` | farmer-pasted links: no `javascript:` href on a public page |
 | `lib/date.test.ts` | "today" in India, not UTC |
 | `lib/complaints.test.ts` | one complaint vocabulary across all three surfaces |

@@ -781,3 +781,18 @@ GRANT UPDATE (
   water_source, story_quote, farming_since_year, soil_ph,
   facebook_url, instagram_url, youtube_url
 ) ON public.farmers TO anon, authenticated;
+
+
+-- ============================================================================
+-- Settings → Default dashboard (scripts/default-dashboard-migration.sql)
+-- Service-role only: RLS on, no policies, no anon/authenticated grants.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS public.dashboard_preferences (
+  phone text PRIMARY KEY CHECK (phone ~ '^[0-9]{10}$'),
+  default_dashboard text NOT NULL CHECK (default_dashboard IN ('farmer', 'consumer')),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.dashboard_preferences ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.dashboard_preferences FROM anon, authenticated;
