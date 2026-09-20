@@ -29,10 +29,14 @@ data class Listing(
     @SerialName("stock_qty") val stockQty: Double? = null,
     @SerialName("shelf_life_days") val shelfLifeDays: Int? = null,
     /* The price shown on a card is tier 1 — the small-quantity price, and so
-       the one a buyer opening the app will actually pay. The full tier ladder
-       only matters once there is a cart to apply it to. See getTierPrice in
-       src/lib/pricing.ts for the rest. */
+       the one a buyer opening the app will actually pay. The rest of the
+       ladder is shown on the detail screen; see priceTiers() and getTierPrice
+       in src/lib/pricing.ts. */
     @SerialName("price_tier_1_price") val priceTier1: Double? = null,
+    @SerialName("price_tier_1_qty") val priceTier1Qty: Double? = null,
+    @SerialName("price_tier_2_qty") val priceTier2Qty: Double? = null,
+    @SerialName("price_tier_2_price") val priceTier2: Double? = null,
+    @SerialName("price_tier_3_price") val priceTier3: Double? = null,
     @SerialName("image_url") val imageUrl: String? = null,
     @SerialName("image_urls") val imageUrls: List<String>? = null,
     val farmer: Farmer? = null,
@@ -51,6 +55,15 @@ data class Listing(
     val photoUrl: String?
         get() = imageUrl?.takeIf { it.isNotBlank() }
             ?: imageUrls?.firstOrNull { it.isNotBlank() }
+
+    /* Every photo, main one first, for the swipeable gallery on the detail
+       screen. The main image is often ALSO the first entry of image_urls, so
+       duplicates are dropped rather than shown twice in a row. */
+    val photoUrls: List<String>
+        get() = (listOfNotNull(imageUrl) + imageUrls.orEmpty())
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
 
     fun displayName(lang: Lang): String = localizeName(name, lang)
 

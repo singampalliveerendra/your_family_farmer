@@ -1,19 +1,19 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
--->
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What Android 12+ may copy off this phone, to Google Drive or to a new phone.
+
+     gg_secure.xml holds the login cookie and the cached profile, encrypted with
+     a key that lives in THIS phone's Android Keystore and never leaves it. A
+     copy restored anywhere else cannot be decrypted, so backing it up buys
+     nothing and only puts a 30-day credential on a server. The app notices the
+     unreadable file and asks the person to log in again, which is the right
+     outcome on a new phone anyway.
+
+     Everything else — language, dark mode — is harmless and nice to keep. -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <exclude domain="sharedpref" path="gg_secure.xml" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="sharedpref" path="gg_secure.xml" />
     </device-transfer>
-    -->
 </data-extraction-rules>

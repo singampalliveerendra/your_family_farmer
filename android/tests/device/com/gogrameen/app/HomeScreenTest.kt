@@ -4,10 +4,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -38,8 +41,9 @@ class HomeScreenTest {
 
     private fun showHome(
         dark: Boolean = false,
-        onToggleDark: () -> Unit = {},
         onBrowse: () -> Unit = {},
+        accountName: String? = null,
+        onAccount: () -> Unit = {},
     ) {
         compose.setContent {
             var lang by remember { mutableStateOf(DEFAULT_LANG) }
@@ -47,9 +51,9 @@ class HomeScreenTest {
                 HomeScreen(
                     lang = lang,
                     onToggleLang = { lang = if (lang == Lang.EN) Lang.TE else Lang.EN },
-                    dark = dark,
-                    onToggleDark = onToggleDark,
                     onBrowse = onBrowse,
+                    accountName = accountName,
+                    onAccount = onAccount,
                 )
             }
         }
@@ -154,5 +158,32 @@ class HomeScreenTest {
         compose.onNodeWithText("I'm an Aggregator").performScrollTo().performClick()
 
         assertEquals(0, opened)
+    }
+
+    @Test
+    fun theDoorsThatAreNotBuiltYetSaySoBeforeAnyoneTaps() {
+        // A card that only reveals "coming soon" after a tap is a small trap.
+        // Farmer and Aggregator carry the tag up front; Buyer, which works,
+        // does not.
+        showHome()
+        compose.onNodeWithText("I'm a Farmer").performScrollTo()
+        compose.onAllNodesWithText("Soon").assertCountEquals(2)
+    }
+
+    @Test
+    fun theAccountButtonOpensTheAccount() {
+        var opened = 0
+        showHome(onAccount = { opened++ })
+
+        compose.onNodeWithContentDescription("Log in or sign up").performClick()
+        assertEquals(1, opened)
+    }
+
+    @Test
+    fun theAccountButtonSaysWhoIsLoggedIn() {
+        // Every screen's header tells a logged-in person so at a glance -- and
+        // tells TalkBack users the same thing in words.
+        showHome(accountName = "Lakshmi Devi")
+        compose.onNodeWithContentDescription("Your account, Lakshmi Devi").assertIsDisplayed()
     }
 }

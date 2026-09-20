@@ -54,21 +54,35 @@ object Http {
     private const val CONNECT_TIMEOUT_MS = 10_000
     private const val READ_TIMEOUT_MS = 20_000
 
-    /* Kept as a field so the language cookie can be written into the same jar
-       the connections read from. */
-    private val cookies = CookieManager(null, CookiePolicy.ACCEPT_ALL)
+    /* Kept as fields so the language cookie can be written into the same jar
+       the connections read from, and so logout can empty it.
+
+       Starts as an in-memory jar so the JVM tests — which have no Android
+       Keystore — can touch this object at all. install() swaps in the
+       encrypted one before the first real request. */
+    private var store = PersistentCookieStore(MemorySecretStore())
+    private var cookies = CookieManager(store, CookiePolicy.ACCEPT_ALL)
 
     /**
-     * Install the process-wide cookie jar. Called once, from MainActivity.
+     * Install the process-wide cookie jar. Called once, from MainActivity,
+     * before anything is drawn.
      *
-     * In memory for now, which means a login would not survive the app being
-     * closed. Making it persistent (and encrypted — a session cookie is a
-     * 30-day credential) is part of the login feature; today nothing is stored
-     * in it but the language, so there is nothing yet to lose.
+     * The login cookies in it are written through to encrypted storage (see
+     * PersistentCookieStore and SecurePrefs), so a buyer who logs in stays
+     * logged in across restarts for the 30 days the server grants — and is
+     * logged out the moment the server says so.
      */
-    fun install() {
+    fun install(secrets: SecretStore) {
+        store = PersistentCookieStore(secrets)
+        cookies = CookieManager(store, CookiePolicy.ACCEPT_ALL)
         CookieHandler.setDefault(cookies)
     }
+
+    /** True while this phone holds an unexpired login cookie. */
+    fun hasSession(): Boolean = store.hasSession()
+
+    /** Forget the login cookies on this phone, with or without the server. */
+    fun clearSession() = store.clearSession()
 
     /**
      * Tell the server which language to answer in.
@@ -108,17 +122,44 @@ object Http {
      *   status code and, where the route sent one, the server's own message.
      */
     suspend fun get(path: String): String = withContext(Dispatchers.IO) {
-        val connection = open(path)
-        try {
-            val code = connection.responseCode
-            if (code !in 200..299) throw ApiException(code, errorMessage(connection, code))
-            connection.inputStream.bufferedReader().use { it.readText() }
-        } finally {
-            connection.disconnect()
-        }
+        read(open(path, "GET"))
     }
 
-    private fun open(path: String): HttpURLConnection {
+    /**
+     * POST a JSON body to a path relative to this build's site.
+     *
+     * Same failure contract as [get]. Used for login, sign-up and logout —
+     * the Set-Cookie on the reply lands in the jar on its own, which is the
+     * whole of "being logged in" as far as this app is concerned.
+     */
+    suspend fun post(path: String, json: String = "{}"): String = withContext(Dispatchers.IO) {
+        val connection = open(path, "POST").apply {
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json; charset=utf-8")
+        }
+        try {
+            connection.outputStream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
+        } catch (e: java.io.IOException) {
+            // No signal before the body was even sent. Close up, and let the
+            // caller read it as offline like any other IOException.
+            connection.disconnect()
+            throw e
+        }
+        read(connection)
+    }
+
+    private fun read(connection: HttpURLConnection): String = try {
+        val code = connection.responseCode
+        if (code !in 200..299) {
+            val body = errorBody(connection)
+            throw ApiException(code, errorMessage(body, code), body)
+        }
+        connection.inputStream.bufferedReader().use { it.readText() }
+    } finally {
+        connection.disconnect()
+    }
+
+    private fun open(path: String, method: String): HttpURLConnection {
         val base = baseUrl
         /* The staging build with nothing in gg.stagingBaseUrl lands here. Failing
            with the line to edit beats a MalformedURLException, and beats far more
@@ -129,7 +170,7 @@ object Http {
                 "android/gradle.properties and rebuild."
         }
         return (URL(joinUrl(base, path)).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
+            requestMethod = method
             connectTimeout = CONNECT_TIMEOUT_MS
             readTimeout = READ_TIMEOUT_MS
             setRequestProperty("Accept", "application/json")
@@ -143,12 +184,13 @@ object Http {
      * buyer, is already in their language, and no wording invented on this side
      * would beat it. Falls back to the status code when the body is missing or
      * is not the shape we expect — an HTML error page from Vercel, say. */
-    private fun errorMessage(connection: HttpURLConnection, code: Int): String {
-        val body = try {
-            connection.errorStream?.bufferedReader()?.use { it.readText() }
-        } catch (e: Exception) {
-            null
-        }
+    private fun errorBody(connection: HttpURLConnection): String? = try {
+        connection.errorStream?.bufferedReader()?.use { it.readText() }
+    } catch (e: Exception) {
+        null
+    }
+
+    private fun errorMessage(body: String?, code: Int): String {
         val fromServer = body?.takeIf { it.isNotBlank() }?.let { text ->
             try {
                 Json.parseToJsonElement(text).jsonObject["error"]?.jsonPrimitive?.content
@@ -176,7 +218,15 @@ object Http {
  * as offline would tell someone to check their connection when their cart is
  * the problem.
  */
-class ApiException(val status: Int, message: String) : Exception(message)
+class ApiException(
+    val status: Int,
+    message: String,
+    /* The whole reply, for the routes that say more than `error`. Login is the
+       one that matters: a 401 with `notRegistered: true` and a 401 for a wrong
+       password need different screens, and a 403 carries the moderator's
+       `suspendedReason`. */
+    val body: String? = null,
+) : Exception(message)
 
 /**
  * Join a base URL to a relative path.

@@ -1,7 +1,5 @@
 package com.gogrameen.app
 
-import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,16 +15,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -39,15 +36,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gogrameen.app.ui.AccountButton
+import com.gogrameen.app.ui.Contact
+import com.gogrameen.app.ui.ContactRow
 import com.gogrameen.app.ui.LanguageToggle
+import com.gogrameen.app.ui.PrimaryButton
+import com.gogrameen.app.ui.decorative
+import com.gogrameen.app.ui.dialGoGrameen
+import com.gogrameen.app.ui.emailGoGrameen
+import com.gogrameen.app.ui.asHeading
 import com.gogrameen.app.ui.theme.GgGreen500
 import com.gogrameen.app.ui.theme.GgGreen700
 import com.gogrameen.app.ui.theme.GgTheme
@@ -56,56 +63,53 @@ import com.gogrameen.app.ui.theme.GoGrameenTheme
 /* The native /home.
  *
  * A port of src/components/home/HomeLanding.tsx and RoleSelect.tsx, cut down to
- * what a first screen needs: the wordmark, the two toggles, the hero and the
+ * what a first screen needs: the wordmark, the hero, one clear way in, and the
  * three role cards. Everything below the fold on the web page — features,
- * how-it-works, about, contact — is marketing aimed at a visitor who found the
- * site. Someone holding the app has already installed it.
+ * how-it-works, about — is marketing aimed at a visitor who found the site.
+ * Someone holding the app has already installed it.
  *
- * No network yet, on purpose. The catalogue photo cluster is the first thing
- * that arrives once the API call lands.
- *
- * Every colour comes from GgTheme.colors so the dark toggle repaints the whole
- * screen; naming a raw brand colour here would leave that element stuck in one
- * theme. The web page's motion — rising cards, floating photos, drifting blobs,
- * the gradient sheen on the headline — is deliberately absent: it is decoration
- * on a page that has to sell, and here it would only cost frames on the low-end
- * phones this app is for. */
+ * Every colour comes from GgTheme.colors so the dark setting repaints the whole
+ * screen. The web page's motion — rising cards, floating photos, drifting
+ * blobs — is deliberately absent: it is decoration on a page that has to sell,
+ * and here it would only cost frames on the low-end phones this app is for. */
 
-/* Kept identical to the web footer in src/components/home/HomeLanding.tsx —
- * the displayed number is local, the dialled one carries the country code. */
-private const val EMAIL = "GovuGrameenam@gmail.com"
-private const val PHONE_DISPLAY = "9603174271"
-private const val PHONE_DIAL = "+919603174271"
-
-private data class Role(
+private data class Door(
     val emoji: String,
     val title: Pair<String, String>,
     val blurb: Pair<String, String>,
     /* Buyer is the only door that opens so far. Flagged on the role rather than
        matched on the title at the tap site, so the copy can change without
-       quietly turning the card back into a toast. */
+       quietly turning the card back into a dead end. */
     val opensCatalogue: Boolean = false,
+    /* What a tap on a door that is not built yet says. The card also wears a
+       "Soon" tag, so nobody has to tap to find out — but when they do, they are
+       told what to do instead, in their own language. */
+    val notYet: Pair<String, String>? = null,
 )
 
 /* Copy lifted verbatim from RoleSelect.tsx, in its order. Moderator and rider
  * are absent there and absent here: staff and recruited riders reach their own
  * logins directly, and neither belongs on the front door. */
-private val ROLES = listOf(
-    Role(
+private val DOORS = listOf(
+    Door(
         emoji = "🛒",
         title = "I'm a Buyer" to "నేను కొనుగోలుదారుని",
         blurb = "Browse today's harvests and order direct." to "నేటి కోతలు చూసి నేరుగా ఆర్డర్ చేయండి.",
         opensCatalogue = true,
     ),
-    Role(
+    Door(
         emoji = "🧑‍🌾",
         title = "I'm a Farmer" to "నేను రైతుని",
         blurb = "List your harvest. Keep the whole price." to "మీ కోత నమోదు చేయండి. పూర్తి ధర మీదే.",
+        notYet = "Farmer tools are coming to the app. For now, sell on gogrameen.in." to
+            "రైతుల కోసం యాప్ త్వరలో వస్తుంది. ప్రస్తుతానికి gogrameen.in లో అమ్మండి.",
     ),
-    Role(
+    Door(
         emoji = "📦",
         title = "I'm an Aggregator" to "నేను అగ్రిగేటర్‌ని",
         blurb = "Sell for many farmers — each one named." to "రైతుల తరఫున అమ్మండి — ప్రతి పేరు కనిపిస్తుంది.",
+        notYet = "Aggregator tools are coming to the app. For now, use gogrameen.in." to
+            "అగ్రిగేటర్ల కోసం యాప్ త్వరలో వస్తుంది. ప్రస్తుతానికి gogrameen.in వాడండి.",
     ),
 )
 
@@ -113,10 +117,10 @@ private val ROLES = listOf(
 fun HomeScreen(
     lang: Lang,
     onToggleLang: () -> Unit,
-    dark: Boolean,
-    onToggleDark: () -> Unit,
     onBrowse: () -> Unit,
     modifier: Modifier = Modifier,
+    accountName: String? = null,
+    onAccount: () -> Unit = {},
 ) {
     val colors = GgTheme.colors
     val context = LocalContext.current
@@ -125,74 +129,81 @@ fun HomeScreen(
         modifier = modifier
             .fillMaxSize()
             .background(colors.background)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp),
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(12.dp))
-        Header(
-            lang = lang,
-            onToggleLang = onToggleLang,
-            dark = dark,
-            onToggleDark = onToggleDark,
-        )
+        /* Capped and centred so a tablet or a landscape phone gets a readable
+           column instead of a 38sp headline stretched across a metre. */
+        Column(
+            modifier = Modifier
+                .widthIn(max = 560.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+        ) {
+            Spacer(Modifier.height(6.dp))
+            Header(lang = lang, onToggleLang = onToggleLang, accountName = accountName, onAccount = onAccount)
 
-        Spacer(Modifier.height(32.dp))
-        Badge(lang.l("Farm direct · Harvested today", "నేరుగా పొలం నుండి · నేడే కోత"))
+            Spacer(Modifier.height(24.dp))
+            Badge(lang.l("Farm direct · Harvested today", "నేరుగా పొలం నుండి · నేడే కోత"))
 
-        Spacer(Modifier.height(20.dp))
-        Headline(lang)
+            Spacer(Modifier.height(18.dp))
+            Headline(lang)
 
-        Spacer(Modifier.height(20.dp))
-        Text(
-            text = lang.l(
-                "Go Grameen connects farmers directly to consumers. Harvested today, priced by the farmer, delivered to you.",
-                "గో గ్రామీణ్ రైతులను నేరుగా వినియోగదారులతో కలుపుతుంది. నేడే కోత, ధర రైతుదే, నేరుగా మీ ఇంటికి.",
-            ),
-            color = colors.textSecondary,
-            fontSize = 16.sp,
-            lineHeight = 26.sp,
-        )
-
-        Spacer(Modifier.height(28.dp))
-        OutlineButton(
-            label = lang.l("Browse today's harvest", "నేటి కోతలు చూడండి"),
-            onClick = onBrowse,
-        )
-
-        Spacer(Modifier.height(40.dp))
-        Text(
-            text = lang.l("Who are you?", "మీరు ఎవరు?"),
-            color = colors.textPrimary,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.ExtraBold,
-        )
-
-        Spacer(Modifier.height(14.dp))
-        ROLES.forEach { role ->
-            RoleCard(
-                role = role,
-                lang = lang,
-                onClick = {
-                    if (role.opensCatalogue) onBrowse()
-                    else context.toast("${role.title.first} — coming next")
-                },
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = lang.l(
+                    "Go Grameen connects farmers directly to consumers. Harvested today, priced by the farmer, delivered to you.",
+                    "గో గ్రామీణ్ రైతులను నేరుగా వినియోగదారులతో కలుపుతుంది. నేడే కోత, ధర రైతుదే, నేరుగా మీ ఇంటికి.",
+                ),
+                color = colors.textSecondary,
+                fontSize = 16.sp,
+                lineHeight = 25.sp,
             )
-            Spacer(Modifier.height(12.dp))
-        }
 
-        Spacer(Modifier.height(36.dp))
-        Footer(lang)
-        Spacer(Modifier.height(28.dp))
+            /* THE thing this screen is for, so it is the one filled button on
+               it. It used to be an outline button, which on a white page read as
+               the least important control rather than the most. */
+            Spacer(Modifier.height(24.dp))
+            PrimaryButton(
+                label = lang.l("Browse today's harvest", "నేటి కోతలు చూడండి"),
+                onClick = onBrowse,
+            )
+
+            Spacer(Modifier.height(40.dp))
+            Text(
+                text = lang.l("Who are you?", "మీరు ఎవరు?"),
+                color = colors.textPrimary,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.asHeading(),
+            )
+
+            Spacer(Modifier.height(14.dp))
+            DOORS.forEach { role ->
+                RoleCard(
+                    role = role,
+                    lang = lang,
+                    onClick = {
+                        if (role.opensCatalogue) {
+                            onBrowse()
+                        } else {
+                            role.notYet?.let {
+                                Toast.makeText(context, lang.l(it.first, it.second), Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    },
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+
+            Spacer(Modifier.height(32.dp))
+            Footer(lang)
+            Spacer(Modifier.height(28.dp))
+        }
     }
 }
 
-/* Contact, at the very bottom, mirroring the web footer.
- *
- * Both rows are real intents rather than selectable text: on a phone the
- * number has to be one tap to dial and the address one tap to compose, which
- * is the whole point of putting them here. The dialer is opened with ACTION_DIAL
- * and not ACTION_CALL — dialling for someone without showing them the number
- * first needs a runtime permission and startles people. */
+/* Contact, at the very bottom, mirroring the web footer. */
 @Composable
 private fun Footer(lang: Lang) {
     val colors = GgTheme.colors
@@ -206,6 +217,7 @@ private fun Footer(lang: Lang) {
         color = colors.textPrimary,
         fontSize = 18.sp,
         fontWeight = FontWeight.ExtraBold,
+        modifier = Modifier.asHeading(),
     )
     Spacer(Modifier.height(4.dp))
     Text(
@@ -214,31 +226,23 @@ private fun Footer(lang: Lang) {
             "ఆర్డర్ గురించి సందేహమా, లేదా మాతో అమ్మాలనుకుంటున్నారా? ఇక్కడ సంప్రదించండి.",
         ),
         color = colors.textSecondary,
-        fontSize = 13.sp,
-        lineHeight = 19.sp,
+        fontSize = 13.5.sp,
+        lineHeight = 20.sp,
     )
     Spacer(Modifier.height(14.dp))
 
     ContactRow(
         icon = Icons.Filled.Email,
-        label = EMAIL,
-        onClick = {
-            context.openOrToast(
-                Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$EMAIL")),
-                lang.l("No email app found", "ఇమెయిల్ యాప్ లేదు"),
-            )
-        },
+        label = Contact.EMAIL,
+        description = lang.l("Email Go Grameen", "గో గ్రామీణ్‌కు ఇమెయిల్ చేయండి"),
+        onClick = { context.emailGoGrameen(lang) },
     )
     Spacer(Modifier.height(10.dp))
     ContactRow(
         icon = Icons.Filled.Phone,
-        label = PHONE_DISPLAY,
-        onClick = {
-            context.openOrToast(
-                Intent(Intent.ACTION_DIAL, Uri.parse("tel:$PHONE_DIAL")),
-                lang.l("No dialer found", "డయలర్ లేదు"),
-            )
-        },
+        label = Contact.PHONE_DISPLAY,
+        description = lang.l("Call Go Grameen", "గో గ్రామీణ్‌కు కాల్ చేయండి"),
+        onClick = { context.dialGoGrameen(lang) },
     )
 
     Spacer(Modifier.height(22.dp))
@@ -251,51 +255,14 @@ private fun Footer(lang: Lang) {
     )
 }
 
-@Composable
-private fun ContactRow(icon: ImageVector, label: String, onClick: () -> Unit) {
-    val colors = GgTheme.colors
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(999.dp))
-            .border(1.dp, colors.border, RoundedCornerShape(999.dp))
-            .background(colors.surface)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = colors.accent,
-            modifier = Modifier.size(18.dp),
-        )
-        Spacer(Modifier.width(12.dp))
-        Text(
-            text = label,
-            color = colors.textPrimary,
-            fontSize = 13.5.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-private fun android.content.Context.openOrToast(intent: Intent, failure: String) {
-    try {
-        startActivity(intent)
-    } catch (e: android.content.ActivityNotFoundException) {
-        toast(failure)
-    }
-}
-
+/* Wordmark on the left; language and account on the right — the same two
+ * controls, in the same order, as the header on every other screen. */
 @Composable
 private fun Header(
     lang: Lang,
     onToggleLang: () -> Unit,
-    dark: Boolean,
-    onToggleDark: () -> Unit,
+    accountName: String?,
+    onAccount: () -> Unit,
 ) {
     val colors = GgTheme.colors
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -305,8 +272,9 @@ private fun Header(
         Box(
             modifier = Modifier
                 .size(36.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(Brush.linearGradient(listOf(GgGreen500, GgGreen700))),
+                .clip(RoundedCornerShape(12.dp))
+                .background(Brush.linearGradient(listOf(GgGreen500, GgGreen700)))
+                .decorative(),
             contentAlignment = Alignment.Center,
         ) {
             Text("🌱", fontSize = 18.sp)
@@ -315,94 +283,14 @@ private fun Header(
         Text(
             text = "Go Grameen",
             color = colors.textPrimary,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            modifier = Modifier.weight(1f),
         )
-        Spacer(Modifier.weight(1f))
         LanguageToggle(lang = lang, onToggle = onToggleLang)
-        Spacer(Modifier.width(8.dp))
-        SettingsButton(lang = lang, dark = dark, onToggleDark = onToggleDark)
+        AccountButton(name = accountName, lang = lang, onClick = onAccount)
     }
-}
-
-/* Appearance lives behind the gear rather than as a bare moon in the header.
- * Two reasons: the header at 390dp was already carrying a wordmark and a
- * language pill, and a menu says which mode you are in — a lone icon only
- * hints at it. It is also where the next preference will go, so the control
- * does not have to move again. */
-@Composable
-private fun SettingsButton(lang: Lang, dark: Boolean, onToggleDark: () -> Unit) {
-    val colors = GgTheme.colors
-    var open by remember { mutableStateOf(false) }
-
-    Box {
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .border(1.dp, colors.border, CircleShape)
-                .background(colors.surface)
-                .clickable { open = true },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Settings,
-                contentDescription = "Settings",
-                tint = colors.textPrimary,
-                modifier = Modifier.size(17.dp),
-            )
-        }
-
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            Text(
-                text = lang.l("Appearance", "రూపం"),
-                color = colors.textSecondary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.8.sp,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 4.dp),
-            )
-            ThemeChoice(
-                label = lang.l("Light", "లైట్"),
-                selected = !dark,
-            ) { if (dark) onToggleDark(); open = false }
-            ThemeChoice(
-                label = lang.l("Dark", "డార్క్"),
-                selected = dark,
-            ) { if (!dark) onToggleDark(); open = false }
-        }
-    }
-}
-
-@Composable
-private fun ThemeChoice(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    val colors = GgTheme.colors
-    DropdownMenuItem(
-        onClick = onClick,
-        text = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = label,
-                    color = colors.textPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                )
-                Spacer(Modifier.width(20.dp))
-                /* The tick is the only state marker, so it holds its width even
-                   when absent — otherwise the two rows shift as you switch. */
-                Text(
-                    text = if (selected) "\u2713" else " ",
-                    color = colors.accent,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-        },
-    )
 }
 
 @Composable
@@ -426,70 +314,55 @@ private fun Badge(label: String) {
         Text(
             text = label,
             color = colors.badgeText,
-            fontSize = 11.sp,
+            fontSize = 11.5.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = 0.8.sp,
+            letterSpacing = 0.6.sp,
         )
     }
 }
 
-/* Three lines, the third in the accent. On the web the third line carries an
+/* Three lines, the third in the accent. One heading for TalkBack, read as a
+ * sentence, rather than three fragments. On the web the third line carries an
  * animated gradient sheen; a flat fill reads the same at a glance. */
 @Composable
 private fun Headline(lang: Lang) {
     val colors = GgTheme.colors
-    Column {
+    Column(modifier = Modifier.semantics(mergeDescendants = true) { heading() }) {
         Text(
             text = lang.l("Food Straight From Farm", "నేరుగా పొలం నుండి ఆహారం"),
             color = colors.textPrimary,
-            fontSize = 38.sp,
-            lineHeight = 44.sp,
+            fontSize = 36.sp,
+            lineHeight = 42.sp,
             fontWeight = FontWeight.Bold,
         )
         Text(
             text = lang.l("Improving Farmers Income", "రైతుల ఆదాయం పెంపు"),
             color = colors.textPrimary,
-            fontSize = 38.sp,
-            lineHeight = 44.sp,
+            fontSize = 36.sp,
+            lineHeight = 42.sp,
             fontWeight = FontWeight.Bold,
         )
         Text(
             text = lang.l("No Middlemen", "మధ్యవర్తులు లేరు"),
             color = colors.accent,
-            fontSize = 38.sp,
-            lineHeight = 44.sp,
+            fontSize = 36.sp,
+            lineHeight = 42.sp,
             fontWeight = FontWeight.Bold,
         )
     }
 }
 
 @Composable
-private fun OutlineButton(label: String, onClick: () -> Unit) {
+private fun RoleCard(role: Door, lang: Lang, onClick: () -> Unit) {
     val colors = GgTheme.colors
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .border(1.dp, colors.border, RoundedCornerShape(16.dp))
-            .background(colors.surface)
-            .clickable(onClick = onClick)
-            .padding(vertical = 16.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(label, color = colors.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun RoleCard(role: Role, lang: Lang, onClick: () -> Unit) {
-    val colors = GgTheme.colors
+    val ready = role.notYet == null
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .border(1.dp, colors.border, RoundedCornerShape(18.dp))
             .background(colors.surface)
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick, role = Role.Button)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -497,7 +370,8 @@ private fun RoleCard(role: Role, lang: Lang, onClick: () -> Unit) {
             modifier = Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .background(colors.iconTileBg),
+                .background(colors.iconTileBg)
+                .decorative(),
             contentAlignment = Alignment.Center,
         ) {
             Text(role.emoji, fontSize = 22.sp)
@@ -516,31 +390,46 @@ private fun RoleCard(role: Role, lang: Lang, onClick: () -> Unit) {
             Text(
                 text = lang.l(role.blurb.first, role.blurb.second),
                 color = colors.textSecondary,
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
+                fontSize = 13.5.sp,
+                lineHeight = 19.sp,
                 overflow = TextOverflow.Ellipsis,
             )
         }
         Spacer(Modifier.width(10.dp))
-        Text("→", color = colors.accent, fontSize = 18.sp)
+        if (ready) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = colors.accent,
+                modifier = Modifier.size(20.dp),
+            )
+        } else {
+            /* Said up front, so the card is not a tap-to-find-out. Read by
+               TalkBack too: "I'm a Farmer … Soon". */
+            Text(
+                text = lang.l("Soon", "త్వరలో"),
+                color = colors.badgeText,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(colors.badgeBg)
+                    .border(1.dp, colors.badgeBorder, RoundedCornerShape(999.dp))
+                    .padding(horizontal = 9.dp, vertical = 4.dp),
+            )
+        }
     }
 }
 
-private fun android.content.Context.toast(message: String) =
-    Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-
-/* The previews drive their own language and theme so both toggles work inside
- * Studio's interactive preview, where there is no MainActivity holding them. */
+/* The previews drive their own language and theme so the toggle works inside
+ * Studio's interactive preview, where there is no MainActivity holding it. */
 @Composable
-private fun PreviewHome(startDark: Boolean) {
-    var dark by remember { mutableStateOf(startDark) }
+private fun PreviewHome(dark: Boolean) {
     var lang by remember { mutableStateOf(DEFAULT_LANG) }
     GoGrameenTheme(dark = dark) {
         HomeScreen(
             lang = lang,
             onToggleLang = { lang = if (lang == Lang.EN) Lang.TE else Lang.EN },
-            dark = dark,
-            onToggleDark = { dark = !dark },
             onBrowse = {},
         )
     }
@@ -548,8 +437,8 @@ private fun PreviewHome(startDark: Boolean) {
 
 @Preview(name = "Light", showBackground = true)
 @Composable
-private fun HomeScreenLightPreview() = PreviewHome(startDark = false)
+private fun HomeScreenLightPreview() = PreviewHome(dark = false)
 
 @Preview(name = "Dark", showBackground = true, backgroundColor = 0xFF04140B)
 @Composable
-private fun HomeScreenDarkPreview() = PreviewHome(startDark = true)
+private fun HomeScreenDarkPreview() = PreviewHome(dark = true)

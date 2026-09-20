@@ -4,7 +4,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -13,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gogrameen.app.DEFAULT_LANG
 import com.gogrameen.app.Lang
@@ -173,9 +177,27 @@ class CatalogueScreenTest {
         show(CatalogueState.Ready(emptyList()))
 
         compose.onNodeWithText(
-            "Nothing is listed today. The farmers post as they harvest — do come back.",
+            "Nothing is listed today. The farmers post as they harvest — pull down to check again.",
         ).assertIsDisplayed()
         compose.onNodeWithText("Try again").assertDoesNotExist()
+    }
+
+    @Test
+    fun theFiltersSayWhichOneIsOn() {
+        // Before this, TalkBack read the chips as plain words, and a blind user
+        // had no way to know which filter was applied.
+        show(CatalogueState.Ready(emptyList()))
+
+        compose.onNodeWithText("All produce").assertIsSelected()
+        compose.onNodeWithText("Vegetables").assertIsNotSelected()
+    }
+
+    @Test
+    fun everyChipIsBigEnoughToHit() {
+        // Drawn smaller, but 48dp to touch -- the Android minimum.
+        show(CatalogueState.Ready(emptyList()))
+
+        compose.onNodeWithText("Fruits").assertHeightIsAtLeast(48.dp)
     }
 
     @Test

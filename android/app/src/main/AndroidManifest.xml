@@ -15,10 +15,15 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.GoGrameen">
+        <!-- adjustResize so the login form moves up with the keyboard instead of
+             the password field and the Log in button disappearing under it.
+             Compose's imePadding() does the work on new Android; this covers
+             the older phones this app is for. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.GoGrameen">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

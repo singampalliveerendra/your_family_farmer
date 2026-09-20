@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
@@ -112,14 +113,42 @@ class ListingDetailScreenTest {
     @Test
     fun saysPlainlyThatOrderingIsNotBuiltYet() {
         // A greyed-out "Add to cart" would imply a cart exists in this build.
-        // The screen instead names a real way to buy today, and that phone
-        // number has to be the one we actually publish.
+        // The screen instead offers the real way to buy today -- a call -- as
+        // a button pinned to the bottom, visible without scrolling.
         show(full)
 
         compose.onNodeWithText(
-            "Ordering from the app is coming soon. To buy today, call Go Grameen on " +
-                "9603174271 or order at gogrameen.in.",
-        ).performScrollTo().assertIsDisplayed()
+            "Ordering in the app is coming soon. To buy today, call us or order at gogrameen.in.",
+        ).assertIsDisplayed()
+        compose.onNodeWithText("Call to order").assertIsDisplayed().assertHasClickAction()
+    }
+
+    @Test
+    fun aSoldOutProductOffersToAskAboutTheNextHarvest() {
+        // "Call to order" on something that cannot be ordered is a promise the
+        // call cannot keep.
+        show(full.copy(status = "sold_out", stockQty = 0.0))
+
+        compose.onNodeWithText("Call to ask about the next harvest").assertIsDisplayed()
+        compose.onNodeWithText("Call to order").assertDoesNotExist()
+    }
+
+    @Test
+    fun showsTheBulkPriceLadderWhenThereIsOne() {
+        // Tier 2 is labelled as the range getTierPrice charges it for, not the
+        // web's "20+ kg" -- see PriceTiers.kt.
+        show(full.copy(priceTier1Qty = 5.0, priceTier2Qty = 20.0, priceTier2 = 52.0, priceTier3 = 48.0))
+
+        compose.onNodeWithText("Buy more, pay less").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Up to 5 kg").assertExists()
+        compose.onNodeWithText("5 – 20 kg").assertExists()
+        compose.onNodeWithText("Over 20 kg").assertExists()
+    }
+
+    @Test
+    fun aSinglePriceHasNoLadder() {
+        show(full)
+        compose.onNodeWithText("Buy more, pay less").assertDoesNotExist()
     }
 
     @Test

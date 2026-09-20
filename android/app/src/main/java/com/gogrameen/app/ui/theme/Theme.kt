@@ -59,6 +59,11 @@ fun GoGrameenTheme(
             onSurface = colors.textPrimary,
             // Popups (the settings menu) paint on this, not on `surface`.
             surfaceContainer = colors.elevatedSurface,
+            // Dialogs and the snackbar, which Material paints from these.
+            surfaceContainerHigh = colors.elevatedSurface,
+            inverseSurface = colors.textPrimary,
+            inverseOnSurface = colors.background,
+            error = colors.danger,
         )
     } else {
         lightColorScheme(
@@ -69,6 +74,11 @@ fun GoGrameenTheme(
             surface = colors.background,
             onSurface = colors.textPrimary,
             surfaceContainer = colors.elevatedSurface,
+            // Dialogs and the snackbar, which Material paints from these.
+            surfaceContainerHigh = colors.elevatedSurface,
+            inverseSurface = colors.textPrimary,
+            inverseOnSurface = colors.background,
+            error = colors.danger,
         )
     }
 
