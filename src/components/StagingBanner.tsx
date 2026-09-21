@@ -7,7 +7,7 @@ export default function StagingBanner() {
   return (
     <div className="sticky top-0 z-[100] flex items-center justify-center gap-2 bg-amber-500 px-3 py-1.5 text-center text-xs font-semibold text-amber-950">
       <span aria-hidden>⚠️</span>
-      <span>TEST SITE — fake data, test payments. Not the real Go Grameen.</span>
+      <span>TEST SITE — Test data, test payments. Not the real Go Grameen.</span>
     </div>
   )
 }

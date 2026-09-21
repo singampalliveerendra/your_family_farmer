@@ -3,7 +3,7 @@
          resources win over main's, so this is the whole mechanism.
 
          It says "(Test)" for the same reason the website renders StagingBanner:
-         this build writes to a different database with fake data and test
+         this build writes to a different database with Test data and test
          payment keys, and the one thing that must never happen is someone
          showing it to the client as the real app. -->
     <string name="app_name">Go Grameen (Test)</string>

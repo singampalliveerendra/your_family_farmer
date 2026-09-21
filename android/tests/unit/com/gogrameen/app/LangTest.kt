@@ -15,7 +15,7 @@ class LangTest {
     fun `EN takes the english branch`() {
         // l() is handed the English string first and the Telugu second; in EN it
         // must return the first one.
-        assertEquals("Food Straight From Farm", Lang.EN.l("Food Straight From Farm", "నేరుగా పొలం నుండి ఆహారం"))
+        assertEquals("Fresh from your local farmers", Lang.EN.l("Fresh from your local farmers", "మీ స్థానిక రైతుల నుండి తాజా ఆహారం"))
     }
 
     @Test
@@ -23,7 +23,7 @@ class LangTest {
         // The same call in TE must return the second argument. Together with the
         // test above, this pins the argument ORDER, which is the easy thing to get
         // backwards.
-        assertEquals("నేరుగా పొలం నుండి ఆహారం", Lang.TE.l("Food Straight From Farm", "నేరుగా పొలం నుండి ఆహారం"))
+        assertEquals("మీ స్థానిక రైతుల నుండి తాజా ఆహారం", Lang.TE.l("Fresh from your local farmers", "మీ స్థానిక రైతుల నుండి తాజా ఆహారం"))
     }
 
     @Test

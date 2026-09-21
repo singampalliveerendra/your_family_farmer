@@ -321,32 +321,26 @@ private fun Badge(label: String) {
     }
 }
 
-/* Three lines, the third in the accent. One heading for TalkBack, read as a
- * sentence, rather than three fragments. On the web the third line carries an
- * animated gradient sheen; a flat fill reads the same at a glance. */
+/* The same headline the web app leads with on /consumer: the title, then the
+ * promise under it in the accent. One heading for TalkBack, read as a sentence,
+ * rather than two fragments. */
 @Composable
 private fun Headline(lang: Lang) {
     val colors = GgTheme.colors
     Column(modifier = Modifier.semantics(mergeDescendants = true) { heading() }) {
         Text(
-            text = lang.l("Food Straight From Farm", "నేరుగా పొలం నుండి ఆహారం"),
+            text = lang.l("Fresh from your local farmers", "మీ స్థానిక రైతుల నుండి తాజా ఆహారం"),
             color = colors.textPrimary,
             fontSize = 36.sp,
             lineHeight = 42.sp,
             fontWeight = FontWeight.Bold,
         )
+        Spacer(Modifier.height(6.dp))
         Text(
-            text = lang.l("Improving Farmers Income", "రైతుల ఆదాయం పెంపు"),
-            color = colors.textPrimary,
-            fontSize = 36.sp,
-            lineHeight = 42.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            text = lang.l("No Middlemen", "మధ్యవర్తులు లేరు"),
+            text = lang.l("Straight from the farm. No Middlemen", "నేరుగా పొలం నుండి. మధ్యవర్తులు లేరు"),
             color = colors.accent,
-            fontSize = 36.sp,
-            lineHeight = 42.sp,
+            fontSize = 18.sp,
+            lineHeight = 24.sp,
             fontWeight = FontWeight.Bold,
         )
     }

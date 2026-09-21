@@ -21,7 +21,7 @@ import com.gogrameen.app.net.Http
  *
  * A port of src/components/StagingBanner.tsx, which exists because the staging
  * site is indistinguishable from the real one at a glance while writing to a
- * different database with fake data and test payment keys. On the phone the
+ * different database with Test data and test payment keys. On the phone the
  * risk is worse than on the web: there is no address bar, so once the app is
  * installed the only difference between the two is the drawer icon's label.
  *
@@ -45,8 +45,8 @@ fun StagingBanner(lang: Lang, modifier: Modifier = Modifier) {
     ) {
         Text(
             text = lang.l(
-                "⚠️ TEST BUILD — fake data, test payments. Not the real Go Grameen.",
-                "⚠️ టెస్ట్ యాప్ — నకిలీ డేటా, టెస్ట్ చెల్లింపులు. ఇది అసలు గో గ్రామీణ్ కాదు.",
+                "⚠️ TEST BUILD — Test data, test payments. Not the real Go Grameen.",
+                "⚠️ టెస్ట్ యాప్ — టెస్ట్ డేటా, టెస్ట్ చెల్లింపులు. ఇది అసలు గో గ్రామీణ్ కాదు.",
             ),
             color = AMBER_TEXT,
             fontSize = 11.sp,

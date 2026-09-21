@@ -67,7 +67,7 @@ class HomeScreenTest {
         // is the default: /home is the surface a new visitor lands on before
         // they have chosen anything. See the comment in Lang.kt.
         showHome()
-        compose.onNodeWithText("Food Straight From Farm").assertIsDisplayed()
+        compose.onNodeWithText("Fresh from your local farmers").assertIsDisplayed()
     }
 
     @Test
@@ -78,8 +78,8 @@ class HomeScreenTest {
         showHome()
         compose.onNode(hasText("EN") and hasClickAction()).performClick()
 
-        compose.onNodeWithText("నేరుగా పొలం నుండి ఆహారం").assertIsDisplayed()
-        compose.onNodeWithText("మధ్యవర్తులు లేరు").assertExists()
+        compose.onNodeWithText("మీ స్థానిక రైతుల నుండి తాజా ఆహారం").assertIsDisplayed()
+        compose.onNodeWithText("నేరుగా పొలం నుండి. మధ్యవర్తులు లేరు").assertExists()
     }
 
     @Test
@@ -91,8 +91,8 @@ class HomeScreenTest {
         toggle.performClick()
         toggle.performClick()
 
-        compose.onNodeWithText("Food Straight From Farm").assertIsDisplayed()
-        compose.onNodeWithText("No Middlemen").assertExists()
+        compose.onNodeWithText("Fresh from your local farmers").assertIsDisplayed()
+        compose.onNodeWithText("Straight from the farm. No Middlemen").assertExists()
     }
 
     @Test
