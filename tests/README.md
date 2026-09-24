@@ -18,7 +18,7 @@ The layout mirrors `src/`: `tests/lib/pricing.test.ts` covers
 
 ## No setup required
 
-The suite is hermetic. It never touches Supabase, Razorpay or the network, and
+The suite is hermetic. It never touches Supabase, Cashfree or the network, and
 needs no `.env`. `tests/setup.ts` supplies fixed dummy secrets so the HMAC
 helpers are deterministic. That is why CI can run it with no secrets at all.
 
@@ -30,7 +30,7 @@ helpers are deterministic. That is why CI can run it with no secrets at all.
 | `lib/platform-fee.test.ts` | moderator commission, and never returning `NaN` into a total |
 | `lib/cod.test.ts` | part-paid COD split; deposit + balance always sums to the total |
 | `lib/delivery-fee.test.ts` | base/extra split, the client-flag rule, refund planning |
-| `lib/razorpay.test.ts` | payment + webhook signature verification |
+| `lib/cashfree.test.ts` | webhook signature, order/refund ids, refund status, payment-method label |
 | `lib/session.test.ts` | consumer session cookie: forgery, tampering, expiry |
 | `lib/guest-order-token.test.ts` | guest checkout token is bound to its order ids |
 | `lib/otp.test.ts` | OTP generation, hashing, constant-time compare |

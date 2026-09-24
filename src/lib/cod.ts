@@ -14,7 +14,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type CodSplit = {
-  // Charged online, now, through the normal Razorpay flow.
+  // Charged online, now, through the normal Cashfree flow.
   deposit: number
   // Collected in cash at the door (or at the farm on a self-pickup).
   balanceDue: number

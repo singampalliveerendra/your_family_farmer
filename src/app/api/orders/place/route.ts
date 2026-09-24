@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
   const deliveryChargeApplies = body.deliveryChargeApplies === true
 
   if (!farmerId || !UUID_RE.test(farmerId)) return bad('Invalid farmer.')
-  if (paymentMethod !== 'upi' && paymentMethod !== 'cod' && paymentMethod !== 'razorpay') {
+  if (paymentMethod !== 'upi' && paymentMethod !== 'cod' && paymentMethod !== 'cashfree') {
     return bad('Invalid payment method.')
   }
   if (!Array.isArray(items) || items.length === 0) return bad('Cart is empty.')
@@ -523,7 +523,7 @@ export async function POST(req: NextRequest) {
   // Part-paid COD — the buyer prepays a deposit online and owes the rest in
   // cash at handover. Stamped per row for the same reason as platform_fee: a
   // single-line cancel then forfeits (or a decline refunds) exactly that
-  // line's own deposit. /api/orders/razorpay/create charges the sum of these
+  // line's own deposit. /api/orders/cashfree/create charges the sum of these
   // rather than the full total, and the rider collects cod_balance_due at the
   // door. depositPercent is 0 until the migration runs, which leaves COD
   // behaving exactly as it does today.
@@ -645,12 +645,12 @@ export async function POST(req: NextRequest) {
     deliveryFee,
     platformFee,
     grandTotal: total + deliveryFee + platformFee,
-    // Part-paid COD. codDeposit is what Razorpay will charge now; the rest is
+    // Part-paid COD. codDeposit is what Cashfree will charge now; the rest is
     // cash at handover. Both 0 on a fully-prepaid order.
     codDeposit,
     codBalanceDue: codDeposit > 0 ? (total + deliveryFee + platformFee) - codDeposit : 0,
     // Guests get a short-lived token bound to these orders so they can finish
-    // the Razorpay create/verify pair without a session cookie.
+    // the Cashfree create/verify pair without a session cookie.
     ...(isGuest ? { guestToken: createGuestOrderToken(orderIds) } : {}),
   })
 }

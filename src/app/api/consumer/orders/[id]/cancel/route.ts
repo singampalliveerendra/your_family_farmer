@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
-import { refundPayment } from '@/lib/razorpay'
+import { makeRefundId, refundCashfreeOrder } from '@/lib/cashfree'
 import { isDepositPaid } from '@/lib/payment'
 import { getDeliveryCharges, planDeliveryRefund, type RefundOrderRow } from '@/lib/delivery-fee'
 import { applySiblingDeliveryRefunds, REFUND_ORDER_COLS } from '@/lib/delivery-refund'
@@ -15,7 +15,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // i.e. before the farmer approves it. Once the farmer approves, the delivery/
 // pickup date is set and agreed, so cancellation is locked (a confirmed date is
 // a commitment on both sides). Returns the stock and, for a paid order, issues a
-// real Razorpay refund — same machinery as a farmer decline, but buyer-initiated.
+// real Cashfree refund — same machinery as a farmer decline, but buyer-initiated.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const session = getConsumerSessionFromRequest(req)
   if (!session) return NextResponse.json({ error: 'Please log in.' }, { status: 401 })
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: order, error: loadErr } = await supabase
     .from('orders')
-    .select('id, consumer_id, farmer_id, status, quantity, total_price, platform_fee, delivery_fee, delivery_fee_refunded, cod_deposit, produce_listing_id, harvest_id, payment_status, razorpay_payment_id, checkout_id, created_at, order_code, shipped_at, collected_at, received_at, delivery_status')
+    .select('id, consumer_id, farmer_id, status, quantity, total_price, platform_fee, delivery_fee, delivery_fee_refunded, cod_deposit, produce_listing_id, harvest_id, payment_status, cashfree_order_id, cashfree_payment_id, razorpay_payment_id, checkout_id, created_at, order_code, shipped_at, collected_at, received_at, delivery_status')
     .eq('id', id)
     .maybeSingle()
 
@@ -81,8 +81,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     decline_reason: reason || 'Cancelled by buyer',
   }
 
-  const paidByRazorpay = order.payment_status === 'paid' && !!order.razorpay_payment_id
+  const paidByCashfree =
+    order.payment_status === 'paid' && !!order.cashfree_order_id && !!order.cashfree_payment_id
+  // Paid through Razorpay before the switch to Cashfree: Razorpay is switched
+  // off, so flag it for a manual refund from the Razorpay dashboard.
+  const paidByLegacyRazorpay =
+    order.payment_status === 'paid' && !paidByCashfree && !!order.razorpay_payment_id
   const paidByOther =
+    paidByLegacyRazorpay ||
     order.payment_status === 'completed' ||
     order.payment_status === 'payment_claimed' ||
     order.payment_status === 'pending_confirmation'
@@ -103,7 +109,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   let deliveryPlan: ReturnType<typeof planDeliveryRefund> = { owed: 0, allocations: [] }
   let currentDeliveryAmount = 0
   let currentDeliveryRefundedTotal: number | null = null
-  if (!isDepositPaid(order.payment_status) && (paidByRazorpay || paidByOther)) {
+  if (!isDepositPaid(order.payment_status) && (paidByCashfree || paidByOther)) {
     const charges = await getDeliveryCharges(supabase)
     let siblings: RefundOrderRow[] = [{
       id: order.id,
@@ -112,6 +118,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       delivery_fee: order.delivery_fee,
       delivery_fee_refunded: order.delivery_fee_refunded,
       payment_status: order.payment_status,
+      cashfree_order_id: order.cashfree_order_id,
+      cashfree_payment_id: order.cashfree_payment_id,
       razorpay_payment_id: order.razorpay_payment_id,
     }]
     if (order.checkout_id) {
@@ -136,7 +144,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   //
   // A farmer decline/cancel is the opposite case and DOES refund it in full —
   // see /api/farmer/orders/[id]/decline. Note deposit_paid is deliberately
-  // absent from paidByRazorpay/paidByOther above, so no refund call is made.
+  // absent from paidByCashfree/paidByOther above, so no refund call is made.
   const depositForfeited = isDepositPaid(order.payment_status)
     ? Math.max(0, Number(order.cod_deposit) || 0)
     : 0
@@ -145,26 +153,26 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     update.cod_balance_due = 0
   }
 
-  if (paidByRazorpay) {
-    const amountPaise = Math.round(refundAmount * 100)
-    if (amountPaise > 0) {
+  if (paidByCashfree) {
+    if (refundAmount > 0) {
       try {
-        const refund = await refundPayment({
-          paymentId: order.razorpay_payment_id as string,
-          amountPaise,
-          notes: { order_code: order.order_code ?? '', order_id: order.id, reason: 'buyer_cancel' },
+        const refund = await refundCashfreeOrder({
+          cashfreeOrderId: order.cashfree_order_id as string,
+          refundId: makeRefundId('l', order.id),
+          amountRupees: refundAmount,
+          note: `Cancelled by buyer ${order.order_code ?? ''}`.trim(),
         })
         update.refund_id = refund.id
-        update.refund_status = refund.status ?? 'processed'
-        update.refund_amount = Math.round(refund.amountPaise / 100)
+        update.refund_status = refund.status
+        update.refund_amount = Math.round(refund.amountRupees)
         update.refunded_at = new Date().toISOString()
       } catch (e) {
         // The gateway refused the refund (e.g. account/gateway state). Don't
         // trap the buyer with an order they can't cancel: cancel it anyway and
         // flag the refund as failed, recording the amount owed so the team can
-        // settle it manually from the Razorpay dashboard. The buyer sees a
+        // settle it manually from the Cashfree dashboard. The buyer sees a
         // "refund failed / will be processed manually" note.
-        console.error('[YFF] razorpay refund on cancel failed:', e)
+        console.error('[YFF] cashfree refund on cancel failed:', e)
         update.refund_status = 'failed'
         update.refund_amount = refundAmount
       }

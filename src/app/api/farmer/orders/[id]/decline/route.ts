@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
-import { refundPayment } from '@/lib/razorpay'
+import { makeRefundId, refundCashfreeOrder } from '@/lib/cashfree'
 import { isDepositPaid } from '@/lib/payment'
 import { getDeliveryCharges, planDeliveryRefund, type RefundOrderRow } from '@/lib/delivery-fee'
 import { applySiblingDeliveryRefunds, REFUND_ORDER_COLS } from '@/lib/delivery-refund'
@@ -12,10 +12,10 @@ export const dynamic = 'force-dynamic'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // Farmer declines a pending order. This runs server-side (not in the
-// dashboard) because issuing a real refund needs the Razorpay secret. Steps:
+// dashboard) because issuing a real refund needs the Cashfree secret. Steps:
 //   1. authorise the farmer and confirm the order is theirs and still pending
 //   2. return the reserved stock
-//   3. if the buyer paid by Razorpay, issue a real refund for the FULL amount
+//   3. if the buyer paid through Cashfree, issue a real refund for the FULL amount
 //      the buyer paid against this order — the produce price plus this row's
 //      share of the delivery fee and platform fee (both stamped on the first
 //      row of the cart). Because the farmer is the one cancelling, the buyer
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: order, error: loadErr } = await supabase
     .from('orders')
-    .select('id, farmer_id, status, quantity, total_price, delivery_fee, delivery_fee_refunded, platform_fee, cod_deposit, produce_listing_id, harvest_id, payment_method, payment_status, razorpay_payment_id, checkout_id, order_code, shipped_at, collected_at, received_at')
+    .select('id, farmer_id, status, quantity, total_price, delivery_fee, delivery_fee_refunded, platform_fee, cod_deposit, produce_listing_id, harvest_id, payment_method, payment_status, cashfree_order_id, cashfree_payment_id, razorpay_payment_id, checkout_id, order_code, shipped_at, collected_at, received_at')
     .eq('id', id)
     .maybeSingle()
 
@@ -84,14 +84,19 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const update: Record<string, unknown> = { status: 'declined', decline_reason: reason || null }
 
   // A part-paid COD order carries 'deposit_paid', not 'paid' — but the deposit
-  // was a real Razorpay capture and this is the farmer's decision, not the
+  // was a real gateway capture and this is the farmer's decision, not the
   // buyer's, so it must be refunded in full. (A BUYER cancel forfeits it
   // instead; that asymmetry is the whole point of the deposit.) Without this,
   // declining would silently keep the buyer's money.
   const depositPaid = isDepositPaid(order.payment_status)
-  const paidByRazorpay =
-    (order.payment_status === 'paid' || depositPaid) && !!order.razorpay_payment_id
+  const gatewayPaid = order.payment_status === 'paid' || depositPaid
+  const paidByCashfree = gatewayPaid && !!order.cashfree_order_id && !!order.cashfree_payment_id
+  // Paid through Razorpay before the switch to Cashfree. Razorpay is switched
+  // off, so these can't be refunded from here — they are flagged for a manual
+  // refund from the Razorpay dashboard, like any other off-gateway payment.
+  const paidByLegacyRazorpay = gatewayPaid && !paidByCashfree && !!order.razorpay_payment_id
   const paidByOther =
+    paidByLegacyRazorpay ||
     order.payment_status === 'completed' ||
     order.payment_status === 'payment_claimed' ||
     order.payment_status === 'pending_confirmation'
@@ -117,7 +122,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   let deliveryPlan: ReturnType<typeof planDeliveryRefund> = { owed: 0, allocations: [] }
   let currentDeliveryAmount = 0
   let currentDeliveryRefundedTotal: number | null = null
-  if (!depositPaid && (paidByRazorpay || paidByOther)) {
+  if (!depositPaid && (paidByCashfree || paidByOther)) {
     const charges = await getDeliveryCharges(supabase)
     let siblings: RefundOrderRow[] = [{
       id: order.id,
@@ -126,6 +131,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       delivery_fee: order.delivery_fee,
       delivery_fee_refunded: order.delivery_fee_refunded,
       payment_status: order.payment_status,
+      cashfree_order_id: order.cashfree_order_id,
+      cashfree_payment_id: order.cashfree_payment_id,
       razorpay_payment_id: order.razorpay_payment_id,
     }]
     if (order.checkout_id) {
@@ -143,24 +150,24 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // of the delivery drop, in one gateway call.
   const currentRefund = itemPlatformRefund + currentDeliveryAmount
 
-  if (paidByRazorpay) {
-    const amountPaise = Math.round(currentRefund * 100)
-    if (amountPaise > 0) {
+  if (paidByCashfree) {
+    if (currentRefund > 0) {
       try {
-        const refund = await refundPayment({
-          paymentId: order.razorpay_payment_id as string,
-          amountPaise,
-          notes: { order_code: order.order_code ?? '', order_id: order.id },
+        const refund = await refundCashfreeOrder({
+          cashfreeOrderId: order.cashfree_order_id as string,
+          refundId: makeRefundId('l', order.id),
+          amountRupees: currentRefund,
+          note: `Declined by farmer ${order.order_code ?? ''}`.trim(),
         })
         update.refund_id = refund.id
-        update.refund_status = refund.status ?? 'processed'
-        update.refund_amount = Math.round(refund.amountPaise / 100)
+        update.refund_status = refund.status
+        update.refund_amount = Math.round(refund.amountRupees)
         update.refunded_at = new Date().toISOString()
       } catch (e) {
-        // Refund failed at Razorpay. Don't silently swallow it — keep the
+        // Refund failed at Cashfree. Don't silently swallow it — keep the
         // order pending so the farmer can retry, and surface the error. We have
         // not touched any sibling yet, so nothing is left half-done.
-        console.error('[YFF] razorpay refund failed:', e)
+        console.error('[YFF] cashfree refund failed:', e)
         return NextResponse.json(
           { error: 'Could not issue the refund. The order was not declined — please try again.' },
           { status: 502 },
@@ -168,7 +175,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       }
     }
   } else if (paidByOther) {
-    // Non-Razorpay paid (UPI/manual): flag for manual refund, recording the
+    // Not paid through Cashfree (UPI/manual/legacy Razorpay): flag for manual refund, recording the
     // amount owed so whoever settles it knows the figure.
     update.refund_status = 'initiated'
     if (currentRefund > 0) update.refund_amount = Math.round(currentRefund)

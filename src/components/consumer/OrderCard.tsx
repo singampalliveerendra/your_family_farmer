@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName, localizeUnit } from '@/lib/localizeName'
-import { cashDue } from '@/lib/payment'
+import { cashDue, isGatewayMethod } from '@/lib/payment'
 import { formatQty } from '@/lib/saleStep'
 import type { MyReview } from '@/components/consumer/ProduceReviewBox'
 
@@ -203,8 +203,8 @@ export default function OrderCard({
       }
     }
     if (!order.payment_method || order.payment_method === 'cod') return null
-    // Online payments now go through Razorpay.
-    if (order.payment_method === 'razorpay' && order.payment_status === 'paid') {
+    // Online payments go through the gateway (Cashfree; Razorpay before 2026-09-18).
+    if (isGatewayMethod(order.payment_method) && order.payment_status === 'paid') {
       return { label: L('✓ Paid online', 'ఆన్‌లైన్ చెల్లించారు'), cls: 'bg-green-100 text-green-800' }
     }
     // Manual UPI is retired — legacy UPI orders show no pay prompt.

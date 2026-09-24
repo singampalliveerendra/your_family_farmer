@@ -79,8 +79,8 @@ const FEATURES: { icon: string; title: Pair; body: Pair }[] = [
     icon: '🔒',
     title: ['Pay securely', 'సురక్షితమైన చెల్లింపు'],
     body: [
-      'UPI and cards through Razorpay. Refunds handled automatically if an order is declined.',
-      'రేజర్‌పే ద్వారా UPI, కార్డులు. ఆర్డర్ తిరస్కరిస్తే రీఫండ్ ఆటోమేటిక్‌గా వస్తుంది.',
+      'UPI and cards through Cashfree. Refunds handled automatically if an order is declined.',
+      'క్యాష్‌ఫ్రీ ద్వారా UPI, కార్డులు. ఆర్డర్ తిరస్కరిస్తే రీఫండ్ ఆటోమేటిక్‌గా వస్తుంది.',
     ],
   },
   {

@@ -13,50 +13,53 @@ import { DEFAULT_DELIVERY_BASE_FEE, DEFAULT_DELIVERY_EXTRA_FEE } from '@/lib/del
 import { computePlatformFee } from '@/lib/platform-fee'
 import { formatPickupSlots, type PickupSchedule, type PickupPhones } from '@/lib/pickup-slots'
 
-// Razorpay Checkout is loaded lazily — we only pull the script the first time
-// a buyer chooses to pay online, so the rest of the catalogue stays light on
-// slow connections.
-const RAZORPAY_SCRIPT = 'https://checkout.razorpay.com/v1/checkout.js'
-
-type RazorpayResponse = {
-  razorpay_payment_id: string
-  razorpay_order_id: string
-  razorpay_signature: string
-}
-type RazorpayOptions = {
-  key: string
-  amount: number
-  currency: string
-  name: string
-  description?: string
-  order_id: string
-  handler: (res: RazorpayResponse) => void
-  prefill?: { name?: string; contact?: string }
-  theme?: { color?: string }
-  modal?: { ondismiss?: () => void }
-}
-type RazorpayInstance = {
-  open: () => void
-  // Subscribe to Checkout events, e.g. 'payment.failed'.
-  on: (event: string, handler: (response: unknown) => void) => void
-}
-declare global {
-  interface Window {
-    Razorpay?: new (options: RazorpayOptions) => RazorpayInstance
-  }
-}
-
-function loadRazorpayScript(): Promise<boolean> {
-  return new Promise((resolve) => {
-    if (typeof window === 'undefined') return resolve(false)
-    if (window.Razorpay) return resolve(true)
-    const script = document.createElement('script')
-    script.src = RAZORPAY_SCRIPT
-    script.onload = () => resolve(true)
-    script.onerror = () => resolve(false)
-    document.body.appendChild(script)
-  })
-}
+// ── RAZORPAY (disabled 2026-09-18) ── Checkout script, types and loader.
+// Replaced by src/lib/cashfreeCheckout.ts.
+// // Razorpay Checkout is loaded lazily — we only pull the script the first time
+// // a buyer chooses to pay online, so the rest of the catalogue stays light on
+// // slow connections.
+// const RAZORPAY_SCRIPT = 'https://checkout.razorpay.com/v1/checkout.js'
+//
+// type RazorpayResponse = {
+//   razorpay_payment_id: string
+//   razorpay_order_id: string
+//   razorpay_signature: string
+// }
+// type RazorpayOptions = {
+//   key: string
+//   amount: number
+//   currency: string
+//   name: string
+//   description?: string
+//   order_id: string
+//   handler: (res: RazorpayResponse) => void
+//   prefill?: { name?: string; contact?: string }
+//   theme?: { color?: string }
+//   modal?: { ondismiss?: () => void }
+// }
+// type RazorpayInstance = {
+//   open: () => void
+//   // Subscribe to Checkout events, e.g. 'payment.failed'.
+//   on: (event: string, handler: (response: unknown) => void) => void
+// }
+// declare global {
+//   interface Window {
+//     Razorpay?: new (options: RazorpayOptions) => RazorpayInstance
+//   }
+// }
+//
+// function loadRazorpayScript(): Promise<boolean> {
+//   return new Promise((resolve) => {
+//     if (typeof window === 'undefined') return resolve(false)
+//     if (window.Razorpay) return resolve(true)
+//     const script = document.createElement('script')
+//     script.src = RAZORPAY_SCRIPT
+//     script.onload = () => resolve(true)
+//     script.onerror = () => resolve(false)
+//     document.body.appendChild(script)
+//   })
+// }
+import { loadCashfreeScript, runCashfreeCheckout } from '@/lib/cashfreeCheckout'
 
 export type CartItem = {
   listingId: string
@@ -698,7 +701,7 @@ export function CartSheet({
   // session cookie — never trusted from the cart's client-side state.
   const placeOrderViaApi = async (
     group: CartItem[],
-    paymentMethod: 'upi' | 'cod' | 'razorpay',
+    paymentMethod: 'upi' | 'cod' | 'cashfree',
   ): Promise<
     | {
         ok: true; orderIds: string[]; total: number
@@ -782,8 +785,8 @@ export function CartSheet({
     setPayingOnline(f.farmerId)
 
     const [scriptOk, createRes] = await Promise.all([
-      loadRazorpayScript(),
-      fetch('/api/orders/razorpay/create', {
+      loadCashfreeScript(),
+      fetch('/api/orders/cashfree/create', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
@@ -794,7 +797,7 @@ export function CartSheet({
     ])
 
     const abandonOrders = async () => {
-      await fetch('/api/orders/razorpay/abandon', {
+      await fetch('/api/orders/abandon', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
@@ -802,7 +805,7 @@ export function CartSheet({
       }).catch(() => {})
     }
 
-    if (!scriptOk || !window.Razorpay) {
+    if (!scriptOk || !window.Cashfree) {
       setPayingOnline(null)
       showToast(L('Could not load the payment screen. Check your connection.', 'చెల్లింపు స్క్రీన్ లోడ్ కాలేదు. మీ కనెక్షన్ చూడండి.'))
       void abandonOrders()
@@ -837,60 +840,79 @@ export function CartSheet({
       })),
     }
 
-    let settled = false
-    const rzp = new window.Razorpay({
-      key: createRes.keyId,
-      amount: createRes.amount,
-      currency: createRes.currency,
-      name: f.farmerName,
-      description: `Deposit — ₹${placed.codBalanceDue} due in cash on delivery`,
-      order_id: createRes.razorpayOrderId,
-      prefill: { name: name.trim(), contact: buyerPhone },
-      theme: { color: '#15803d' },
-      modal: {
-        ondismiss: () => {
-          if (settled) return
-          setPayingOnline(null)
-          resetPaymentScreen()
-          showToast(L('Deposit not paid. Your order was not placed.', 'డిపాజిట్ చెల్లించలేదు. మీ ఆర్డర్ నమోదు కాలేదు.'))
-          void abandonOrders()
-        },
-      },
-      handler: async (res) => {
-        settled = true
-        const vr = await fetch('/api/orders/razorpay/verify', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            razorpayOrderId: res.razorpay_order_id,
-            razorpayPaymentId: res.razorpay_payment_id,
-            razorpaySignature: res.razorpay_signature,
-          }),
-        })
-          .then((r) => r.json().catch(() => null))
-          .catch(() => null)
-
-        setPayingOnline(null)
-        if (!vr?.ok) {
-          showToast(vr?.error ?? L('Deposit could not be verified. Please contact support.', 'డిపాజిట్ ధృవీకరించలేకపోయాం. సపోర్ట్‌ను సంప్రదించండి.'))
-          return
-        }
-        clearFarmer(f.farmerId)
-        setSentFarmers((s) => ({ ...s, [f.farmerId]: true }))
-        setOnlinePaid(true)
-        setUpiScreen({ ...summary, transactionId: res.razorpay_payment_id })
-        setPaidDone(true)
-      },
-    })
-    rzp.on('payment.failed', () => {
-      if (settled) return
-      setPayingOnline(null)
-      resetPaymentScreen()
-      showToast(L('Deposit payment failed. Your order was not placed — please try again.', 'డిపాజిట్ చెల్లింపు విఫలమైంది. మీ ఆర్డర్ నమోదు కాలేదు — మళ్ళీ ప్రయత్నించండి.'))
+    // ── RAZORPAY (disabled 2026-09-18, replaced by Cashfree below) ──
+    // let settled = false
+    // const rzp = new window.Razorpay({
+    //   key: createRes.keyId,
+    //   amount: createRes.amount,
+    //   currency: createRes.currency,
+    //   name: f.farmerName,
+    //   description: `Deposit — ₹${placed.codBalanceDue} due in cash on delivery`,
+    //   order_id: createRes.razorpayOrderId,
+    //   prefill: { name: name.trim(), contact: buyerPhone },
+    //   theme: { color: '#15803d' },
+    //   modal: {
+    //     ondismiss: () => {
+    //       if (settled) return
+    //       setPayingOnline(null)
+    //       resetPaymentScreen()
+    //       showToast(L('Deposit not paid. Your order was not placed.', 'డిపాజిట్ చెల్లించలేదు. మీ ఆర్డర్ నమోదు కాలేదు.'))
+    //       void abandonOrders()
+    //     },
+    //   },
+    //   handler: async (res) => {
+    //     settled = true
+    //     const vr = await fetch('/api/orders/razorpay/verify', {
+    //       method: 'POST',
+    //       credentials: 'same-origin',
+    //       headers: { 'Content-Type': 'application/json' },
+    //       body: JSON.stringify({
+    //         razorpayOrderId: res.razorpay_order_id,
+    //         razorpayPaymentId: res.razorpay_payment_id,
+    //         razorpaySignature: res.razorpay_signature,
+    //       }),
+    //     })
+    //       .then((r) => r.json().catch(() => null))
+    //       .catch(() => null)
+//
+    //     setPayingOnline(null)
+    //     if (!vr?.ok) {
+    //       showToast(vr?.error ?? L('Deposit could not be verified. Please contact support.', 'డిపాజిట్ ధృవీకరించలేకపోయాం. సపోర్ట్‌ను సంప్రదించండి.'))
+    //       return
+    //     }
+    //     clearFarmer(f.farmerId)
+    //     setSentFarmers((s) => ({ ...s, [f.farmerId]: true }))
+    //     setOnlinePaid(true)
+    //     setUpiScreen({ ...summary, transactionId: res.razorpay_payment_id })
+    //     setPaidDone(true)
+    //   },
+    // })
+    // rzp.on('payment.failed', () => {
+    //   if (settled) return
+    //   setPayingOnline(null)
+    //   resetPaymentScreen()
+    //   showToast(L('Deposit payment failed. Your order was not placed — please try again.', 'డిపాజిట్ చెల్లింపు విఫలమైంది. మీ ఆర్డర్ నమోదు కాలేదు — మళ్ళీ ప్రయత్నించండి.'))
+    //   void abandonOrders()
+    // })
+    // rzp.open()
+    // Cashfree: open the checkout, then let the server decide what happened.
+    const outcome = await runCashfreeCheckout(createRes, { guestToken: placed.guestToken })
+    setPayingOnline(null)
+    if (outcome.kind === 'paid') {
+      clearFarmer(f.farmerId)
+      setSentFarmers((s) => ({ ...s, [f.farmerId]: true }))
+      setOnlinePaid(true)
+      setUpiScreen({ ...summary, transactionId: outcome.paymentId })
+      setPaidDone(true)
+      return
+    }
+    resetPaymentScreen()
+    if (outcome.kind === 'unpaid') {
+      showToast(L('Deposit not paid. Your order was not placed.', 'డిపాజిట్ చెల్లించలేదు. మీ ఆర్డర్ నమోదు కాలేదు.'))
       void abandonOrders()
-    })
-    rzp.open()
+      return
+    }
+    showToast(outcome.error ?? L('Deposit could not be verified. Please contact support.', 'డిపాజిట్ ధృవీకరించలేకపోయాం. సపోర్ట్‌ను సంప్రదించండి.'))
   }
 
   // COD flow: save order via server endpoint. Farmer is alerted via realtime
@@ -1018,7 +1040,7 @@ export function CartSheet({
     const buyerPhone = phone.replace(/\D/g, '').slice(-10)
 
     // 1. Place the orders (status pending) on the server.
-    const result = await placeOrderViaApi(group, 'razorpay')
+    const result = await placeOrderViaApi(group, 'cashfree')
     if (!result.ok) {
       setPayingOnline(null)
       showToast(result.error)
@@ -1027,8 +1049,8 @@ export function CartSheet({
 
     // 2. Load Checkout and create the matching Razorpay order in parallel.
     const [scriptOk, createRes] = await Promise.all([
-      loadRazorpayScript(),
-      fetch('/api/orders/razorpay/create', {
+      loadCashfreeScript(),
+      fetch('/api/orders/cashfree/create', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
@@ -1038,7 +1060,7 @@ export function CartSheet({
         .catch(() => null),
     ])
 
-    if (!scriptOk || !window.Razorpay) {
+    if (!scriptOk || !window.Cashfree) {
       setPayingOnline(null)
       showToast(L('Could not load the payment screen. Check your connection.', 'చెల్లింపు స్క్రీన్ లోడ్ కాలేదు. మీ కనెక్షన్ చూడండి.'))
       return
@@ -1078,14 +1100,15 @@ export function CartSheet({
       })),
     }
 
-    // Once the payment succeeds we mark it settled so a trailing dismiss/failed
-    // event can never abandon an order the buyer actually paid for.
-    let settled = false
+    // ── RAZORPAY (disabled 2026-09-18, replaced by Cashfree below) ──
+    // // Once the payment succeeds we mark it settled so a trailing dismiss/failed
+    // // event can never abandon an order the buyer actually paid for.
+    // let settled = false
     // Undo a placed-but-unpaid order: the buyer failed or cancelled payment, so
     // the order must not be initiated. Cancels the pending rows and frees the
     // reserved stock server-side.
     const abandonOrders = async () => {
-      await fetch('/api/orders/razorpay/abandon', {
+      await fetch('/api/orders/abandon', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
@@ -1093,64 +1116,84 @@ export function CartSheet({
       }).catch(() => {})
     }
 
-    // 3. Open Razorpay Checkout.
-    const rzp = new window.Razorpay({
-      key: createRes.keyId,
-      amount: createRes.amount,
-      currency: createRes.currency,
-      name: f.farmerName,
-      description: 'YourFamilyFarmer order',
-      order_id: createRes.razorpayOrderId,
-      prefill: { name: name.trim(), contact: buyerPhone },
-      theme: { color: '#15803d' },
-      modal: {
-        ondismiss: () => {
-          // Buyer closed Checkout without paying. Don't keep an unpaid order —
-          // cancel it and release the stock so nothing is initiated.
-          if (settled) return
-          setPayingOnline(null)
-          resetPaymentScreen()
-          showToast(L('Payment cancelled. Your order was not placed.', 'చెల్లింపు రద్దైంది. మీ ఆర్డర్ నమోదు కాలేదు.'))
-          void abandonOrders()
-        },
-      },
-      handler: async (res) => {
-        settled = true
-        // 4. Verify the signature server-side before trusting the payment.
-        const vr = await fetch('/api/orders/razorpay/verify', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            razorpayOrderId: res.razorpay_order_id,
-            razorpayPaymentId: res.razorpay_payment_id,
-            razorpaySignature: res.razorpay_signature,
-          }),
-        })
-          .then((r) => r.json().catch(() => null))
-          .catch(() => null)
-
-        setPayingOnline(null)
-        if (!vr?.ok) {
-          showToast(vr?.error ?? L('Payment could not be verified. Please contact support.', 'చెల్లింపు ధృవీకరించలేకపోయాం. సపోర్ట్‌ను సంప్రదించండి.'))
-          return
-        }
-        clearFarmer(f.farmerId)
-        setOnlinePaid(true)
-        setUpiScreen({ ...summary, transactionId: res.razorpay_payment_id })
-        setPaidDone(true)
-      },
-    })
-    // A declined card / failed UPI fires this. The payment didn't go through, so
-    // the order must not be initiated — cancel it and release the stock.
-    rzp.on('payment.failed', () => {
-      if (settled) return
-      setPayingOnline(null)
-      resetPaymentScreen()
-      showToast(L('Payment failed. Your order was not placed — please try again.', 'చెల్లింపు విఫలమైంది. మీ ఆర్డర్ నమోదు కాలేదు — మళ్ళీ ప్రయత్నించండి.'))
+    // ── RAZORPAY (disabled 2026-09-18, replaced by Cashfree below) ──
+    // // 3. Open Razorpay Checkout.
+    // const rzp = new window.Razorpay({
+    //   key: createRes.keyId,
+    //   amount: createRes.amount,
+    //   currency: createRes.currency,
+    //   name: f.farmerName,
+    //   description: 'YourFamilyFarmer order',
+    //   order_id: createRes.razorpayOrderId,
+    //   prefill: { name: name.trim(), contact: buyerPhone },
+    //   theme: { color: '#15803d' },
+    //   modal: {
+    //     ondismiss: () => {
+    //       // Buyer closed Checkout without paying. Don't keep an unpaid order —
+    //       // cancel it and release the stock so nothing is initiated.
+    //       if (settled) return
+    //       setPayingOnline(null)
+    //       resetPaymentScreen()
+    //       showToast(L('Payment cancelled. Your order was not placed.', 'చెల్లింపు రద్దైంది. మీ ఆర్డర్ నమోదు కాలేదు.'))
+    //       void abandonOrders()
+    //     },
+    //   },
+    //   handler: async (res) => {
+    //     settled = true
+    //     // 4. Verify the signature server-side before trusting the payment.
+    //     const vr = await fetch('/api/orders/razorpay/verify', {
+    //       method: 'POST',
+    //       credentials: 'same-origin',
+    //       headers: { 'Content-Type': 'application/json' },
+    //       body: JSON.stringify({
+    //         razorpayOrderId: res.razorpay_order_id,
+    //         razorpayPaymentId: res.razorpay_payment_id,
+    //         razorpaySignature: res.razorpay_signature,
+    //       }),
+    //     })
+    //       .then((r) => r.json().catch(() => null))
+    //       .catch(() => null)
+//
+    //     setPayingOnline(null)
+    //     if (!vr?.ok) {
+    //       showToast(vr?.error ?? L('Payment could not be verified. Please contact support.', 'చెల్లింపు ధృవీకరించలేకపోయాం. సపోర్ట్‌ను సంప్రదించండి.'))
+    //       return
+    //     }
+    //     clearFarmer(f.farmerId)
+    //     setOnlinePaid(true)
+    //     setUpiScreen({ ...summary, transactionId: res.razorpay_payment_id })
+    //     setPaidDone(true)
+    //   },
+    // })
+    // // A declined card / failed UPI fires this. The payment didn't go through, so
+    // // the order must not be initiated — cancel it and release the stock.
+    // rzp.on('payment.failed', () => {
+    //   if (settled) return
+    //   setPayingOnline(null)
+    //   resetPaymentScreen()
+    //   showToast(L('Payment failed. Your order was not placed — please try again.', 'చెల్లింపు విఫలమైంది. మీ ఆర్డర్ నమోదు కాలేదు — మళ్ళీ ప్రయత్నించండి.'))
+    //   void abandonOrders()
+    // })
+    // rzp.open()
+    // 3. Open the Cashfree checkout; 4. the server confirms with Cashfree.
+    const outcome = await runCashfreeCheckout(createRes, { guestToken: result.guestToken })
+    setPayingOnline(null)
+    if (outcome.kind === 'paid') {
+      clearFarmer(f.farmerId)
+      setOnlinePaid(true)
+      setUpiScreen({ ...summary, transactionId: outcome.paymentId })
+      setPaidDone(true)
+      return
+    }
+    resetPaymentScreen()
+    if (outcome.kind === 'unpaid') {
+      // Closed or failed without paying. Don't keep an unpaid order — cancel it
+      // and release the stock so nothing is initiated.
+      showToast(L('Payment not completed. Your order was not placed.', 'చెల్లింపు పూర్తి కాలేదు. మీ ఆర్డర్ నమోదు కాలేదు.'))
       void abandonOrders()
-    })
-    rzp.open()
+      return
+    }
+    showToast(outcome.error ?? L('Payment could not be verified. Please contact support.', 'చెల్లింపు ధృవీకరించలేకపోయాం. సపోర్ట్‌ను సంప్రదించండి.'))
   }
 
   // Combined online flow (Razorpay) across EVERY farmer in the cart: place all
@@ -1175,7 +1218,7 @@ export function CartSheet({
 
     // Cancel a set of placed-but-unpaid orders and release their stock.
     const abandon = (ids: string[]) =>
-      fetch('/api/orders/razorpay/abandon', {
+      fetch('/api/orders/abandon', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
@@ -1191,7 +1234,7 @@ export function CartSheet({
     const guestBatches: Array<{ orderIds: string[]; token: string }> = []
     let subtotal = 0
     for (const group of farmerGroups) {
-      const result = await placeOrderViaApi(group, 'razorpay')
+      const result = await placeOrderViaApi(group, 'cashfree')
       if (!result.ok) {
         if (allOrderIds.length) await abandon(allOrderIds)
         setPayingOnline(null)
@@ -1205,8 +1248,8 @@ export function CartSheet({
 
     // 2. Load Checkout and create ONE Razorpay order spanning every id.
     const [scriptOk, createRes] = await Promise.all([
-      loadRazorpayScript(),
-      fetch('/api/orders/razorpay/create', {
+      loadCashfreeScript(),
+      fetch('/api/orders/cashfree/create', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
@@ -1216,7 +1259,7 @@ export function CartSheet({
         .catch(() => null),
     ])
 
-    if (!scriptOk || !window.Razorpay) {
+    if (!scriptOk || !window.Cashfree) {
       await abandon(allOrderIds)
       setPayingOnline(null)
       showToast(L('Could not load the payment screen. Check your connection.', 'చెల్లింపు స్క్రీన్ లోడ్ కాలేదు. మీ కనెక్షన్ చూడండి.'))
@@ -1249,59 +1292,76 @@ export function CartSheet({
       })),
     }
 
-    let settled = false
-    const rzp = new window.Razorpay({
-      key: createRes.keyId,
-      amount: createRes.amount,
-      currency: createRes.currency,
-      name: 'YourFamilyFarmer',
-      description: multi ? `Order from ${farmerGroups.length} farmers` : 'YourFamilyFarmer order',
-      order_id: createRes.razorpayOrderId,
-      prefill: { name: name.trim(), contact: buyerPhone },
-      theme: { color: '#15803d' },
-      modal: {
-        ondismiss: () => {
-          if (settled) return
-          setPayingOnline(null)
-          resetPaymentScreen()
-          showToast(L('Payment cancelled. Your order was not placed.', 'చెల్లింపు రద్దైంది. మీ ఆర్డర్ నమోదు కాలేదు.'))
-          void abandon(allOrderIds)
-        },
-      },
-      handler: async (res) => {
-        settled = true
-        const vr = await fetch('/api/orders/razorpay/verify', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            razorpayOrderId: res.razorpay_order_id,
-            razorpayPaymentId: res.razorpay_payment_id,
-            razorpaySignature: res.razorpay_signature,
-          }),
-        })
-          .then((r) => r.json().catch(() => null))
-          .catch(() => null)
-
-        setPayingOnline(null)
-        if (!vr?.ok) {
-          showToast(vr?.error ?? L('Payment could not be verified. Please contact support.', 'చెల్లింపు ధృవీకరించలేకపోయాం. సపోర్ట్‌ను సంప్రదించండి.'))
-          return
-        }
-        clear() // whole cart paid in one go
-        setOnlinePaid(true)
-        setUpiScreen({ ...summary, transactionId: res.razorpay_payment_id })
-        setPaidDone(true)
-      },
-    })
-    rzp.on('payment.failed', () => {
-      if (settled) return
-      setPayingOnline(null)
-      resetPaymentScreen()
-      showToast(L('Payment failed. Your order was not placed — please try again.', 'చెల్లింపు విఫలమైంది. మీ ఆర్డర్ నమోదు కాలేదు — మళ్ళీ ప్రయత్నించండి.'))
+    // ── RAZORPAY (disabled 2026-09-18, replaced by Cashfree below) ──
+    // let settled = false
+    // const rzp = new window.Razorpay({
+    //   key: createRes.keyId,
+    //   amount: createRes.amount,
+    //   currency: createRes.currency,
+    //   name: 'YourFamilyFarmer',
+    //   description: multi ? `Order from ${farmerGroups.length} farmers` : 'YourFamilyFarmer order',
+    //   order_id: createRes.razorpayOrderId,
+    //   prefill: { name: name.trim(), contact: buyerPhone },
+    //   theme: { color: '#15803d' },
+    //   modal: {
+    //     ondismiss: () => {
+    //       if (settled) return
+    //       setPayingOnline(null)
+    //       resetPaymentScreen()
+    //       showToast(L('Payment cancelled. Your order was not placed.', 'చెల్లింపు రద్దైంది. మీ ఆర్డర్ నమోదు కాలేదు.'))
+    //       void abandon(allOrderIds)
+    //     },
+    //   },
+    //   handler: async (res) => {
+    //     settled = true
+    //     const vr = await fetch('/api/orders/razorpay/verify', {
+    //       method: 'POST',
+    //       credentials: 'same-origin',
+    //       headers: { 'Content-Type': 'application/json' },
+    //       body: JSON.stringify({
+    //         razorpayOrderId: res.razorpay_order_id,
+    //         razorpayPaymentId: res.razorpay_payment_id,
+    //         razorpaySignature: res.razorpay_signature,
+    //       }),
+    //     })
+    //       .then((r) => r.json().catch(() => null))
+    //       .catch(() => null)
+//
+    //     setPayingOnline(null)
+    //     if (!vr?.ok) {
+    //       showToast(vr?.error ?? L('Payment could not be verified. Please contact support.', 'చెల్లింపు ధృవీకరించలేకపోయాం. సపోర్ట్‌ను సంప్రదించండి.'))
+    //       return
+    //     }
+    //     clear() // whole cart paid in one go
+    //     setOnlinePaid(true)
+    //     setUpiScreen({ ...summary, transactionId: res.razorpay_payment_id })
+    //     setPaidDone(true)
+    //   },
+    // })
+    // rzp.on('payment.failed', () => {
+    //   if (settled) return
+    //   setPayingOnline(null)
+    //   resetPaymentScreen()
+    //   showToast(L('Payment failed. Your order was not placed — please try again.', 'చెల్లింపు విఫలమైంది. మీ ఆర్డర్ నమోదు కాలేదు — మళ్ళీ ప్రయత్నించండి.'))
+    //   void abandon(allOrderIds)
+    // })
+    // rzp.open()
+    const outcome = await runCashfreeCheckout(createRes, { guestBatches })
+    setPayingOnline(null)
+    if (outcome.kind === 'paid') {
+      clear() // whole cart paid in one go
+      setOnlinePaid(true)
+      setUpiScreen({ ...summary, transactionId: outcome.paymentId })
+      setPaidDone(true)
+      return
+    }
+    resetPaymentScreen()
+    if (outcome.kind === 'unpaid') {
+      showToast(L('Payment not completed. Your order was not placed.', 'చెల్లింపు పూర్తి కాలేదు. మీ ఆర్డర్ నమోదు కాలేదు.'))
       void abandon(allOrderIds)
-    })
-    rzp.open()
+      return
+    }
+    showToast(outcome.error ?? L('Payment could not be verified. Please contact support.', 'చెల్లింపు ధృవీకరించలేకపోయాం. సపోర్ట్‌ను సంప్రదించండి.'))
   }
 
   const handlePickProof = async (e: React.ChangeEvent<HTMLInputElement>) => {

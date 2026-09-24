@@ -7,7 +7,7 @@ import type { MetadataRoute } from "next";
  *
  * Deliberately NO service worker alongside this. Installability doesn't need
  * one, and almost every page here is live Supabase data (stock, order status)
- * plus Razorpay's script — a cache layer would show buyers sold-out harvests
+ * plus Cashfree's checkout script — a cache layer would show buyers sold-out harvests
  * and stale order states with no way to force a refresh. Offline support, if
  * it's ever wanted, is a separate decision. */
 export default function manifest(): MetadataRoute.Manifest {

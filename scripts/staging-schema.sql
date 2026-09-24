@@ -260,6 +260,8 @@ CREATE TABLE IF NOT EXISTS public."orders" (
   "rider_payout" integer DEFAULT 0,
   "razorpay_order_id" text,
   "razorpay_payment_id" text,
+  "cashfree_order_id" text,
+  "cashfree_payment_id" text,
   "refund_status" text,
   "order_code" text,
   "refund_id" text,
@@ -497,6 +499,8 @@ CREATE INDEX idx_orders_harvest ON public.orders USING btree (harvest_id);
 CREATE INDEX idx_orders_payment_method ON public.orders USING btree (payment_method);
 CREATE INDEX idx_orders_payment_status ON public.orders USING btree (payment_status);
 CREATE INDEX idx_orders_razorpay_order_id ON public.orders USING btree (razorpay_order_id);
+
+CREATE INDEX idx_orders_cashfree_order_id ON public.orders USING btree (cashfree_order_id);
 CREATE INDEX orders_idempotency_key_idx ON public.orders USING btree (idempotency_key) WHERE (idempotency_key IS NOT NULL);
 CREATE UNIQUE INDEX orders_order_code_key ON public.orders USING btree (order_code);
 CREATE INDEX idx_otp_sessions_phone ON public.otp_sessions USING btree (phone, created_at DESC);

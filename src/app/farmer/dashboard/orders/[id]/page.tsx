@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
-import { isOrderPaid, isPaymentClaimed } from '@/lib/payment'
+import { isGatewayMethod, isOrderPaid, isPaymentClaimed } from '@/lib/payment'
 import { harvestClock } from '@/lib/harvest'
 import { requireFarmerSession } from '@/lib/farmer-auth-client'
 import { useFarmerRiders } from '@/lib/farmer-riders'
@@ -21,7 +21,7 @@ import {
 } from '@/lib/delivery'
 
 function isOnlinePayment(method: string | null | undefined): boolean {
-  return method === 'razorpay' || method === 'upi'
+  return isGatewayMethod(method) || method === 'upi'
 }
 
 // Full order row for the farmer's detail view. handover_otp is deliberately NOT
@@ -184,10 +184,10 @@ export default function FarmerOrderDetailPage() {
   const paymentText = (o: Order) => {
     if (!o.payment_method || o.payment_method === 'cod')
       return isPaid ? L('Cash — Received', 'నగదు — అందింది') : L('Payment Pending (COD)', 'చెల్లింపు పెండింగ్ (COD)')
-    // Online payments come through the Razorpay gateway (stored as 'razorpay';
-    // some legacy orders use 'upi'). Never surface the gateway name "razorpay"
-    // to the farmer — show "UPI".
-    if (o.payment_method === 'upi' || o.payment_method === 'razorpay')
+    // Online payments come through the gateway (stored as 'cashfree', or
+    // 'razorpay' before 2026-09-18; some legacy orders use 'upi'). Never
+    // surface the gateway name to the farmer — show "UPI".
+    if (o.payment_method === 'upi' || isGatewayMethod(o.payment_method))
       return isPaid ? L('UPI — Paid', 'UPI — చెల్లించారు')
         : isPaymentClaimed(o.payment_status)
           ? L('UPI — Buyer paid, verify', 'UPI — ధృవీకరించండి')
@@ -351,7 +351,7 @@ export default function FarmerOrderDetailPage() {
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase">{L('Payment', 'చెల్లింపు')}</p>
                   <p className="text-xs font-semibold text-gray-700">{paymentText(order)}</p>
-                  {(order.payment_method === 'upi' || order.payment_method === 'razorpay') && order.utr_number && (
+                  {(order.payment_method === 'upi' || isGatewayMethod(order.payment_method)) && order.utr_number && (
                     <p className="text-[11px] text-gray-500 font-mono">UTR: {order.utr_number}</p>
                   )}
                 </div>

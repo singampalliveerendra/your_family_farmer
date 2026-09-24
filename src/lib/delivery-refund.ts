@@ -9,12 +9,12 @@
 // an already-cancelled base row when the last farmer finally leaves.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { refundPayment } from '@/lib/razorpay'
+import { makeRefundId, refundCashfreeOrder } from '@/lib/cashfree'
 import type { DeliveryRefundPlan, DeliveryRefundAllocation } from '@/lib/delivery-fee'
 
 // Columns planDeliveryRefund needs from each sibling order row.
 export const REFUND_ORDER_COLS =
-  'id, farmer_id, status, delivery_fee, delivery_fee_refunded, payment_status, razorpay_payment_id, order_code'
+  'id, farmer_id, status, delivery_fee, delivery_fee_refunded, payment_status, cashfree_order_id, cashfree_payment_id, razorpay_payment_id, order_code'
 
 /**
  * Apply the sibling parts of a delivery refund plan (every allocation EXCEPT the
@@ -53,12 +53,13 @@ async function refundSibling(supabase: SupabaseClient, alloc: DeliveryRefundAllo
     refunded_at: new Date().toISOString(),
   }
 
-  if (alloc.viaRazorpay && alloc.razorpayPaymentId) {
+  if (alloc.viaGateway && alloc.cashfreeOrderId) {
     try {
-      await refundPayment({
-        paymentId: alloc.razorpayPaymentId,
-        amountPaise: Math.round(alloc.amount * 100),
-        notes: { reason: 'delivery_charge_adjustment', order_id: alloc.orderId },
+      await refundCashfreeOrder({
+        cashfreeOrderId: alloc.cashfreeOrderId,
+        refundId: makeRefundId('d', alloc.orderId, alloc.newRefundedTotal),
+        amountRupees: alloc.amount,
+        note: 'Delivery charge adjustment',
       })
     } catch (e) {
       // Don't fail the whole decline/cancel over a secondary sibling refund;
@@ -67,7 +68,8 @@ async function refundSibling(supabase: SupabaseClient, alloc: DeliveryRefundAllo
       return
     }
   } else {
-    // Non-Razorpay captured payment — flag for manual settlement.
+    // Not paid through Cashfree (manual UPI / legacy Razorpay) — flag for
+    // manual settlement.
     rowUpdate.refund_status = 'initiated'
   }
 

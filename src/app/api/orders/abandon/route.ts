@@ -2,6 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
 import { hasMoneyIn } from '@/lib/payment'
+import { getSettlement, terminateCashfreeOrder } from '@/lib/cashfree'
+import { markCashfreePaid } from '@/lib/cashfree-settle'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -35,9 +37,39 @@ export async function POST(req: NextRequest) {
 
   const { data: orders, error: loadErr } = await supabase
     .from('orders')
-    .select('id, consumer_id, status, payment_status, quantity, produce_listing_id, harvest_id')
+    .select('id, consumer_id, status, payment_status, quantity, produce_listing_id, harvest_id, cashfree_order_id')
     .in('id', orderIds)
   if (loadErr) return NextResponse.json({ error: loadErr.message }, { status: 500 })
+
+  // The checkout closing is not proof nothing was paid — a UPI collect can
+  // complete after the modal is gone. So before cancelling anything, ask
+  // Cashfree about each order this batch opened: a paid one is recorded as paid
+  // and left alone; an unpaid one is TERMINATED, so a payment that would have
+  // landed later is refused instead of hitting a cancelled order.
+  const paidCashfree = new Set<string>()
+  const cfIds = [...new Set(
+    (orders ?? [])
+      .filter((o) => o.consumer_id === session.consumerId && o.cashfree_order_id)
+      .map((o) => o.cashfree_order_id as string),
+  )]
+  for (const cfId of cfIds) {
+    try {
+      const s = await getSettlement(cfId)
+      if (s.paid) {
+        paidCashfree.add(cfId)
+        const err = await markCashfreePaid(supabase, { cashfreeOrderId: cfId, paymentId: s.paymentId, label: s.label })
+        if (err) console.error('[YFF abandon] late-paid update failed:', err)
+        continue
+      }
+    } catch (e) {
+      // Unknown state: don't cancel what might be paid. The reconcile cron
+      // settles it either way.
+      console.error('[YFF abandon] settlement lookup failed, leaving orders alone:', cfId, e)
+      paidCashfree.add(cfId)
+      continue
+    }
+    await terminateCashfreeOrder(cfId)
+  }
 
   let cancelled = 0
   for (const order of orders ?? []) {
@@ -50,6 +82,7 @@ export async function POST(req: NextRequest) {
     // dismiss after a successful capture, and cancelling then would take the
     // buyer's deposit and void their order.
     if (hasMoneyIn(order.payment_status)) continue
+    if (order.cashfree_order_id && paidCashfree.has(order.cashfree_order_id)) continue
 
     // Return the reserved stock before flipping the row, mirroring a cancel.
     // Harvest orders return the harvest's stock; legacy orders the listing's.

@@ -125,7 +125,9 @@ function row(over: Partial<RefundOrderRow> = {}): RefundOrderRow {
     delivery_fee: 0,
     delivery_fee_refunded: 0,
     payment_status: 'paid',
-    razorpay_payment_id: `pay_${seq}`,
+    cashfree_order_id: `gg_cart_${seq}`,
+    cashfree_payment_id: `${5000 + seq}`,
+    razorpay_payment_id: null,
     ...over,
   }
 }
@@ -139,7 +141,7 @@ describe('planDeliveryRefund', () => {
     const plan = planDeliveryRefund([a, b], 'b', CHARGES)
     expect(plan.owed).toBe(15)
     expect(plan.allocations).toEqual([
-      { orderId: 'b', amount: 15, newRefundedTotal: 15, razorpayPaymentId: b.razorpay_payment_id, viaRazorpay: true },
+      { orderId: 'b', amount: 15, newRefundedTotal: 15, cashfreeOrderId: b.cashfree_order_id, viaGateway: true },
     ])
   })
 
@@ -151,7 +153,7 @@ describe('planDeliveryRefund', () => {
     const plan = planDeliveryRefund([a, b], 'a', CHARGES)
     expect(plan.owed).toBe(30)
     expect(plan.allocations).toEqual([
-      { orderId: 'a', amount: 30, newRefundedTotal: 30, razorpayPaymentId: a.razorpay_payment_id, viaRazorpay: true },
+      { orderId: 'a', amount: 30, newRefundedTotal: 30, cashfreeOrderId: a.cashfree_order_id, viaGateway: true },
     ])
   })
 
@@ -188,8 +190,8 @@ describe('planDeliveryRefund', () => {
 
   // Unpaid orders get no refund. You cannot return money that was never taken.
   it('never plans to give back money that was never captured', () => {
-    const a = row({ id: 'a', farmer_id: 'f1', delivery_fee: 30, payment_status: 'pending', razorpay_payment_id: null })
-    const b = row({ id: 'b', farmer_id: 'f2', delivery_fee: 15, payment_status: 'pending', razorpay_payment_id: null })
+    const a = row({ id: 'a', farmer_id: 'f1', delivery_fee: 30, payment_status: 'pending', cashfree_payment_id: null })
+    const b = row({ id: 'b', farmer_id: 'f2', delivery_fee: 15, payment_status: 'pending', cashfree_payment_id: null })
     expect(planDeliveryRefund([a, b], 'b', CHARGES)).toEqual({ owed: 0, allocations: [] })
   })
 
@@ -200,32 +202,48 @@ describe('planDeliveryRefund', () => {
     // buyer still overpaid by one extra unit — so it comes off the row that did
     // capture. The refund follows the money, not the cancellation.
     const a = row({ id: 'a', farmer_id: 'f1', delivery_fee: 30 })
-    const b = row({ id: 'b', farmer_id: 'f2', delivery_fee: 15, razorpay_payment_id: null })
+    const b = row({ id: 'b', farmer_id: 'f2', delivery_fee: 15, cashfree_payment_id: null })
     const plan = planDeliveryRefund([a, b], 'b', CHARGES)
     expect(plan.owed).toBe(15)
     expect(plan.allocations.map((x) => x.orderId)).toEqual(['a'])
   })
 
-  // Money not taken through Razorpay is marked for the moderator to settle by
+  // Money not taken through Cashfree is marked for the moderator to settle by
   // hand rather than being sent to the gateway.
-  it('flags a non-Razorpay capture for manual settlement instead of a gateway refund', () => {
+  it('flags a non-gateway capture for manual settlement instead of a gateway refund', () => {
     const a = row({ id: 'a', farmer_id: 'f1', delivery_fee: 30 })
     const b = row({
       id: 'b', farmer_id: 'f2', delivery_fee: 15,
-      payment_status: 'completed', razorpay_payment_id: null,
+      payment_status: 'completed', cashfree_order_id: null, cashfree_payment_id: null,
     })
     const plan = planDeliveryRefund([a, b], 'b', CHARGES)
     expect(plan.owed).toBe(15)
-    expect(plan.allocations[0].viaRazorpay).toBe(false)
-    expect(plan.allocations[0].razorpayPaymentId).toBeNull()
+    expect(plan.allocations[0].viaGateway).toBe(false)
+    expect(plan.allocations[0].cashfreeOrderId).toBeNull()
+  })
+
+  // USE: orders paid through Razorpay before the 2026-09-18 switch. Razorpay is
+  // switched off, so they can't be refunded from here — but the money WAS taken,
+  // so they must still count as captured and be flagged for a manual refund.
+  // Without this they'd look unpaid and the buyer would silently get nothing.
+  it('flags a legacy Razorpay payment for manual refund, not silence', () => {
+    const a = row({ id: 'a', farmer_id: 'f1', delivery_fee: 30 })
+    const b = row({
+      id: 'b', farmer_id: 'f2', delivery_fee: 15,
+      cashfree_order_id: null, cashfree_payment_id: null, razorpay_payment_id: 'pay_OLD',
+    })
+    const plan = planDeliveryRefund([a, b], 'b', CHARGES)
+    expect(plan.allocations).toEqual([
+      { orderId: 'b', amount: 15, newRefundedTotal: 15, cashfreeOrderId: null, viaGateway: false },
+    ])
   })
 
   // A COD deposit WAS taken online, so its refund does go back through the
   // gateway.
-  it('refunds a deposit-paid COD order through Razorpay', () => {
+  it('refunds a deposit-paid COD order through Cashfree', () => {
     const a = row({ id: 'a', farmer_id: 'f1', delivery_fee: 30 })
     const b = row({ id: 'b', farmer_id: 'f2', delivery_fee: 15, payment_status: 'deposit_paid' })
-    expect(planDeliveryRefund([a, b], 'b', CHARGES).allocations[0].viaRazorpay).toBe(true)
+    expect(planDeliveryRefund([a, b], 'b', CHARGES).allocations[0].viaGateway).toBe(true)
   })
 
   // When the cancelled row has nothing left to give back, the refund is taken
@@ -238,7 +256,7 @@ describe('planDeliveryRefund', () => {
     const plan = planDeliveryRefund([a, b], 'b', CHARGES)
     expect(plan.owed).toBe(15)
     expect(plan.allocations).toEqual([
-      { orderId: 'a', amount: 15, newRefundedTotal: 15, razorpayPaymentId: a.razorpay_payment_id, viaRazorpay: true },
+      { orderId: 'a', amount: 15, newRefundedTotal: 15, cashfreeOrderId: a.cashfree_order_id, viaGateway: true },
     ])
   })
 

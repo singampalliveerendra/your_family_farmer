@@ -35,7 +35,7 @@ const allowedSupabaseHosts = [
 //
 // Kept deliberately boring: these four are safe on any page and cost nothing.
 // Frame protection is DENY rather than SAMEORIGIN because the app renders no
-// iframes of its own — Razorpay's checkout embeds ITS frame inside our page,
+// iframes of its own — Cashfree's checkout embeds ITS frame inside our page,
 // which frame-src governs, not this header. Clickjacking a checkout flow is the
 // attack this shuts out.
 //
@@ -62,7 +62,7 @@ const SECURITY_HEADERS = [
 // Content-Security-Policy, in REPORT-ONLY mode on purpose.
 //
 // A CSP that is wrong doesn't degrade — it silently blocks a script, and the
-// script most likely to break here is Razorpay's checkout, i.e. the one path
+// script most likely to break here is Cashfree's checkout, i.e. the one path
 // where breakage costs real money. Report-Only lets the browser tell us what
 // WOULD have been blocked while everything keeps working.
 //
@@ -75,17 +75,20 @@ const SECURITY_HEADERS = [
 // then rename the header to "Content-Security-Policy". Do not enforce blind.
 const CSP_REPORT_ONLY = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com",
+  // Razorpay domains removed 2026-09-18 (was: checkout.razorpay.com,
+  // api.razorpay.com, lumberjack.razorpay.com) — payments moved to Cashfree.
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.cashfree.com",
   // No fonts.googleapis.com / fonts.gstatic.com: the brand faces are committed
   // to the repo and served from our own origin (see src/app/layout.tsx).
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
   "img-src 'self' data: blob: https://*.supabase.co",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.razorpay.com https://lumberjack.razorpay.com",
-  "frame-src https://api.razorpay.com https://checkout.razorpay.com",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.cashfree.com",
+  "frame-src https://*.cashfree.com",
   "object-src 'none'",
   "base-uri 'self'",
-  "form-action 'self'",
+  // Card 3-D Secure and netbanking post out to the bank from Cashfree's frame.
+  "form-action 'self' https://*.cashfree.com",
   "frame-ancestors 'none'",
 ].join("; ");
 
