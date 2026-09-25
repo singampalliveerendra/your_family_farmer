@@ -3,6 +3,7 @@ import {
   BUYER_VIEW_COOKIE,
   parseBuyerView,
   sellerDashboardPath,
+  sellerSwitchTargets,
   showsBuyerViewBar,
 } from '@/lib/buyerView'
 
@@ -104,5 +105,25 @@ describe('showsBuyerViewBar', () => {
   it('matches whole path segments, not letter prefixes', () => {
     expect(showsBuyerViewBar('/consumers-report')).toBe(false)
     expect(showsBuyerViewBar('/regional-office')).toBe(false)
+  })
+})
+
+describe('sellerSwitchTargets', () => {
+  // USE: the farmer ⚙️ Settings "Switch role" list (client card 2026-09-25) —
+  // the other seller login plus delivery, never the role they are already in.
+  it('offers a farmer the aggregator login and delivery', () => {
+    expect(sellerSwitchTargets('farmer')).toEqual([
+      { role: 'aggregator', href: '/aggregator/login' },
+      { role: 'rider', href: '/rider' },
+    ])
+  })
+
+  // USE: an aggregator holds the farmer cookie, and /farmer/login bounces a live
+  // cookie to the dashboard — without ?switch=1 the tap would look ignored.
+  it('offers an aggregator the farmer login with ?switch=1, and delivery', () => {
+    expect(sellerSwitchTargets('aggregator')).toEqual([
+      { role: 'farmer', href: '/farmer/login?switch=1' },
+      { role: 'rider', href: '/rider' },
+    ])
   })
 })

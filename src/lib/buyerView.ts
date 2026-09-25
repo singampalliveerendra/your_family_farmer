@@ -89,3 +89,23 @@ export function clearBuyerView(): void {
   if (typeof document === 'undefined') return
   document.cookie = `${BUYER_VIEW_COOKIE}=; path=/; max-age=0; SameSite=Lax`
 }
+
+/**
+ * The OTHER sign-ins a seller's ⚙️ Settings offers under "Switch role" — the
+ * seller-side twin of the consumer menu's list (client card 2026-09-25: the
+ * consumer menu had it, the farmer dashboard did not, so a farmer had no way
+ * across). "Shop as Consumer" is not in here: it is a buyer-session switch, not
+ * a link, and it applies to both seller roles alike.
+ *
+ * The farmer login carries ?switch=1 because /farmer/login bounces anyone with a
+ * live seller cookie to the dashboard — and an aggregator holds exactly that
+ * cookie, so a bare link would look like the tap was ignored.
+ */
+export type SwitchTarget = { role: 'farmer' | 'aggregator' | 'rider'; href: string }
+
+export function sellerSwitchTargets(current: SellerRole): SwitchTarget[] {
+  const seller: SwitchTarget = current === 'aggregator'
+    ? { role: 'farmer', href: '/farmer/login?switch=1' }
+    : { role: 'aggregator', href: '/aggregator/login' }
+  return [seller, { role: 'rider', href: '/rider' }]
+}

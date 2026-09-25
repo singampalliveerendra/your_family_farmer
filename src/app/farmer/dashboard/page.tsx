@@ -11,6 +11,7 @@ import NextImage from 'next/image'
 import LanguageToggle from '@/components/LanguageToggle'
 import BuyerViewSwitch from '@/components/farmer/BuyerViewSwitch'
 import DefaultDashboardSetting from '@/components/DefaultDashboardSetting'
+import SellerSwitchRole from '@/components/farmer/SellerSwitchRole'
 import { clearBuyerView, readBuyerView } from '@/lib/buyerView'
 import { clearCachedConsumer } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
@@ -911,7 +912,7 @@ export default function FarmerDashboard() {
           <div
             role="dialog"
             aria-label={L('Settings', 'సెట్టింగ్‌లు')}
-            className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5"
+            className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 max-h-[92vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
@@ -924,7 +925,27 @@ export default function FarmerDashboard() {
                 ×
               </button>
             </div>
-            <DefaultDashboardSetting />
+            {/* Same order as the consumer ⚙️ menu — account links, the default
+                dashboard, log out, then Switch role — so a seller can get across
+                from here too, not only from the Buyer view card further down. */}
+            <Link
+              href="/farmer/complaints"
+              className="block py-2.5 text-sm text-gray-800 active:bg-gray-100"
+            >
+              {L('🛟 My complaints', 'నా ఫిర్యాదులు')}
+            </Link>
+            <div className="py-2.5 border-t border-gray-100">
+              <DefaultDashboardSetting />
+            </div>
+            <button
+              onClick={() => { setShowSettings(false); void handleLogout() }}
+              className="block w-full text-left py-2.5 text-sm text-red-600 active:bg-red-50 font-semibold border-t border-gray-100"
+            >
+              {L('↪ Log out', 'లాగౌట్')}
+            </button>
+            <div className="border-t border-gray-100">
+              <SellerSwitchRole current={farmer?.account_type === 'aggregator' ? 'aggregator' : 'farmer'} />
+            </div>
           </div>
         </div>
       )}
@@ -1091,12 +1112,8 @@ function ProfileEditModal({
 
   // UPI ID + QR
   const [upiId, setUpiId] = useState(farmer.upi_id ?? '')
-  const [qrFile, setQrFile] = useState<File | null>(null)
-  const [qrPreview, setQrPreview] = useState('')
-  const [existingQrUrl, setExistingQrUrl] = useState(farmer.upi_qr_code_url ?? '')
 
   // Cash on Delivery acceptance — default off
-  const [codEnabled, setCodEnabled] = useState<boolean>(farmer.cod_enabled === true)
 
   // Change password
   const [showPwSection, setShowPwSection] = useState(false)
@@ -1265,15 +1282,14 @@ function ProfileEditModal({
     }
 
     // Upload photos in parallel
-    const [coverRes, avatarRes, certRes, qrRes, bizCertRes, orgCertRes] = await Promise.all([
+    const [coverRes, avatarRes, certRes, bizCertRes, orgCertRes] = await Promise.all([
       coverFile ? uploadProfileImage(coverFile, 'cover') : Promise.resolve({ url: null, err: null }),
       avatarFile ? uploadProfileImage(avatarFile, 'avatar') : Promise.resolve({ url: null, err: null }),
       certFile  ? uploadProfileImage(certFile,  'pesticide-cert') : Promise.resolve({ url: null, err: null }),
-      qrFile    ? uploadProfileImage(qrFile,    'upi-qr') : Promise.resolve({ url: null, err: null }),
       bizCertFile ? uploadProfileImage(bizCertFile, 'business-cert') : Promise.resolve({ url: null, err: null }),
       orgCertFile ? uploadProfileImage(orgCertFile, 'organic-cert') : Promise.resolve({ url: null, err: null }),
     ])
-    const uploadErr = coverRes.err ?? avatarRes.err ?? certRes.err ?? qrRes.err ?? bizCertRes.err ?? orgCertRes.err
+    const uploadErr = coverRes.err ?? avatarRes.err ?? certRes.err ?? bizCertRes.err ?? orgCertRes.err
     if (uploadErr) { setError(uploadErr); setLoading(false); return }
 
     const payload: Record<string, unknown> = {
@@ -1288,8 +1304,6 @@ function ProfileEditModal({
       photo_url:        (avatarRes.url ?? existingAvatarUrl) || null,
       pesticide_cert_url: (certRes.url ?? existingCertUrl) || null,
       upi_id:           upiId.trim() || null,
-      upi_qr_code_url:  (qrRes.url ?? existingQrUrl) || null,
-      cod_enabled:      codEnabled,
       // Aggregator-only. Spread so an ordinary farmer's payload is byte-for-byte
       // what it was before this feature existed.
       ...(isAggregator ? {
@@ -2002,61 +2016,12 @@ function ProfileEditModal({
               )}
             </div>
 
-            {/* UPI QR Code */}
-            <div>
-              <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1">
-                {L('UPI QR Code (optional)', 'UPI QR కోడ్')}
-              </label>
-              <p className="text-[11px] text-gray-500 mb-2">
-                Buyers can scan this to pay. Get your QR from PhonePe, GPay, or BHIM app.
-              </p>
-              {(existingQrUrl && !qrPreview) ? (
-                <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={existingQrUrl} alt={L('QR Code', 'QR కోడ్')} className="w-12 h-12 object-contain rounded" />
-                  <span className="text-green-700 font-semibold text-sm flex-1">✓ QR code uploaded</span>
-                  <button
-                    type="button"
-                    onClick={() => setExistingQrUrl('')}
-                    className="text-xs text-red-500 underline"
-                  >
-                    {L('Remove', 'తీసివేయి')}
-                  </button>
-                </div>
-              ) : (
-                <ProfilePhotoUpload
-                  preview={qrPreview}
-                  existingUrl=""
-                  onPick={(e) => handlePickFile(e, setQrFile, setQrPreview, qrPreview)}
-                  onClear={() => { if (qrPreview) URL.revokeObjectURL(qrPreview); setQrFile(null); setQrPreview('') }}
-                  takeLabel="Take photo"
-                  galleryLabel="Upload QR"
-                  aspectClass="aspect-square max-w-[180px]"
-                />
-              )}
-            </div>
-
-            {/* Cash on Delivery toggle */}
-            <div>
-              <label className="flex items-start gap-3 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={codEnabled}
-                  onChange={(e) => setCodEnabled(e.target.checked)}
-                  className="mt-1 h-5 w-5 accent-green-600"
-                />
-                <span className="flex-1">
-                  <span className="block text-sm font-bold text-gray-900">
-                    {L('Accept Cash on Delivery', 'నగదు చెల్లింపు అంగీకరించు')}
-                  </span>
-                  <span className="block text-[11px] text-gray-500 mt-0.5">
-                    {codEnabled
-                      ? L('Buyers can choose to pay in cash on pickup.', 'కొనుగోలుదారులు పికప్ సమయంలో నగదు చెల్లించవచ్చు.')
-                      : L('Off — buyers must pay via UPI before pickup.', 'ఆఫ్ — కొనుగోలుదారులు పికప్‌కు ముందు UPI ద్వారా చెల్లించాలి.')}
-                  </span>
-                </span>
-              </label>
-            </div>
+            {/* The UPI QR upload and the Accept Cash on Delivery toggle were
+                removed from here on the client's request (2026-09-25): buyers
+                pay online through the gateway, so the QR promised buyers
+                something they no longer see. The columns stay, and this form
+                no longer writes them, so saving a profile leaves what is
+                stored untouched — COD per farmer is now the moderator's call. */}
           </div>
 
           {/* ── Section 4: Payout Details ──
