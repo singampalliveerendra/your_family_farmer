@@ -151,7 +151,8 @@ export default function TodaysHarvest() {
     if (!item) return null
     // A pick judges itself by its own stock — null means quantity not tracked,
     // not zero. Spent picks stay in the strip (the buyer wants to know the crop
-    // exists) but say so, and the add button goes.
+    // exists) and are offered as a pre-order on their own page; the one-tap add
+    // button goes, since waiting for the next harvest needs to be agreed to.
     const soldOut = r.stock_qty != null && r.stock_qty <= 0
     const emoji = item.emoji || '🌿'
     const cover = (item.image_urls && item.image_urls.length ? item.image_urls[0] : item.image_url) || null
@@ -160,7 +161,7 @@ export default function TodaysHarvest() {
       <Link
         key={r.id}
         href={`/consumer/harvest/${r.id}`}
-        className={`snap-start shrink-0 w-36 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden active:opacity-80 ${soldOut ? 'opacity-75' : ''}`}
+        className="snap-start shrink-0 w-36 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden active:opacity-80"
       >
         <div className="h-24 w-full bg-green-50 flex items-center justify-center relative">
           {cover ? (
@@ -179,10 +180,13 @@ export default function TodaysHarvest() {
           )}
           {/* Add-to-cart — adds THIS harvest without leaving the page.
               preventDefault/stopPropagation so it doesn't follow the card link.
-              A spent pick gets a SOLD OUT tag in its place. */}
+              A spent pick gets a PRE-ORDER tag instead: the crop is not gone,
+              the farmer picks it again, and tapping the card opens the page
+              where that offer is explained and accepted. Quick-add stays off it
+              deliberately — agreeing to wait is not a one-tap decision. */}
           {soldOut ? (
-            <span className="absolute top-1.5 right-1.5 bg-red-50 text-red-600 text-[9px] font-bold rounded-full px-1.5 py-0.5">
-              {L('Sold out', 'అయిపోయింది')}
+            <span className="absolute top-1.5 right-1.5 bg-amber-100 text-amber-800 text-[9px] font-bold rounded-full px-1.5 py-0.5">
+              {L('Pre-order', 'ముందస్తు')}
             </span>
           ) : (
           <button

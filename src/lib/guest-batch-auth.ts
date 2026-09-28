@@ -12,7 +12,7 @@ import { verifyGuestOrderToken } from '@/lib/guest-order-token'
  *
  * `batches` exists because a multi-farmer checkout calls /api/orders/place once
  * per farmer, so it ends up holding several tokens, each covering only its own
- * farmer's ids. No single token can cover the combined batch that Razorpay is
+ * farmer's ids. No single token can cover the combined batch that Cashfree is
  * then asked to charge. We verify each token against the ids it claims and
  * require the union to be EXACTLY `orderIds` — no gaps (an id nobody proved)
  * and no extras (an id from some other checkout smuggled in).

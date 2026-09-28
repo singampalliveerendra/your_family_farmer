@@ -3,7 +3,7 @@ import { getSessionSecret } from '@/lib/session'
 
 // Short-lived, stateless token that lets a GUEST (no account, no session
 // cookie) finish the one checkout they just started — specifically the
-// Razorpay create → verify pair, which would otherwise be session-gated.
+// Cashfree create → verify pair, which would otherwise be session-gated.
 //
 // It is bound to the exact set of order ids returned by /api/orders/place and
 // expires quickly, so it only authorizes paying for those rows, nothing else.

@@ -13,6 +13,7 @@ import {
 import { isOrderPaid, isPaymentClaimed as isPaymentClaimed_, isDepositPaid, cashDue } from '@/lib/payment'
 import { harvestClock } from '@/lib/harvest'
 import { formatQty } from '@/lib/saleStep'
+import { formatHarvestDate } from '@/lib/harvestSchedule'
 
 // Re-exported so existing importers keep working; the flow itself lives in
 // @/lib/delivery, shared with the farmer order-detail page.
@@ -81,6 +82,13 @@ export type FarmerOrder = {
   // (shown to the buyer). Optional — column may not exist before its migration.
   reschedule_reason?: string | null
   rescheduled_at?: string | null
+  // Pre-order: the buyer paid for produce whose harvest had already run out and
+  // agreed to wait for the next pick, which is the one this order is filled
+  // from. No stock was taken, so nothing is reserved — approving it is the
+  // farmer's promise to pick it, and declining refunds the buyer in full.
+  // Optional: the columns may not exist before scripts/preorder-migration.sql.
+  is_preorder?: boolean | null
+  preorder_expected_date?: string | null
 }
 
 // An approved order is "resolved" (and so leaves the farmer's active list) once:
@@ -280,6 +288,7 @@ export default function OrderCard({
 
             <div className="flex flex-wrap items-center gap-1.5 text-sm">
               <span className="font-semibold text-gray-800">{order.produce_name || '—'}</span>
+              {order.is_preorder && <PreorderBadge expectedDate={order.preorder_expected_date} />}
               <span className="text-gray-300">·</span>
               <span className="text-gray-600">{formatQty(order.quantity)} {order.unit || 'kg'}</span>
               {order.total_price != null && order.total_price > 0 && (
@@ -376,6 +385,7 @@ export default function OrderCard({
 
           <div className="flex flex-wrap items-center gap-1.5 text-sm">
             <span className="font-semibold text-gray-800">{order.produce_name || '—'}</span>
+            {order.is_preorder && <PreorderBadge expectedDate={order.preorder_expected_date} />}
             <span className="text-gray-300">·</span>
             <span className="text-gray-600">{formatQty(order.quantity)} {order.unit || 'kg'}</span>
             {order.total_price != null && order.total_price > 0 && (
@@ -798,5 +808,29 @@ function DeliveryTagForFarmer({ order }: { order: FarmerOrder }) {
 
       <p className="text-[11px] text-blue-700">{stage.body}</p>
     </div>
+  )
+}
+
+/**
+ * "PRE-ORDER · for 12 Sep" — the one thing that stops a farmer reading a
+ * pre-order as an ordinary order they are already short of stock for.
+ *
+ * It has to be loud: nothing was reserved for this order, and the produce it
+ * names may not exist on the farm today. The date is the one the buyer was
+ * shown when they agreed to wait, frozen at order time.
+ */
+function PreorderBadge({ expectedDate }: { expectedDate?: string | null }) {
+  const { L } = useLang()
+  const when = formatHarvestDate(expectedDate)
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-amber-900 bg-amber-100 border border-amber-300 rounded-full px-2 py-0.5">
+      <span aria-hidden>🌾</span>
+      {L('Pre-order', 'ముందస్తు ఆర్డర్')}
+      {when && (
+        <span className="font-bold normal-case tracking-normal">
+          · {L(`for ${when}`, `${when} కోసం`)}
+        </span>
+      )}
+    </span>
   )
 }

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
+import { isGatewayMethod } from '@/lib/payment'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   )
 
   // A farmer may only settle a payment the buyer actually claimed, or one still
-  // awaiting payment. Razorpay-confirmed rows ('paid', 'deposit_paid') are the
+  // awaiting payment. Gateway-confirmed rows ('paid', 'deposit_paid') are the
   // payment gateway's to own — letting the farmer overwrite those would let a
   // real payment be marked 'failed' after the fact.
   const { data: order, error: loadErr } = await supabase
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: 'Could not load the order.' }, { status: 500 })
   }
   if (!order) return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
-  if (order.payment_method === 'razorpay') {
+  if (isGatewayMethod(order.payment_method)) {
     return NextResponse.json(
       { error: 'This order was paid online — its payment status is set by the payment gateway.' },
       { status: 409 },

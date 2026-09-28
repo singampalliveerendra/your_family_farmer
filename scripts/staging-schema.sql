@@ -260,6 +260,8 @@ CREATE TABLE IF NOT EXISTS public."orders" (
   "rider_payout" integer DEFAULT 0,
   "razorpay_order_id" text,
   "razorpay_payment_id" text,
+  "cashfree_order_id" text,
+  "cashfree_payment_id" text,
   "refund_status" text,
   "order_code" text,
   "refund_id" text,
@@ -285,7 +287,9 @@ CREATE TABLE IF NOT EXISTS public."orders" (
   "cod_deposit_paid_at" timestamp with time zone,
   "cash_collected_at" timestamp with time zone,
   "cash_collected_by" uuid,
-  "deposit_forfeited_at" timestamp with time zone
+  "deposit_forfeited_at" timestamp with time zone,
+  "is_preorder" boolean DEFAULT false NOT NULL,
+  "preorder_expected_date" date
 );
 
 CREATE TABLE IF NOT EXISTS public."otp_sessions" (
@@ -495,6 +499,8 @@ CREATE INDEX idx_orders_harvest ON public.orders USING btree (harvest_id);
 CREATE INDEX idx_orders_payment_method ON public.orders USING btree (payment_method);
 CREATE INDEX idx_orders_payment_status ON public.orders USING btree (payment_status);
 CREATE INDEX idx_orders_razorpay_order_id ON public.orders USING btree (razorpay_order_id);
+
+CREATE INDEX idx_orders_cashfree_order_id ON public.orders USING btree (cashfree_order_id);
 CREATE INDEX orders_idempotency_key_idx ON public.orders USING btree (idempotency_key) WHERE (idempotency_key IS NOT NULL);
 CREATE UNIQUE INDEX orders_order_code_key ON public.orders USING btree (order_code);
 CREATE INDEX idx_otp_sessions_phone ON public.otp_sessions USING btree (phone, created_at DESC);
@@ -779,3 +785,18 @@ GRANT UPDATE (
   water_source, story_quote, farming_since_year, soil_ph,
   facebook_url, instagram_url, youtube_url
 ) ON public.farmers TO anon, authenticated;
+
+
+-- ============================================================================
+-- Settings → Default dashboard (scripts/default-dashboard-migration.sql)
+-- Service-role only: RLS on, no policies, no anon/authenticated grants.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS public.dashboard_preferences (
+  phone text PRIMARY KEY CHECK (phone ~ '^[0-9]{10}$'),
+  default_dashboard text NOT NULL CHECK (default_dashboard IN ('farmer', 'consumer')),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.dashboard_preferences ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.dashboard_preferences FROM anon, authenticated;

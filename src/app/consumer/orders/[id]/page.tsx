@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
-import { isOrderPaid, isPaymentClaimed } from '@/lib/payment'
+import { isGatewayMethod, isOrderPaid, isPaymentClaimed } from '@/lib/payment'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { supabase } from '@/lib/supabase'
 import { formatQty } from '@/lib/saleStep'
@@ -36,6 +36,7 @@ type Order = {
   payment_status: string | null
   paid_at?: string | null
   confirmed_at?: string | null
+  cashfree_payment_id?: string | null
   razorpay_payment_id: string | null
   refund_status: string | null
   refund_id: string | null
@@ -75,12 +76,12 @@ type Order = {
   rider?: { id: string; name: string | null; phone: string } | null
 }
 
-// Online payments go through Razorpay (stored as payment_method 'razorpay';
-// some legacy orders use 'upi'). The real instrument the buyer used — PhonePe /
+// Online payments go through Cashfree (payment_method 'cashfree'; 'razorpay'
+// before 2026-09-18; some legacy orders use 'upi'). The real instrument the buyer used — PhonePe /
 // Google Pay / UPI / Card — is resolved into payment_method_detail after the
-// payment is verified. Never surface the gateway name "razorpay" to the buyer.
+// payment is verified. Never surface the gateway name to the buyer.
 function isOnlinePayment(method: string | null | undefined): boolean {
-  return method === 'razorpay' || method === 'upi'
+  return isGatewayMethod(method) || method === 'upi'
 }
 
 export default function OrderDetailsPage() {
@@ -733,7 +734,7 @@ function ReceiptOverlay({ order, onClose }: { order: Order; onClose: () => void 
   const placed = new Date(order.created_at).toLocaleString('en-IN', {
     day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
   })
-  const paymentRef = order.razorpay_payment_id || order.order_code || order.id
+  const paymentRef = order.cashfree_payment_id || order.razorpay_payment_id || order.order_code || order.id
   // Platform fee the buyer paid for this order (stamped per row); the true
   // total paid = item price + platform fee.
   const platformFeePaid = Math.max(0, Number(order.platform_fee) || 0)
@@ -1024,7 +1025,7 @@ function OrderStatusPanel({ order }: { order: Order }) {
 }
 
 // Refund timeline. Maps the stored refund_status (our manual 'initiated', or
-// a Razorpay status: 'pending' / 'processed' / 'failed') onto a simple
+// a gateway status normalised to 'pending' / 'processed' / 'failed') onto a simple
 // buyer-facing progression: Initiated → Processing → Credited.
 function RefundPanel({ order }: { order: Order }) {
   const { L } = useLang()

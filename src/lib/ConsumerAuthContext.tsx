@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react'
 import dynamic from 'next/dynamic'
+import { clearBuyerView, writeBuyerView, type SellerRole } from '@/lib/buyerView'
 
 export type Consumer = { id: string; name: string | null; phone: string }
 
@@ -34,6 +35,12 @@ type ConsumerAuthContextValue = {
   login: (payload: LoginPayload) => Promise<AuthResult>
   register: (payload: RegisterPayload) => Promise<AuthResult>
   logout: () => Promise<void>
+  /**
+   * Sign a logged-in FARMER or AGGREGATOR into the buyer side, so they can
+   * order from other farmers and see their own listings as a buyer sees them.
+   * Their seller session is untouched — this is a switch, not a swap.
+   */
+  enterBuyerMode: () => Promise<AuthResult>
   openAuth: () => void
   closeAuth: () => void
 }
@@ -82,6 +89,18 @@ function writeSuspendedReason(reason: string | null) {
   if (typeof window === 'undefined') return
   if (reason) localStorage.setItem(SUSPEND_KEY, reason)
   else localStorage.removeItem(SUSPEND_KEY)
+}
+
+/**
+ * Forget the cached buyer profile from outside the provider's own flows.
+ *
+ * The farmer dashboard needs it: farmer logout drops a borrowed buyer session
+ * server-side, and this is what stops the shop from rendering that seller as a
+ * signed-in buyer until the next revalidation. Dispatching through
+ * `writeCachedConsumer` means any mounted provider re-syncs immediately.
+ */
+export function clearCachedConsumer(): void {
+  writeCachedConsumer(null)
 }
 
 export function ConsumerAuthProvider({ children }: { children: ReactNode }) {
@@ -191,9 +210,35 @@ export function ConsumerAuthProvider({ children }: { children: ReactNode }) {
     return { ok: true }
   }, [handleAuthSuccess])
 
+  const enterBuyerMode = useCallback(async (): Promise<AuthResult> => {
+    const r = await fetch('/api/farmer/buyer-session', {
+      method: 'POST',
+      credentials: 'same-origin',
+    })
+    const json = await r.json().catch(() => ({}))
+    if (!r.ok || !json?.ok || !json?.consumer) {
+      return {
+        ok: false,
+        error: json?.error ?? 'Could not open buyer view.',
+        suspended: json?.suspended === true,
+        suspendedReason: (json?.suspendedReason as string | null) ?? null,
+      }
+    }
+    // The API sets the marker cookie too; writing it here as well means the bar
+    // is already correct on the very first paint after the client-side push,
+    // before any response cookie has been read back.
+    writeBuyerView((json.role as SellerRole) ?? 'farmer')
+    handleAuthSuccess(json.consumer)
+    return { ok: true }
+  }, [handleAuthSuccess])
+
   const logout = useCallback(async () => {
     await fetch('/api/consumer/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => null)
     writeCachedConsumer(null)
+    // Signing out of the buyer account ends the buyer view with it — otherwise
+    // the amber bar would keep offering a way back from a shop they are no
+    // longer signed into. The seller session is a different cookie and stays.
+    clearBuyerView()
     setState({ status: 'anonymous', consumer: null })
   }, [])
 
@@ -228,6 +273,7 @@ export function ConsumerAuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         logout,
+        enterBuyerMode,
         openAuth,
         closeAuth,
       }}

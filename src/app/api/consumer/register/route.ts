@@ -4,6 +4,7 @@ import { hashPassword } from '@/lib/password'
 import { normalizePhone } from '@/lib/phone'
 import { setSessionCookie } from '@/lib/session'
 import { rateLimit } from '@/lib/rate-limit'
+import { isPasswordless } from '@/lib/sellerBuyerLink'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -45,11 +46,11 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  // Reject duplicate phone (UNIQUE constraint also enforces, but check first
-  // to give a clean error message)
+  // Look the phone up first: a duplicate gets a clean error instead of the raw
+  // UNIQUE violation, and a passwordless row gets adopted (see below).
   const { data: existing, error: lookupErr } = await supabase
     .from('consumers_auth')
-    .select('id')
+    .select('id, password_hash')
     .eq('phone', phone)
     .maybeSingle()
 
@@ -70,6 +71,43 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  const password_hash = hashPassword(password)
+
+  // A row with no password is one the buyer-view switch created for a seller on
+  // this number (src/lib/sellerBuyerLink.ts). Signing up on it SETS the password
+  // rather than being refused: the alternative is the dead end where the person
+  // is told an account exists and has no password that opens it. Their existing
+  // orders stay attached, which is what they would expect.
+  if (existing && isPasswordless(existing.password_hash)) {
+    const { data: adopted, error: adoptErr } = await supabase
+      .from('consumers_auth')
+      .update({ name, password_hash })
+      .eq('id', existing.id)
+      .select('id, name, phone')
+      .single()
+
+    if (adoptErr || !adopted) {
+      console.error('[YFF register] adopt failed:', adoptErr?.code, adoptErr?.message)
+      return NextResponse.json(
+        { error: adoptErr?.message || 'Could not create account. Please try again.' },
+        { status: 500 },
+      )
+    }
+
+    const res = NextResponse.json({
+      ok: true,
+      consumer: { id: adopted.id, name: adopted.name, phone: adopted.phone },
+    })
+    try {
+      setSessionCookie(res, adopted.id)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Session setup failed.'
+      console.error('[YFF register] setSessionCookie failed:', msg)
+      return NextResponse.json({ error: msg }, { status: 500 })
+    }
+    return res
+  }
+
   if (existing) {
     return NextResponse.json(
       { error: 'An account already exists for this phone. Please log in instead.' },
@@ -77,7 +115,6 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const password_hash = hashPassword(password)
   const { data: created, error: insertErr } = await supabase
     .from('consumers_auth')
     .insert({ name, phone, password_hash })

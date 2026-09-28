@@ -525,7 +525,7 @@ function MyOrderCard({
           </div>
         )}
         {/* Prepaid order — nothing changes hands at the door. The delivery
-            charge is collected at checkout (see /api/orders/razorpay/create,
+            charge is collected at checkout (see /api/orders/cashfree/create,
             which adds delivery_fee to the amount charged), so asking the
             customer for it again would charge them twice. How the rider is then
             paid is settled outside the app and is deliberately not shown here.

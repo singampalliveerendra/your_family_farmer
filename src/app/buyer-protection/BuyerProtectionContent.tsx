@@ -13,8 +13,8 @@ const cards: Array<{ icon: string; title: string; titleTe: string; body: string;
     icon: '🔒',
     title: 'Your payment is secure',
     titleTe: 'మీ చెల్లింపు సురక్షితం',
-    body: 'Payments are processed by Razorpay, a trusted, RBI-regulated payment gateway. We never see or store your card or UPI PIN.',
-    bodyTe: 'చెల్లింపులు RBI నియంత్రించే నమ్మకమైన Razorpay ద్వారా జరుగుతాయి. మీ కార్డ్ లేదా UPI పిన్‌ను మేము ఎప్పుడూ చూడం, నిల్వ చేయం.',
+    body: 'Payments are processed by Cashfree, a trusted, RBI-regulated payment gateway. We never see or store your card or UPI PIN.',
+    bodyTe: 'చెల్లింపులు RBI నియంత్రించే నమ్మకమైన Cashfree ద్వారా జరుగుతాయి. మీ కార్డ్ లేదా UPI పిన్‌ను మేము ఎప్పుడూ చూడం, నిల్వ చేయం.',
   },
   {
     icon: '✅',

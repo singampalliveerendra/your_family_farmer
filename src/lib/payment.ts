@@ -1,7 +1,7 @@
 // Single source of truth for "is this order's money in?".
 //
 // Historically two different sentinels mean the same thing:
-//   - 'paid'      — written by the Razorpay flows (verify / webhook / reconcile cron)
+//   - 'paid'      — written by the gateway flows (verify / webhook / reconcile cron)
 //   - 'completed' — written when a farmer manually confirms a COD / UPI payment
 // Both mean the order is fully paid. Treating only one of them as paid was the
 // cause of farmer screens showing "Pending" on orders that consumers already
@@ -50,4 +50,11 @@ export function cashDue(order: {
   if (!isDepositPaid(order.payment_status)) return 0
   const due = Number(order.cod_balance_due)
   return Number.isFinite(due) && due > 0 ? due : 0
+}
+
+// Paid through the online gateway. 'cashfree' is the live gateway; 'razorpay'
+// rows are orders paid before the switch (2026-09-18) and still display as
+// online payments. Legacy 'upi' is NOT in here — callers that want it add it.
+export function isGatewayMethod(method: string | null | undefined): boolean {
+  return method === 'cashfree' || method === 'razorpay'
 }

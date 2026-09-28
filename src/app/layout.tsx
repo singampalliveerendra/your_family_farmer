@@ -6,6 +6,7 @@ import { ConsumerAuthProvider } from "@/lib/ConsumerAuthContext";
 import SplashScreen from "@/components/SplashScreen";
 import StagingBanner from "@/components/StagingBanner";
 import InstallCounter from "@/components/InstallCounter";
+import BuyerViewBar from "@/components/BuyerViewBar";
 
 /* Brand type. Fraunces carries the Latin wordmark (soft, slightly wonky serif
    — the farm-to-table look); it has no Telugu glyphs, so Noto Serif Telugu
@@ -106,7 +107,12 @@ export default function RootLayout({
             launched from the home screen. */}
         <InstallCounter />
         <LanguageProvider>
-          <ConsumerAuthProvider>{children}</ConsumerAuthProvider>
+          <ConsumerAuthProvider>
+            {/* Renders only for a seller who switched into buyer view, and only
+                on the buyer surfaces — see src/lib/buyerView.ts. */}
+            <BuyerViewBar />
+            {children}
+          </ConsumerAuthProvider>
         </LanguageProvider>
       </body>
     </html>

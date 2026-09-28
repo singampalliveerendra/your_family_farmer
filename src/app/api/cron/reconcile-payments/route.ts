@@ -1,15 +1,16 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchOrderPayments } from '@/lib/razorpay'
+import { getSettlement } from '@/lib/cashfree'
+import { markCashfreePaid } from '@/lib/cashfree-settle'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 // Safety net for the rare order that stays "pending" after a payment — e.g.
 // the buyer paid but both the browser /verify AND the webhook were missed.
-// Runs on a Vercel cron (see vercel.json). For each pending Razorpay order
-// older than 15 minutes we ask Razorpay what really happened and mark it
-// paid if a payment was captured.
+// Runs on a Vercel cron (see vercel.json). For each pending Cashfree order
+// older than 15 minutes we ask Cashfree what really happened and mark it
+// paid if it settled in full.
 //
 // Authorised by CRON_SECRET: Vercel automatically sends it as a Bearer token,
 // so external callers can't trigger it.
@@ -17,7 +18,7 @@ export const dynamic = 'force-dynamic'
 // A missing CRON_SECRET is a MISCONFIGURATION, not permission to skip the check.
 // This used to be `if (secret) { ...verify... }`, which meant forgetting the env
 // var silently published the endpoint — and it loops over pending orders hitting
-// the Razorpay API, so an open one is both a data leak and a way to burn our
+// the Cashfree API, so an open one is both a data leak and a way to burn our
 // rate limit. Fail closed instead.
 const STALE_MINUTES = 15
 const BATCH_LIMIT = 100
@@ -40,12 +41,14 @@ export async function GET(req: NextRequest) {
 
   const cutoff = new Date(Date.now() - STALE_MINUTES * 60 * 1000).toISOString()
 
+  // Pending rows that opened a Cashfree order. payment_method is 'cashfree' for
+  // prepaid carts and 'cod' for a part-paid COD deposit — both are settled by
+  // the same Cashfree order, so filter on the order id, not the method.
   const { data: orders, error } = await supabase
     .from('orders')
-    .select('id, razorpay_order_id, created_at')
-    .eq('payment_method', 'razorpay')
-    .eq('payment_status', 'pending')
-    .not('razorpay_order_id', 'is', null)
+    .select('id, cashfree_order_id, created_at')
+    .in('payment_status', ['pending', 'failed'])
+    .not('cashfree_order_id', 'is', null)
     .lt('created_at', cutoff)
     .limit(BATCH_LIMIT)
 
@@ -54,51 +57,27 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Distinct Razorpay order ids (a cart shares one across its rows).
-  const orderIds = [...new Set((orders ?? []).map((o) => o.razorpay_order_id as string).filter(Boolean))]
+  // Distinct Cashfree order ids (a cart shares one across its rows).
+  const cfIds = [...new Set((orders ?? []).map((o) => o.cashfree_order_id as string).filter(Boolean))]
 
   let reconciled = 0
   const errors: string[] = []
 
-  for (const rzpId of orderIds) {
+  for (const cfId of cfIds) {
     try {
-      const payments = await fetchOrderPayments(rzpId)
-      const captured = payments.find((p) => p.status === 'captured')
-      if (captured) {
-        // Split by payment method, exactly as the webhook does. On a COD order
-        // the captured payment is only the DEPOSIT — the buyer still owes cash
-        // at the door. Writing a blanket 'paid' here would overwrite
-        // 'deposit_paid' and let the rider close the order without collecting
-        // the balance, silently losing the farmer their money.
-        const { error: codErr } = await supabase
-          .from('orders')
-          .update({
-            payment_status: 'deposit_paid',
-            cod_deposit_paid_at: new Date().toISOString(),
-            razorpay_payment_id: captured.id,
-          })
-          .eq('razorpay_order_id', rzpId)
-          .eq('payment_method', 'cod')
-          .not('payment_status', 'in', '("deposit_paid","completed","paid")')
-        if (codErr) errors.push(`${rzpId} (cod): ${codErr.message}`)
-
-        const { error: updErr } = await supabase
-          .from('orders')
-          .update({ payment_status: 'paid', razorpay_payment_id: captured.id })
-          .eq('razorpay_order_id', rzpId)
-          .neq('payment_method', 'cod')
-          .neq('payment_status', 'paid')
-        if (updErr) errors.push(`${rzpId}: ${updErr.message}`)
-        else reconciled += 1
-      }
+      const s = await getSettlement(cfId)
+      if (!s.paid) continue
+      const err = await markCashfreePaid(supabase, { cashfreeOrderId: cfId, paymentId: s.paymentId, label: s.label })
+      if (err) errors.push(`${cfId}: ${err}`)
+      else reconciled += 1
     } catch (e) {
-      errors.push(`${rzpId}: ${(e as Error).message}`)
+      errors.push(`${cfId}: ${(e as Error).message}`)
     }
   }
 
   return NextResponse.json({
     ok: true,
-    checked: orderIds.length,
+    checked: cfIds.length,
     reconciled,
     errors: errors.length ? errors : undefined,
   })

@@ -43,6 +43,14 @@ data class GgColors(
        only works painted over the page. A popup floats above an unknown
        backdrop, so it needs a colour that stands on its own. */
     val elevatedSurface: Color,
+    /* Errors: a wrong password, a suspended account, a failed request. Text,
+       fill and border are separate because an error notice is text on a tint,
+       and the tint that reads as "red" on white is invisible on near-black. */
+    val danger: Color,
+    val dangerBg: Color,
+    val dangerBorder: Color,
+    /** Placeholder blocks while the catalogue loads — a shade, not a colour. */
+    val skeleton: Color,
     val isDark: Boolean,
 )
 
@@ -64,6 +72,10 @@ val GgLightColors = GgColors(
     badgeText = Color(0xFF3F6212),
     iconTileBg = GgLime100,
     elevatedSurface = Color(0xFFFFFFFF),
+    danger = Color(0xFFB91C1C),          // red-700: 6.5:1 on white
+    dangerBg = Color(0xFFFEF2F2),        // red-50
+    dangerBorder = Color(0xFFFECACA),    // red-200
+    skeleton = Color(0xFFE7EEE5),
     isDark = false,
 )
 
@@ -81,5 +93,9 @@ val GgDarkColors = GgColors(
     badgeText = GgLime200,
     iconTileBg = GgLime300.copy(alpha = 0.15f),
     elevatedSurface = Color(0xFF0D2315),
+    danger = Color(0xFFFCA5A5),          // red-300: red-700 disappears on ink
+    dangerBg = Color(0x1AEF4444),        // red-500/10
+    dangerBorder = Color(0x40F87171),    // red-400/25
+    skeleton = Color(0x14FFFFFF),        // white/8
     isDark = true,
 )

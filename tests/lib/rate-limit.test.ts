@@ -12,6 +12,8 @@ let n = 0
 const key = () => `test-key-${(n += 1)}`
 
 describe('rateLimit', () => {
+  // With a limit of 3: attempts 1-3 are allowed, the 4th onwards are blocked.
+  // Pins the counter as off-by-none.
   it('allows exactly `max` attempts, then blocks', () => {
     const k = key()
     expect(rateLimit(k, 3, 60_000)).toBe(true)
@@ -21,6 +23,8 @@ describe('rateLimit', () => {
     expect(rateLimit(k, 3, 60_000)).toBe(false)
   })
 
+  // Blocking one phone number must not block a different one, or an attacker
+  // could lock every user out of login just by failing on their own number.
   it('keys are independent — one attacker cannot lock out everyone', () => {
     const a = key()
     const b = key()
@@ -29,6 +33,8 @@ describe('rateLimit', () => {
     expect(rateLimit(b, 1, 60_000)).toBe(true)
   })
 
+  // Fast-forwards the clock after a block: still blocked at 59s, allowed again
+  // just past the 60s window.
   it('reopens once the window has passed', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))

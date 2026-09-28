@@ -9,6 +9,11 @@ import { FARMER_PUBLIC_COLUMNS } from '@/lib/farmerColumns'
 import Link from 'next/link'
 import NextImage from 'next/image'
 import LanguageToggle from '@/components/LanguageToggle'
+import BuyerViewSwitch from '@/components/farmer/BuyerViewSwitch'
+import DefaultDashboardSetting from '@/components/DefaultDashboardSetting'
+import SellerSwitchRole from '@/components/farmer/SellerSwitchRole'
+import { clearBuyerView, readBuyerView } from '@/lib/buyerView'
+import { clearCachedConsumer } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import LocationSearch from '@/components/LocationSearch'
 import {
@@ -23,6 +28,9 @@ import PayoutDetailsForm from '@/components/farmer/PayoutDetailsForm'
 import SourceFarmerPicker, { useSourceFarmers } from '@/components/SourceFarmerPicker'
 import { isLikelyUrl, normalizeUrl, linkHost } from '@/lib/links'
 import { STEP_CHOICES, unitAllowsFractions, formatQty, stepUp, stepDown } from '@/lib/saleStep'
+import { isMissingColumnError } from '@/lib/missingColumn'
+import { previewNum, resolveSaleStep, previewAvailability, previewTiers } from '@/lib/previewModel'
+import { formatHarvestDate, nextHarvestDate } from '@/lib/harvestSchedule'
 import { localizeName, localizeUnit } from '@/lib/localizeName'
 import {
   clearFarmerLocalSession,
@@ -198,20 +206,6 @@ type PreviewData = {
   isAggregator: boolean
 }
 
-/**
- * PostgREST reports a column the schema cache doesn't know as PGRST204 —
- * "Could not find the 'sale_step' column of 'produce_listings' in the schema
- * cache". `sale_step` only exists once scripts/sale-step-migration.sql has been
- * run, and on an environment where it hasn't, sending the field would fail the
- * ENTIRE save: a farmer couldn't publish a harvest at all. So that one case is
- * detected and the save retried without it, with the farmer told the step
- * specifically didn't stick.
- */
-function isMissingColumnError(msg: string | null | undefined, column: string): boolean {
-  if (!msg) return false
-  return msg.includes(column) && /schema cache|column/i.test(msg)
-}
-
 // 📦 is a generic L('Other', 'ఇతర') icon so a farmer can list any produce
 // even when no specific icon exists. Keep it last in the picker.
 const EMOJI_OPTIONS = ['🍅', '🍌', '🥭', '🫑', '🥬', '🍆', '🥕', '🌽', '🧅', '🧄', '🥦', '🌿', '🍓', '🫒', '🌾', '🥥', '📦']
@@ -270,6 +264,7 @@ export default function FarmerDashboard() {
   const [weeklyEarnings, setWeeklyEarnings] = useState<number[]>([0, 0, 0, 0])
   const [showForm, setShowForm] = useState(false)
   const [showProfileEdit, setShowProfileEdit] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [showListings, setShowListings] = useState(false)
 
   // ?edit=profile opens the profile modal straight away — the "Edit profile"
@@ -488,6 +483,13 @@ export default function FarmerDashboard() {
     // session behind on the device.
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => null)
     clearFarmerLocalSession()
+    // That route also drops a buyer session borrowed through the buyer-view
+    // switch. Clear its client-side copy here so the shop doesn't go on showing
+    // this seller as a signed-in buyer until the next revalidation.
+    if (readBuyerView()) {
+      clearBuyerView()
+      clearCachedConsumer()
+    }
     // Back to the login this seller actually uses. Taken from the pathname
     // rather than `farmer`, which is null on the not-found screen that also
     // calls this.
@@ -575,6 +577,9 @@ export default function FarmerDashboard() {
               className="text-white text-xs underline"
             >
               {tx.editProfile}
+            </button>
+            <button onClick={() => setShowSettings(true)} className="text-white text-xs underline">
+              ⚙️ {L('Settings', 'సెట్టింగ్‌లు')}
             </button>
             <button onClick={handleLogout} className="text-green-500 text-xs underline">
               {tx.logout}
@@ -733,6 +738,11 @@ export default function FarmerDashboard() {
           </span>
         </Link>
 
+        {/* Buyer view — the switch across to the shop. A seller who can only
+            ever see the seller side cannot buy from anyone else, and has no way
+            to check how their own listing reads to a buyer. */}
+        <BuyerViewSwitch slug={farmer!.slug} />
+
         {/* Individual crop requests raised by consumers in this farmer's area */}
         <div className="bg-amber-50 rounded-2xl border-2 border-amber-200 p-4">
             <h2 className="font-extrabold text-gray-900 text-base leading-tight flex items-center gap-2">
@@ -889,6 +899,55 @@ export default function FarmerDashboard() {
             setShowProfileEdit(false)
           }}
         />
+      )}
+
+      {/* Settings — a bottom sheet, the dashboard's modal pattern. Farmers and
+          aggregators both land here; "Farmer" as a default covers both, since
+          /farmer/dashboard forwards an aggregator on its own. */}
+      {showSettings && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={() => setShowSettings(false)}
+        >
+          <div
+            role="dialog"
+            aria-label={L('Settings', 'సెట్టింగ్‌లు')}
+            className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 max-h-[92vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-extrabold text-gray-900 text-lg">⚙️ {L('Settings', 'సెట్టింగ్‌లు')}</h2>
+              <button
+                onClick={() => setShowSettings(false)}
+                aria-label={L('Close', 'మూసివేయి')}
+                className="text-gray-400 text-2xl leading-none px-1"
+              >
+                ×
+              </button>
+            </div>
+            {/* Same order as the consumer ⚙️ menu — account links, the default
+                dashboard, log out, then Switch role — so a seller can get across
+                from here too, not only from the Buyer view card further down. */}
+            <Link
+              href="/farmer/complaints"
+              className="block py-2.5 text-sm text-gray-800 active:bg-gray-100"
+            >
+              {L('🛟 My complaints', 'నా ఫిర్యాదులు')}
+            </Link>
+            <div className="py-2.5 border-t border-gray-100">
+              <DefaultDashboardSetting />
+            </div>
+            <button
+              onClick={() => { setShowSettings(false); void handleLogout() }}
+              className="block w-full text-left py-2.5 text-sm text-red-600 active:bg-red-50 font-semibold border-t border-gray-100"
+            >
+              {L('↪ Log out', 'లాగౌట్')}
+            </button>
+            <div className="border-t border-gray-100">
+              <SellerSwitchRole current={farmer?.account_type === 'aggregator' ? 'aggregator' : 'farmer'} />
+            </div>
+          </div>
+        </div>
       )}
 
     </main>
@@ -1053,12 +1112,8 @@ function ProfileEditModal({
 
   // UPI ID + QR
   const [upiId, setUpiId] = useState(farmer.upi_id ?? '')
-  const [qrFile, setQrFile] = useState<File | null>(null)
-  const [qrPreview, setQrPreview] = useState('')
-  const [existingQrUrl, setExistingQrUrl] = useState(farmer.upi_qr_code_url ?? '')
 
   // Cash on Delivery acceptance — default off
-  const [codEnabled, setCodEnabled] = useState<boolean>(farmer.cod_enabled === true)
 
   // Change password
   const [showPwSection, setShowPwSection] = useState(false)
@@ -1227,15 +1282,14 @@ function ProfileEditModal({
     }
 
     // Upload photos in parallel
-    const [coverRes, avatarRes, certRes, qrRes, bizCertRes, orgCertRes] = await Promise.all([
+    const [coverRes, avatarRes, certRes, bizCertRes, orgCertRes] = await Promise.all([
       coverFile ? uploadProfileImage(coverFile, 'cover') : Promise.resolve({ url: null, err: null }),
       avatarFile ? uploadProfileImage(avatarFile, 'avatar') : Promise.resolve({ url: null, err: null }),
       certFile  ? uploadProfileImage(certFile,  'pesticide-cert') : Promise.resolve({ url: null, err: null }),
-      qrFile    ? uploadProfileImage(qrFile,    'upi-qr') : Promise.resolve({ url: null, err: null }),
       bizCertFile ? uploadProfileImage(bizCertFile, 'business-cert') : Promise.resolve({ url: null, err: null }),
       orgCertFile ? uploadProfileImage(orgCertFile, 'organic-cert') : Promise.resolve({ url: null, err: null }),
     ])
-    const uploadErr = coverRes.err ?? avatarRes.err ?? certRes.err ?? qrRes.err ?? bizCertRes.err ?? orgCertRes.err
+    const uploadErr = coverRes.err ?? avatarRes.err ?? certRes.err ?? bizCertRes.err ?? orgCertRes.err
     if (uploadErr) { setError(uploadErr); setLoading(false); return }
 
     const payload: Record<string, unknown> = {
@@ -1250,8 +1304,6 @@ function ProfileEditModal({
       photo_url:        (avatarRes.url ?? existingAvatarUrl) || null,
       pesticide_cert_url: (certRes.url ?? existingCertUrl) || null,
       upi_id:           upiId.trim() || null,
-      upi_qr_code_url:  (qrRes.url ?? existingQrUrl) || null,
-      cod_enabled:      codEnabled,
       // Aggregator-only. Spread so an ordinary farmer's payload is byte-for-byte
       // what it was before this feature existed.
       ...(isAggregator ? {
@@ -1925,7 +1977,12 @@ function ProfileEditModal({
           {/* ── Section 3: Payment Details ── */}
           <div className="pt-3 border-t-2 border-green-100">
             <h4 className="text-sm font-extrabold text-green-800">{L('Payment Details', 'చెల్లింపు వివరాలు')}</h4>
-            <p className="text-[11px] text-gray-500">{L('UPI ID, QR code, cash on delivery', 'UPI ఐడీ, QR కోడ్, డెలివరీలో నగదు')}</p>
+            <p className="text-[11px] text-gray-500">
+              {L(
+                'Where the Go Grameen team sends your weekly payment',
+                'గో గ్రామీణ్ టీం మీ వారపు చెల్లింపు పంపే చోటు',
+              )}
+            </p>
           </div>
 
           {/* Payment Details */}
@@ -1936,7 +1993,10 @@ function ProfileEditModal({
                 {L('UPI ID', 'UPI ఐడీ')}
               </label>
               <p className="text-[11px] text-gray-500 mb-2">
-                {L('Buyers will pay directly to this ID. Example: yourname@ybl, 9876543210@paytm', 'కొనుగోలుదారులు నేరుగా ఈ ఐడీకి చెల్లిస్తారు. ఉదా: yourname@ybl, 9876543210@paytm')}
+                {L(
+                  'The Go Grameen team sends your payment to this UPI ID every week. Example: yourname@ybl, 9876543210@paytm',
+                  'గో గ్రామీణ్ టీం ప్రతి వారం ఈ UPI ఐడీకి మీ చెల్లింపు పంపుతుంది. ఉదా: yourname@ybl, 9876543210@paytm',
+                )}
               </p>
               <input
                 type="text"
@@ -1948,66 +2008,20 @@ function ProfileEditModal({
               />
               {upiId.trim() && (
                 <p className="text-[11px] text-green-700 mt-1 font-medium">
-                  ✓ Buyers can pay directly to this UPI ID
+                  {L(
+                    '✓ Your weekly payment from the Go Grameen team will come to this UPI ID',
+                    '✓ గో గ్రామీణ్ టీం నుండి మీ వారపు చెల్లింపు ఈ UPI ఐడీకి వస్తుంది',
+                  )}
                 </p>
               )}
             </div>
 
-            {/* UPI QR Code */}
-            <div>
-              <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1">
-                {L('UPI QR Code (optional)', 'UPI QR కోడ్')}
-              </label>
-              <p className="text-[11px] text-gray-500 mb-2">
-                Buyers can scan this to pay. Get your QR from PhonePe, GPay, or BHIM app.
-              </p>
-              {(existingQrUrl && !qrPreview) ? (
-                <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={existingQrUrl} alt={L('QR Code', 'QR కోడ్')} className="w-12 h-12 object-contain rounded" />
-                  <span className="text-green-700 font-semibold text-sm flex-1">✓ QR code uploaded</span>
-                  <button
-                    type="button"
-                    onClick={() => setExistingQrUrl('')}
-                    className="text-xs text-red-500 underline"
-                  >
-                    {L('Remove', 'తీసివేయి')}
-                  </button>
-                </div>
-              ) : (
-                <ProfilePhotoUpload
-                  preview={qrPreview}
-                  existingUrl=""
-                  onPick={(e) => handlePickFile(e, setQrFile, setQrPreview, qrPreview)}
-                  onClear={() => { if (qrPreview) URL.revokeObjectURL(qrPreview); setQrFile(null); setQrPreview('') }}
-                  takeLabel="Take photo"
-                  galleryLabel="Upload QR"
-                  aspectClass="aspect-square max-w-[180px]"
-                />
-              )}
-            </div>
-
-            {/* Cash on Delivery toggle */}
-            <div>
-              <label className="flex items-start gap-3 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={codEnabled}
-                  onChange={(e) => setCodEnabled(e.target.checked)}
-                  className="mt-1 h-5 w-5 accent-green-600"
-                />
-                <span className="flex-1">
-                  <span className="block text-sm font-bold text-gray-900">
-                    {L('Accept Cash on Delivery', 'నగదు చెల్లింపు అంగీకరించు')}
-                  </span>
-                  <span className="block text-[11px] text-gray-500 mt-0.5">
-                    {codEnabled
-                      ? L('Buyers can choose to pay in cash on pickup.', 'కొనుగోలుదారులు పికప్ సమయంలో నగదు చెల్లించవచ్చు.')
-                      : L('Off — buyers must pay via UPI before pickup.', 'ఆఫ్ — కొనుగోలుదారులు పికప్‌కు ముందు UPI ద్వారా చెల్లించాలి.')}
-                  </span>
-                </span>
-              </label>
-            </div>
+            {/* The UPI QR upload and the Accept Cash on Delivery toggle were
+                removed from here on the client's request (2026-09-25): buyers
+                pay online through the gateway, so the QR promised buyers
+                something they no longer see. The columns stay, and this form
+                no longer writes them, so saving a profile leaves what is
+                stored untouched — COD per farmer is now the moderator's call. */}
           </div>
 
           {/* ── Section 4: Payout Details ──
@@ -2214,17 +2228,34 @@ function ProduceListingForm({
   const [variety, setVariety] = useState(editData?.variety ?? '')
   const [emoji, setEmoji] = useState(editData?.emoji ?? '🌿')
   const [qty, setQty] = useState(editData?.stock_qty != null ? String(editData.stock_qty) : '')
-  // Availability is a date range (From → To). Guard against full timestamps so
-  // the <input type="date"> always receives YYYY-MM-DD.
-  // Availability range + harvesting frequency inputs were removed from the form
-  // (superseded by the harvests model). We still read any existing values so a
-  // save preserves them rather than wiping the columns — hence no setters.
-  const [availFrom] = useState(editData?.availability_from ? editData.availability_from.slice(0, 10) : '')
-  const [availTo] = useState(editData?.availability_to ? editData.availability_to.slice(0, 10) : '')
-  const [harvestFreq] = useState(editData?.harvest_frequency ?? '')
-  const [harvestFreqCount] = useState(
+  // Availability is a date range (From → To) plus a harvesting cadence. Guard
+  // against full timestamps so the <input type="date"> always receives
+  // YYYY-MM-DD.
+  //
+  // These four went input-less in June when the harvests model landed, kept
+  // only so a save wouldn't wipe the columns. They are back because the buyer
+  // side now needs them: when a harvest is finished the shop offers a pre-order
+  // and has to say WHEN the next pick is due, which is exactly what the cadence
+  // answers (src/lib/harvestSchedule.ts).
+  const [availFrom, setAvailFrom] = useState(editData?.availability_from ? editData.availability_from.slice(0, 10) : '')
+  const [availTo, setAvailTo] = useState(editData?.availability_to ? editData.availability_to.slice(0, 10) : '')
+  const [harvestFreq, setHarvestFreq] = useState(editData?.harvest_frequency ?? '')
+  const [harvestFreqCount, setHarvestFreqCount] = useState(
     editData?.harvest_frequency_count != null ? String(editData.harvest_frequency_count) : '',
   )
+
+  // What the buyer would be told if this produce ran out today. Shown under the
+  // cadence so the farmer can see the promise they are making before they make
+  // it — the same function the pre-order dialog and the stored expected date use.
+  const nextPickPreview = (() => {
+    const iso = nextHarvestDate({
+      lastHarvestedAt: editData?.harvest_date ?? null,
+      frequency: harvestFreq,
+      frequencyCount: harvestFreqCount ? Number(harvestFreqCount) : null,
+      availabilityTo: availTo || null,
+    })
+    return iso ? formatHarvestDate(iso) : null
+  })()
   // Harvest date & time is no longer set on the produce itself — it now lives
   // per-pick in the harvests model (HarvestManager below). We still read any
   // existing value so a save preserves it rather than wiping the column; there
@@ -2382,7 +2413,7 @@ function ProduceListingForm({
     method: farmingMethod,
     stock: qty || '—',
     unit,
-    step: unitAllowsFractions(unit) ? Number(saleStep) || 1 : 1,
+    step: resolveSaleStep(unit, saleStep),
     images: [imagePreview || existingImageUrl, ...extraPreviews, ...existingExtraUrls].filter(Boolean),
     tier1Qty: price1Qty,
     price2,
@@ -2458,7 +2489,7 @@ function ProduceListingForm({
         stock_qty: qty ? Number(qty) : null,
         // A part-unit step is meaningless on piece/bunch, so it is forced back
         // to whole units when the farmer switches to one of those.
-        sale_step: unitAllowsFractions(unit) ? Number(saleStep) || 1 : 1,
+        sale_step: resolveSaleStep(unit, saleStep),
         description: description.trim() || null,
         brix: brix ? Number(brix) : null,
         soil_organic_carbon: soc ? Number(soc) : null,
@@ -2547,7 +2578,7 @@ function ProduceListingForm({
       // listing that still sold whole units — the choice vanished silently and
       // only an Edit-and-save could ever set it. Forced to 1 on piece/bunch,
       // matching the edit path and the moderator's API.
-      sale_step: unitAllowsFractions(unit) ? Number(saleStep) || 1 : 1,
+      sale_step: resolveSaleStep(unit, saleStep),
     }
     if (variety.trim()) payload.variety = variety.trim()
     if (qty) payload.stock_qty = Number(qty)
@@ -2774,10 +2805,11 @@ function ProduceListingForm({
           />
         )}
 
-        {/* Quantity */}
+        {/* Quantity. The label used to read "Availability", which is what the
+            availability block below actually answers — this box is stock. */}
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {tx.availability}
+            {L('Quantity', 'పరిమాణం')}
           </label>
           <input
             type="number"
@@ -2788,8 +2820,85 @@ function ProduceListingForm({
           />
         </div>
 
-        {/* Availability range + harvesting frequency removed — the harvests
-            model (per-pick date/time + shelf life) supersedes them. */}
+        {/* Availability window + harvesting cadence. When the current harvest
+            runs out the shop no longer says "sold out" — it offers to wait for
+            the next pick, and these are what let it name a date. */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            {tx.availability}
+          </label>
+          <p className="text-[11px] text-gray-500 leading-snug">
+            {L(
+              'When you can supply this, and how often you harvest it. Buyers see the next harvest date when the current one runs out.',
+              'మీరు దీన్ని ఎప్పుడు సరఫరా చేయగలరు, ఎంత తరచుగా కోస్తారు. ప్రస్తుత కోత అయిపోయినప్పుడు కొనుగోలుదారులకు తదుపరి కోత తేదీ కనిపిస్తుంది.',
+            )}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <span className="block text-[11px] font-semibold text-gray-500 mb-1">
+                {L('From', 'నుండి')}
+              </span>
+              <input
+                type="date"
+                value={availFrom}
+                onChange={(e) => setAvailFrom(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:border-green-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <span className="block text-[11px] font-semibold text-gray-500 mb-1">
+                {L('To', 'వరకు')}
+              </span>
+              <input
+                type="date"
+                value={availTo}
+                min={availFrom || undefined}
+                onChange={(e) => setAvailTo(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:border-green-500 focus:outline-none"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <span className="block text-[11px] font-semibold text-gray-500 mb-1">
+                {L('Harvesting frequency', 'కోత ఎంత తరచుగా')}
+              </span>
+              <select
+                value={harvestFreq}
+                onChange={(e) => setHarvestFreq(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+              >
+                <option value="">{L('Not set', 'పెట్టలేదు')}</option>
+                <option value="daily">{L('Daily', 'ప్రతి రోజు')}</option>
+                <option value="weekly">{L('Weekly', 'ప్రతి వారం')}</option>
+                <option value="monthly">{L('Monthly', 'ప్రతి నెల')}</option>
+              </select>
+            </div>
+            {/* Times per cycle — "weekly, 2 times" is picked twice a week. Only
+                worth asking once a cadence is chosen. */}
+            {harvestFreq && (
+              <div>
+                <span className="block text-[11px] font-semibold text-gray-500 mb-1">
+                  {L('Times', 'సార్లు')}
+                </span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  placeholder="1"
+                  value={harvestFreqCount}
+                  onChange={(e) => setHarvestFreqCount(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:border-green-500 focus:outline-none"
+                />
+              </div>
+            )}
+          </div>
+          {nextPickPreview && (
+            <p className="text-[11px] text-green-700 font-semibold">
+              {L('Next harvest would show as', 'తదుపరి కోత ఇలా కనిపిస్తుంది')}: {nextPickPreview}
+            </p>
+          )}
+        </div>
 
         {/* Shelf life (required) for this listing. Harvest date & time is set
             per-pick in the harvests model (HarvestManager below), not here. */}
@@ -3251,9 +3360,6 @@ const PREVIEW_CATEGORY_LABEL: Record<string, string> = {
   spices: 'Spices', other: 'Other',
 }
 
-// An untouched number field arrives as '—'.
-const previewNum = (v: string) => (v !== '—' && v.trim() !== '' && Number.isFinite(Number(v)) ? Number(v) : null)
-
 function PreviewModal({ data, onClose }: { data: PreviewData; onClose: () => void }) {
   const { tx } = useLang()
   const [tab, setTab] = useState<'card' | 'page'>('card')
@@ -3313,8 +3419,7 @@ function PreviewCardView({ data, qty, setQty }: PreviewViewProps) {
   const unitLabel = localizeUnit(data.unit, lang) || data.unit
   const stock = previewNum(data.stock)
   const priceNum = previewNum(data.price)
-  const soldOut = stock === 0
-  const atMax = qty != null && stock != null && qty >= stock
+  const { soldOut, atMax } = previewAvailability(stock, qty)
   const method = PREVIEW_CARD_METHOD[data.method] ?? PREVIEW_CARD_METHOD.natural
   const bg = PREVIEW_PRODUCE_BG[data.emoji] ?? '#f5f5f5'
 
@@ -3485,20 +3590,16 @@ function PreviewPageView({ data, qty, setQty }: PreviewViewProps) {
     setActiveImg(Math.round(el.scrollLeft / el.clientWidth))
   }
 
-  const atMax = qty != null && stock != null && qty >= stock
-  const soldOut = stock === 0
+  const { soldOut, atMax } = previewAvailability(stock, qty)
 
   // The same "buy more, save more" table the buyer's page builds.
-  const tiers: { label: string; price: number }[] = []
-  if (priceNum != null) {
-    tiers.push({ label: `${L('Up to', 'వరకు')} ${formatQty(Number(data.tier1Qty) || 1)} ${unitLabel}`, price: priceNum })
-  }
-  if (data.tier2Qty && data.price2) {
-    tiers.push({ label: `${formatQty(Number(data.tier2Qty))}+ ${unitLabel}`, price: Number(data.price2) })
-  }
-  if (data.price3) {
-    tiers.push({ label: L('Bulk', 'బల్క్'), price: Number(data.price3) })
-  }
+  const tiers = previewTiers(data).map((t) => ({
+    label:
+      t.kind === 'base' ? `${L('Up to', 'వరకు')} ${formatQty(t.qty)} ${unitLabel}`
+      : t.kind === 'mid' ? `${formatQty(t.qty)}+ ${unitLabel}`
+      : L('Bulk', 'బల్క్'),
+    price: t.price,
+  }))
 
   return (
     <>

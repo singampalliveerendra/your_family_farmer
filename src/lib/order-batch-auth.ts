@@ -20,7 +20,7 @@ export type BatchAuthResult =
  *     by /api/orders/place and bound to exactly these order ids. Every row must
  *     be a guest row (consumer_id IS NULL).
  *
- * This mirrors what /api/orders/razorpay/create and /verify already do; it is
+ * This mirrors what /api/orders/cashfree/create and /verify already do; it is
  * factored out here because the UPI-claim and switch-to-COD routes need the
  * identical check, and a checkout authorisation rule that exists in four
  * slightly different copies is one edit away from diverging.

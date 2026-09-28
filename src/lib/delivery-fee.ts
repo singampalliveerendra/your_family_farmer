@@ -77,7 +77,12 @@ export type RefundOrderRow = {
   delivery_fee: number | null
   delivery_fee_refunded: number | null
   payment_status: string | null
-  razorpay_payment_id: string | null
+  // The Cashfree order the row was paid through (refunds are keyed by it).
+  cashfree_order_id: string | null
+  cashfree_payment_id: string | null
+  // Set on rows paid through Razorpay before the switch to Cashfree. Those can
+  // no longer be refunded automatically — they are flagged for manual refund.
+  razorpay_payment_id?: string | null
 }
 
 // One refund to issue against one order's payment.
@@ -88,10 +93,11 @@ export type DeliveryRefundAllocation = {
   // How much of this row's delivery_fee will have been refunded after this
   // allocation (row.delivery_fee_refunded + amount) — write straight back.
   newRefundedTotal: number
-  razorpayPaymentId: string | null
-  // true → issue a real Razorpay refund; false → a non-Razorpay captured
-  // payment, so the caller flags it for manual settlement instead.
-  viaRazorpay: boolean
+  cashfreeOrderId: string | null
+  // true → issue a real Cashfree refund; false → money taken some other way
+  // (manual UPI, or a legacy Razorpay payment), so the caller flags it for
+  // manual settlement instead.
+  viaGateway: boolean
 }
 
 export type DeliveryRefundPlan = {
@@ -105,11 +111,13 @@ function participating(row: RefundOrderRow): boolean {
 }
 
 // Was money actually captured for this row (so a delivery refund is possible)?
-function captured(row: RefundOrderRow): { yes: boolean; viaRazorpay: boolean } {
+function captured(row: RefundOrderRow): { yes: boolean; viaGateway: boolean } {
   const s = String(row.payment_status ?? '')
-  const viaRazorpay = (s === 'paid' || s === 'deposit_paid') && !!row.razorpay_payment_id
-  const otherPaid = s === 'completed' || s === 'payment_claimed' || s === 'pending_confirmation'
-  return { yes: viaRazorpay || otherPaid, viaRazorpay }
+  const gatewayPaid = s === 'paid' || s === 'deposit_paid'
+  const viaGateway = gatewayPaid && !!row.cashfree_order_id && !!row.cashfree_payment_id
+  const legacyRazorpay = gatewayPaid && !viaGateway && !!row.razorpay_payment_id
+  const otherPaid = legacyRazorpay || s === 'completed' || s === 'payment_claimed' || s === 'pending_confirmation'
+  return { yes: viaGateway || otherPaid, viaGateway }
 }
 
 function refundableDelivery(row: RefundOrderRow): number {
@@ -175,8 +183,8 @@ export function planDeliveryRefund(
       orderId: c.row.id,
       amount,
       newRefundedTotal: (Number(c.row.delivery_fee_refunded) || 0) + amount,
-      razorpayPaymentId: c.row.razorpay_payment_id,
-      viaRazorpay: c.cap.viaRazorpay,
+      cashfreeOrderId: c.row.cashfree_order_id,
+      viaGateway: c.cap.viaGateway,
     })
     left -= amount
   }

@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:android": "bash scripts/test-android.sh",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
