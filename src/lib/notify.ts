@@ -20,7 +20,9 @@ export const OTP_TEMPLATE = 'yff_login_otp'
  * WhatsApp Manager; the body parameter order for each is documented at the top
  * of src/lib/orderNotify.ts. */
 export const TEMPLATES = {
-  order_placed: 'yff_order_placed',
+  // Created in WhatsApp Manager without the yff_ prefix; template names can't
+  // be renamed there, so the code follows the approved name.
+  order_placed: 'order_placed',
   farmer_new_order: 'yff_farmer_new_order',
   order_cancelled: 'yff_order_cancelled',
 } as const

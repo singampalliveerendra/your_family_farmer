@@ -9,7 +9,7 @@ import { formatQty } from '@/lib/saleStep'
 //
 // Three messages at MVP, one approved template each (body text is fixed in
 // WhatsApp Manager — only the {{n}} values below come from here):
-//   yff_order_placed      buyer   {{1}} name  {{2}} order no.  {{3}} amount  {{4}} farmer
+//   order_placed          buyer   {{1}} name  {{2}} order no.  {{3}} amount  {{4}} farmer
 //   yff_farmer_new_order  farmer  {{1}} order no.  {{2}} buyer  {{3}} phone  {{4}} items
 //                                 {{5}} amount  {{6}} payment  {{7}} delivery
 //   yff_order_cancelled   buyer   {{1}} name  {{2}} order no.  {{3}} farmer  {{4}} reason
