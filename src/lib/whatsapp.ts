@@ -6,8 +6,8 @@
 // generation and verification therefore live in src/lib/otp.ts.
 //
 // Every message must reference a template that has already been approved in
-// WhatsApp Manager. See scripts/whatsapp-templates.md for the exact bodies
-// these calls expect, and keep the two in sync — a mismatch in parameter
+// WhatsApp Manager. See the top of src/lib/orderNotify.ts for the parameters
+// each order template expects, and keep the two in sync — a mismatch in parameter
 // COUNT is rejected by Meta at send time with a 132000 error.
 
 const GRAPH_VERSION = 'v21.0'
@@ -24,10 +24,13 @@ function isStaging(): boolean {
 
 export type WhatsAppLang = 'en' | 'te'
 
-/** Meta language codes for our two UI languages. */
+/** Meta language codes for our two UI languages. Every template is approved in
+ * English only so far, and asking Meta for a language the template doesn't
+ * have fails the send (132001) — so Telugu falls back to English until a
+ * Telugu version of each template is approved. Then change 'te' back here. */
 const META_LANG: Record<WhatsAppLang, string> = {
   en: 'en',
-  te: 'te',
+  te: 'en',
 }
 
 export type SendResult =

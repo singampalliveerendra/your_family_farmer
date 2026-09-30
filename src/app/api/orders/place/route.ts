@@ -14,6 +14,7 @@ import { getCodDepositPercent, computeCodSplit } from '@/lib/cod'
 import { ORDERABLE_STATUSES } from '@/lib/produceStatus'
 import { normalizePickupPhones } from '@/lib/pickup-slots'
 import { rateLimit } from '@/lib/rate-limit'
+import { notifyOrdersPlaced } from '@/lib/orderNotify'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -637,6 +638,14 @@ export async function POST(req: NextRequest) {
   }
 
   const orderIds = inserted.map((r) => r.id)
+
+  // WhatsApp "order placed" (buyer) + "new order" (farmer). Only cash-only COD
+  // and legacy UPI orders are real at this point; an online or deposit order is
+  // announced by markCashfreePaid once the money is in. notifyOrdersPlaced
+  // applies that rule itself, so calling it for every order is safe.
+  if (paymentMethod === 'upi' || (paymentMethod === 'cod' && codDeposit === 0)) {
+    notifyOrdersPlaced(supabase, orderIds)
+  }
   return NextResponse.json({
     ok: true,
     orderIds,

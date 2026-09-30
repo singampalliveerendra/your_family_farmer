@@ -16,21 +16,19 @@ import { sendTemplate } from '@/lib/whatsapp'
 /** Authentication template — the login/password-reset code. */
 export const OTP_TEMPLATE = 'yff_login_otp'
 
-/** Utility templates, one per consumer-visible order transition.
- * Names must match what is approved in WhatsApp Manager; the body parameter
- * order for each is documented in scripts/whatsapp-templates.md. */
+/** Utility templates for order updates. Names must match what is approved in
+ * WhatsApp Manager; the body parameter order for each is documented at the top
+ * of src/lib/orderNotify.ts. */
 export const TEMPLATES = {
   order_placed: 'yff_order_placed',
-  order_shipped: 'yff_order_shipped',
-  out_for_delivery: 'yff_out_for_delivery',
-  order_delivered: 'yff_order_delivered',
-  order_declined: 'yff_order_declined',
+  farmer_new_order: 'yff_farmer_new_order',
+  order_cancelled: 'yff_order_cancelled',
 } as const
 
 export type NotifyEvent = keyof typeof TEMPLATES
 
 type QueueArgs = {
-  /** Buyer phone in any stored format — normalised here. */
+  /** Recipient phone (buyer or farmer) in any stored format — normalised here. */
   phone: string | null | undefined
   event: NotifyEvent
   lang: Lang
