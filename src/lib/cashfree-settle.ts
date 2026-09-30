@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { notifyOrdersPlaced } from '@/lib/orderNotify'
 
 // Record a confirmed Cashfree payment on every order row of its cart. Shared by
 // /verify (browser), the webhook, and the reconcile cron, which can race each
@@ -16,19 +17,28 @@ export async function markCashfreePaid(
   const now = new Date().toISOString()
   const detail = args.label ? { payment_method_detail: args.label } : {}
 
-  const { error: codErr } = await supabase
+  const { data: codRows, error: codErr } = await supabase
     .from('orders')
     .update({ payment_status: 'deposit_paid', cod_deposit_paid_at: now, cashfree_payment_id: args.paymentId, ...detail })
     .eq('cashfree_order_id', args.cashfreeOrderId)
     .eq('payment_method', 'cod')
     .not('payment_status', 'in', '("deposit_paid","completed","paid")')
+    .select('id')
   if (codErr) return codErr.message
 
-  const { error } = await supabase
+  const { data: paidRows, error } = await supabase
     .from('orders')
     .update({ payment_status: 'paid', paid_at: now, cashfree_payment_id: args.paymentId, ...detail })
     .eq('cashfree_order_id', args.cashfreeOrderId)
     .neq('payment_method', 'cod')
     .not('payment_status', 'in', '("completed","paid")')
-  return error ? error.message : null
+    .select('id')
+  if (error) return error.message
+
+  // The money is in, so the order is now real: WhatsApp the buyer and farmer.
+  // Only the rows THIS call flipped — the guards above make a racing second
+  // caller flip nothing — and the outbox dedupes on top of that.
+  const settled = [...(codRows ?? []), ...(paidRows ?? [])].map((r) => r.id as string)
+  notifyOrdersPlaced(supabase, settled)
+  return null
 }

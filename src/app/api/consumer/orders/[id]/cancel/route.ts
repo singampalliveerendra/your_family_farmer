@@ -5,6 +5,7 @@ import { makeRefundId, refundCashfreeOrder } from '@/lib/cashfree'
 import { isDepositPaid } from '@/lib/payment'
 import { getDeliveryCharges, planDeliveryRefund, type RefundOrderRow } from '@/lib/delivery-fee'
 import { applySiblingDeliveryRefunds, REFUND_ORDER_COLS } from '@/lib/delivery-refund'
+import { notifyOrderCancelled } from '@/lib/orderNotify'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -196,6 +197,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (deliveryPlan.allocations.some((a) => a.orderId !== order.id)) {
     await applySiblingDeliveryRefunds(supabase, deliveryPlan, order.id)
   }
+
+  // WhatsApp confirmation to the buyer. Sent after the response; never fails the cancel.
+  notifyOrderCancelled(supabase, order, 'buyer', reason)
 
   return NextResponse.json({
     ok: true,
