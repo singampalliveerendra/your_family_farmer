@@ -121,6 +121,7 @@ export type ConsumerInfo = { name: string; phone: string }
 // Loose email check for guest checkout — just enough to catch typos.
 import { DEFAULT_STEP, normalizeStep, snapToStep, stepUp, stepDown, formatQty, roundQty } from '@/lib/saleStep'
 import { formatHarvestDate } from '@/lib/harvestSchedule'
+import { summarizeCart, cartGrew } from '@/lib/cartSummary'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -278,16 +279,30 @@ type UpiPaymentState = {
   transactionId?: string
 }
 
-/* ─── Cart FAB ───────────────────────────────────────── */
-// The cart now lives on its own full-screen route (/consumer/cart) instead of a
-// bottom-sheet overlay, so it reads like a proper checkout page (Flipkart /
-// Blinkit style). The FAB just navigates there.
-// `raised` lifts the FAB above a page's own fixed bottom action bar (the produce
-// and harvest detail pages have one) so the two don't overlap/merge.
+/* ─── Cart bar ───────────────────────────────────────── */
+// The cart lives on its own full-screen route (/consumer/cart). Buyers were
+// adding items and then not knowing how to order, so instead of a small cart
+// pill this is a full-width bottom bar (Blinkit / Swiggy style) that says what
+// to do next: "3 items · ₹240 — View cart →". Each add bumps the badge once
+// and briefly flips the subtitle to "Added"; the very first add ever also
+// shows a one-time hint bubble. No looping animation — it would turn into
+// noise, and it's off entirely under prefers-reduced-motion (globals.css).
+// `raised` lifts the bar above a page's own fixed bottom action bar (the
+// produce and harvest detail pages have one) so the two don't overlap.
+const CART_HINT_SEEN_KEY = 'yff_cart_hint_seen_v1'
+
 export function CartFab({ raised = false }: { raised?: boolean }) {
-  const { count } = useCart()
+  const { cart, items } = useCart()
   const { L } = useLang()
   const router = useRouter()
+  const { lines, subtotal } = summarizeCart(items)
+
+  // `bump` is a counter used as the badge's React key, so each add remounts it
+  // and replays the one-shot animation.
+  const [bump, setBump] = useState(0)
+  const [justAdded, setJustAdded] = useState(false)
+  const [showHint, setShowHint] = useState(false)
+  const lastCart = useRef<CartState | null>(null)
 
   // If a UPI payment was in progress (page refreshed mid-payment), send the
   // buyer straight to the cart page so they can finish / record it.
@@ -297,25 +312,102 @@ export function CartFab({ raised = false }: { raised?: boolean }) {
     if (pending && launched) router.push('/consumer/cart')
   }, [router])
 
-  if (count === 0) return null
+  // React only to CART_EVENT (a write in this tab), never to the initial
+  // hydrate from localStorage — a cart restored on page load is not an "add".
+  useEffect(() => {
+    lastCart.current = readCart()
+    let addedTimer: ReturnType<typeof setTimeout> | undefined
+    let hintTimer: ReturnType<typeof setTimeout> | undefined
+    const onChange = () => {
+      const next = readCart()
+      const grew = cartGrew(lastCart.current ?? {}, next)
+      lastCart.current = next
+      if (!grew) return
+      setBump((b) => b + 1)
+      setJustAdded(true)
+      clearTimeout(addedTimer)
+      addedTimer = setTimeout(() => setJustAdded(false), 2000)
+      let seen = true
+      try {
+        seen = localStorage.getItem(CART_HINT_SEEN_KEY) === '1'
+        if (!seen) localStorage.setItem(CART_HINT_SEEN_KEY, '1')
+      } catch { /* storage blocked — skip the hint */ }
+      if (!seen) {
+        setShowHint(true)
+        clearTimeout(hintTimer)
+        hintTimer = setTimeout(() => setShowHint(false), 6000)
+      }
+    }
+    window.addEventListener(CART_EVENT, onChange)
+    return () => {
+      window.removeEventListener(CART_EVENT, onChange)
+      clearTimeout(addedTimer)
+      clearTimeout(hintTimer)
+    }
+  }, [])
 
-  // Bottom bar is ~64px tall; add it (plus a gap) when raised.
+  if (Object.keys(cart).length === 0) return null
+
+  // A page's own bottom action bar is ~64px tall; clear it (plus a gap) when raised.
   const bottomExpr = raised
-    ? 'calc(max(24px, env(safe-area-inset-bottom, 24px)) + 76px)'
-    : 'max(24px, env(safe-area-inset-bottom, 24px))'
+    ? 'calc(max(12px, env(safe-area-inset-bottom, 12px)) + 76px)'
+    : 'max(12px, env(safe-area-inset-bottom, 12px))'
+
+  const go = () => router.push('/consumer/cart')
 
   return (
-    <button
-      onClick={() => router.push('/consumer/cart')}
-      className="fixed right-4 z-[60] bg-green-700 active:bg-green-800 text-white rounded-full shadow-2xl flex items-center gap-2 pl-4 pr-5 py-3.5"
-      style={{ bottom: bottomExpr }}
-      aria-label={L('View cart', 'బండి చూడండి')}
-    >
-      <CartIcon />
-      <span className="font-extrabold text-sm">
-        {count} {L(count === 1 ? 'item' : 'items', 'బుట్ట')}
-      </span>
-    </button>
+    <>
+      {/* In-flow spacer so the fixed bar never hides the end of the page. */}
+      <div aria-hidden className="h-20" />
+      <div className="fixed left-0 right-0 z-[60] px-3 pointer-events-none" style={{ bottom: bottomExpr }}>
+        <div className="max-w-lg mx-auto relative pointer-events-auto">
+          {showHint && (
+            <button
+              type="button"
+              onClick={go}
+              className="cart-hint-in absolute bottom-full right-2 mb-2.5 bg-gray-900 text-white text-xs font-semibold rounded-xl px-3 py-2 shadow-lg text-left max-w-[260px]"
+            >
+              {L('Added! Tap the green bar to review and place your order.',
+                'చేర్చబడింది! ఆర్డర్ చేయడానికి క్రింది ఆకుపచ్చ బార్ నొక్కండి.')}
+              <span aria-hidden className="absolute -bottom-1.5 right-8 w-3 h-3 bg-gray-900 rotate-45" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={go}
+            className="w-full bg-green-700 active:bg-green-800 text-white rounded-2xl shadow-2xl flex items-center gap-3 px-4 py-3"
+            aria-label={L(`View cart, ${lines} items, ₹${subtotal}`, `బుట్ట చూడండి, ${lines} వస్తువులు, ₹${subtotal}`)}
+          >
+            <span className="relative flex-shrink-0">
+              <CartIcon />
+              <span
+                key={bump}
+                className={`${bump > 0 ? 'cart-bump ' : ''}absolute -top-2 -right-2.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-400 text-green-950 text-[11px] font-extrabold flex items-center justify-center`}
+              >
+                {lines}
+              </span>
+            </span>
+            <span className="flex-1 min-w-0 text-left ml-1">
+              <span className="block font-extrabold text-sm leading-tight">
+                {lines} {L(lines === 1 ? 'item' : 'items', 'వస్తువులు')}
+                {subtotal > 0 && <> · ₹{subtotal.toLocaleString('en-IN')}</>}
+              </span>
+              <span className="block text-[11px] text-green-100 leading-tight mt-0.5 truncate">
+                {justAdded
+                  ? L('✓ Added to cart', '✓ బుట్టలో చేర్చబడింది')
+                  : L('Tap to place your order', 'ఆర్డర్ చేయడానికి నొక్కండి')}
+              </span>
+            </span>
+            <span className="flex-shrink-0 flex items-center gap-1 font-extrabold text-sm">
+              {L('View cart', 'బుట్ట చూడండి')}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            </span>
+          </button>
+        </div>
+      </div>
+    </>
   )
 }
 

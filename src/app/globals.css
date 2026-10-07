@@ -81,6 +81,23 @@ html.splash-skip .splash-overlay { display: none !important; }
   }
 }
 
+/* ── Cart bar: one-shot "added" feedback (CartFab) ─────────── */
+/* Plays once per add, never loops. */
+@keyframes cartBump {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.5); }
+  100% { transform: scale(1); }
+}
+@keyframes cartHintIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.cart-bump { animation: cartBump 0.35s ease-out; }
+.cart-hint-in { animation: cartHintIn 0.25s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .cart-bump, .cart-hint-in { animation: none; }
+}
+
 /* ── Order placed success (CSS-only) ───────────────────────── */
 @keyframes orderPop {
   0%   { opacity: 0; transform: scale(0.3); }
