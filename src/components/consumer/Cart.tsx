@@ -122,6 +122,8 @@ export type ConsumerInfo = { name: string; phone: string }
 import { DEFAULT_STEP, normalizeStep, snapToStep, stepUp, stepDown, formatQty, roundQty } from '@/lib/saleStep'
 import { formatHarvestDate } from '@/lib/harvestSchedule'
 import { summarizeCart, cartGrew } from '@/lib/cartSummary'
+import { isAddressComplete, formatAddress, type SavedAddress } from '@/lib/savedAddress'
+import AddressFields from '@/components/consumer/AddressFields'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -452,6 +454,20 @@ export function CartSheet({
   const [deliveryLandmark, setDeliveryLandmark] = useState('')
   const [deliveryPincode, setDeliveryPincode] = useState('')
   const [deliveryAltPhone, setDeliveryAltPhone] = useState('')
+  // The signed-in buyer's saved address (/consumer/profile). When there is one
+  // the cart shows it as a pre-selected card instead of the form; "different
+  // address" opens the empty form for this order only and never overwrites it.
+  // With none saved, `saveAddressForNext` stores what they type once an order
+  // with home delivery is placed. `savedAddrState` 'error' (e.g. migration not
+  // run yet) hides the save option and leaves the plain form as before.
+  const [savedAddr, setSavedAddr] = useState<SavedAddress | null>(null)
+  const [savedAddrState, setSavedAddrState] = useState<'idle' | 'ready' | 'error'>('idle')
+  const [addrChoice, setAddrChoice] = useState<'saved' | 'other'>('saved')
+  const [saveAddressForNext, setSaveAddressForNext] = useState(true)
+  const addressSavedThisCheckout = useRef(false)
+  // Set once the buyer types in the address form, so a saved address arriving
+  // late (slow 4G) never overwrites what they've already entered.
+  const addressTyped = useRef(false)
   const [sentFarmers, setSentFarmers] = useState<Record<string, boolean>>({})
   const [pickupByFarmer, setPickupByFarmer] = useState<Record<string, string>>({})
   // Optional "who to call at the pickup point", per farmer — the pickup twin of
@@ -767,9 +783,70 @@ export function CartSheet({
   const anyDelivery = items.some((it) => deliveryOf(it) === 'home_delivery')
   const needsAddress = anyDelivery
 
+  // The address actually being sent — the saved one copied in, or what the
+  // buyer typed. Every order still gets its own copy of these fields.
+  const typedAddress: SavedAddress = {
+    address: deliveryAddress, city: deliveryCity, landmark: deliveryLandmark,
+    pincode: deliveryPincode, altPhone: deliveryAltPhone,
+  }
+  const applyAddress = (a: SavedAddress) => {
+    setDeliveryAddress(a.address)
+    setDeliveryCity(a.city)
+    setDeliveryLandmark(a.landmark)
+    setDeliveryPincode(a.pincode)
+    setDeliveryAltPhone(a.altPhone)
+  }
+  const usingSavedAddress = !!consumer && !!savedAddr && addrChoice === 'saved'
+
+  // Load the signed-in buyer's saved address (again if they log in mid-checkout)
+  // and copy it into the delivery fields unless they've already typed one.
+  useEffect(() => {
+    if (!consumer) return
+    let cancelled = false
+    void (async () => {
+      const r = await fetch('/api/consumer/profile', { credentials: 'same-origin' }).catch(() => null)
+      const json = r?.ok ? await r.json().catch(() => null) : null
+      if (cancelled) return
+      if (!json) { setSavedAddrState('error'); return }
+      const a = (json.address ?? null) as SavedAddress | null
+      setSavedAddr(a)
+      setSavedAddrState('ready')
+      // Already typing → keep their form open ("different address") rather
+      // than showing a saved card that doesn't match what will be sent.
+      if (a && addressTyped.current) setAddrChoice('other')
+      else if (a) { setAddrChoice('saved'); applyAddress(a) }
+    })()
+    return () => { cancelled = true }
+  }, [consumer?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const chooseSavedAddress = () => {
+    if (!savedAddr) return
+    setAddrChoice('saved')
+    applyAddress(savedAddr)
+  }
+  const chooseOtherAddress = () => {
+    setAddrChoice('other')
+    applyAddress({ address: '', city: '', landmark: '', pincode: '', altPhone: '' })
+  }
+
+  // First order with home delivery and nothing saved yet: keep what they typed
+  // for next time (if they left the box ticked). Once per checkout, and never
+  // when they picked "different address" — that one is a one-off.
+  const maybeSaveAddress = () => {
+    if (!consumer || savedAddr || savedAddrState !== 'ready' || !saveAddressForNext) return
+    if (addressSavedThisCheckout.current || !isAddressComplete(typedAddress)) return
+    addressSavedThisCheckout.current = true
+    const snapshot = { ...typedAddress }
+    void fetch('/api/consumer/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(snapshot),
+    }).catch(() => null)
+  }
+
   const baseDetailsMissing = !name.trim() || phone.replace(/\D/g, '').length < 10
-  const deliveryDetailsMissing = needsAddress
-    && (deliveryAddress.trim().length < 10 || !deliveryCity.trim() || !/^\d{6}$/.test(deliveryPincode.trim()))
+  const deliveryDetailsMissing = needsAddress && !isAddressComplete(typedAddress)
   // Pickup contact phone is optional, but a half-typed one is worse than none —
   // the farmer would dial a dead number. Blank is fine; anything else must be
   // a full 10 digits.
@@ -849,6 +926,7 @@ export function CartSheet({
     if (!r.ok || !json?.ok) return { ok: false, error: json?.error ?? L('Could not place order.', 'ఆర్డర్ పెట్టలేకపోయాం.') }
     // Order saved — drop the key so a genuinely new order later gets a fresh one.
     delete idempotencyKeys.current[f.farmerId]
+    if (groupHasDelivery) maybeSaveAddress()
     return {
       ok: true,
       orderIds: json.orderIds,
@@ -2151,75 +2229,62 @@ export function CartSheet({
                     <p className="text-[11px] font-extrabold text-blue-700 uppercase tracking-wide">
                       🛵 {L('Delivery address', 'డెలివరీ చిరునామా')}
                     </p>
-                    <div>
-                      <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                        {L('Full address (door no, street, area)', 'పూర్తి చిరునామా (ఇంటి నం, వీధి, ప్రాంతం)')}
-                      </label>
-                      <textarea
-                        value={deliveryAddress}
-                        onChange={(e) => setDeliveryAddress(e.target.value.slice(0, 400))}
-                        rows={3}
-                        placeholder={L('H.No 12-3, Main Road, Anand Nagar', 'ఇం.నం 12-3, మెయిన్ రోడ్, ఆనంద్ నగర్')}
-                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none resize-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                        {L('City / Town', 'నగరం / పట్టణం')}
-                      </label>
-                      <input
-                        type="text"
-                        value={deliveryCity}
-                        onChange={(e) => setDeliveryCity(e.target.value.slice(0, 100))}
-                        placeholder={L('e.g. Guntur', 'ఉదా. గుంటూరు')}
-                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                        {L('Landmark (optional)', 'గుర్తు')}
-                      </label>
-                      <input
-                        type="text"
-                        value={deliveryLandmark}
-                        onChange={(e) => setDeliveryLandmark(e.target.value.slice(0, 200))}
-                        placeholder={L('Near the temple', 'గుడి దగ్గర')}
-                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                        {L('PIN code', 'పిన్ కోడ్')}
-                      </label>
-                      <input
-                        type="tel"
-                        inputMode="numeric"
-                        value={deliveryPincode}
-                        onChange={(e) => setDeliveryPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        maxLength={6}
-                        placeholder="522001"
-                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                        {L('Alternate phone (optional)', 'ప్రత్యామ్నాయ ఫోన్ (ఐచ్ఛికం)')}
-                      </label>
-                      <div className="flex gap-2">
-                        <span className="flex items-center px-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 font-medium">
-                          +91
-                        </span>
-                        <input
-                          type="tel"
-                          inputMode="numeric"
-                          value={deliveryAltPhone}
-                          onChange={(e) => setDeliveryAltPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                          maxLength={10}
-                          placeholder={L('Family member / spouse', 'కుటుంబ సభ్యుడు / జీవిత భాగస్వామి')}
-                          className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
-                        />
+                    {/* Saved address (signed-in buyer who has one): pre-selected
+                        card, so nothing to type. "Different address" opens the
+                        empty form for this order only. */}
+                    {consumer && savedAddr && (
+                      <div className="space-y-2">
+                        <button
+                          type="button"
+                          onClick={chooseSavedAddress}
+                          className={`w-full text-left rounded-xl border-2 px-3 py-2.5 flex gap-2.5 bg-white ${addrChoice === 'saved' ? 'border-green-600' : 'border-gray-200'}`}
+                        >
+                          <span className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 ${addrChoice === 'saved' ? 'border-green-600 bg-green-600 ring-2 ring-inset ring-white' : 'border-gray-300'}`} />
+                          <span className="min-w-0">
+                            <span className="block text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+                              {L('My saved address', 'నా సేవ్ చేసిన చిరునామా')}
+                            </span>
+                            <span className="block text-sm text-gray-900 font-semibold leading-snug break-words">{formatAddress(savedAddr)}</span>
+                            {savedAddr.altPhone && (
+                              <span className="block text-xs text-gray-500 mt-0.5">{L('Alt phone', 'ప్రత్యామ్నాయ ఫోన్')}: +91 {savedAddr.altPhone}</span>
+                            )}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={chooseOtherAddress}
+                          className={`w-full text-left rounded-xl border-2 px-3 py-2.5 flex items-center gap-2.5 bg-white ${addrChoice === 'other' ? 'border-green-600' : 'border-gray-200'}`}
+                        >
+                          <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${addrChoice === 'other' ? 'border-green-600 bg-green-600 ring-2 ring-inset ring-white' : 'border-gray-300'}`} />
+                          <span className="text-sm font-semibold text-gray-900">{L('Send to a different address', 'వేరే చిరునామాకు పంపండి')}</span>
+                        </button>
+                        {usingSavedAddress && (
+                          <Link href="/consumer/profile" className="inline-block text-xs font-semibold text-green-700 underline">
+                            {L('Edit my saved address', 'నా చిరునామా మార్చండి')}
+                          </Link>
+                        )}
                       </div>
-                    </div>
+                    )}
+
+                    {!usingSavedAddress && (
+                      <AddressFields
+                        value={typedAddress}
+                        onChange={(a) => { addressTyped.current = true; applyAddress(a) }}
+                      />
+                    )}
+
+                    {/* No saved address yet: offer to keep this one. */}
+                    {consumer && !savedAddr && savedAddrState === 'ready' && (
+                      <label className="flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={saveAddressForNext}
+                          onChange={(e) => setSaveAddressForNext(e.target.checked)}
+                          className="w-4 h-4 accent-green-700"
+                        />
+                        {L('Save this address for next time', 'తదుపరి సారి కోసం ఈ చిరునామా సేవ్ చేయండి')}
+                      </label>
+                    )}
                     {deliveryDetailsMissing && (
                       <p className="text-[11px] text-amber-700 bg-amber-50 rounded-xl px-3 py-2">
                         Please fill the full address, city/town and a valid 6-digit pincode.
