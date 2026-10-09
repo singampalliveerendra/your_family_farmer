@@ -32,6 +32,7 @@ import { isMissingColumnError } from '@/lib/missingColumn'
 import { previewNum, resolveSaleStep, previewAvailability, previewTiers } from '@/lib/previewModel'
 import { formatHarvestDate, nextHarvestDate } from '@/lib/harvestSchedule'
 import { localizeName, localizeUnit } from '@/lib/localizeName'
+import ShareProduceButton from '@/components/farmer/ShareProduceButton'
 import {
   clearFarmerLocalSession,
   farmerFetch,
@@ -572,6 +573,9 @@ export default function FarmerDashboard() {
                 {tx.incomplete}
               </span>
             )}
+            {/* Catalogue images of everything in stock, for WhatsApp. Links to
+                the public page, so only once the profile is complete. */}
+            {profileComplete && <ShareProduceButton farmer={farmer!} />}
             <button
               onClick={() => setShowProfileEdit(true)}
               className="text-white text-xs underline"

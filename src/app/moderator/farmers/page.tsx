@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ModeratorShell, { useModeratorAuth } from '../ModeratorShell'
+import ShareProduceButton from '@/components/farmer/ShareProduceButton'
 
 type Farmer = {
   id: string
@@ -123,6 +124,14 @@ export default function ModeratorFarmersPage() {
                 >
                   Edit
                 </button>
+                {/* Same catalogue images the farmer shares from their dashboard. */}
+                {f.active && (
+                  <ShareProduceButton
+                    farmer={f}
+                    label="Share"
+                    className="text-[11px] text-green-700 underline font-semibold disabled:opacity-50"
+                  />
+                )}
                 <button
                   onClick={() => toggleActive(f)}
                   disabled={busyId === f.id}
