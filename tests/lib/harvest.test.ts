@@ -3,6 +3,7 @@ import {
   harvestRelTime,
   harvestClock,
   harvestAgeDays,
+  isPickedTodayOrYesterday,
   freshnessLeftDays,
   freshnessLabel,
 } from '@/lib/harvest'
@@ -136,6 +137,27 @@ describe('harvestAgeDays', () => {
   // USE: garbage in must not poison the freshness label with NaN.
   it('is 0 for an invalid date', () => {
     expect(harvestAgeDays('rubbish')).toBe(0)
+  })
+})
+
+describe('isPickedTodayOrYesterday', () => {
+  // USE: the consumer page's Fresh Harvests list shows only these, so it stays
+  // short and buyers reach the full produce grid without a long scroll.
+  it("keeps today's and yesterday's picks, by calendar date", () => {
+    expect(isPickedTodayOrYesterday(daysAgoAt(0, 6))).toBe(true)
+    expect(isPickedTodayOrYesterday(daysAgoAt(1, 0))).toBe(true)
+    expect(isPickedTodayOrYesterday(daysAgoAt(1, 23))).toBe(true)
+  })
+
+  it('drops anything from the day before yesterday or older', () => {
+    expect(isPickedTodayOrYesterday(daysAgoAt(2, 23))).toBe(false)
+    expect(isPickedTodayOrYesterday(daysAgoAt(10, 6))).toBe(false)
+  })
+
+  // A pick logged for later belongs on the Upcoming list, not the Fresh one.
+  it('is false for a future pick and for an invalid date', () => {
+    expect(isPickedTodayOrYesterday(at(new Date(NOW.getTime() + 3_600_000)))).toBe(false)
+    expect(isPickedTodayOrYesterday('rubbish')).toBe(false)
   })
 })
 

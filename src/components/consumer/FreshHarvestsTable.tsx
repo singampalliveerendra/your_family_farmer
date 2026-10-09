@@ -7,7 +7,7 @@ import { useCart, EditableQty } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
-import { harvestRelTime, freshnessLeftDays } from '@/lib/harvest'
+import { harvestRelTime, freshnessLeftDays, isPickedTodayOrYesterday } from '@/lib/harvest'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
 import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
 
@@ -107,7 +107,12 @@ function HarvestTable({ variant }: { variant: Variant }) {
     q.limit(60).then(({ data }) => {
       if (cancelled) return
       const all = (data ?? []) as HarvestRow[]
-      const visible = variant === 'upcoming' ? all : all.filter(isStillFresh)
+      // Fresh shows only today's and yesterday's picks (and still inside shelf
+      // life). The full 90-day fetch stays: `all` below also decides whether a
+      // crop has stock left in an older pick.
+      const visible = variant === 'upcoming'
+        ? all
+        : all.filter((r) => isPickedTodayOrYesterday(r.harvested_at) && isStillFresh(r))
       // A produce is one row here, not one row per spent pick. A sold-out pick
       // shown beside its own crop's buyable picks reads as a second product that
       // happens to be gone — the buyer sees the same crop twice, one greyed. So
@@ -205,7 +210,7 @@ function HarvestTable({ variant }: { variant: Variant }) {
     ? L('Fresh Harvests near you', 'మీ దగ్గర తాజా కోతలు')
     : L('Upcoming Harvests', 'రాబోయే కోతలు')
   const icon = variant === 'fresh' ? '🌾' : '🌱'
-  const hint = variant === 'fresh' ? L('Freshest first', 'తాజావి ముందు') : L('Soonest first', 'త్వరలో వచ్చేవి')
+  const hint = variant === 'fresh' ? L('Today & yesterday', 'ఈరోజు & నిన్న') : L('Soonest first', 'త్వరలో వచ్చేవి')
   const whenLabel = variant === 'fresh' ? L('When', 'ఎప్పుడు') : L('Expected', 'అంచనా')
 
   return (

@@ -86,6 +86,17 @@ export function harvestAgeDays(harvestedAt: string): number {
   return Math.max(0, Math.round((startOfLocalDay(Date.now()) - startOfLocalDay(then)) / 86_400_000))
 }
 
+// The consumer page's Fresh Harvests list: only picks from today or yesterday
+// (by calendar date, like the clock), so the list stays short and the buyer
+// reaches the full produce grid without a long scroll. Older picks still within
+// shelf life remain buyable in the grid; they just leave this list.
+// A future (pre-announced) pick or an invalid date is not "picked" at all.
+export function isPickedTodayOrYesterday(harvestedAt: string): boolean {
+  const then = new Date(harvestedAt).getTime()
+  if (isNaN(then) || then > Date.now()) return false
+  return harvestAgeDays(harvestedAt) <= 1
+}
+
 // Freshness from shelf life: days left before it spoils, and whether it's past.
 // Returns null when no shelf life is set (can't compute).
 export function freshnessLeftDays(harvestedAt: string, shelfLifeDays?: number | null): number | null {
