@@ -121,7 +121,8 @@ export type ConsumerInfo = { name: string; phone: string }
 // Loose email check for guest checkout — just enough to catch typos.
 import { DEFAULT_STEP, normalizeStep, snapToStep, stepUp, stepDown, formatQty, roundQty } from '@/lib/saleStep'
 import { formatHarvestDate } from '@/lib/harvestSchedule'
-import { summarizeCart, cartGrew } from '@/lib/cartSummary'
+import { summarizeCart, grownLineKey } from '@/lib/cartSummary'
+import { flightKeyframes, tapStillFresh } from '@/lib/cartFly'
 import { isAddressComplete, formatAddress, type SavedAddress } from '@/lib/savedAddress'
 import AddressFields from '@/components/consumer/AddressFields'
 
@@ -304,7 +305,18 @@ export function CartFab({ raised = false }: { raised?: boolean }) {
   const [bump, setBump] = useState(0)
   const [justAdded, setJustAdded] = useState(false)
   const [showHint, setShowHint] = useState(false)
+  // `shine` is the landing glow's key, like `bump`: each landing replays it.
+  const [shine, setShine] = useState(0)
   const lastCart = useRef<CartState | null>(null)
+  const iconRef = useRef<HTMLSpanElement | null>(null)
+  // Where and when the buyer last tapped — the flight's take-off point.
+  const lastTap = useRef<{ x: number; y: number; at: number } | null>(null)
+
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => { lastTap.current = { x: e.clientX, y: e.clientY, at: Date.now() } }
+    document.addEventListener('pointerdown', onDown, { capture: true, passive: true })
+    return () => document.removeEventListener('pointerdown', onDown, { capture: true })
+  }, [])
 
   // If a UPI payment was in progress (page refreshed mid-payment), send the
   // buyer straight to the cart page so they can finish / record it.
@@ -322,11 +334,17 @@ export function CartFab({ raised = false }: { raised?: boolean }) {
     let hintTimer: ReturnType<typeof setTimeout> | undefined
     const onChange = () => {
       const next = readCart()
-      const grew = cartGrew(lastCart.current ?? {}, next)
+      const grownKey = grownLineKey(lastCart.current ?? {}, next)
       lastCart.current = next
-      if (!grew) return
-      setBump((b) => b + 1)
+      if (!grownKey) return
       setJustAdded(true)
+      // The badge bump + shine land when the flying item arrives, not before.
+      const land = () => {
+        setBump((b) => b + 1)
+        setShine((n) => n + 1)
+        try { navigator.vibrate?.(12) } catch { /* no haptics */ }
+      }
+      flyToCart(next[grownKey]?.emoji || '🛒', lastTap.current, iconRef, land)
       clearTimeout(addedTimer)
       addedTimer = setTimeout(() => setJustAdded(false), 2000)
       let seen = true
@@ -375,12 +393,13 @@ export function CartFab({ raised = false }: { raised?: boolean }) {
             </button>
           )}
           <button
+            key={`bar-${shine}`}
             type="button"
             onClick={go}
-            className="w-full bg-green-700 active:bg-green-800 text-white rounded-2xl shadow-2xl flex items-center gap-3 px-4 py-3"
+            className={`${shine > 0 ? 'cart-shine ' : ''}cart-bar-in relative overflow-hidden w-full bg-green-700 active:bg-green-800 text-white rounded-2xl shadow-2xl flex items-center gap-3 px-4 py-3`}
             aria-label={L(`View cart, ${lines} items, ₹${subtotal}`, `బుట్ట చూడండి, ${lines} వస్తువులు, ₹${subtotal}`)}
           >
-            <span className="relative flex-shrink-0">
+            <span ref={iconRef} className="relative flex-shrink-0">
               <CartIcon />
               <span
                 key={bump}
@@ -411,6 +430,44 @@ export function CartFab({ raised = false }: { raised?: boolean }) {
       </div>
     </>
   )
+}
+
+// Toss the added item's emoji from the tapped button into the cart icon.
+// Skipped (landing straight away) under reduced motion, when the add didn't
+// follow a recent tap, or when the bar isn't on screen to aim at. The bar may
+// be mounting in this very render (first add), so the target is read a frame
+// later.
+function flyToCart(
+  emoji: string,
+  tap: { x: number; y: number; at: number } | null,
+  iconRef: { current: HTMLElement | null },
+  land: () => void,
+) {
+  const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (reduced || !tap || !tapStillFresh(tap.at, Date.now())) { land(); return }
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const icon = iconRef.current
+    if (!icon || typeof document.body.animate !== 'function') { land(); return }
+    const r = icon.getBoundingClientRect()
+    const size = 44
+    const bubble = document.createElement('div')
+    bubble.setAttribute('aria-hidden', 'true')
+    bubble.textContent = emoji
+    Object.assign(bubble.style, {
+      position: 'fixed', left: '0', top: '0', width: `${size}px`, height: `${size}px`,
+      borderRadius: '9999px', background: '#fff', boxShadow: '0 6px 18px rgba(0,0,0,0.22)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px',
+      zIndex: '70', pointerEvents: 'none', willChange: 'transform, opacity',
+    })
+    document.body.appendChild(bubble)
+    const anim = bubble.animate(
+      flightKeyframes({ x: tap.x, y: tap.y }, { x: r.left + r.width / 2, y: r.top + r.height / 2 }, size),
+      { duration: 650, easing: 'cubic-bezier(0.45, 0, 0.55, 1)', fill: 'forwards' },
+    )
+    const done = () => { bubble.remove(); land() }
+    anim.onfinish = done
+    anim.oncancel = done
+  }))
 }
 
 /* ─── Cart view (full-page route, or legacy bottom-sheet) ─ */

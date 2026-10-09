@@ -94,8 +94,33 @@ html.splash-skip .splash-overlay { display: none !important; }
 }
 .cart-bump { animation: cartBump 0.35s ease-out; }
 .cart-hint-in { animation: cartHintIn 0.25s ease-out both; }
+/* The bar rises into view, and glows once when an added item lands in it. */
+@keyframes cartBarIn {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes cartShine {
+  from { transform: translateX(-120%) skewX(-20deg); }
+  to   { transform: translateX(320%) skewX(-20deg); }
+}
+@keyframes cartRing {
+  from { box-shadow: 0 0 0 0 rgba(163, 230, 53, 0.7); }
+  to   { box-shadow: 0 0 0 14px rgba(163, 230, 53, 0); }
+}
+.cart-bar-in { animation: cartBarIn 0.35s ease-out both; }
+.cart-shine { animation: cartBarIn 0s both, cartRing 0.7s ease-out; }
+.cart-shine::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  width: 35%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  animation: cartShine 0.8s ease-out forwards;
+  pointer-events: none;
+}
 @media (prefers-reduced-motion: reduce) {
-  .cart-bump, .cart-hint-in { animation: none; }
+  .cart-bump, .cart-hint-in, .cart-bar-in, .cart-shine { animation: none; }
+  .cart-shine::after { display: none; }
 }
 
 /* ── Order placed success (CSS-only) ───────────────────────── */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { summarizeCart, cartGrew } from '@/lib/cartSummary'
+import { summarizeCart, cartGrew, grownLineKey } from '@/lib/cartSummary'
 
 describe('summarizeCart', () => {
   // A 2.5 kg line is one item on the bar, not "2.5 items" — the old FAB
@@ -43,5 +43,19 @@ describe('cartGrew', () => {
 
   it('stays quiet when nothing changed', () => {
     expect(cartGrew({ a: { qty: 1 } }, { a: { qty: 1 } })).toBe(false)
+  })
+})
+
+describe('grownLineKey', () => {
+  // The flying bubble carries the emoji of the line that grew.
+  it('names the new or increased line', () => {
+    expect(grownLineKey({ a: { qty: 1 } }, { a: { qty: 1 }, b: { qty: 1 } })).toBe('b')
+    expect(grownLineKey({ a: { qty: 1 } }, { a: { qty: 2 } })).toBe('a')
+  })
+
+  it('is null when nothing grew', () => {
+    expect(grownLineKey({ a: { qty: 2 } }, { a: { qty: 1 } })).toBeNull()
+    expect(grownLineKey({ a: { qty: 1 } }, {})).toBeNull()
+    expect(grownLineKey({ a: { qty: 1 } }, { a: { qty: 1 } })).toBeNull()
   })
 })

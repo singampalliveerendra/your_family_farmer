@@ -20,3 +20,9 @@ export function summarizeCart(items: SummaryLine[]): CartSummary {
 export function cartGrew(prev: Record<string, { qty: number }>, next: Record<string, { qty: number }>): boolean {
   return Object.entries(next).some(([key, line]) => line.qty > (prev[key]?.qty ?? 0))
 }
+
+// Which line grew — so the "fly to cart" bubble carries that item's emoji.
+// Null when nothing grew (a removal, a qty decrease, a re-hydrate).
+export function grownLineKey(prev: Record<string, { qty: number }>, next: Record<string, { qty: number }>): string | null {
+  return Object.entries(next).find(([key, line]) => line.qty > (prev[key]?.qty ?? 0))?.[0] ?? null
+}
