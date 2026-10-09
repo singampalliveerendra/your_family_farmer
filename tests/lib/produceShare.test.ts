@@ -4,9 +4,11 @@ import {
   chunkForShare,
   displayUrl,
   farmerShareUrl,
+  optimizedImageUrl,
   pickShareItems,
   shareCaption,
   shareFileName,
+  shareTextWithFiles,
   sharePriceLabel,
   type ShareListing,
 } from '@/lib/produceShare'
@@ -147,5 +149,34 @@ describe('links and caption', () => {
     expect(shareFileName('ramesh', 0, 1)).toBe('gogrameen-ramesh.png')
     expect(shareFileName('ramesh', 1, 3)).toBe('gogrameen-ramesh-2-of-3.png')
     expect(shareFileName('../??', 0, 1)).toBe('gogrameen-farm.png')
+  })
+})
+
+describe('optimizedImageUrl', () => {
+  // Same-origin, so the canvas can draw it without CORS. The width must be one
+  // Next allows (384 is a default) or the optimiser answers 400.
+  it('routes the photo through our own optimiser at 384px', () => {
+    const src = 'https://abc.supabase.co/storage/v1/object/public/produce/a b.jpg'
+    expect(optimizedImageUrl(src)).toBe(
+      `/_next/image?url=${encodeURIComponent(src)}&w=384&q=75`,
+    )
+    expect(optimizedImageUrl(src).startsWith('/')).toBe(true)
+  })
+})
+
+describe('shareTextWithFiles', () => {
+  const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
+  const IPAD_DESKTOP = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15'
+  const ANDROID = 'Mozilla/5.0 (Linux; Android 14; SM-A145F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Mobile Safari/537.36'
+
+  // WhatsApp on iOS keeps the text and DROPS the images when both are shared.
+  it('sends images alone on iPhone and iPad', () => {
+    expect(shareTextWithFiles(IPHONE)).toBe(false)
+    expect(shareTextWithFiles(IPAD_DESKTOP, 5)).toBe(false)
+  })
+
+  it('keeps the caption with the images on Android and on a real Mac', () => {
+    expect(shareTextWithFiles(ANDROID)).toBe(true)
+    expect(shareTextWithFiles(IPAD_DESKTOP, 0)).toBe(true)
   })
 })

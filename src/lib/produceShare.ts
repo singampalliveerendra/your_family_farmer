@@ -110,3 +110,27 @@ export function shareFileName(slug: string, index: number, total: number): strin
   const safe = slug.replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '') || 'farm'
   return total > 1 ? `gogrameen-${safe}-${index + 1}-of-${total}.png` : `gogrameen-${safe}.png`
 }
+
+/**
+ * A produce photo through our own image optimiser (/_next/image). Same-origin,
+ * so drawing it never trips CORS or taints the canvas — a photo straight from
+ * Supabase Storage can, e.g. when the browser cached it earlier from a plain
+ * <img> without CORS headers. It's also resized to the tile, which matters on
+ * 4G. 384 is one of Next's default image widths; others are refused with 400.
+ */
+export function optimizedImageUrl(src: string, width = 384): string {
+  return `/_next/image?url=${encodeURIComponent(src)}&w=${width}&q=75`
+}
+
+/**
+ * Whether to put the caption text in the same share as the images.
+ *
+ * On iPhone/iPad, WhatsApp keeps only the text when a share carries both and
+ * silently drops the images — exactly the part that matters. So on iOS the
+ * images go alone and the caption is copied for the farmer to paste. Android
+ * attaches the text as the image caption, so it rides along there.
+ */
+export function shareTextWithFiles(ua: string, maxTouchPoints = 0): boolean {
+  const ios = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && maxTouchPoints > 1)
+  return !ios
+}

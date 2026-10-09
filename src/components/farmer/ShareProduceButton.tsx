@@ -10,9 +10,11 @@ import {
   chunkForShare,
   displayUrl,
   farmerShareUrl,
+  optimizedImageUrl,
   pickShareItems,
   shareCaption,
   shareFileName,
+  shareTextWithFiles,
   sharePriceLabel,
   type ShareListing,
 } from '@/lib/produceShare'
@@ -103,7 +105,7 @@ export default function ShareProduceButton({
       const url = farmerShareUrl(window.location.origin, farmer.slug)
       const chunks = chunkForShare(items)
       const [photos, qr] = await Promise.all([
-        Promise.all(items.map((it) => (it.image_url ? loadImage(it.image_url) : Promise.resolve(null)))),
+        Promise.all(items.map((it) => (it.image_url ? loadPhoto(it.image_url) : Promise.resolve(null)))),
         makeQr(url),
       ])
       const photoById = new Map(items.map((it, i) => [it.id, photos[i]]))
@@ -147,8 +149,17 @@ export default function ShareProduceButton({
     typeof navigator !== 'undefined' && !!navigator.canShare && files.length > 0 && navigator.canShare({ files })
 
   const shareAll = async () => {
+    // The link always goes on the clipboard too: if the receiving app drops
+    // the caption, the farmer pastes it. Started, not awaited — Safari only
+    // allows share() while the tap is still "live", and an await before it can
+    // end that.
+    const copied = (navigator.clipboard?.writeText(caption) ?? Promise.reject()).then(() => true, () => false)
+    const withText = shareTextWithFiles(navigator.userAgent, navigator.maxTouchPoints)
     try {
-      await navigator.share({ files, text: caption })
+      await navigator.share(withText ? { files, text: caption } : { files })
+      if (!withText && (await copied)) {
+        flash(L('Link copied — paste it in the WhatsApp message too.', 'లింక్ కాపీ అయింది — వాట్సాప్ మెసేజ్‌లో కూడా పేస్ట్ చేయండి.'))
+      }
     } catch (e) {
       if ((e as Error)?.name !== 'AbortError') {
         flash(L('Sharing failed — use Download instead.', 'పంపడం విఫలమైంది — డౌన్‌లోడ్ వాడండి.'))
@@ -216,8 +227,8 @@ export default function ShareProduceButton({
               ))}
               <p className="text-xs text-gray-500">
                 {L(
-                  'The link to your page is sent with the images — buyers tap it (or scan the QR code) to order.',
-                  'మీ పేజీ లింక్ చిత్రాలతో పాటు వెళ్తుంది — కొనుగోలుదారులు దాన్ని నొక్కి (లేదా QR స్కాన్ చేసి) ఆర్డర్ చేస్తారు.',
+                  'Your page link is copied when you share — paste it in the message so buyers can tap it. They can also scan the QR code on the image.',
+                  'పంపేటప్పుడు మీ పేజీ లింక్ కాపీ అవుతుంది — కొనుగోలుదారులు నొక్కేలా మెసేజ్‌లో పేస్ట్ చేయండి. చిత్రంపై ఉన్న QR కోడ్ కూడా స్కాన్ చేయవచ్చు.',
                 )}
               </p>
             </div>
@@ -251,10 +262,18 @@ type Tile = { name: string; price: string; emoji: string; photo: HTMLImageElemen
 // A produce photo, or null if it can't be loaded within a few seconds or can't
 // be drawn without tainting the canvas (no CORS) — the tile falls back to its
 // emoji rather than holding up or breaking the whole image.
-function loadImage(src: string, timeoutMs = 8000): Promise<HTMLImageElement | null> {
+// Our own optimiser first (same-origin, small); the original file as a
+// fallback, cache-busted so a copy cached without CORS headers can't block it.
+async function loadPhoto(src: string): Promise<HTMLImageElement | null> {
+  const viaOptimizer = await loadImage(optimizedImageUrl(src), false)
+  if (viaOptimizer) return viaOptimizer
+  return loadImage(`${src}${src.includes('?') ? '&' : '?'}share=${Date.now()}`, true)
+}
+
+function loadImage(src: string, cors: boolean, timeoutMs = 8000): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image()
-    img.crossOrigin = 'anonymous'
+    if (cors) img.crossOrigin = 'anonymous'
     const timer = setTimeout(() => resolve(null), timeoutMs)
     img.onload = () => { clearTimeout(timer); resolve(img) }
     img.onerror = () => { clearTimeout(timer); resolve(null) }
