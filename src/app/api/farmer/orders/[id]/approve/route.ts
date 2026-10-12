@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
+import { notifyOrderConfirmed } from '@/lib/orderNotify'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -53,6 +54,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       { status: 409 },
     )
   }
+
+  // WhatsApp "order confirmed" to the buyer. Sent after the response; never fails the approve.
+  notifyOrderConfirmed(supabase, id)
 
   return NextResponse.json({ ok: true, order: data[0] })
 }

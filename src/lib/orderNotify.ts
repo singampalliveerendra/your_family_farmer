@@ -7,12 +7,17 @@ import { formatQty } from '@/lib/saleStep'
 // Order WhatsApps: which rows, which words, which phone. The transport and the
 // outbox live in notify.ts / whatsapp.ts; this file only decides WHAT to say.
 //
-// Three messages at MVP, one approved template each (body text is fixed in
-// WhatsApp Manager — only the {{n}} values below come from here):
-//   order_placed          buyer   {{1}} name  {{2}} order no.  {{3}} amount  {{4}} farmer
-//   yff_farmer_new_order  farmer  {{1}} order no.  {{2}} buyer  {{3}} phone  {{4}} items
-//                                 {{5}} amount  {{6}} payment  {{7}} delivery
-//   yff_order_cancelled   buyer   {{1}} name  {{2}} order no.  {{3}} farmer  {{4}} reason
+// One approved template per message (body text is fixed in WhatsApp Manager —
+// only the {{n}} values below come from here):
+//   order_placed                buyer   {{1}} name  {{2}} order no.  {{3}} amount  {{4}} farmer
+//   yff_farmer_new_order        farmer  {{1}} order no.  {{2}} buyer  {{3}} phone  {{4}} items
+//                                       {{5}} amount  {{6}} payment  {{7}} delivery
+//   yff_order_cancelled         buyer   {{1}} name  {{2}} order no.  {{3}} farmer  {{4}} reason
+//   yff_order_confirmed         buyer   {{1}} name  {{2}} order no.  {{3}} farmer  {{4}} date
+//   yff_order_rescheduled       buyer   {{1}} name  {{2}} order no.  {{3}} farmer  {{4}} new date
+//                                       {{5}} reason
+//   yff_order_delivered         buyer   {{1}} name  {{2}} order no.  {{3}} farmer
+//   yff_farmer_order_cancelled  farmer  {{1}} order no.  {{2}} buyer  {{3}} items  {{4}} reason
 // Changing the COUNT or ORDER of values here without editing the template is
 // rejected by Meta at send time (132000), so keep the two in step.
 
@@ -20,7 +25,7 @@ import { formatQty } from '@/lib/saleStep'
 export const NOTIFY_ORDER_COLS =
   'id, farmer_id, order_code, produce_name, quantity, unit, total_price, delivery_fee, platform_fee, ' +
   'buyer_name, buyer_phone, payment_method, payment_status, cod_deposit, delivery_type, ' +
-  'delivery_address, delivery_city, delivery_pincode, pickup_location, created_at'
+  'delivery_address, delivery_city, delivery_pincode, pickup_location, created_at, status, fulfillment_date'
 
 export type NotifyOrderRow = {
   id: string
@@ -43,6 +48,8 @@ export type NotifyOrderRow = {
   delivery_pincode: string | null
   pickup_location: string | null
   created_at: string | null
+  status?: string | null
+  fulfillment_date?: string | null
 }
 
 type Farmer = { id: string; name: string | null; phone: string | null }
@@ -195,6 +202,83 @@ export function cancelledParams(
   ]
 }
 
+/**
+ * The pickup/delivery date as a buyer reads it: "Tue, 14 Oct, 10:30 am".
+ * The farmer picks a date AND time, stored as UTC; shown in IST because that
+ * is where every buyer is — the server's own zone is UTC on Vercel.
+ */
+export function formatFulfillment(iso: string | null | undefined): string {
+  if (!iso) return '-'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '-'
+  const opts = { timeZone: 'Asia/Kolkata' } as const
+  const day = d.toLocaleDateString('en-IN', { ...opts, weekday: 'short', day: 'numeric', month: 'short' })
+  const time = d.toLocaleTimeString('en-IN', { ...opts, hour: 'numeric', minute: '2-digit', hour12: true })
+  return `${day}, ${time.toLowerCase()}`
+}
+
+/** A reason the person may have left blank — never a bare "-" on a phone. */
+function reasonOrNotGiven(reason: string | null | undefined): string {
+  const r = String(reason ?? '').trim()
+  return r || 'Not given'
+}
+
+export function confirmedParams(row: NotifyOrderRow, farmerName: string | null): string[] {
+  return [
+    waParam(row.buyer_name, 60),
+    waParam(row.order_code, 60),
+    waParam(farmerName, 60),
+    waParam(formatFulfillment(row.fulfillment_date), 40),
+  ]
+}
+
+export function rescheduledParams(
+  row: NotifyOrderRow,
+  farmerName: string | null,
+  reason: string | null | undefined,
+): string[] {
+  return [
+    waParam(row.buyer_name, 60),
+    waParam(row.order_code, 60),
+    waParam(farmerName, 60),
+    waParam(formatFulfillment(row.fulfillment_date), 40),
+    waParam(reasonOrNotGiven(reason), 200),
+  ]
+}
+
+export function deliveredParams(rows: NotifyOrderRow[], farmerName: string | null): string[] {
+  return [
+    waParam(rows[0]?.buyer_name, 60),
+    waParam(orderCodeLabel(rows), 60),
+    waParam(farmerName, 60),
+  ]
+}
+
+/** To the FARMER when the buyer cancels — so they don't harvest or pack it. */
+export function farmerCancelledParams(row: NotifyOrderRow, reason: string | null | undefined): string[] {
+  return [
+    waParam(row.order_code, 60),
+    waParam(row.buyer_name, 60),
+    waParam(itemsSummary([row]), 300),
+    waParam(reasonOrNotGiven(reason), 200),
+  ]
+}
+
+/**
+ * Should a reschedule be announced? Only a real change of date on an order
+ * that is still going ahead — re-saving the same date (or the reason alone)
+ * must not text the buyer "your date changed".
+ */
+export function isRealReschedule(
+  previousIso: string | null | undefined,
+  row: Pick<NotifyOrderRow, 'status' | 'fulfillment_date'>,
+): boolean {
+  if (row.status !== 'approved' || !row.fulfillment_date) return false
+  const beforeMs = previousIso ? new Date(previousIso).getTime() : NaN
+  const nowMs = new Date(row.fulfillment_date).getTime()
+  return beforeMs !== nowMs
+}
+
 // ---------------------------------------------------------------------------
 // Side-effecting entry points. Both are fire-and-forget: they schedule their
 // work with after() so the caller's response (a checkout, a payment verify, a
@@ -254,7 +338,8 @@ export function notifyOrdersPlaced(supabase: SupabaseClient, orderIds: string[])
 }
 
 /**
- * "Order cancelled" to the buyer. `row` is the order as loaded BEFORE the
+ * "Order cancelled" to the buyer, and — when the buyer cancelled — to the
+ * farmer as well. `row` is the order as loaded BEFORE the
  * cancel update — its payment_status is what tells us whether the buyer was
  * ever told the order existed (an unpaid online checkout never was).
  */
@@ -274,16 +359,121 @@ export function notifyOrderCancelled(
       const order = data as unknown as NotifyOrderRow
       if (!isOrderLive(order)) return
       const farmers = await loadFarmers(supabase, [order.farmer_id])
+      const farmer = farmers.get(order.farmer_id) ?? null
       await queueAndSend(supabase, {
         phone: order.buyer_phone,
         event: 'order_cancelled',
         lang: 'en',
-        body: cancelledParams([order], farmers.get(order.farmer_id)?.name ?? null, by, reason),
+        body: cancelledParams([order], farmer?.name ?? null, by, reason),
         dedupeKey: `order_cancelled:${order.id}`,
         orderId: order.id,
       })
+      // The farmer was told about this order when it was placed, so they must
+      // be told it is off — otherwise they harvest and pack it for nobody. A
+      // farmer decline needs no such message: the farmer pressed the button.
+      if (by === 'buyer') {
+        await queueAndSend(supabase, {
+          phone: farmer?.phone,
+          event: 'farmer_order_cancelled',
+          lang: 'en',
+          body: farmerCancelledParams(order, reason),
+          dedupeKey: `farmer_order_cancelled:${order.id}`,
+          orderId: order.id,
+        })
+      }
     } catch (e) {
       console.error('[YFF orderNotify] cancelled threw:', e)
+    }
+  })
+}
+
+async function loadOrders(supabase: SupabaseClient, ids: string[], tag: string): Promise<NotifyOrderRow[]> {
+  const { data, error } = await supabase.from('orders').select(NOTIFY_ORDER_COLS).in('id', ids)
+  if (error || !data) {
+    console.error(`[YFF orderNotify] ${tag}: orders load failed:`, error?.message)
+    return []
+  }
+  return (data as unknown as NotifyOrderRow[]).filter(isOrderLive)
+}
+
+/** "Order confirmed" to the buyer when the farmer approves and sets the date. */
+export function notifyOrderConfirmed(supabase: SupabaseClient, orderId: string): void {
+  after(async () => {
+    try {
+      const [order] = await loadOrders(supabase, [orderId], 'confirmed')
+      if (!order) return
+      const farmers = await loadFarmers(supabase, [order.farmer_id])
+      await queueAndSend(supabase, {
+        phone: order.buyer_phone,
+        event: 'order_confirmed',
+        lang: 'en',
+        body: confirmedParams(order, farmers.get(order.farmer_id)?.name ?? null),
+        dedupeKey: `order_confirmed:${order.id}`,
+        orderId: order.id,
+      })
+    } catch (e) {
+      console.error('[YFF orderNotify] confirmed threw:', e)
+    }
+  })
+}
+
+/**
+ * "Date changed" to the buyer. `previousDate` is the fulfillment_date read
+ * BEFORE the update, so a save that didn't move the date sends nothing. The
+ * dedupe key names both dates: a double tap collapses, a second real move
+ * still goes out.
+ */
+export function notifyOrderRescheduled(
+  supabase: SupabaseClient,
+  orderId: string,
+  previousDate: string | null,
+  reason: string | null | undefined,
+): void {
+  after(async () => {
+    try {
+      const [order] = await loadOrders(supabase, [orderId], 'rescheduled')
+      if (!order || !isRealReschedule(previousDate, order)) return
+      const farmers = await loadFarmers(supabase, [order.farmer_id])
+      await queueAndSend(supabase, {
+        phone: order.buyer_phone,
+        event: 'order_rescheduled',
+        lang: 'en',
+        body: rescheduledParams(order, farmers.get(order.farmer_id)?.name ?? null, reason),
+        dedupeKey: `order_rescheduled:${order.id}:${previousDate ?? ''}->${order.fulfillment_date}`,
+        orderId: order.id,
+      })
+    } catch (e) {
+      console.error('[YFF orderNotify] rescheduled threw:', e)
+    }
+  })
+}
+
+/**
+ * "Order received" to the buyer once the handover code was accepted — by the
+ * farmer (self-pickup, own delivery, courier) or the rider. A rider closes a
+ * whole bag at once, so this takes several ids and sends one message per farmer.
+ */
+export function notifyOrdersDelivered(supabase: SupabaseClient, orderIds: string[]): void {
+  if (orderIds.length === 0) return
+  after(async () => {
+    try {
+      const rows = await loadOrders(supabase, orderIds, 'delivered')
+      if (rows.length === 0) return
+      const groups = groupByFarmer(rows)
+      const farmers = await loadFarmers(supabase, groups.map((g) => g[0].farmer_id))
+      for (const g of groups) {
+        const key = batchKey(g)
+        await queueAndSend(supabase, {
+          phone: g[0].buyer_phone,
+          event: 'order_delivered',
+          lang: 'en',
+          body: deliveredParams(g, farmers.get(g[0].farmer_id)?.name ?? null),
+          dedupeKey: `order_delivered:${key}`,
+          orderId: key,
+        })
+      }
+    } catch (e) {
+      console.error('[YFF orderNotify] delivered threw:', e)
     }
   })
 }

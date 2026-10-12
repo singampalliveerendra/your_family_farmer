@@ -25,6 +25,10 @@ export const TEMPLATES = {
   order_placed: 'order_placed',
   farmer_new_order: 'yff_farmer_new_order',
   order_cancelled: 'yff_order_cancelled',
+  order_confirmed: 'yff_order_confirmed',
+  order_rescheduled: 'yff_order_rescheduled',
+  order_delivered: 'yff_order_delivered',
+  farmer_order_cancelled: 'yff_farmer_order_cancelled',
 } as const
 
 export type NotifyEvent = keyof typeof TEMPLATES
