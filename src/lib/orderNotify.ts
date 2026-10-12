@@ -17,6 +17,7 @@ import { formatQty } from '@/lib/saleStep'
 //   yff_order_rescheduled       buyer   {{1}} name  {{2}} order no.  {{3}} farmer  {{4}} new date
 //                                       {{5}} reason
 //   yff_order_delivered         buyer   {{1}} name  {{2}} order no.  {{3}} farmer
+//                                       button "Rate your order" → /consumer/{{1}}, see reviewButtonParam
 //   yff_farmer_order_cancelled  farmer  {{1}} order no.  {{2}} buyer  {{3}} items  {{4}} reason
 // Changing the COUNT or ORDER of values here without editing the template is
 // rejected by Meta at send time (132000), so keep the two in step.
@@ -254,6 +255,17 @@ export function deliveredParams(rows: NotifyOrderRow[], farmerName: string | nul
   ]
 }
 
+/**
+ * The end of the "Rate your order" button's URL. The template's button is
+ * https://www.gogrameen.in/consumer/{{1}}, so this returns the path after
+ * /consumer/. Reviews are per order line: one line opens that order's page,
+ * where the review box is; a rider's bag of several lines opens the order list,
+ * where each finished line has its own feedback button.
+ */
+export function reviewButtonParam(rows: Pick<NotifyOrderRow, 'id'>[]): string {
+  return rows.length === 1 ? `orders/${rows[0].id}` : 'orders'
+}
+
 /** To the FARMER when the buyer cancels — so they don't harvest or pack it. */
 export function farmerCancelledParams(row: NotifyOrderRow, reason: string | null | undefined): string[] {
   return [
@@ -468,6 +480,7 @@ export function notifyOrdersDelivered(supabase: SupabaseClient, orderIds: string
           event: 'order_delivered',
           lang: 'en',
           body: deliveredParams(g, farmers.get(g[0].farmer_id)?.name ?? null),
+          urlButtonParam: reviewButtonParam(g),
           dedupeKey: `order_delivered:${key}`,
           orderId: key,
         })

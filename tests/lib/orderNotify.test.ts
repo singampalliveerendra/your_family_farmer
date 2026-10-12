@@ -20,6 +20,7 @@ import {
   rescheduledParams,
   deliveredParams,
   farmerCancelledParams,
+  reviewButtonParam,
   isRealReschedule,
   type NotifyOrderRow,
 } from '@/lib/orderNotify'
@@ -215,6 +216,11 @@ describe('order status messages', () => {
     expect(deliveredParams([row()], 'Lakshmi Farms')).toEqual(['Ravi', 'YFF-20260929-0012', 'Lakshmi Farms'])
     const bag = [row(), row({ id: 'a0000000-0000-0000-0000-000000000002', order_code: 'YFF-20260929-0013' })]
     expect(deliveredParams(bag, 'Lakshmi Farms')[1]).toBe('YFF-20260929-0012 (+1 more)')
+  })
+
+  it('"Rate your order" opens the order for one line, the order list for a bag', () => {
+    expect(reviewButtonParam([row()])).toBe('orders/a0000000-0000-0000-0000-000000000001')
+    expect(reviewButtonParam([row(), row({ id: 'a0000000-0000-0000-0000-000000000002' })])).toBe('orders')
   })
 
   it('yff_farmer_order_cancelled: order no., buyer, items, reason', () => {
