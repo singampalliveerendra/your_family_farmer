@@ -189,6 +189,13 @@ function RoleMenu({
               >
                 {L('🛟 My complaints', 'నా ఫిర్యాదులు')}
               </Link>
+              <Link
+                href="/consumer/profile"
+                onClick={() => setOpen(false)}
+                className="block px-4 py-2.5 text-gray-800 active:bg-gray-100"
+              >
+                {L('📍 My address', '📍 నా చిరునామా')}
+              </Link>
               {/* Settings. Account-level, so only offered once signed in. */}
               <div className="px-4 py-2.5 border-t border-gray-100 mt-1">
                 <DefaultDashboardSetting />

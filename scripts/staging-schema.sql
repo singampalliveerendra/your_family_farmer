@@ -800,3 +800,17 @@ CREATE TABLE IF NOT EXISTS public.dashboard_preferences (
 
 ALTER TABLE public.dashboard_preferences ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.dashboard_preferences FROM anon, authenticated;
+
+
+-- ============================================================================
+-- Consumer saved delivery address (scripts/consumer-saved-address-migration.sql)
+-- consumers_auth stays service-role only; read/written via /api/consumer/profile.
+-- ============================================================================
+
+ALTER TABLE public.consumers_auth
+  ADD COLUMN IF NOT EXISTS address_line text,
+  ADD COLUMN IF NOT EXISTS address_city text,
+  ADD COLUMN IF NOT EXISTS address_landmark text,
+  ADD COLUMN IF NOT EXISTS address_pincode text,
+  ADD COLUMN IF NOT EXISTS address_alt_phone text,
+  ADD COLUMN IF NOT EXISTS address_updated_at timestamptz;

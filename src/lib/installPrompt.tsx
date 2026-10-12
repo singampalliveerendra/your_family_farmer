@@ -3,6 +3,8 @@
 import { useSyncExternalStore } from 'react'
 import { readEntryRole } from '@/lib/entryRole'
 import type { InstallPlatform } from '@/lib/installCount'
+import { isIOSDevice, iosBrowser, readHandoff } from '@/lib/iosInstall'
+import { writeEntryRole, type EntryRole } from '@/lib/entryRole'
 
 /* Shared install state for the PWA "Download App" surface on /home.
  *
@@ -28,11 +30,14 @@ export type InstallState = {
   canPrompt: boolean
   /** iOS: no dialog exists, the user must use Share → Add to Home Screen. */
   iosHint: boolean
+  /** iOS, but in WhatsApp/Instagram's browser or Chrome — Add to Home Screen
+   *  is only reliable from Safari, so they must open Safari first. */
+  openInSafari: boolean
 }
 
 // Same object identity every time — getSnapshot must be referentially stable
 // or useSyncExternalStore re-renders forever.
-const NOTHING: InstallState = { canPrompt: false, iosHint: false }
+const NOTHING: InstallState = { canPrompt: false, iosHint: false, openInSafari: false }
 
 let snapshot: InstallState = NOTHING
 let deferred: BeforeInstallPromptEvent | null = null
@@ -49,9 +54,10 @@ function isStandalone(): boolean {
   )
 }
 
-function isIOS(): boolean {
+/** iPhone or iPad — including iPadOS, which reports itself as a Mac. */
+export function isIOS(): boolean {
   if (typeof navigator === 'undefined') return false
-  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+  return isIOSDevice(navigator.userAgent, navigator.maxTouchPoints)
 }
 
 function wasDismissed(): boolean {
@@ -64,13 +70,19 @@ function wasDismissed(): boolean {
 function compute(): InstallState {
   if (typeof window === 'undefined') return NOTHING
   if (wasDismissed() || isStandalone()) return NOTHING
-  if (isIOS()) return { canPrompt: false, iosHint: true }
-  return deferred ? { canPrompt: true, iosHint: false } : NOTHING
+  if (isIOS()) {
+    return { canPrompt: false, iosHint: true, openInSafari: iosBrowser(navigator.userAgent) !== 'safari' }
+  }
+  return deferred ? { canPrompt: true, iosHint: false, openInSafari: false } : NOTHING
 }
 
 function refresh() {
   const next = compute()
-  if (next.canPrompt === snapshot.canPrompt && next.iosHint === snapshot.iosHint) return
+  if (
+    next.canPrompt === snapshot.canPrompt &&
+    next.iosHint === snapshot.iosHint &&
+    next.openInSafari === snapshot.openInSafari
+  ) return
   snapshot = next
   listeners.forEach((l) => l())
 }
@@ -125,6 +137,40 @@ export async function runInstall(): Promise<boolean> {
   if (outcome === 'accepted') dismissedFlag = true
   refresh()
   return outcome === 'accepted'
+}
+
+/* ── Arriving from an in-app browser ──────────────────────────────
+ *
+ * "Open in Safari" lands on /home?install=ios&role=… (see iosInstall.ts). The
+ * role is read ONCE per page: saved to the cookie (the in-app browser's copy
+ * never reached Safari) and stripped from the address bar, so a reload or a
+ * re-shared link does not pop the steps again. Done in subscribe — the store's
+ * contact with the outside world — so no component sets state from an effect. */
+let handoff: EntryRole | null | undefined
+
+function subscribeHandoff() {
+  if (handoff === undefined && typeof window !== 'undefined') {
+    handoff = isIOS() ? readHandoff(window.location.search) : null
+    if (handoff) {
+      writeEntryRole(handoff)
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+  }
+  // Never changes after that first read, so there is nothing to listen for.
+  return () => {}
+}
+
+/** The role carried over from an in-app browser, or null on an ordinary visit. */
+export function useSafariHandoff(): EntryRole | null {
+  return useSyncExternalStore(subscribeHandoff, () => handoff ?? null, () => null)
+}
+
+const noSubscribe = () => () => {}
+
+/** iPhone/iPad, read without an effect. False on the server and during
+ *  hydration, so the server HTML (the Android button) stays the default. */
+export function useIsIOS(): boolean {
+  return useSyncExternalStore(noSubscribe, isIOS, () => false)
 }
 
 /* ── Counting installs ──────────────────────────────────────────────

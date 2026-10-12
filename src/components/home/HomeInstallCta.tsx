@@ -3,8 +3,9 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
-import { useInstallState, runInstall, reportInstall, DownloadIcon } from '@/lib/installPrompt'
+import { useInstallState, runInstall, reportInstall, useSafariHandoff, DownloadIcon } from '@/lib/installPrompt'
 import { writeEntryRole, type EntryRole } from '@/lib/entryRole'
+import { inAppName, safariUrl, handoffPath } from '@/lib/iosInstall'
 
 /* The landing page's call to action.
  *
@@ -38,15 +39,37 @@ type Props = {
   size?: 'lg' | 'compact'
   /** Devices that have installed the app; null when the count is unavailable. */
   count?: number | null
+  /** Reopen the Add-to-Home-Screen steps for someone arriving from "Open in
+   *  Safari". /home mounts several of these buttons; exactly one sets this. */
+  resumeHandoff?: boolean
 }
 
-export default function HomeInstallCta({ size = 'lg', count = null }: Props) {
+export default function HomeInstallCta({ size = 'lg', count = null, resumeHandoff = false }: Props) {
   const { L } = useLang()
-  const { canPrompt, iosHint } = useInstallState()
+  const { canPrompt, iosHint, openInSafari } = useInstallState()
   const [chooser, setChooser] = useState(false)
   // iOS has no dialog to raise, so after choosing we keep the sheet open and
   // show the manual Add-to-Home-Screen steps instead.
   const [chosen, setChosen] = useState<EntryRole | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  // Landed here from "Open in Safari": the role came across in the URL (the
+  // in-app browser's cookie did not), so pick up at the Share step.
+  const handoff = useSafariHandoff()
+  const [handoffClosed, setHandoffClosed] = useState(false)
+  const resumed = resumeHandoff && !handoffClosed ? handoff : null
+  const sheetOpen = chooser || resumed != null
+  const step = chosen ?? resumed
+  const close = () => { setChooser(false); setHandoffClosed(true) }
+  // The sheet never renders on the server, so reading the UA here is safe.
+  const inApp = openInSafari && typeof navigator !== 'undefined' ? inAppName(navigator.userAgent) : null
+
+  const copyLink = async (role: EntryRole) => {
+    try {
+      await navigator.clipboard.writeText(window.location.origin + handoffPath(role))
+      setCopied(true)
+    } catch { /* clipboard blocked — the ••• route below still works */ }
+  }
 
   // Starts at the server's figure and moves the moment this visitor installs,
   // so they see their own install land instead of waiting out the page's
@@ -78,6 +101,7 @@ export default function HomeInstallCta({ size = 'lg', count = null }: Props) {
       }
       return
     }
+    setCopied(false)
     setChosen(role)
   }
 
@@ -99,7 +123,7 @@ export default function HomeInstallCta({ size = 'lg', count = null }: Props) {
     <>
       <div className={compact ? '' : 'w-full sm:w-auto'}>
         {offersInstall ? (
-          <button onClick={() => { setChosen(null); setChooser(true) }} className={shell}>
+          <button onClick={() => { setChosen(null); setHandoffClosed(true); setChooser(true) }} className={shell}>
             <DownloadIcon className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
             {compact ? L('Download App', 'డౌన్‌లోడ్') : label}
           </button>
@@ -125,10 +149,10 @@ export default function HomeInstallCta({ size = 'lg', count = null }: Props) {
       </div>
 
       {/* ── Chooser sheet ─────────────────────────────────────────── */}
-      {chooser && (
+      {sheetOpen && (
         <div
           className="fixed inset-0 z-[300] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-          onClick={() => setChooser(false)}
+          onClick={close}
         >
           <div
             role="dialog"
@@ -137,30 +161,80 @@ export default function HomeInstallCta({ size = 'lg', count = null }: Props) {
             className="w-full max-w-md rounded-t-3xl border border-green-900/10 bg-white p-5 text-left shadow-2xl dark:border-lime-300/20 dark:bg-[#081a10] sm:rounded-3xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {chosen ? (
-              /* iOS follow-up: the choice is saved, now the manual steps. */
+            {step ? (
+              /* iOS follow-up: the choice is saved, now the manual steps. Inside
+                 WhatsApp/Instagram/Chrome the Share menu has no Add to Home
+                 Screen, so getting into Safari comes first. */
               <>
                 <h3 className="brand-wordmark text-xl font-bold text-green-950 dark:text-white">
-                  {L('Almost there', 'దాదాపు పూర్తయింది')}
+                  {openInSafari
+                    ? L('Open in Safari first', 'ముందుగా Safari లో తెరవండి')
+                    : L('Add to Home Screen', 'హోమ్ స్క్రీన్‌కు జోడించండి')}
                 </h3>
                 <p className="mt-1.5 text-sm text-green-900/70 dark:text-lime-100/70">
-                  {chosen === 'seller'
-                    ? L('The app will open on the farmer login.', 'యాప్ రైతు లాగిన్‌తో తెరుచుకుంటుంది.')
-                    : L('The app will open on today’s harvests.', 'యాప్ నేటి కోతలతో తెరుచుకుంటుంది.')}
+                  {openInSafari
+                    ? inApp
+                      ? L(`You are in ${inApp}’s browser. Only Safari can add Go Grameen to your Home Screen.`,
+                          `మీరు ${inApp} బ్రౌజర్‌లో ఉన్నారు. Safari మాత్రమే గో గ్రామీణ్‌ను హోమ్ స్క్రీన్‌కు జోడించగలదు.`)
+                      : L('Only Safari can add Go Grameen to your Home Screen.',
+                          'Safari మాత్రమే గో గ్రామీణ్‌ను హోమ్ స్క్రీన్‌కు జోడించగలదు.')
+                    : step === 'seller'
+                      ? L('The app will open on the farmer login.', 'యాప్ రైతు లాగిన్‌తో తెరుచుకుంటుంది.')
+                      : L('The app will open on today’s harvests.', 'యాప్ నేటి కోతలతో తెరుచుకుంటుంది.')}
                 </p>
-                <ol className="mt-4 space-y-2 text-sm text-green-950 dark:text-white">
+
+                {openInSafari && (
+                  <div className="mt-4 space-y-2">
+                    <a
+                      href={safariUrl(typeof window === 'undefined' ? '' : window.location.origin, step)}
+                      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-lime-400 py-3 text-sm font-extrabold text-green-950 dark:bg-lime-300"
+                    >
+                      <span aria-hidden>🧭</span> {L('Open in Safari', 'Safari లో తెరవండి')}
+                    </a>
+                    <button
+                      onClick={() => { void copyLink(step) }}
+                      className="w-full rounded-2xl border border-green-900/15 py-3 text-sm font-bold text-green-900 dark:border-white/15 dark:text-lime-100"
+                    >
+                      {copied
+                        ? L('Link copied — paste it in Safari', 'లింక్ కాపీ అయింది — Safari లో పేస్ట్ చేయండి')
+                        : L('Copy link', 'లింక్ కాపీ చేయండి')}
+                    </button>
+                    <p className="text-center text-xs text-green-900/60 dark:text-lime-100/55">
+                      {L('Or tap ••• at the top → “Open in Safari” / “Open in browser”',
+                         'లేదా పైన ••• నొక్కి → “Open in Safari” / “Open in browser” ఎంచుకోండి')}
+                    </p>
+                  </div>
+                )}
+
+                {openInSafari && (
+                  <p className="mt-5 text-xs font-bold uppercase tracking-wide text-green-900/55 dark:text-lime-100/50">
+                    {L('Then, in Safari', 'తర్వాత, Safari లో')}
+                  </p>
+                )}
+                <ol className={`${openInSafari ? 'mt-2' : 'mt-4'} list-inside list-decimal space-y-2 text-sm text-green-950 dark:text-white`}>
                   <li className="rounded-xl border border-green-900/10 bg-lime-50/70 p-3 dark:border-white/10 dark:bg-white/5">
-                    1. {L('Tap the Share button', 'షేర్ బటన్ నొక్కండి')} <span aria-hidden>⬆️</span>
+                    {L('Tap the Share button', 'షేర్ బటన్ నొక్కండి')} <span aria-hidden>⬆️</span>
+                    <span className="block text-xs text-green-900/60 dark:text-lime-100/55">
+                      {L('Bottom of the screen on iPhone, top on iPad', 'iPhone లో స్క్రీన్ కింద, iPad లో పైన')}
+                    </span>
                   </li>
                   <li className="rounded-xl border border-green-900/10 bg-lime-50/70 p-3 dark:border-white/10 dark:bg-white/5">
-                    2. {L('Choose “Add to Home Screen”', '“Add to Home Screen” ఎంచుకోండి')}
+                    {L('Scroll down, choose “Add to Home Screen”', 'కిందకు స్క్రోల్ చేసి “Add to Home Screen” ఎంచుకోండి')} <span aria-hidden>➕</span>
+                  </li>
+                  <li className="rounded-xl border border-green-900/10 bg-lime-50/70 p-3 dark:border-white/10 dark:bg-white/5">
+                    {L('Tap “Add” at the top right', 'పైన కుడివైపు “Add” నొక్కండి')}
+                    <span className="block text-xs text-green-900/60 dark:text-lime-100/55">
+                      {L('Go Grameen appears on your Home Screen as an app.', 'గో గ్రామీణ్ మీ హోమ్ స్క్రీన్‌పై యాప్‌గా కనిపిస్తుంది.')}
+                    </span>
                   </li>
                 </ol>
                 <button
-                  onClick={() => setChooser(false)}
-                  className="mt-4 w-full rounded-2xl bg-lime-400 py-3 text-sm font-extrabold text-green-950 dark:bg-lime-300"
+                  onClick={close}
+                  className={openInSafari
+                    ? 'mt-4 w-full py-2 text-sm font-bold text-green-900/60 dark:text-lime-100/60'
+                    : 'mt-4 w-full rounded-2xl bg-lime-400 py-3 text-sm font-extrabold text-green-950 dark:bg-lime-300'}
                 >
-                  {L('Got it', 'సరే')}
+                  {openInSafari ? L('Close', 'మూసివేయండి') : L('Got it', 'సరే')}
                 </button>
               </>
             ) : (

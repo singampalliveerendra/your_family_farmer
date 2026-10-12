@@ -98,6 +98,13 @@ SELECT * FROM (
       WHERE table_name='produce_listings' AND column_name='stock_qty'
         AND numeric_scale > 0)
       THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  -- consumer-saved-address-migration.sql. Without it /api/consumer/profile
+  -- 500s and the cart just shows the plain address form every time.
+  SELECT 15, 'saved-address', 'consumers_auth.address_line',
+    CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_name='consumers_auth' AND column_name='address_line')
+      THEN 'PRESENT' ELSE 'MISSING' END
 
 ) checks ORDER BY ord;
 

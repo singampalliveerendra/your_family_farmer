@@ -121,6 +121,10 @@ export type ConsumerInfo = { name: string; phone: string }
 // Loose email check for guest checkout — just enough to catch typos.
 import { DEFAULT_STEP, normalizeStep, snapToStep, stepUp, stepDown, formatQty, roundQty } from '@/lib/saleStep'
 import { formatHarvestDate } from '@/lib/harvestSchedule'
+import { summarizeCart, grownLineKey } from '@/lib/cartSummary'
+import { flightKeyframes, tapStillFresh } from '@/lib/cartFly'
+import { isAddressComplete, formatAddress, type SavedAddress } from '@/lib/savedAddress'
+import AddressFields from '@/components/consumer/AddressFields'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -278,16 +282,41 @@ type UpiPaymentState = {
   transactionId?: string
 }
 
-/* ─── Cart FAB ───────────────────────────────────────── */
-// The cart now lives on its own full-screen route (/consumer/cart) instead of a
-// bottom-sheet overlay, so it reads like a proper checkout page (Flipkart /
-// Blinkit style). The FAB just navigates there.
-// `raised` lifts the FAB above a page's own fixed bottom action bar (the produce
-// and harvest detail pages have one) so the two don't overlap/merge.
+/* ─── Cart bar ───────────────────────────────────────── */
+// The cart lives on its own full-screen route (/consumer/cart). Buyers were
+// adding items and then not knowing how to order, so instead of a small cart
+// pill this is a full-width bottom bar (Blinkit / Swiggy style) that says what
+// to do next: "3 items · ₹240 — View cart →". Each add bumps the badge once
+// and briefly flips the subtitle to "Added"; the very first add ever also
+// shows a one-time hint bubble. No looping animation — it would turn into
+// noise, and it's off entirely under prefers-reduced-motion (globals.css).
+// `raised` lifts the bar above a page's own fixed bottom action bar (the
+// produce and harvest detail pages have one) so the two don't overlap.
+const CART_HINT_SEEN_KEY = 'yff_cart_hint_seen_v1'
+
 export function CartFab({ raised = false }: { raised?: boolean }) {
-  const { count } = useCart()
+  const { cart, items } = useCart()
   const { L } = useLang()
   const router = useRouter()
+  const { lines, subtotal } = summarizeCart(items)
+
+  // `bump` is a counter used as the badge's React key, so each add remounts it
+  // and replays the one-shot animation.
+  const [bump, setBump] = useState(0)
+  const [justAdded, setJustAdded] = useState(false)
+  const [showHint, setShowHint] = useState(false)
+  // `shine` is the landing glow's key, like `bump`: each landing replays it.
+  const [shine, setShine] = useState(0)
+  const lastCart = useRef<CartState | null>(null)
+  const iconRef = useRef<HTMLSpanElement | null>(null)
+  // Where and when the buyer last tapped — the flight's take-off point.
+  const lastTap = useRef<{ x: number; y: number; at: number } | null>(null)
+
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => { lastTap.current = { x: e.clientX, y: e.clientY, at: Date.now() } }
+    document.addEventListener('pointerdown', onDown, { capture: true, passive: true })
+    return () => document.removeEventListener('pointerdown', onDown, { capture: true })
+  }, [])
 
   // If a UPI payment was in progress (page refreshed mid-payment), send the
   // buyer straight to the cart page so they can finish / record it.
@@ -297,26 +326,148 @@ export function CartFab({ raised = false }: { raised?: boolean }) {
     if (pending && launched) router.push('/consumer/cart')
   }, [router])
 
-  if (count === 0) return null
+  // React only to CART_EVENT (a write in this tab), never to the initial
+  // hydrate from localStorage — a cart restored on page load is not an "add".
+  useEffect(() => {
+    lastCart.current = readCart()
+    let addedTimer: ReturnType<typeof setTimeout> | undefined
+    let hintTimer: ReturnType<typeof setTimeout> | undefined
+    const onChange = () => {
+      const next = readCart()
+      const grownKey = grownLineKey(lastCart.current ?? {}, next)
+      lastCart.current = next
+      if (!grownKey) return
+      setJustAdded(true)
+      // The badge bump + shine land when the flying item arrives, not before.
+      const land = () => {
+        setBump((b) => b + 1)
+        setShine((n) => n + 1)
+        try { navigator.vibrate?.(12) } catch { /* no haptics */ }
+      }
+      flyToCart(next[grownKey]?.emoji || '🛒', lastTap.current, iconRef, land)
+      clearTimeout(addedTimer)
+      addedTimer = setTimeout(() => setJustAdded(false), 2000)
+      let seen = true
+      try {
+        seen = localStorage.getItem(CART_HINT_SEEN_KEY) === '1'
+        if (!seen) localStorage.setItem(CART_HINT_SEEN_KEY, '1')
+      } catch { /* storage blocked — skip the hint */ }
+      if (!seen) {
+        setShowHint(true)
+        clearTimeout(hintTimer)
+        hintTimer = setTimeout(() => setShowHint(false), 6000)
+      }
+    }
+    window.addEventListener(CART_EVENT, onChange)
+    return () => {
+      window.removeEventListener(CART_EVENT, onChange)
+      clearTimeout(addedTimer)
+      clearTimeout(hintTimer)
+    }
+  }, [])
 
-  // Bottom bar is ~64px tall; add it (plus a gap) when raised.
+  if (Object.keys(cart).length === 0) return null
+
+  // A page's own bottom action bar is ~64px tall; clear it (plus a gap) when raised.
   const bottomExpr = raised
-    ? 'calc(max(24px, env(safe-area-inset-bottom, 24px)) + 76px)'
-    : 'max(24px, env(safe-area-inset-bottom, 24px))'
+    ? 'calc(max(12px, env(safe-area-inset-bottom, 12px)) + 76px)'
+    : 'max(12px, env(safe-area-inset-bottom, 12px))'
+
+  const go = () => router.push('/consumer/cart')
 
   return (
-    <button
-      onClick={() => router.push('/consumer/cart')}
-      className="fixed right-4 z-[60] bg-green-700 active:bg-green-800 text-white rounded-full shadow-2xl flex items-center gap-2 pl-4 pr-5 py-3.5"
-      style={{ bottom: bottomExpr }}
-      aria-label={L('View cart', 'బండి చూడండి')}
-    >
-      <CartIcon />
-      <span className="font-extrabold text-sm">
-        {count} {L(count === 1 ? 'item' : 'items', 'బుట్ట')}
-      </span>
-    </button>
+    <>
+      {/* In-flow spacer so the fixed bar never hides the end of the page. */}
+      <div aria-hidden className="h-20" />
+      <div className="fixed left-0 right-0 z-[60] px-3 pointer-events-none" style={{ bottom: bottomExpr }}>
+        <div className="max-w-lg mx-auto relative pointer-events-auto">
+          {showHint && (
+            <button
+              type="button"
+              onClick={go}
+              className="cart-hint-in absolute bottom-full right-2 mb-2.5 bg-gray-900 text-white text-xs font-semibold rounded-xl px-3 py-2 shadow-lg text-left max-w-[260px]"
+            >
+              {L('Added! Tap the green bar to review and place your order.',
+                'చేర్చబడింది! ఆర్డర్ చేయడానికి క్రింది ఆకుపచ్చ బార్ నొక్కండి.')}
+              <span aria-hidden className="absolute -bottom-1.5 right-8 w-3 h-3 bg-gray-900 rotate-45" />
+            </button>
+          )}
+          <button
+            key={`bar-${shine}`}
+            type="button"
+            onClick={go}
+            className={`${shine > 0 ? 'cart-shine ' : ''}cart-bar-in relative overflow-hidden w-full bg-green-700 active:bg-green-800 text-white rounded-2xl shadow-2xl flex items-center gap-3 px-4 py-3`}
+            aria-label={L(`View cart, ${lines} items, ₹${subtotal}`, `బుట్ట చూడండి, ${lines} వస్తువులు, ₹${subtotal}`)}
+          >
+            <span ref={iconRef} className="relative flex-shrink-0">
+              <CartIcon />
+              <span
+                key={bump}
+                className={`${bump > 0 ? 'cart-bump ' : ''}absolute -top-2 -right-2.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-400 text-green-950 text-[11px] font-extrabold flex items-center justify-center`}
+              >
+                {lines}
+              </span>
+            </span>
+            <span className="flex-1 min-w-0 text-left ml-1">
+              <span className="block font-extrabold text-sm leading-tight">
+                {lines} {L(lines === 1 ? 'item' : 'items', 'వస్తువులు')}
+                {subtotal > 0 && <> · ₹{subtotal.toLocaleString('en-IN')}</>}
+              </span>
+              <span className="block text-[11px] text-green-100 leading-tight mt-0.5 truncate">
+                {justAdded
+                  ? L('✓ Added to cart', '✓ బుట్టలో చేర్చబడింది')
+                  : L('Tap to place your order', 'ఆర్డర్ చేయడానికి నొక్కండి')}
+              </span>
+            </span>
+            <span className="flex-shrink-0 flex items-center gap-1 font-extrabold text-sm">
+              {L('View cart', 'బుట్ట చూడండి')}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            </span>
+          </button>
+        </div>
+      </div>
+    </>
   )
+}
+
+// Toss the added item's emoji from the tapped button into the cart icon.
+// Skipped (landing straight away) under reduced motion, when the add didn't
+// follow a recent tap, or when the bar isn't on screen to aim at. The bar may
+// be mounting in this very render (first add), so the target is read a frame
+// later.
+function flyToCart(
+  emoji: string,
+  tap: { x: number; y: number; at: number } | null,
+  iconRef: { current: HTMLElement | null },
+  land: () => void,
+) {
+  const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (reduced || !tap || !tapStillFresh(tap.at, Date.now())) { land(); return }
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const icon = iconRef.current
+    if (!icon || typeof document.body.animate !== 'function') { land(); return }
+    const r = icon.getBoundingClientRect()
+    const size = 44
+    const bubble = document.createElement('div')
+    bubble.setAttribute('aria-hidden', 'true')
+    bubble.textContent = emoji
+    Object.assign(bubble.style, {
+      position: 'fixed', left: '0', top: '0', width: `${size}px`, height: `${size}px`,
+      borderRadius: '9999px', background: '#fff', boxShadow: '0 6px 18px rgba(0,0,0,0.22)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px',
+      zIndex: '70', pointerEvents: 'none', willChange: 'transform, opacity',
+    })
+    document.body.appendChild(bubble)
+    const anim = bubble.animate(
+      flightKeyframes({ x: tap.x, y: tap.y }, { x: r.left + r.width / 2, y: r.top + r.height / 2 }, size),
+      { duration: 650, easing: 'cubic-bezier(0.45, 0, 0.55, 1)', fill: 'forwards' },
+    )
+    const done = () => { bubble.remove(); land() }
+    anim.onfinish = done
+    anim.oncancel = done
+  }))
 }
 
 /* ─── Cart view (full-page route, or legacy bottom-sheet) ─ */
@@ -360,6 +511,20 @@ export function CartSheet({
   const [deliveryLandmark, setDeliveryLandmark] = useState('')
   const [deliveryPincode, setDeliveryPincode] = useState('')
   const [deliveryAltPhone, setDeliveryAltPhone] = useState('')
+  // The signed-in buyer's saved address (/consumer/profile). When there is one
+  // the cart shows it as a pre-selected card instead of the form; "different
+  // address" opens the empty form for this order only and never overwrites it.
+  // With none saved, `saveAddressForNext` stores what they type once an order
+  // with home delivery is placed. `savedAddrState` 'error' (e.g. migration not
+  // run yet) hides the save option and leaves the plain form as before.
+  const [savedAddr, setSavedAddr] = useState<SavedAddress | null>(null)
+  const [savedAddrState, setSavedAddrState] = useState<'idle' | 'ready' | 'error'>('idle')
+  const [addrChoice, setAddrChoice] = useState<'saved' | 'other'>('saved')
+  const [saveAddressForNext, setSaveAddressForNext] = useState(true)
+  const addressSavedThisCheckout = useRef(false)
+  // Set once the buyer types in the address form, so a saved address arriving
+  // late (slow 4G) never overwrites what they've already entered.
+  const addressTyped = useRef(false)
   const [sentFarmers, setSentFarmers] = useState<Record<string, boolean>>({})
   const [pickupByFarmer, setPickupByFarmer] = useState<Record<string, string>>({})
   // Optional "who to call at the pickup point", per farmer — the pickup twin of
@@ -675,9 +840,70 @@ export function CartSheet({
   const anyDelivery = items.some((it) => deliveryOf(it) === 'home_delivery')
   const needsAddress = anyDelivery
 
+  // The address actually being sent — the saved one copied in, or what the
+  // buyer typed. Every order still gets its own copy of these fields.
+  const typedAddress: SavedAddress = {
+    address: deliveryAddress, city: deliveryCity, landmark: deliveryLandmark,
+    pincode: deliveryPincode, altPhone: deliveryAltPhone,
+  }
+  const applyAddress = (a: SavedAddress) => {
+    setDeliveryAddress(a.address)
+    setDeliveryCity(a.city)
+    setDeliveryLandmark(a.landmark)
+    setDeliveryPincode(a.pincode)
+    setDeliveryAltPhone(a.altPhone)
+  }
+  const usingSavedAddress = !!consumer && !!savedAddr && addrChoice === 'saved'
+
+  // Load the signed-in buyer's saved address (again if they log in mid-checkout)
+  // and copy it into the delivery fields unless they've already typed one.
+  useEffect(() => {
+    if (!consumer) return
+    let cancelled = false
+    void (async () => {
+      const r = await fetch('/api/consumer/profile', { credentials: 'same-origin' }).catch(() => null)
+      const json = r?.ok ? await r.json().catch(() => null) : null
+      if (cancelled) return
+      if (!json) { setSavedAddrState('error'); return }
+      const a = (json.address ?? null) as SavedAddress | null
+      setSavedAddr(a)
+      setSavedAddrState('ready')
+      // Already typing → keep their form open ("different address") rather
+      // than showing a saved card that doesn't match what will be sent.
+      if (a && addressTyped.current) setAddrChoice('other')
+      else if (a) { setAddrChoice('saved'); applyAddress(a) }
+    })()
+    return () => { cancelled = true }
+  }, [consumer?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const chooseSavedAddress = () => {
+    if (!savedAddr) return
+    setAddrChoice('saved')
+    applyAddress(savedAddr)
+  }
+  const chooseOtherAddress = () => {
+    setAddrChoice('other')
+    applyAddress({ address: '', city: '', landmark: '', pincode: '', altPhone: '' })
+  }
+
+  // First order with home delivery and nothing saved yet: keep what they typed
+  // for next time (if they left the box ticked). Once per checkout, and never
+  // when they picked "different address" — that one is a one-off.
+  const maybeSaveAddress = () => {
+    if (!consumer || savedAddr || savedAddrState !== 'ready' || !saveAddressForNext) return
+    if (addressSavedThisCheckout.current || !isAddressComplete(typedAddress)) return
+    addressSavedThisCheckout.current = true
+    const snapshot = { ...typedAddress }
+    void fetch('/api/consumer/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(snapshot),
+    }).catch(() => null)
+  }
+
   const baseDetailsMissing = !name.trim() || phone.replace(/\D/g, '').length < 10
-  const deliveryDetailsMissing = needsAddress
-    && (deliveryAddress.trim().length < 10 || !deliveryCity.trim() || !/^\d{6}$/.test(deliveryPincode.trim()))
+  const deliveryDetailsMissing = needsAddress && !isAddressComplete(typedAddress)
   // Pickup contact phone is optional, but a half-typed one is worse than none —
   // the farmer would dial a dead number. Blank is fine; anything else must be
   // a full 10 digits.
@@ -757,6 +983,7 @@ export function CartSheet({
     if (!r.ok || !json?.ok) return { ok: false, error: json?.error ?? L('Could not place order.', 'ఆర్డర్ పెట్టలేకపోయాం.') }
     // Order saved — drop the key so a genuinely new order later gets a fresh one.
     delete idempotencyKeys.current[f.farmerId]
+    if (groupHasDelivery) maybeSaveAddress()
     return {
       ok: true,
       orderIds: json.orderIds,
@@ -2059,75 +2286,62 @@ export function CartSheet({
                     <p className="text-[11px] font-extrabold text-blue-700 uppercase tracking-wide">
                       🛵 {L('Delivery address', 'డెలివరీ చిరునామా')}
                     </p>
-                    <div>
-                      <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                        {L('Full address (door no, street, area)', 'పూర్తి చిరునామా (ఇంటి నం, వీధి, ప్రాంతం)')}
-                      </label>
-                      <textarea
-                        value={deliveryAddress}
-                        onChange={(e) => setDeliveryAddress(e.target.value.slice(0, 400))}
-                        rows={3}
-                        placeholder={L('H.No 12-3, Main Road, Anand Nagar', 'ఇం.నం 12-3, మెయిన్ రోడ్, ఆనంద్ నగర్')}
-                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none resize-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                        {L('City / Town', 'నగరం / పట్టణం')}
-                      </label>
-                      <input
-                        type="text"
-                        value={deliveryCity}
-                        onChange={(e) => setDeliveryCity(e.target.value.slice(0, 100))}
-                        placeholder={L('e.g. Guntur', 'ఉదా. గుంటూరు')}
-                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                        {L('Landmark (optional)', 'గుర్తు')}
-                      </label>
-                      <input
-                        type="text"
-                        value={deliveryLandmark}
-                        onChange={(e) => setDeliveryLandmark(e.target.value.slice(0, 200))}
-                        placeholder={L('Near the temple', 'గుడి దగ్గర')}
-                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                        {L('PIN code', 'పిన్ కోడ్')}
-                      </label>
-                      <input
-                        type="tel"
-                        inputMode="numeric"
-                        value={deliveryPincode}
-                        onChange={(e) => setDeliveryPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        maxLength={6}
-                        placeholder="522001"
-                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
-                        {L('Alternate phone (optional)', 'ప్రత్యామ్నాయ ఫోన్ (ఐచ్ఛికం)')}
-                      </label>
-                      <div className="flex gap-2">
-                        <span className="flex items-center px-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 font-medium">
-                          +91
-                        </span>
-                        <input
-                          type="tel"
-                          inputMode="numeric"
-                          value={deliveryAltPhone}
-                          onChange={(e) => setDeliveryAltPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                          maxLength={10}
-                          placeholder={L('Family member / spouse', 'కుటుంబ సభ్యుడు / జీవిత భాగస్వామి')}
-                          className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
-                        />
+                    {/* Saved address (signed-in buyer who has one): pre-selected
+                        card, so nothing to type. "Different address" opens the
+                        empty form for this order only. */}
+                    {consumer && savedAddr && (
+                      <div className="space-y-2">
+                        <button
+                          type="button"
+                          onClick={chooseSavedAddress}
+                          className={`w-full text-left rounded-xl border-2 px-3 py-2.5 flex gap-2.5 bg-white ${addrChoice === 'saved' ? 'border-green-600' : 'border-gray-200'}`}
+                        >
+                          <span className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 ${addrChoice === 'saved' ? 'border-green-600 bg-green-600 ring-2 ring-inset ring-white' : 'border-gray-300'}`} />
+                          <span className="min-w-0">
+                            <span className="block text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+                              {L('My saved address', 'నా సేవ్ చేసిన చిరునామా')}
+                            </span>
+                            <span className="block text-sm text-gray-900 font-semibold leading-snug break-words">{formatAddress(savedAddr)}</span>
+                            {savedAddr.altPhone && (
+                              <span className="block text-xs text-gray-500 mt-0.5">{L('Alt phone', 'ప్రత్యామ్నాయ ఫోన్')}: +91 {savedAddr.altPhone}</span>
+                            )}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={chooseOtherAddress}
+                          className={`w-full text-left rounded-xl border-2 px-3 py-2.5 flex items-center gap-2.5 bg-white ${addrChoice === 'other' ? 'border-green-600' : 'border-gray-200'}`}
+                        >
+                          <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${addrChoice === 'other' ? 'border-green-600 bg-green-600 ring-2 ring-inset ring-white' : 'border-gray-300'}`} />
+                          <span className="text-sm font-semibold text-gray-900">{L('Send to a different address', 'వేరే చిరునామాకు పంపండి')}</span>
+                        </button>
+                        {usingSavedAddress && (
+                          <Link href="/consumer/profile" className="inline-block text-xs font-semibold text-green-700 underline">
+                            {L('Edit my saved address', 'నా చిరునామా మార్చండి')}
+                          </Link>
+                        )}
                       </div>
-                    </div>
+                    )}
+
+                    {!usingSavedAddress && (
+                      <AddressFields
+                        value={typedAddress}
+                        onChange={(a) => { addressTyped.current = true; applyAddress(a) }}
+                      />
+                    )}
+
+                    {/* No saved address yet: offer to keep this one. */}
+                    {consumer && !savedAddr && savedAddrState === 'ready' && (
+                      <label className="flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={saveAddressForNext}
+                          onChange={(e) => setSaveAddressForNext(e.target.checked)}
+                          className="w-4 h-4 accent-green-700"
+                        />
+                        {L('Save this address for next time', 'తదుపరి సారి కోసం ఈ చిరునామా సేవ్ చేయండి')}
+                      </label>
+                    )}
                     {deliveryDetailsMissing && (
                       <p className="text-[11px] text-amber-700 bg-amber-50 rounded-xl px-3 py-2">
                         Please fill the full address, city/town and a valid 6-digit pincode.
