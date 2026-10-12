@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { useLang } from '@/lib/LanguageContext'
-import { DownloadIcon, reportInstall } from '@/lib/installPrompt'
+import { DownloadIcon, reportInstall, useIsIOS } from '@/lib/installPrompt'
 import { APK_AVAILABLE, APK_URL, APK_FILENAME, APK_VERSION, APK_SIZE_LABEL } from '@/lib/apkRelease'
 import HomeInstallCta from '@/components/home/HomeInstallCta'
 
@@ -22,8 +22,11 @@ import HomeInstallCta from '@/components/home/HomeInstallCta'
  * so the sheet opens on the same click that starts the download.
  */
 
+const noSubscribe = () => () => {}
+const isAndroid = () => /Android/i.test(navigator.userAgent)
+
 export default function HomeApkCta() {
-  const { L } = useLang()
+  const ios = useIsIOS()
 
   // The APK in public/ is the STAGING build — see the kill switch in
   // apkRelease.ts. Until a prod-flavour build replaces it, this hands over the
@@ -32,17 +35,24 @@ export default function HomeApkCta() {
   // real site, which is exactly the property the committed APK lacks.
   if (!APK_AVAILABLE) return <HomeInstallCta />
 
-  const [sheet, setSheet] = useState(false)
-  const [android, setAndroid] = useState(true)
+  // iPhone/iPad cannot install an .apk at all, and there is no download that
+  // becomes an app icon there — whatever APK_AVAILABLE says. Swap the whole
+  // button for the Add to Home Screen flow rather than an "Android only" dead end.
+  if (ios) return <HomeInstallCta />
 
-  // An APK is useless on iOS or a laptop. Detect after mount rather than
-  // during render: the page is server-rendered, and the server has no UA to
-  // branch on without opting the whole route out of its 10-minute cache.
-  // Defaults to true so Android — the case that matters — never flashes the
-  // wrong copy while hydrating.
-  useEffect(() => {
-    setAndroid(/Android/i.test(navigator.userAgent))
-  }, [])
+  return <ApkDownload />
+}
+
+function ApkDownload() {
+  const { L } = useLang()
+  const [sheet, setSheet] = useState(false)
+
+  // An APK is useless on a laptop. Read the UA on the client only: the page is
+  // server-rendered, and the server has no UA to branch on without opting the
+  // whole route out of its 10-minute cache. The server snapshot is true so
+  // Android — the case that matters — never flashes the wrong copy while
+  // hydrating.
+  const android = useSyncExternalStore(noSubscribe, isAndroid, () => true)
 
   const start = () => {
     setSheet(true)

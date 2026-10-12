@@ -262,7 +262,7 @@ export default function HomeLanding({
             </p>
 
             <div className="gghome-rise mt-8 flex flex-col items-start gap-3 sm:flex-row sm:items-center" style={{ animationDelay: '.24s' }}>
-              <HomeInstallCta count={installs} />
+              <HomeInstallCta count={installs} resumeHandoff />
               <Link
                 href="/consumer"
                 className="w-full rounded-2xl border border-green-900/15 bg-white px-6 py-4 text-center text-sm font-bold text-green-950 shadow-sm transition hover:border-lime-600/50 hover:bg-lime-50 dark:border-white/15 dark:bg-transparent dark:text-white dark:shadow-none dark:hover:border-lime-300/50 dark:hover:bg-white/5 sm:w-auto"

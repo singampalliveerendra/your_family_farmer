@@ -50,6 +50,16 @@ export const metadata: Metadata = {
   title: "Go Grameen — Your Family Farmer",
   description: "Buy natural harvests directly from farmers in Andhra Pradesh. No middlemen.",
   applicationName: "Go Grameen",
+  /* The Home Screen icon on iPhone/iPad. iOS ignores the manifest's icons and
+     paints any transparent pixel BLACK, so this one is a solid 180×180 square
+     (logo on white, padded so iOS's rounded-corner mask never clips the leaf).
+     Served from public/ at the root path iOS also probes on its own. */
+  icons: {
+    // Declaring `icons` at all replaces the link Next would generate from
+    // src/app/icon.png, so the regular icon has to be listed here too.
+    icon: [{ url: "/icon.png", sizes: "512x512", type: "image/png" }],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   /* iOS ignores the web manifest's display mode. Without this block, "Add to
      Home Screen" still makes an icon, but tapping it opens Safari's UI around
      the page — it reads as a bookmark, not an app. */

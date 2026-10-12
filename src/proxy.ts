@@ -142,6 +142,6 @@ export const config = {
     '/api/rider/:path*',
     '/api/admin/:path*',
     '/api/aggregator/:path*',
-    '/((?!_next/static|_next/image|favicon.ico|icon.png|apple-icon.png|manifest.webmanifest|downloads|.well-known).*)',
+    '/((?!_next/static|_next/image|favicon.ico|icon.png|apple-touch-icon.png|manifest.webmanifest|downloads|.well-known).*)',
   ],
 }
