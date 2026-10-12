@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
+import { notifyOrderRescheduled } from '@/lib/orderNotify'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -35,6 +36,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
+  // The date BEFORE this change, so the buyer is only texted when it moved.
+  const { data: before } = await supabase
+    .from('orders')
+    .select('fulfillment_date')
+    .eq('id', id)
+    .eq('farmer_id', session.farmerId)
+    .maybeSingle()
+
   const patch: Record<string, unknown> = { fulfillment_date: fulfillmentDate }
   if (reason) {
     patch.reschedule_reason = reason
@@ -53,6 +62,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: 'Could not save the new date.' }, { status: 500 })
   }
   if (!data || data.length === 0) return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
+
+  // WhatsApp "date changed" to the buyer — only if the date really moved on an
+  // approved order. Sent after the response; never fails the save.
+  notifyOrderRescheduled(supabase, id, before?.fulfillment_date ?? null, reason)
 
   return NextResponse.json({ ok: true, order: data[0] })
 }

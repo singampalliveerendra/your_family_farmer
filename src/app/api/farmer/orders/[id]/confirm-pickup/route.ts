@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
 import { rateLimit } from '@/lib/rate-limit'
+import { notifyOrdersDelivered } from '@/lib/orderNotify'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -85,6 +86,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!updated || updated.length === 0) {
     return NextResponse.json({ error: 'Could not confirm pickup. Refresh and try again.' }, { status: 409 })
   }
+
+  // WhatsApp "order received" to the buyer. Sent after the response; never fails the handover.
+  notifyOrdersDelivered(supabase, [id])
 
   return NextResponse.json({ ok: true, collected_at: updated[0].collected_at })
 }

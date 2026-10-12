@@ -15,6 +15,12 @@ import {
   farmerNewOrderParams,
   cancelledParams,
   cancelReason,
+  formatFulfillment,
+  confirmedParams,
+  rescheduledParams,
+  deliveredParams,
+  farmerCancelledParams,
+  isRealReschedule,
   type NotifyOrderRow,
 } from '@/lib/orderNotify'
 
@@ -178,5 +184,53 @@ describe('template params', () => {
   it('farmer decline carries the farmer’s reason when given', () => {
     expect(cancelReason('farmer', 'Rain damaged the crop')).toBe('The farmer could not complete this order (Rain damaged the crop)')
     expect(cancelReason('farmer', '')).toBe('The farmer could not complete this order')
+  })
+})
+
+describe('order status messages', () => {
+  // 2026-10-14T05:00Z is 10:30 am IST — the farmer picked a date AND a time.
+  const approved = row({ status: 'approved', fulfillment_date: '2026-10-14T05:00:00.000Z' })
+
+  it('shows the pickup/delivery date in IST, not the server’s UTC', () => {
+    expect(formatFulfillment('2026-10-14T05:00:00.000Z')).toBe('Wed, 14 Oct, 10:30 am')
+    // 8 pm UTC on the 13th is already the 14th in India.
+    expect(formatFulfillment('2026-10-13T20:00:00.000Z')).toBe('Wed, 14 Oct, 1:30 am')
+    expect(formatFulfillment(null)).toBe('-')
+    expect(formatFulfillment('not a date')).toBe('-')
+  })
+
+  it('yff_order_confirmed: name, order no., farmer, date', () => {
+    expect(confirmedParams(approved, 'Lakshmi Farms'))
+      .toEqual(['Ravi', 'YFF-20260929-0012', 'Lakshmi Farms', 'Wed, 14 Oct, 10:30 am'])
+  })
+
+  it('yff_order_rescheduled: name, order no., farmer, new date, reason', () => {
+    expect(rescheduledParams(approved, 'Lakshmi Farms', 'Rain in the morning'))
+      .toEqual(['Ravi', 'YFF-20260929-0012', 'Lakshmi Farms', 'Wed, 14 Oct, 10:30 am', 'Rain in the morning'])
+    // A blank reason reads as words on the phone, not a lone "-".
+    expect(rescheduledParams(approved, 'Lakshmi Farms', '  ')[4]).toBe('Not given')
+  })
+
+  it('yff_order_delivered: name, order no., farmer — one message per bag', () => {
+    expect(deliveredParams([row()], 'Lakshmi Farms')).toEqual(['Ravi', 'YFF-20260929-0012', 'Lakshmi Farms'])
+    const bag = [row(), row({ id: 'a0000000-0000-0000-0000-000000000002', order_code: 'YFF-20260929-0013' })]
+    expect(deliveredParams(bag, 'Lakshmi Farms')[1]).toBe('YFF-20260929-0012 (+1 more)')
+  })
+
+  it('yff_farmer_order_cancelled: order no., buyer, items, reason', () => {
+    expect(farmerCancelledParams(row(), 'Ordered by mistake'))
+      .toEqual(['YFF-20260929-0012', 'Ravi', 'Tomato 2 kg', 'Ordered by mistake'])
+    expect(farmerCancelledParams(row(), '')[3]).toBe('Not given')
+  })
+
+  it('a reschedule is announced only when the date really moved on an approved order', () => {
+    expect(isRealReschedule('2026-10-13T05:00:00.000Z', approved)).toBe(true)
+    // Same instant written differently — not a change.
+    expect(isRealReschedule('2026-10-14T10:30:00+05:30', approved)).toBe(false)
+    // No earlier date on record: the new one is news.
+    expect(isRealReschedule(null, approved)).toBe(true)
+    // A cancelled/pending order gets no "date changed" text.
+    expect(isRealReschedule('2026-10-13T05:00:00.000Z', { ...approved, status: 'cancelled' })).toBe(false)
+    expect(isRealReschedule('2026-10-13T05:00:00.000Z', { ...approved, status: 'pending' })).toBe(false)
   })
 })

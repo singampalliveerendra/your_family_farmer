@@ -4,6 +4,7 @@ import { getRiderSessionFromRequest } from '@/lib/rider-session'
 import { rateLimit } from '@/lib/rate-limit'
 import { cashDue } from '@/lib/payment'
 import { resolveJobOrderIds } from '@/lib/rider-jobs'
+import { notifyOrdersDelivered } from '@/lib/orderNotify'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -144,6 +145,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (delivered === 0) {
     return NextResponse.json({ error: 'Could not mark delivered. Refresh and try again.' }, { status: 409 })
   }
+
+  // WhatsApp "order received" to the buyer, one per farmer bag. Sent after the
+  // response; never fails the handover.
+  notifyOrdersDelivered(supabase, [...cashIds, ...plainIds])
 
   return NextResponse.json({ ok: true, delivered })
 }
