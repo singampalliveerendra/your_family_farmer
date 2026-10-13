@@ -2,19 +2,13 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
 import { rateLimit } from '@/lib/rate-limit'
+import { checkHandoverCode } from '@/lib/handoverCode'
 import { notifyOrdersDelivered } from '@/lib/orderNotify'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  let diff = 0
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
-  return diff === 0
-}
 
 // Farmer-driven HOME DELIVERY / COURIER close. The farmer delivers it himself
 // and, at the buyer's door, types the buyer's 4-digit handover code (read off
@@ -71,9 +65,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (order.received_at) {
     return NextResponse.json({ error: 'This order is already marked delivered.' }, { status: 409 })
   }
-  if (!order.handover_otp || !safeEqual(order.handover_otp, otp)) {
-    return NextResponse.json({ error: 'Wrong code. Ask the customer to read it again.' }, { status: 401 })
-  }
+  const codeErr = checkHandoverCode(order.handover_otp, otp)
+  if (codeErr) return NextResponse.json({ error: codeErr.error }, { status: codeErr.status })
 
   const { data: updated, error: updErr } = await supabase
     .from('orders')
