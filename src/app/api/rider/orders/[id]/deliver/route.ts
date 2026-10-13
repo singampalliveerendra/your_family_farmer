@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getRiderSessionFromRequest } from '@/lib/rider-session'
 import { rateLimit } from '@/lib/rate-limit'
+import { checkHandoverCode } from '@/lib/handoverCode'
 import { cashDue } from '@/lib/payment'
 import { resolveJobOrderIds } from '@/lib/rider-jobs'
 import { notifyOrdersDelivered } from '@/lib/orderNotify'
@@ -10,13 +11,6 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  let diff = 0
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
-  return diff === 0
-}
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -78,9 +72,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const expectedOtp = pending.find((r) => r.handover_otp)?.handover_otp
-  if (!expectedOtp || !safeEqual(expectedOtp, otp)) {
-    return NextResponse.json({ error: 'Wrong code. Ask the customer to read it again.' }, { status: 401 })
-  }
+  const codeErr = checkHandoverCode(expectedOtp, otp)
+  if (codeErr) return NextResponse.json({ error: codeErr.error }, { status: codeErr.status })
 
   // Part-paid COD: the deposit came in online, the rest is cash at the door.
   // The rider must confirm they actually took it — the correct handover code
