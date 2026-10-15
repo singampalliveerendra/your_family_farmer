@@ -111,7 +111,8 @@ function BuyerBar({ pathname }: { pathname: string }) {
   const { cart } = useCart()
   const active = activeBuyerTab(pathname)
 
-  // A seller in buyer view: Account becomes the way back to their dashboard.
+  // A seller in buyer view: Farmers becomes the way back to their dashboard.
+  // Settings stays, since the Account button lives inside it.
   const [sellerRole, setSellerRole] = useState<SellerRole | null>(null)
   useEffect(() => { setSellerRole(readBuyerView()) }, [pathname])
 
@@ -132,15 +133,6 @@ function BuyerBar({ pathname }: { pathname: string }) {
   return (
     <BarShell>
       <TabLink href="/consumer" label={L('Home', 'హోమ్')} icon={<HomeIcon />} active={active === 'home'} />
-      <TabLink href="/consumer/farmers" label={L('Farmers', 'రైతులు')} icon={<FarmersIcon />} active={active === 'farmers'} />
-      <CartButton cart={cart} label={L('Cart', 'బుట్ట')} />
-      <TabLink
-        href="/consumer/orders"
-        label={L('Orders', 'ఆర్డర్లు')}
-        icon={<OrdersIcon />}
-        active={active === 'orders'}
-        badge={pending > 0 ? badgeText(pending) : null}
-      />
       {sellerRole ? (
         <TabLink
           href={sellerDashboardPath(sellerRole)}
@@ -150,8 +142,17 @@ function BuyerBar({ pathname }: { pathname: string }) {
           tone="amber"
         />
       ) : (
-        <TabLink href="/consumer/profile" label={L('Account', 'ఖాతా')} icon={<AccountIcon />} active={active === 'account'} />
+        <TabLink href="/consumer/farmers" label={L('Farmers', 'రైతులు')} icon={<FarmersIcon />} active={active === 'farmers'} />
       )}
+      <CartButton cart={cart} label={L('Cart', 'బుట్ట')} />
+      <TabLink
+        href="/consumer/orders"
+        label={L('Orders', 'ఆర్డర్లు')}
+        icon={<OrdersIcon />}
+        active={active === 'orders'}
+        badge={pending > 0 ? badgeText(pending) : null}
+      />
+      <TabLink href="/consumer/settings" label={L('Settings', 'సెట్టింగ్‌లు')} icon={<SettingsIcon />} active={active === 'settings'} />
     </BarShell>
   )
 }
@@ -297,7 +298,7 @@ function SellerBar({ pathname }: { pathname: string }) {
         <TabLink href={sellerTabHref(role, 'home')} label={L('Home', 'హోమ్')} icon={<HomeIcon />} active={active === 'home'} />
         <TabLink href={sellerTabHref(role, 'orders')} label={L('Orders', 'ఆర్డర్లు')} icon={<OrdersIcon />} active={active === 'orders'} />
         <TabButton onClick={() => openSheet('produce')} label={L('Produce', 'ఉత్పత్తులు')} icon={<ProduceIcon />} active={active === 'produce'} />
-        <TabButton onClick={() => openSheet('profile')} label={L('Profile', 'ప్రొఫైల్')} icon={<AccountIcon />} active={active === 'profile'} />
+        <TabButton onClick={() => openSheet('settings')} label={L('Settings', 'సెట్టింగ్‌లు')} icon={<SettingsIcon />} active={active === 'settings'} />
         <TabButton
           onClick={shop}
           label={busy ? L('Opening…', 'తెరుస్తోంది…') : L('Shop as buyer', 'కొనుగోలు')}
@@ -330,8 +331,8 @@ function FarmersIcon() {
 function OrdersIcon() {
   return <Svg><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z" /><path d="m3 8 9 5 9-5" /><path d="M12 13v8" /></Svg>
 }
-function AccountIcon() {
-  return <Svg><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" /></Svg>
+function SettingsIcon() {
+  return <Svg><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" /></Svg>
 }
 function StoreIcon() {
   return <Svg><path d="M3 9 4.5 4h15L21 9" /><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0" /><path d="M5 12v8h14v-8" /><path d="M10 20v-5h4v5" /></Svg>

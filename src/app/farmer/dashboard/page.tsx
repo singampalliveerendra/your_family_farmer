@@ -274,13 +274,14 @@ export default function FarmerDashboard() {
   // window.location rather than useSearchParams so this page needs no Suspense
   // boundary. The param is stripped afterwards, so a refresh (or a Back) doesn't
   // reopen the modal the farmer just closed.
-  // ?view=produce / ?view=profile do the same for the bottom bar's Produce and
-  // Profile tabs when they are tapped from another page (e.g. Orders).
+  // ?view=produce / ?view=settings do the same for the bottom bar's Produce and
+  // Settings tabs when they are tapped from another page (e.g. Orders).
   useEffect(() => {
     const q = new URLSearchParams(window.location.search)
     const view = q.get('view')
-    if (q.get('edit') !== 'profile' && view !== 'profile' && view !== 'produce') return
+    if (q.get('edit') !== 'profile' && view !== 'settings' && view !== 'produce') return
     if (view === 'produce') setShowListings(true)
+    else if (view === 'settings') setShowSettings(true)
     else setShowProfileEdit(true)
     window.history.replaceState(null, '', window.location.pathname)
   }, [])
@@ -290,16 +291,17 @@ export default function FarmerDashboard() {
   useEffect(() => {
     const onOpen = (e: Event) => {
       const tab = (e as CustomEvent<string>).detail
-      if (tab === 'produce') { setShowProfileEdit(false); setShowListings(true) }
-      if (tab === 'profile') { setShowListings(false); setShowProfileEdit(true) }
+      if (tab === 'produce') { setShowProfileEdit(false); setShowSettings(false); setShowListings(true) }
+      if (tab === 'settings') { setShowProfileEdit(false); setShowListings(false); setShowSettings(true) }
     }
     window.addEventListener(SELLER_OPEN_EVENT, onOpen)
     return () => window.removeEventListener(SELLER_OPEN_EVENT, onOpen)
   }, [])
   useEffect(() => {
-    const view = showListings ? 'produce' : showProfileEdit ? 'profile' : null
+    // Editing the profile is reached from Settings, so Settings stays lit.
+    const view = showListings ? 'produce' : (showSettings || showProfileEdit) ? 'settings' : null
     window.dispatchEvent(new CustomEvent(SELLER_VIEW_EVENT, { detail: view }))
-  }, [showListings, showProfileEdit])
+  }, [showListings, showSettings, showProfileEdit])
 
   const loadDashboard = useCallback(async () => {
     // Cookie-verified: a farmer whose session died must land on the login page,
@@ -954,6 +956,21 @@ export default function FarmerDashboard() {
             {/* Same order as the consumer ⚙️ menu — account links, the default
                 dashboard, log out, then Switch role — so a seller can get across
                 from here too, not only from the Buyer view card further down. */}
+            {/* Account first: the bottom bar's Settings tab is the way to the
+                profile now, so it leads the sheet. */}
+            <button
+              onClick={() => { setShowSettings(false); setShowProfileEdit(true) }}
+              className="w-full flex items-center gap-3 bg-green-50 active:bg-green-100 rounded-2xl px-3 py-3 mb-2 text-left"
+            >
+              <span className="w-10 h-10 rounded-full bg-green-700 text-white flex items-center justify-center text-lg flex-shrink-0" aria-hidden>👤</span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-extrabold text-gray-900">{L('Account', 'ఖాతా')}</span>
+                <span className="block text-[11px] text-gray-500 truncate">
+                  {farmer?.name ?? ''}{farmer?.phone ? ` · +91 ${farmer.phone}` : ''} — {L('edit profile', 'ప్రొఫైల్ మార్చండి')}
+                </span>
+              </span>
+              <span className="text-gray-400 text-xl leading-none">›</span>
+            </button>
             <Link
               href="/farmer/complaints"
               className="block py-2.5 text-sm text-gray-800 active:bg-gray-100"
