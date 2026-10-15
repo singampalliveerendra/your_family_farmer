@@ -42,6 +42,8 @@ helpers are deterministic. That is why CI can run it with no secrets at all.
 | `lib/teluguTranslit.test.ts` | Telugu typed in English letters meets stored Telugu (sound keys), and the Telugu preview |
 | `lib/orderSearch.test.ts` | Orders-page search for buyers / farmers / aggregators, in either language or script |
 | `api/orders-place.test.ts` | `/api/orders/place` end to end on an in-memory fake DB: self-orders, stock, validation |
+| `lib/farmerResolve.test.ts` | farmer "Mark as resolved": which orders qualify, what gets stamped, and that every completed-check agrees afterwards |
+| `api/farmer-resolve.test.ts` | `/api/farmer/orders/[id]/resolve` end to end: closes, logs, notifies; refuses wrong owner/status, double close, missing column |
 | `lib/payment.test.ts` | the paid/claimed/deposit vocabulary — one answer to "is the money in?" |
 | `lib/orderReport.test.ts` | every money figure on the farmer's downloadable report |
 | `lib/payout.test.ts` | bank + UPI validation, and never showing an account number back |

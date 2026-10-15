@@ -14,6 +14,8 @@ import { isOrderPaid, isPaymentClaimed as isPaymentClaimed_, isDepositPaid, cash
 import { harvestClock } from '@/lib/harvest'
 import { formatQty } from '@/lib/saleStep'
 import { formatHarvestDate } from '@/lib/harvestSchedule'
+import { canFarmerResolve } from '@/lib/farmerResolve'
+import ResolveOrderButton, { type ResolvedFields } from './ResolveOrderButton'
 
 // Re-exported so existing importers keep working; the flow itself lives in
 // @/lib/delivery, shared with the farmer order-detail page.
@@ -91,6 +93,9 @@ export type FarmerOrder = {
   // The farmer ordered this from themselves (src/lib/selfOrder.ts).
   is_self_order?: boolean | null
   preorder_expected_date?: string | null
+  // The farmer closed it with "Mark as resolved" instead of the buyer's code
+  // (src/lib/farmerResolve.ts). The closing column is stamped as well.
+  farmer_resolved_at?: string | null
 }
 
 // An approved order is "resolved" (and so leaves the farmer's active list) once:
@@ -124,6 +129,7 @@ export default function OrderCard({
   onMarkShipped,
   onConfirmPickup,
   onConfirmDelivery,
+  onResolved,
 }: {
   order: FarmerOrder
   processing: boolean
@@ -147,6 +153,9 @@ export default function OrderCard({
   // Farmer-driven home delivery / courier: after marking Shipped, the farmer
   // types the buyer's code at the door to close the order (received_at).
   onConfirmDelivery: (otp: string) => Promise<string | null>
+  // The buyer couldn't give the code but the produce changed hands: the farmer
+  // closes the order themselves. Called with the fields the server stamped.
+  onResolved?: (fields: ResolvedFields) => void
 }) {
   const { tx, L } = useLang()
   const router = useRouter()
@@ -741,6 +750,11 @@ export default function OrderCard({
           >
             {processing ? '…' : L('🚚 Mark Shipped', '🚚 షిప్ చేయబడింది')}
           </button>
+        )}
+        {/* Fallback close when the buyer can't be reached for the code. Not for
+            rider deliveries — the rider closes those (canFarmerResolve). */}
+        {isApproved && onResolved && canFarmerResolve(order) && (
+          <ResolveOrderButton orderId={order.id} isPickup={isPickup} onResolved={onResolved} />
         )}
         {isCod && !isPaid && (
           <button

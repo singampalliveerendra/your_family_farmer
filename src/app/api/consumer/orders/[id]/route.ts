@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
+import { attachFarmerResolved } from '@/lib/farmerResolve'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -89,5 +90,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     .maybeSingle()
   if (rs) reschedule = rs as typeof reschedule
 
-  return NextResponse.json({ order: { ...order, ...reschedule, farmer, rider, my_review: myReview } })
+  // Whether the farmer closed it without the buyer's code. Same tolerant read:
+  // scripts/farmer-resolve-migration.sql may not have run.
+  const [resolved] = await attachFarmerResolved(supabase, [{ id: order.id as string }])
+
+  return NextResponse.json({
+    order: { ...order, ...reschedule, farmer_resolved_at: resolved.farmer_resolved_at ?? null, farmer, rider, my_review: myReview },
+  })
 }

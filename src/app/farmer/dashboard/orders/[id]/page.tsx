@@ -11,6 +11,8 @@ import { requireFarmerSession } from '@/lib/farmer-auth-client'
 import { useFarmerRiders } from '@/lib/farmer-riders'
 import { useOrderPolling } from '@/lib/useOrderPolling'
 import { formatQty } from '@/lib/saleStep'
+import { canFarmerResolve } from '@/lib/farmerResolve'
+import ResolveOrderButton from '@/components/farmer/ResolveOrderButton'
 import {
   type DeliveryStatus,
   deliveryReached,
@@ -73,6 +75,8 @@ type Order = {
   fulfillment_date: string | null
   acknowledged_at: string | null
   reschedule_reason?: string | null
+  // Closed with "Mark as resolved" instead of the buyer's code (src/lib/farmerResolve.ts).
+  farmer_resolved_at?: string | null
   harvest_id?: string | null
   // Embedded harvest this order was placed against (object or 1-el array).
   harvest?: { harvested_at: string; shelf_life_days?: number | null } | Array<{ harvested_at: string; shelf_life_days?: number | null }> | null
@@ -245,7 +249,9 @@ export default function FarmerOrderDetailPage() {
           ...(isPickup
             ? []
             : [{ label: L('Shipped', 'షిప్ చేశారు'), at: order.shipped_at, done: !!order.shipped_at }]),
-          { label: isPickup ? L('Collected', 'తీసుకువెళ్ళారు') : L('Delivered', 'డెలివరీ అయింది'), at: order.received_at || order.collected_at, done: delivered },
+          order.farmer_resolved_at
+            ? { label: L('Marked resolved by you', 'మీరు పూర్తయినట్లు గుర్తించారు'), at: order.farmer_resolved_at, done: true }
+            : { label: isPickup ? L('Collected', 'తీసుకువెళ్ళారు') : L('Delivered', 'డెలివరీ అయింది'), at: order.received_at || order.collected_at, done: delivered },
         ]
       })()
     : []
@@ -477,6 +483,21 @@ export default function FarmerOrderDetailPage() {
                     </li>
                   ))}
                 </ol>
+              </div>
+            )}
+
+            {/* Fallback close when the buyer can't be reached to read the code.
+                Same rules as the card and the route (src/lib/farmerResolve). */}
+            {canFarmerResolve(order) && (
+              <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2">
+                <p className="text-xs text-gray-500 leading-snug">
+                  {L('Buyer not available to give the code?', 'కొనుగోలుదారు కోడ్ ఇవ్వడానికి అందుబాటులో లేరా?')}
+                </p>
+                <ResolveOrderButton
+                  orderId={order.id}
+                  isPickup={isPickup}
+                  onResolved={(fields) => setOrder((prev) => (prev ? { ...prev, ...fields } : prev))}
+                />
               </div>
             )}
 
