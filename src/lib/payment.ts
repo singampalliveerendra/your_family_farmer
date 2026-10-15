@@ -58,3 +58,45 @@ export function cashDue(order: {
 export function isGatewayMethod(method: string | null | undefined): boolean {
   return method === 'cashfree' || method === 'razorpay'
 }
+
+/* ── The payment badge on a farmer's order card ──
+ * Orders can be placed without paying first, so the farmer must see at a glance
+ * which ones have no money in yet — without opening each order. Every order
+ * gets exactly one badge, and anything not paid says "Payment pending" in red,
+ * whatever the method. Before this, cash orders only said "COD" and an unpaid
+ * online order showed no payment badge at all. */
+
+export type PaymentBadgeTone = 'paid' | 'deposit' | 'verify' | 'failed' | 'pending'
+
+export type PaymentBadge = {
+  tone: PaymentBadgeTone
+  en: string
+  te: string
+}
+
+export function farmerPaymentBadge(order: {
+  payment_method?: string | null
+  payment_status?: string | null
+  cod_balance_due?: number | null
+}): PaymentBadge {
+  const status = order.payment_status
+  if (isOrderPaid(status)) return { tone: 'paid', en: '✓ Paid', te: '✓ చెల్లించారు' }
+  if (isDepositPaid(status)) {
+    const due = cashDue(order)
+    return due > 0
+      ? { tone: 'deposit', en: `🔒 Deposit paid · ₹${due} due`, te: `🔒 డిపాజిట్ చెల్లించారు · ₹${due} బాకీ` }
+      : { tone: 'deposit', en: '🔒 Deposit paid', te: '🔒 డిపాజిట్ చెల్లించారు' }
+  }
+  if (isPaymentClaimed(status)) return { tone: 'verify', en: '⏳ Buyer says paid — verify', te: '⏳ చెల్లించామన్నారు — చూడండి' }
+  if (status === 'failed') return { tone: 'failed', en: '⚠️ Payment failed', te: '⚠️ చెల్లింపు విఫలమైంది' }
+
+  // Not paid. Say how the money is expected, so "pending" on a cash order
+  // doesn't read like a problem the farmer must chase today.
+  const method = order.payment_method
+  const how = isGatewayMethod(method)
+    ? { en: 'Online', te: 'ఆన్‌లైన్' }
+    : method === 'upi'
+      ? { en: 'UPI', te: 'UPI' }
+      : { en: 'Cash', te: 'నగదు' }
+  return { tone: 'pending', en: `⏳ Payment pending · ${how.en}`, te: `⏳ చెల్లింపు బాకీ · ${how.te}` }
+}

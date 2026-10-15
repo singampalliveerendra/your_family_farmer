@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isOrderPaid, isPaymentClaimed, isDepositPaid, hasMoneyIn, cashDue } from '@/lib/payment'
+import { isOrderPaid, isPaymentClaimed, isDepositPaid, hasMoneyIn, cashDue, farmerPaymentBadge } from '@/lib/payment'
 
 // "Is this order's money in?" is asked on the farmer's card, the consumer's
 // timeline, the moderator's payout sheet and every refund path. Two different
@@ -112,5 +112,27 @@ describe('cashDue', () => {
     expect(cashDue({ payment_status: 'deposit_paid', cod_balance_due: 0 })).toBe(0)
     expect(cashDue({ payment_status: 'deposit_paid', cod_balance_due: -50 })).toBe(0)
     expect(cashDue({ payment_status: 'deposit_paid' })).toBe(0)
+  })
+})
+
+describe('farmerPaymentBadge', () => {
+  it('says Payment pending for every unpaid order, with the method', () => {
+    expect(farmerPaymentBadge({ payment_method: 'cod', payment_status: 'pending' })).toMatchObject({ tone: 'pending', en: '⏳ Payment pending · Cash' })
+    expect(farmerPaymentBadge({ payment_method: null, payment_status: null }).en).toBe('⏳ Payment pending · Cash')
+    expect(farmerPaymentBadge({ payment_method: 'cashfree', payment_status: 'pending' }).en).toBe('⏳ Payment pending · Online')
+    expect(farmerPaymentBadge({ payment_method: 'razorpay', payment_status: null }).en).toBe('⏳ Payment pending · Online')
+    expect(farmerPaymentBadge({ payment_method: 'upi', payment_status: 'pending' }).en).toBe('⏳ Payment pending · UPI')
+  })
+
+  it('marks paid orders paid, whichever paid sentinel was written', () => {
+    expect(farmerPaymentBadge({ payment_method: 'cashfree', payment_status: 'paid' }).tone).toBe('paid')
+    expect(farmerPaymentBadge({ payment_method: 'cod', payment_status: 'completed' }).tone).toBe('paid')
+  })
+
+  it('keeps the in-between states distinct', () => {
+    expect(farmerPaymentBadge({ payment_method: 'cod', payment_status: 'deposit_paid', cod_balance_due: 120 }))
+      .toMatchObject({ tone: 'deposit', en: '🔒 Deposit paid · ₹120 due' })
+    expect(farmerPaymentBadge({ payment_method: 'upi', payment_status: 'payment_claimed' }).tone).toBe('verify')
+    expect(farmerPaymentBadge({ payment_method: 'cashfree', payment_status: 'failed' }).tone).toBe('failed')
   })
 })
