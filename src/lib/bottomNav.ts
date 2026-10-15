@@ -2,10 +2,11 @@
  * when the middle cart button should ask for attention.
  *
  * Two bars, one per side of the app:
- *   buyer:  Home · Farmers · [Cart] · Orders · Account
- *   seller: Home · Orders · Produce · Profile · Shop as buyer
- * A seller who crossed into buyer view gets the buyer bar with "My Store" in
- * place of Account (the account links are still in the ⚙️ menu up top).
+ *   buyer:  Home · Farmers · [Cart] · Orders · Settings
+ *   seller: Home · Orders · Produce · Settings · Shop as buyer
+ * Settings holds the Account button on both sides. A seller who crossed into
+ * buyer view gets the buyer bar with "My Store" in place of Farmers, so the
+ * way back to their dashboard is one tap.
  *
  * Pure functions only, so the rules are testable without a browser; the bar
  * itself is components/BottomNav.tsx, mounted once from the root layout.
@@ -13,8 +14,8 @@
 
 export type NavKind = 'buyer' | 'seller'
 
-export type BuyerTab = 'home' | 'farmers' | 'cart' | 'orders' | 'account'
-export type SellerTab = 'home' | 'orders' | 'produce' | 'profile'
+export type BuyerTab = 'home' | 'farmers' | 'cart' | 'orders' | 'settings'
+export type SellerTab = 'home' | 'orders' | 'produce' | 'settings'
 
 function isUnder(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`)
@@ -32,6 +33,7 @@ const BUYER_PAGES = [
   '/consumer/orders',
   '/consumer/orders/history',
   '/consumer/profile',
+  '/consumer/settings',
   '/consumer/intents',
   '/consumer/complaints',
 ]
@@ -60,23 +62,25 @@ export function activeBuyerTab(pathname: string | null | undefined): BuyerTab | 
   if (isUnder(pathname, '/consumer/cart')) return 'cart'
   if (isUnder(pathname, '/consumer/orders')) return 'orders'
   if (isUnder(pathname, '/consumer/farmers') || isUnder(pathname, '/region')) return 'farmers'
+  // Everything reached from the Settings page keeps Settings lit.
   if (
-    isUnder(pathname, '/consumer/profile')
+    isUnder(pathname, '/consumer/settings')
+    || isUnder(pathname, '/consumer/profile')
     || isUnder(pathname, '/consumer/intents')
     || isUnder(pathname, '/consumer/complaints')
-  ) return 'account'
+  ) return 'settings'
   if (pathname === '/consumer') return 'home'
   return null
 }
 
-/** `view` is the dashboard's ?view= param: the Produce and Profile tabs open
+/** `view` is the dashboard's ?view= param: the Produce and Settings tabs open
  *  the dashboard's own sheets rather than pages of their own. */
 export function activeSellerTab(pathname: string | null | undefined, view?: string | null): SellerTab | null {
   if (!pathname) return null
   if (pathname.endsWith('/dashboard/orders') || isUnder(pathname, '/farmer/dashboard/orders')) return 'orders'
   if (pathname === '/farmer/dashboard' || pathname === '/aggregator/dashboard') {
     if (view === 'produce') return 'produce'
-    if (view === 'profile') return 'profile'
+    if (view === 'settings') return 'settings'
     return 'home'
   }
   return null
@@ -91,7 +95,7 @@ export function sellerTabHref(role: 'farmer' | 'aggregator', tab: SellerTab): st
     // The orders page is shared: it lives under /farmer only.
     case 'orders': return '/farmer/dashboard/orders'
     case 'produce': return `${base}?view=produce`
-    case 'profile': return `${base}?view=profile`
+    case 'settings': return `${base}?view=settings`
   }
 }
 

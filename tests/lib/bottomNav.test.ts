@@ -6,7 +6,7 @@ import {
 
 describe('navKindFor', () => {
   it('gives the buyer bar on the buyer list pages and region pages', () => {
-    for (const p of ['/consumer', '/consumer/', '/consumer/farmers', '/consumer/orders', '/consumer/orders/history', '/consumer/profile', '/consumer/intents', '/consumer/complaints', '/region/tadepalligudem']) {
+    for (const p of ['/consumer', '/consumer/', '/consumer/farmers', '/consumer/orders', '/consumer/orders/history', '/consumer/profile', '/consumer/settings', '/consumer/intents', '/consumer/complaints', '/region/tadepalligudem']) {
       expect(navKindFor(p)).toBe('buyer')
     }
   })
@@ -32,9 +32,10 @@ describe('activeBuyerTab', () => {
     expect(activeBuyerTab('/region/x')).toBe('farmers')
     expect(activeBuyerTab('/consumer/cart')).toBe('cart')
     expect(activeBuyerTab('/consumer/orders/history')).toBe('orders')
-    expect(activeBuyerTab('/consumer/profile')).toBe('account')
-    expect(activeBuyerTab('/consumer/intents')).toBe('account')
-    expect(activeBuyerTab('/consumer/complaints')).toBe('account')
+    expect(activeBuyerTab('/consumer/settings')).toBe('settings')
+    expect(activeBuyerTab('/consumer/profile')).toBe('settings')
+    expect(activeBuyerTab('/consumer/intents')).toBe('settings')
+    expect(activeBuyerTab('/consumer/complaints')).toBe('settings')
   })
 })
 
@@ -42,7 +43,7 @@ describe('activeSellerTab', () => {
   it('reads the open sheet on the dashboard', () => {
     expect(activeSellerTab('/farmer/dashboard')).toBe('home')
     expect(activeSellerTab('/aggregator/dashboard', 'produce')).toBe('produce')
-    expect(activeSellerTab('/farmer/dashboard', 'profile')).toBe('profile')
+    expect(activeSellerTab('/farmer/dashboard', 'settings')).toBe('settings')
     expect(activeSellerTab('/farmer/dashboard/orders')).toBe('orders')
     expect(activeSellerTab('/aggregator/farmers')).toBeNull()
   })
@@ -54,7 +55,7 @@ describe('sellerTabHref', () => {
     expect(sellerTabHref('aggregator', 'home')).toBe('/aggregator/dashboard')
     expect(sellerTabHref('aggregator', 'orders')).toBe('/farmer/dashboard/orders')
     expect(sellerTabHref('aggregator', 'produce')).toBe('/aggregator/dashboard?view=produce')
-    expect(sellerTabHref('farmer', 'profile')).toBe('/farmer/dashboard?view=profile')
+    expect(sellerTabHref('farmer', 'settings')).toBe('/farmer/dashboard?view=settings')
   })
 })
 

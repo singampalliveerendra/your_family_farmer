@@ -8,11 +8,12 @@ import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { EMPTY_ADDRESS, isAddressComplete, type SavedAddress } from '@/lib/savedAddress'
 
-// "My address" — the buyer's one saved delivery address. The cart pre-selects
-// it for home delivery so it isn't retyped on every order.
+// Account — reached from the Settings tab. Who is signed in, plus the buyer's
+// one saved delivery address, which the cart pre-selects for home delivery so
+// it isn't retyped on every order.
 export default function ConsumerProfilePage() {
   const { L } = useLang()
-  const { state, consumer, openAuth, logout } = useConsumerAuth()
+  const { state, consumer, openAuth } = useConsumerAuth()
   const [addr, setAddr] = useState<SavedAddress>(EMPTY_ADDRESS)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -59,10 +60,10 @@ export default function ConsumerProfilePage() {
     <main className="min-h-screen bg-gray-50 pb-6">
       <div className="bg-green-900 px-4 pt-6 pb-10">
         <div className="flex items-center justify-between mb-4">
-          <Link href="/consumer" className="text-green-300 text-sm flex items-center gap-1">{L('← Back', 'వెనక్కు')}</Link>
+          <Link href="/consumer/settings" className="text-green-300 text-sm flex items-center gap-1">{L('← Settings', '← సెట్టింగ్‌లు')}</Link>
           <LanguageToggle />
         </div>
-        <h1 className="text-white text-xl font-extrabold leading-tight">{L('My address', 'నా చిరునామా')}</h1>
+        <h1 className="text-white text-xl font-extrabold leading-tight">{L('Account', 'ఖాతా')}</h1>
         <p className="text-green-400 text-sm mt-1">
           {L('Saved for home delivery, so you don’t type it every order', 'హోమ్ డెలివరీ కోసం సేవ్ — ప్రతి ఆర్డర్‌కు టైప్ చేయనక్కర్లేదు')}
         </p>
@@ -104,33 +105,7 @@ export default function ConsumerProfilePage() {
             </>
           )}
         </div>
-
-        {/* The rest of the account — this page is the bottom bar's Account
-            tab, so everything that used to live only in the ⚙️ menu is here. */}
-        {state.status === 'authenticated' && (
-          <div className="bg-white rounded-2xl shadow-sm mt-4 divide-y divide-gray-100 overflow-hidden">
-            <AccountLink href="/consumer/intents" icon="📣" label={L('My crop requests', 'నా పంట అభ్యర్థనలు')} />
-            <AccountLink href="/consumer/complaints" icon="🛟" label={L('My complaints', 'నా ఫిర్యాదులు')} />
-            <AccountLink href="/consumer/orders/history" icon="🧾" label={L('Order history', 'ఆర్డర్ చరిత్ర')} />
-            <button
-              onClick={() => void logout()}
-              className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-semibold text-red-600 active:bg-red-50"
-            >
-              <span aria-hidden>↪</span> {L('Log out', 'లాగౌట్')}
-            </button>
-          </div>
-        )}
       </div>
     </main>
-  )
-}
-
-function AccountLink({ href, icon, label }: { href: string; icon: string; label: string }) {
-  return (
-    <Link href={href} className="flex items-center gap-3 px-4 py-3.5 text-sm font-semibold text-gray-800 active:bg-gray-50">
-      <span aria-hidden>{icon}</span>
-      <span className="flex-1">{label}</span>
-      <span className="text-gray-300 text-lg leading-none">›</span>
-    </Link>
   )
 }
