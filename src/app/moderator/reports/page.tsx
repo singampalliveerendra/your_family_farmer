@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import ModeratorShell, { useModeratorAuth } from '../ModeratorShell'
 
 type Payout = {
@@ -126,7 +127,10 @@ export default function ModeratorReportsPage() {
               <p className="text-[11px] font-semibold text-gray-400">Commission {report.commissionPercent}%</p>
             </div>
             <p className="text-[11px] text-gray-400 mb-3 leading-snug">
-              Each rejected order is charged {report.commissionPercent}% of its amount, deducted from the farmer&apos;s payout.
+              Each rejected order is charged {report.commissionPercent}% of its amount, deducted from the farmer&apos;s payout.{' '}
+              <Link href="/moderator/order-report" className="font-bold text-green-700 underline print:hidden">
+                Order-by-order report →
+              </Link>
             </p>
             {report.payouts.length === 0 ? (
               <p className="text-sm text-gray-400 py-4 text-center">No payouts this period</p>

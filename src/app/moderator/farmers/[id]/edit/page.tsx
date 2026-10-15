@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import ModeratorShell, { useModeratorAuth } from '../../../ModeratorShell'
 import ModeratorFarmerForm, { type FarmerInitial } from '@/components/moderator/ModeratorFarmerForm'
@@ -137,6 +138,13 @@ export default function EditFarmerPage() {
         <p className="text-sm text-gray-400 py-10 text-center">Loading…</p>
       ) : farmer ? (
         <>
+          {/* This farmer's Order Report — the same one they see, for payments. */}
+          <Link
+            href={`/moderator/order-report?farmer=${farmer.id}`}
+            className="inline-flex items-center gap-2 mb-4 bg-white border border-green-700 text-green-800 text-sm font-bold px-4 py-2.5 rounded-xl active:bg-green-50"
+          >
+            📊 Order report for {farmer.name}
+          </Link>
           <ModeratorFarmerForm
             mode="edit"
             farmerId={farmer.id}
