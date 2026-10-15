@@ -9,7 +9,6 @@ import { methodLabel, categoryLabel } from '@/lib/produceLabels'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useCart, CartFab, EditableQty } from '@/components/consumer/Cart'
-import { BOTTOM_NAV_OFFSET } from '@/lib/bottomNav'
 import { supabase } from '@/lib/supabase'
 import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
 import { isSoldOutWithHarvests } from '@/lib/produceStatus'
@@ -21,10 +20,7 @@ import { harvestClock } from '@/lib/harvest'
 import { normalizeUrl, linkHost } from '@/lib/links'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import ShareButton from '@/components/consumer/ShareButton'
-import { coverImageUrl } from '@/lib/productShare'
 import { growerLine } from '@/lib/source-farmers'
-import { canDeliver, normalizeDeliveryMode } from '@/lib/fulfillment'
-import BackButton from '@/components/BackButton'
 
 type Farmer = {
   id: string
@@ -68,7 +64,6 @@ type Listing = {
   price_tier_1_qty?: number | null
   /** Smallest sellable quantity, in this listing's unit. Null/absent = 1. */
   sale_step?: number | null
-  delivery_mode?: string | null
   price_tier_1_price?: number | null
   price_tier_2_qty?: number | null
   price_tier_2_price?: number | null
@@ -138,56 +133,46 @@ export default function ProduceDetailPage() {
   const load = useCallback(async () => {
     if (!id) return
     setLoading(true)
-    // One round trip, not four: these are the links opened from WhatsApp on
-    // slow 4G, and each sequential query was another ~0.4 s of spinner. The
-    // farmer rides along as an embed, and the harvests only need the id, so
-    // they go out at the same time.
-    // Farmer columns are explicit, never '*': `farmers` carries password_hash,
-    // the activation code and the legacy bank columns, and this response is
-    // world-readable.
-    const [{ data: lf }, harvestsRes] = await Promise.all([
-      supabase
-        .from('produce_listings')
-        .select('*, farmer:farmers!farmer_id(id, name, village, slug, phone, method, pickup_locations, pickup_location_phones, pickup_slots, account_type)')
-        .eq('id', id)
-        .maybeSingle(),
-      // Every unpaused pick, newest first: the first row drives the clock, the
-      // whole set decides whether this produce still has anything left.
-      // Fetching only the newest one was enough for the clock but blind to
-      // stock — a crop whose picks were all spent still read as buyable off
-      // the template's number. Best-effort — silent if the table is absent.
-      Promise.resolve(
-        supabase
-          .from('harvests')
-          .select('harvested_at, shelf_life_days, stock_qty')
-          .eq('produce_listing_id', id)
-          .eq('paused', false)
-          .order('harvested_at', { ascending: false }),
-      ).catch(() => ({ data: null })),
-    ])
-    if (!lf) { setNotFound(true); setLoading(false); return }
-    const { farmer: f, ...l } = lf as Listing & { farmer: Farmer | null }
+    const { data: l } = await supabase.from('produce_listings').select('*').eq('id', id).maybeSingle()
+    if (!l) { setNotFound(true); setLoading(false); return }
     setItem(l as Listing)
     setLiveStock((l as Listing).stock_qty ?? null)
-    setFarmer(f ?? null)
+    // Explicit columns, never '*': `farmers` carries password_hash, the
+    // activation code and the legacy bank columns, and this response is
+    // world-readable.
+    const { data: f } = await supabase
+      .from('farmers')
+      .select('id, name, village, slug, phone, method, pickup_locations, pickup_location_phones, pickup_slots, account_type')
+      .eq('id', (l as Listing).farmer_id)
+      .maybeSingle()
+    setFarmer((f as Farmer) ?? null)
     // An aggregator's listing names the farmer who grows it. Fetched on its own
     // rather than embedded in the listing query, so an environment without the
-    // column only loses the "Grown by" line, never the whole page. Not awaited:
-    // the page shows straight away and the line fills in a moment later.
+    // column only loses the "Grown by" line, never the whole page.
     const sourceFarmerId = (l as Listing).source_farmer_id ?? null
-    if (sourceFarmerId && f?.account_type === 'aggregator') {
-      void Promise.resolve(
-        supabase
-          .from('source_farmers')
-          .select('name, village')
-          .eq('id', sourceFarmerId)
-          .maybeSingle(),
-      ).then(({ data: sf }) => setSourceFarmer((sf as SourceFarmer) ?? null), () => setSourceFarmer(null))
+    if (sourceFarmerId && (f as Farmer | null)?.account_type === 'aggregator') {
+      const { data: sf } = await supabase
+        .from('source_farmers')
+        .select('name, village')
+        .eq('id', sourceFarmerId)
+        .maybeSingle()
+      setSourceFarmer((sf as SourceFarmer) ?? null)
     } else {
       setSourceFarmer(null)
     }
+    // Every unpaused pick, newest first: the first row drives the clock, the
+    // whole set decides whether this produce still has anything left. Fetching
+    // only the newest one was enough for the clock but blind to stock — a crop
+    // whose picks were all spent still read as buyable off the template's
+    // number. Best-effort — silent if the table is absent.
     try {
-      const rows = (harvestsRes.data ?? []) as Array<{ harvested_at: string; shelf_life_days: number | null; stock_qty: number | null }>
+      const { data: hs } = await supabase
+        .from('harvests')
+        .select('harvested_at, shelf_life_days, stock_qty')
+        .eq('produce_listing_id', id)
+        .eq('paused', false)
+        .order('harvested_at', { ascending: false })
+      const rows = (hs ?? []) as Array<{ harvested_at: string; shelf_life_days: number | null; stock_qty: number | null }>
       setHarvestStocks(rows.map((r) => ({ stock_qty: r.stock_qty ?? null })))
       const h = rows[0]
       // Clock source, in order of preference: a logged `harvests` row, else the
@@ -327,11 +312,13 @@ export default function ProduceDetailPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 pb-32">
+    <main className="min-h-screen bg-gray-50 pb-28">
       {/* Header bar */}
       <div className="sticky top-0 z-40 bg-green-900">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
-          <BackButton fallback="/consumer" className="!text-green-200" />
+          <Link href="/consumer" className="text-green-200 text-sm font-semibold flex items-center gap-1">
+            {L('← Back', '← తిరిగి')}
+          </Link>
           <div className="flex items-center gap-4">
             <ShareButton
               variant="pill"
@@ -345,7 +332,6 @@ export default function ProduceDetailPage() {
                 unit: item.unit,
                 farmerName: farmer?.name,
                 farmerVillage: farmer?.village,
-                imageUrl: coverImageUrl(item),
               }}
             />
             <LanguageToggle />
@@ -391,13 +377,6 @@ export default function ProduceDetailPage() {
         <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
           <h1 className="text-xl font-extrabold text-gray-900 leading-tight">{localizeName(item.name, lang)}</h1>
           {item.variety && <p className="text-sm text-gray-500 mt-0.5">{localizeName(item.variety, lang)}</p>}
-
-          {/* Farmer doesn't deliver this one — said here, not first in the cart. */}
-          {!canDeliver(normalizeDeliveryMode(item.delivery_mode)) && (
-            <p className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-gray-700 bg-gray-100 rounded-full px-2.5 py-1">
-              🚶 {L('Pickup only — the farmer doesn’t deliver this', 'పికప్ మాత్రమే — రైతు దీన్ని డెలివరీ చేయరు')}
-            </p>
-          )}
 
           {/* Harvest clock — "Harvested 2 hours ago", from the latest harvest. */}
           {latestHarvest && (
@@ -584,10 +563,8 @@ export default function ProduceDetailPage() {
       </div>
       </div>
 
-      {/* Sticky add-to-cart bar, stacked on the bottom menu. The extra bottom
-          padding is room for the menu's raised cart button, which pokes up
-          into this bar. */}
-      <div className="fixed left-0 right-0 z-30 bg-white border-t border-gray-200 px-4 pt-3 pb-8 max-w-lg mx-auto" style={{ bottom: BOTTOM_NAV_OFFSET }}>
+      {/* Sticky add-to-cart bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 px-4 py-3 max-w-lg mx-auto">
         {stockMsg && (
           <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 text-center mb-2">{stockMsg}</p>
         )}
