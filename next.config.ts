@@ -99,6 +99,12 @@ const nextConfig: NextConfig = {
     root: __dirname,
   },
   images: {
+    // Serve Supabase images as-is instead of through Vercel's optimiser.
+    // On 2026-10-15 Image Transformations hit 5,457 of the Hobby plan's 5,000
+    // and Vercel paused the whole site for 30 days. Uploads are already
+    // shrunk in the browser (src/lib/imageCompress.ts: 1200px JPEG @ 0.7),
+    // so the optimiser was saving little while costing the entire deployment.
+    unoptimized: true,
     // Public storage objects only — never the signed/private paths.
     remotePatterns: allowedSupabaseHosts.map((hostname) => ({
       protocol: "https" as const,
