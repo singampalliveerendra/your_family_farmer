@@ -130,7 +130,7 @@ function FarmerList({ farmers }: { farmers: RankedFarmer[] }) {
           <li key={f.id}>
             <Link
               href={`/farmer/${f.slug}`}
-              className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm p-3 active:scale-[0.98] active:bg-gray-50 transition-transform"
+              className="flex items-start gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm p-3 active:scale-[0.98] active:bg-gray-50 transition-transform"
             >
               <span className="w-[52px] h-[52px] rounded-full bg-green-100 flex-shrink-0 overflow-hidden flex items-center justify-center text-2xl">
                 {f.photo_url ? (
@@ -143,6 +143,18 @@ function FarmerList({ farmers }: { farmers: RankedFarmer[] }) {
               <span className="flex-1 min-w-0">
                 <span className="block text-sm font-extrabold text-gray-900 truncate">{f.name}</span>
                 {place && <span className="block text-xs text-gray-500 truncate">{place}</span>}
+                {f.grow_text && (
+                  <span className="block mt-1.5 bg-green-50 rounded-lg px-2 py-1.5">
+                    <span className="block text-[10px] font-bold text-green-700 uppercase tracking-wide">
+                      {f.grow_source === 'aggregate'
+                        ? `🤝 ${L('How we aggregate', 'మేము ఎలా సేకరిస్తాము')}`
+                        : f.grow_source === 'story'
+                          ? `📖 ${L('Our story', 'మా కథ')}`
+                          : `🌱 ${L('How we grow', 'మేము ఎలా పండిస్తాము')}`}
+                    </span>
+                    <span className="text-xs text-gray-700 leading-snug line-clamp-2">{f.grow_text}</span>
+                  </span>
+                )}
                 <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-1 text-[11px] text-gray-500 whitespace-nowrap">
                   {f.rating_avg ? <span className="font-bold text-amber-600">★ {Number(f.rating_avg).toFixed(1)}</span> : null}
                   <span>{f.listing_count} {L(f.listing_count === 1 ? 'item' : 'items', 'వస్తువులు')}</span>

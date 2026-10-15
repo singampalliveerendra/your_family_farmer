@@ -17,6 +17,8 @@ export type FarmerCard = {
   location_name?: string | null
   follower_count: number
   listing_count: number
+  grow_text?: string | null
+  grow_source?: GrowSource | null
 }
 
 export type RankedFarmer = FarmerCard & { distanceKm: number | null }
@@ -45,4 +47,25 @@ export function rankFarmers(
     following: withDistance.filter((f) => followed.has(f.id)).sort(sort),
     others: withDistance.filter((f) => !followed.has(f.id)).sort(sort),
   }
+}
+
+/* The line under each farmer's name: how they grow. Farmers write "How we
+ * grow" on each produce, so the newest one is used; a farmer who never filled
+ * it in still has their farm story, and an aggregator their "How we aggregate". */
+export type GrowSource = 'produce' | 'story' | 'aggregate'
+
+export function pickGrowText(src: {
+  produce?: string | null
+  story?: string | null
+  aggregate?: string | null
+  isAggregator: boolean
+}): { grow_text: string | null; grow_source: GrowSource | null } {
+  const clean = (v?: string | null) => v?.replace(/\s+/g, ' ').trim() || null
+  const produce = clean(src.produce)
+  if (produce) return { grow_text: produce, grow_source: 'produce' }
+  const aggregate = src.isAggregator ? clean(src.aggregate) : null
+  if (aggregate) return { grow_text: aggregate, grow_source: 'aggregate' }
+  const story = clean(src.story)
+  if (story) return { grow_text: story, grow_source: 'story' }
+  return { grow_text: null, grow_source: null }
 }

@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
 import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
+import { pickGrowText } from '@/lib/farmersTab'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
 
   const { data: farmers, error } = await supabase
     .from('farmers')
-    .select('id, slug, name, village, district, photo_url, account_type, rating_avg, lat, lng, location_name')
+    .select('id, slug, name, village, district, photo_url, account_type, rating_avg, lat, lng, location_name, story_quote, how_we_aggregate')
     .eq('active', true)
     .not('slug', 'is', null)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
   const [followsRes, listingsRes, mineRes] = await Promise.all([
     ids.length ? supabase.from('farmer_follows').select('farmer_id').in('farmer_id', ids) : Promise.resolve({ data: [] }),
     ids.length
-      ? supabase.from('produce_listings').select('farmer_id').in('farmer_id', ids).in('status', [...CONSUMER_VISIBLE_STATUSES])
+      ? supabase.from('produce_listings').select('farmer_id, how_we_grow, created_at').in('farmer_id', ids).in('status', [...CONSUMER_VISIBLE_STATUSES]).order('created_at', { ascending: false })
       : Promise.resolve({ data: [] }),
     session
       ? supabase.from('farmer_follows').select('farmer_id').eq('consumer_id', session.consumerId)
@@ -45,11 +46,24 @@ export async function GET(req: NextRequest) {
   const followers = tally(followsRes.data as Array<{ farmer_id: string }> | null)
   const listings = tally(listingsRes.data as Array<{ farmer_id: string }> | null)
 
+  // "How we grow" is written per produce; newest wins (rows come newest first).
+  const growByFarmer = new Map<string, string>()
+  for (const r of (listingsRes.data ?? []) as Array<{ farmer_id: string; how_we_grow?: string | null }>) {
+    const text = r.how_we_grow?.trim()
+    if (text && !growByFarmer.has(r.farmer_id)) growByFarmer.set(r.farmer_id, text)
+  }
+
   return NextResponse.json({
-    farmers: (farmers ?? []).map((f) => ({
+    farmers: (farmers ?? []).map(({ story_quote, how_we_aggregate, ...f }) => ({
       ...f,
       follower_count: followers.get(f.id as string) ?? 0,
       listing_count: listings.get(f.id as string) ?? 0,
+      ...pickGrowText({
+        produce: growByFarmer.get(f.id as string),
+        story: story_quote as string | null,
+        aggregate: how_we_aggregate as string | null,
+        isAggregator: f.account_type === 'aggregator',
+      }),
     })),
     followingIds: ((mineRes.data ?? []) as Array<{ farmer_id: string }>).map((r) => r.farmer_id),
   })
