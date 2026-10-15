@@ -20,6 +20,7 @@ import { harvestClock } from '@/lib/harvest'
 import { normalizeUrl, linkHost } from '@/lib/links'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import ShareButton from '@/components/consumer/ShareButton'
+import { growerLine } from '@/lib/source-farmers'
 
 type Farmer = {
   id: string
@@ -68,7 +69,11 @@ type Listing = {
   price_tier_2_price?: number | null
   price_tier_3_price?: number | null
   farmer_id: string
+  /** Aggregator listings only: which of their source farmers grows it. */
+  source_farmer_id?: string | null
 }
+
+type SourceFarmer = { name: string; village: string | null }
 
 
 // A Postgres `date` (or full timestamp) → short readable date, e.g. "5 Jul 2026".
@@ -100,6 +105,7 @@ export default function ProduceDetailPage() {
 
   const [item, setItem] = useState<Listing | null>(null)
   const [farmer, setFarmer] = useState<Farmer | null>(null)
+  const [sourceFarmer, setSourceFarmer] = useState<SourceFarmer | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [liveStock, setLiveStock] = useState<number | null>(null)
@@ -159,6 +165,22 @@ export default function ProduceDetailPage() {
     setItem(l as Listing)
     setLiveStock((l as Listing).stock_qty ?? null)
     setFarmer(f ?? null)
+    // An aggregator's listing names the farmer who grows it. Fetched on its own
+    // rather than embedded in the listing query, so an environment without the
+    // column only loses the "Grown by" line, never the whole page. Not awaited:
+    // the page shows straight away and the line fills in a moment later.
+    const sourceFarmerId = (l as Listing).source_farmer_id ?? null
+    if (sourceFarmerId && f?.account_type === 'aggregator') {
+      void Promise.resolve(
+        supabase
+          .from('source_farmers')
+          .select('name, village')
+          .eq('id', sourceFarmerId)
+          .maybeSingle(),
+      ).then(({ data: sf }) => setSourceFarmer((sf as SourceFarmer) ?? null), () => setSourceFarmer(null))
+    } else {
+      setSourceFarmer(null)
+    }
     try {
       const rows = (harvestsRes.data ?? []) as Array<{ harvested_at: string; shelf_life_days: number | null; stock_qty: number | null }>
       setHarvestStocks(rows.map((r) => ({ stock_qty: r.stock_qty ?? null })))
@@ -209,6 +231,7 @@ export default function ProduceDetailPage() {
   const methodShort = methodLabel(method, lang)
   const gallery = (item.image_urls && item.image_urls.length ? item.image_urls : (item.image_url ? [item.image_url] : []))
     .filter(Boolean) as string[]
+  const grower = growerLine(farmer?.account_type, sourceFarmer)
   const farmerHref = farmer ? `/farmer/${farmer.slug}` : '#'
   const canAdd = !!farmer && !!farmer.phone
   const inCart = cart[item.id]
@@ -430,9 +453,9 @@ export default function ProduceDetailPage() {
         {farmer && (
           <Link href={farmerHref} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center justify-between active:bg-gray-50">
             <div className="min-w-0">
-              {/* This page is the produce template, not one pick, so there is no
-                  single grower to name — each harvest has its own. Say who the
-                  seller is and where the grower's name will be. */}
+              {/* An aggregator's listing is attributed to one source farmer
+                  (every harvest under it inherits that farmer), so the buyer
+                  sees both who sells it and who grew it. */}
               {farmer.account_type === 'aggregator' && (
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{L('Sold by', 'అమ్మేవారు')}</p>
               )}
@@ -440,7 +463,13 @@ export default function ProduceDetailPage() {
                 {farmer.account_type === 'aggregator' ? '🤝' : '👨‍🌾'} {farmer.name}
               </p>
               <p className="text-xs text-gray-500 truncate">{farmer.village}</p>
-              {farmer.account_type === 'aggregator' && (
+              {grower ? (
+                <div className="mt-2.5 pt-2.5 border-t border-gray-100">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{L('Grown by', 'పండించినవారు')}</p>
+                  <p className="text-sm font-bold text-gray-900 truncate">👨‍🌾 {grower.name}</p>
+                  {grower.village && <p className="text-xs text-gray-500 truncate">📍 {grower.village}</p>}
+                </div>
+              ) : farmer.account_type === 'aggregator' && (
                 <p className="text-[11px] text-gray-500 leading-snug mt-1">
                   {L(
                     'An aggregator. Each harvest names the farmer who grew it.',

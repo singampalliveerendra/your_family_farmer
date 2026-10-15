@@ -150,3 +150,21 @@ export async function deleteSourceFarmer(
   if (!data) return { ok: false, status: 404, error: 'Farmer not found.' }
   return { ok: true }
 }
+
+/**
+ * The "Grown by" line on the consumer produce page. Only an aggregator's
+ * listing names a grower — a farmer selling their own produce IS the grower,
+ * already shown as the seller. Null (nothing rendered) when the listing has no
+ * attributed farmer, e.g. an old listing nobody has re-edited since the
+ * attribution moved onto produce.
+ */
+export function growerLine(
+  accountType: string | null | undefined,
+  sourceFarmer: { name?: string | null; village?: string | null } | null | undefined,
+): { name: string; village: string | null } | null {
+  if (accountType !== 'aggregator') return null
+  const name = (sourceFarmer?.name ?? '').trim()
+  if (!name) return null
+  const village = (sourceFarmer?.village ?? '').trim()
+  return { name, village: village || null }
+}
