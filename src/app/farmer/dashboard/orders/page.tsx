@@ -10,6 +10,9 @@ import OrderCard, { type FarmerOrder as Order, isResolved } from '@/components/f
 import { DeclineReasonSheet, DeclineSuccessSheet } from '@/components/farmer/DeclineSheets'
 import { ordersInReportWindow } from '@/lib/orderReport'
 import OrderReportSheet from '@/components/farmer/OrderReportSheet'
+import OrderSearchBox from '@/components/OrderSearchBox'
+import { farmerOrderIndex } from '@/lib/orderSearch'
+import { useOrderSearch } from '@/lib/useOrderSearch'
 import { farmerFetch, isFarmerSessionExpired, requireFarmerSession } from '@/lib/farmer-auth-client'
 import { formatQty } from '@/lib/saleStep'
 
@@ -362,9 +365,14 @@ function OrdersPageInner() {
 
   const reportCount = ordersInReportWindow(orders).length
 
+  // Text search (either language, either script) narrows what the chips,
+  // revenue and list below show. Empty query → nothing is filtered.
+  const { query, setQuery, matches, vocabulary, searching } = useOrderSearch(orders, farmerOrderIndex)
+
   const start = timeStart()
   const filtered = orders.filter((o) => {
     if (new Date(o.created_at).getTime() < start) return false
+    if (!matches(o)) return false
     if (statusFilter === 'all') return true
     return bucketOf(o) === statusFilter
   })
@@ -374,7 +382,7 @@ function OrdersPageInner() {
     .reduce((sum, o) => sum + (o.total_price ?? 0), 0)
 
   // Per-bucket counts for the chips (respect the active time window).
-  const inWindow = orders.filter((o) => new Date(o.created_at).getTime() >= start)
+  const inWindow = orders.filter((o) => new Date(o.created_at).getTime() >= start && matches(o))
   const countFor = (s: StatusFilter) =>
     s === 'all' ? inWindow.length : inWindow.filter((o) => bucketOf(o) === s).length
 
@@ -422,6 +430,12 @@ function OrdersPageInner() {
       </div>
 
       <div className="px-4 -mt-5 space-y-4">
+        {/* Text search — buyer, phone, crop, order no., status; Telugu or
+            Telugu typed in English letters. */}
+        {!loading && orders.length > 0 && (
+          <OrderSearchBox value={query} onChange={setQuery} matchCount={filtered.length} vocabulary={vocabulary} />
+        )}
+
         {/* Status filter — scrollable chips with live counts */}
         <div className="bg-white rounded-2xl border border-gray-100 p-3">
           <div className="flex gap-2 overflow-x-auto scrollbar-hide">
@@ -476,7 +490,16 @@ function OrdersPageInner() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-5xl mb-3">📭</div>
-            <p className="font-semibold text-gray-500 text-sm">{L('No orders here', 'ఇక్కడ ఆర్డర్లు లేవు')}</p>
+            <p className="font-semibold text-gray-500 text-sm">
+              {searching
+                ? L('No orders match your search', 'మీ వెతుకుటకు సరిపోయే ఆర్డర్లు లేవు')
+                : L('No orders here', 'ఇక్కడ ఆర్డర్లు లేవు')}
+            </p>
+            {searching && (
+              <button onClick={() => setQuery('')} className="mt-3 text-green-700 text-sm underline font-semibold">
+                {L('Clear search', 'వెతుకుట తీసివేయండి')}
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
