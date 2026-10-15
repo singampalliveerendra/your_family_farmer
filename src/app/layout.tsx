@@ -7,6 +7,7 @@ import SplashScreen from "@/components/SplashScreen";
 import StagingBanner from "@/components/StagingBanner";
 import InstallCounter from "@/components/InstallCounter";
 import BuyerViewBar from "@/components/BuyerViewBar";
+import BottomNav from "@/components/BottomNav";
 
 /* Brand type. Fraunces carries the Latin wordmark (soft, slightly wonky serif
    — the farm-to-table look); it has no Telugu glyphs, so Noto Serif Telugu
@@ -122,6 +123,9 @@ export default function RootLayout({
                 on the buyer surfaces — see src/lib/buyerView.ts. */}
             <BuyerViewBar />
             {children}
+            {/* The bottom menu bar — shows only on the pages listed in
+                src/lib/bottomNav.ts. */}
+            <BottomNav />
           </ConsumerAuthProvider>
         </LanguageProvider>
       </body>

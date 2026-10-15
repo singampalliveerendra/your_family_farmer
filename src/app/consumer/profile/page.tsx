@@ -12,7 +12,7 @@ import { EMPTY_ADDRESS, isAddressComplete, type SavedAddress } from '@/lib/saved
 // it for home delivery so it isn't retyped on every order.
 export default function ConsumerProfilePage() {
   const { L } = useLang()
-  const { state, consumer, openAuth } = useConsumerAuth()
+  const { state, consumer, openAuth, logout } = useConsumerAuth()
   const [addr, setAddr] = useState<SavedAddress>(EMPTY_ADDRESS)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -56,7 +56,7 @@ export default function ConsumerProfilePage() {
   const altPartial = addr.altPhone.length > 0 && addr.altPhone.length < 10
 
   return (
-    <main className="min-h-screen bg-gray-50 pb-16">
+    <main className="min-h-screen bg-gray-50 pb-6">
       <div className="bg-green-900 px-4 pt-6 pb-10">
         <div className="flex items-center justify-between mb-4">
           <Link href="/consumer" className="text-green-300 text-sm flex items-center gap-1">{L('← Back', 'వెనక్కు')}</Link>
@@ -104,7 +104,33 @@ export default function ConsumerProfilePage() {
             </>
           )}
         </div>
+
+        {/* The rest of the account — this page is the bottom bar's Account
+            tab, so everything that used to live only in the ⚙️ menu is here. */}
+        {state.status === 'authenticated' && (
+          <div className="bg-white rounded-2xl shadow-sm mt-4 divide-y divide-gray-100 overflow-hidden">
+            <AccountLink href="/consumer/intents" icon="📣" label={L('My crop requests', 'నా పంట అభ్యర్థనలు')} />
+            <AccountLink href="/consumer/complaints" icon="🛟" label={L('My complaints', 'నా ఫిర్యాదులు')} />
+            <AccountLink href="/consumer/orders/history" icon="🧾" label={L('Order history', 'ఆర్డర్ చరిత్ర')} />
+            <button
+              onClick={() => void logout()}
+              className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-semibold text-red-600 active:bg-red-50"
+            >
+              <span aria-hidden>↪</span> {L('Log out', 'లాగౌట్')}
+            </button>
+          </div>
+        )}
       </div>
     </main>
+  )
+}
+
+function AccountLink({ href, icon, label }: { href: string; icon: string; label: string }) {
+  return (
+    <Link href={href} className="flex items-center gap-3 px-4 py-3.5 text-sm font-semibold text-gray-800 active:bg-gray-50">
+      <span aria-hidden>{icon}</span>
+      <span className="flex-1">{label}</span>
+      <span className="text-gray-300 text-lg leading-none">›</span>
+    </Link>
   )
 }

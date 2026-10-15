@@ -123,6 +123,46 @@ html.splash-skip .splash-overlay { display: none !important; }
   .cart-shine::after { display: none; }
 }
 
+/* ── Bottom menu bar ───────────────────────────────────────── */
+/* The bar slides up once when it first appears. */
+@keyframes bottomNavIn {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.bottom-nav-in { animation: bottomNavIn 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+/* Middle cart, while it holds something not yet looked at: a slow turning
+   colour ring (brand green → lime → amber), a soft halo breathing out, and a
+   small bob every few seconds. Opening the cart stops all three. */
+@keyframes navCartSpin { to { transform: rotate(360deg); } }
+.nav-cart-ring {
+  background: conic-gradient(#15803d, #84cc16, #fbbf24, #15803d);
+  animation: navCartSpin 2.4s linear infinite;
+}
+@keyframes navCartHalo {
+  0%   { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45); }
+  70%  { box-shadow: 0 0 0 12px rgba(22, 163, 74, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+}
+.nav-cart-halo { animation: navCartHalo 2.4s ease-out infinite; }
+@keyframes navCartBob {
+  0%, 80%, 100% { transform: translateY(0) rotate(0); }
+  85% { transform: translateY(-3px) rotate(-8deg); }
+  90% { transform: translateY(0) rotate(6deg); }
+  95% { transform: translateY(-1px) rotate(-3deg); }
+}
+.nav-cart-bob { animation: navCartBob 3.2s ease-in-out infinite; }
+/* An added item lands: one squash-and-bounce. */
+@keyframes navCartLand {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(0.82); }
+  60%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+.nav-cart-land { animation: navCartLand 0.45s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav-in, .nav-cart-ring, .nav-cart-halo, .nav-cart-bob, .nav-cart-land { animation: none; }
+}
+
 /* ── Order placed success (CSS-only) ───────────────────────── */
 @keyframes orderPop {
   0%   { opacity: 0; transform: scale(0.3); }
