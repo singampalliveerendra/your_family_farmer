@@ -18,6 +18,7 @@ const NAV: NavItem[] = [
   { label: 'Price management', href: '/moderator/prices', ready: true },
   { label: 'Supply & demand', href: '/moderator/supply', ready: true },
   { label: 'Reports', href: '/moderator/reports', ready: true },
+  { label: 'Order reports', href: '/moderator/order-report', ready: true },
 ]
 
 export default function ModeratorShell({

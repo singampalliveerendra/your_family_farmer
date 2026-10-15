@@ -17,8 +17,10 @@ import {
   fmtDate,
   fmtDateTime,
   REPORT_STATUSES,
+  farmerPayouts,
   type ReportStatus,
   type ReportFilter,
+  type ReportFarmers,
 } from '@/lib/orderReport'
 
 const STATUS_CLASS: Record<ReportStatus, string> = {
@@ -43,15 +45,22 @@ function isoDate(d: Date): string {
 // Full-screen orders report. The farmer picks a date range (preset chips or a
 // custom From–To calendar) and status filters, reviews on screen, then taps
 // "Download PDF" to save exactly what's shown.
+//
+// Moderators open the same sheet (app/moderator/order-report) for one farmer or
+// every farmer in their zone. They pass `farmers` (id → name), which adds the
+// farmer to each order and a per-farmer payment table for the payout run.
 export default function OrderReportSheet({
   orders,
   farmerName,
   onClose,
+  farmers,
 }: {
   orders: FarmerOrder[]
   farmerName: string
   onClose: () => void
+  farmers?: ReportFarmers
 }) {
+  const forModerator = !!farmers
   const { L } = useLang()
 
   // Moderator commission %, used to compute the service fee deducted on declined
@@ -113,8 +122,13 @@ export default function OrderReportSheet({
     [orders, filter, feePercent],
   )
 
+  const payouts = useMemo(
+    () => (farmers ? farmerPayouts(rows, feePercent, farmers) : []),
+    [farmers, rows, feePercent],
+  )
+
   const handleDownload = () => {
-    const ok = downloadOrdersReport(orders, farmerName || L('Farmer', 'రైతు'), filter, feePercent)
+    const ok = downloadOrdersReport(orders, farmerName || L('Farmer', 'రైతు'), filter, feePercent, farmers)
     if (!ok) {
       alert(L(
         'Please allow pop-ups for this site to download the report.',
@@ -245,7 +259,9 @@ export default function OrderReportSheet({
                   {L('Service fee on declined', 'తిరస్కరించిన వాటిపై సర్వీస్ ఫీజు')}
                 </span>
                 <span className="text-[10px] text-red-500 leading-snug">
-                  {L(`Deducted from your payout (${feePercent}% of declined orders)`, `మీ చెల్లింపు నుండి తీసివేయబడుతుంది (తిరస్కరించిన ఆర్డర్లలో ${feePercent}%)`)}
+                  {forModerator
+                    ? L(`Deducted from the farmer's payout (${feePercent}% of declined orders)`, `రైతు చెల్లింపు నుండి తీసివేయబడుతుంది (తిరస్కరించిన ఆర్డర్లలో ${feePercent}%)`)
+                    : L(`Deducted from your payout (${feePercent}% of declined orders)`, `మీ చెల్లింపు నుండి తీసివేయబడుతుంది (తిరస్కరించిన ఆర్డర్లలో ${feePercent}%)`)}
                 </span>
               </div>
               <span className="text-2xl font-black text-red-700 flex-shrink-0">−₹{serviceFeeDeducted}</span>
@@ -263,7 +279,7 @@ export default function OrderReportSheet({
             <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 gap-y-1.5 text-xs">
               <span className="text-gray-400 font-semibold">{L('Harvest', 'పంట')}</span>
               <span className="text-gray-400 font-semibold text-right">{L('Buyers', 'కొనుగోలుదారులు')}</span>
-              <span className="text-gray-400 font-semibold text-right">{L('You', 'మీరు')}</span>
+              <span className="text-gray-400 font-semibold text-right">{forModerator ? L('Farmer', 'రైతు') : L('You', 'మీరు')}</span>
               <span className="text-gray-400 font-semibold text-right">{L('Total', 'మొత్తం')}</span>
               {quantities.map((q) => (
                 <Fragment key={`${q.produce}|${q.unit}`}>
@@ -273,6 +289,40 @@ export default function OrderReportSheet({
                   <span className="font-extrabold text-gray-900 text-right whitespace-nowrap">{q.total} {q.unit}</span>
                 </Fragment>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Moderator only: what to pay each farmer for this window. */}
+        {payouts.length > 0 && (
+          <div className="bg-white border border-gray-100 rounded-xl p-3">
+            <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
+              {L('Farmer payments', 'రైతు చెల్లింపులు')}
+            </p>
+            <p className="text-[10px] text-gray-400 leading-snug mb-2">
+              {L('Net to pay = completed orders − service fee on declined. Approved but not handed over is not payable yet.',
+                'చెల్లించాల్సింది = పూర్తైన ఆర్డర్లు − తిరస్కరించిన వాటిపై ఫీజు. ఇంకా అందించని ఆర్డర్లు ఇప్పుడు చెల్లించనక్కర్లేదు.')}
+            </p>
+            <div className="divide-y divide-gray-100">
+              {payouts.map((p) => (
+                <div key={p.farmerId} className="py-2 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-extrabold text-gray-900 truncate">{p.name}</p>
+                    <p className="text-[11px] text-gray-500 leading-snug">
+                      {p.completedOrders} {L('completed', 'పూర్తి')} · ₹{p.earned}
+                      {p.declinedOrders > 0 && <> · <span className="text-red-600">{p.declinedOrders} {L('declined', 'తిరస్కరణ')} −₹{p.deduction}</span></>}
+                      {p.awaitingAmount > 0 && <> · <span className="text-blue-700">₹{p.awaitingAmount} {L('awaiting handover', 'అందించాల్సి ఉంది')}</span></>}
+                    </p>
+                  </div>
+                  <span className="text-base font-black text-green-800 whitespace-nowrap">₹{p.net}</span>
+                </div>
+              ))}
+              {payouts.length > 1 && (
+                <div className="pt-2 flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">{L('Total to pay', 'మొత్తం చెల్లించాల్సింది')}</span>
+                  <span className="text-xl font-black text-green-800">₹{payouts.reduce((n, p) => n + p.net, 0)}</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -291,6 +341,9 @@ export default function OrderReportSheet({
               <div key={o.id} className="bg-white rounded-xl border border-gray-100 p-3 space-y-1.5">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
+                    {forModerator && (
+                      <p className="text-[11px] font-bold text-green-800 truncate">👨‍🌾 {farmers[o.farmer_id] ?? '—'}</p>
+                    )}
                     <p className="font-extrabold text-gray-900 text-sm leading-tight">
                       {o.buyer_name || '—'}
                       {o.is_self_order && (

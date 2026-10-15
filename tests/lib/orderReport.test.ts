@@ -12,7 +12,9 @@ import {
   computeReportData,
   ordersInReportWindow,
   REPORT_WINDOW_DAYS,
+  farmerPayouts,
 } from '@/lib/orderReport'
+import { reportFarmerIds } from '@/lib/moderatorOrderReport'
 
 // The farmer's downloadable orders report is the document they use to work out
 // what they earned and to argue about it. Every number in it is a claim about
@@ -255,3 +257,51 @@ describe('computeReportData quantities', () => {
   })
 })
 
+
+// The moderator's payout run reads these numbers to pay farmers.
+describe('farmerPayouts', () => {
+  const names = { f1: 'Ramesh', f2: 'Lakshmi' }
+  const done = (o: Partial<FarmerOrder>) => order({ status: 'approved', delivery_type: 'self_pickup', collected_at: new Date().toISOString(), ...o })
+
+  it('pays each farmer their completed orders minus the decline fee', () => {
+    const rows = farmerPayouts([
+      done({ id: 'a', farmer_id: 'f1', total_price: 300 }),
+      done({ id: 'b', farmer_id: 'f1', total_price: 200 }),
+      order({ id: 'c', farmer_id: 'f1', status: 'declined', total_price: 100 }),
+      done({ id: 'd', farmer_id: 'f2', total_price: 1000 }),
+    ], 5, names)
+    expect(rows.map((r) => [r.name, r.earned, r.deduction, r.net])).toEqual([
+      ['Lakshmi', 1000, 0, 1000],
+      ['Ramesh', 500, 5, 495],
+    ])
+    expect(rows[1]).toMatchObject({ orders: 3, completedOrders: 2, declinedOrders: 1 })
+  })
+
+  it('does not pay for approved orders not yet handed over, but shows them', () => {
+    const [r] = farmerPayouts([order({ farmer_id: 'f1', status: 'approved', delivery_type: 'self_pickup', collected_at: null, total_price: 250 })], 5, names)
+    expect(r).toMatchObject({ earned: 0, awaitingAmount: 250, net: 0 })
+  })
+
+  it('pays nothing on pending or cancelled orders', () => {
+    const [r] = farmerPayouts([
+      order({ id: 'p', farmer_id: 'f1', status: 'pending', total_price: 80 }),
+      order({ id: 'x', farmer_id: 'f1', status: 'cancelled', total_price: 90 }),
+    ], 5, names)
+    expect(r).toMatchObject({ orders: 2, earned: 0, awaitingAmount: 0, deduction: 0, net: 0 })
+  })
+})
+
+describe('reportFarmerIds', () => {
+  const zone = ['f1', 'f2']
+  it('covers the whole zone for all, one farmer for an id', () => {
+    expect(reportFarmerIds('all', zone)).toEqual({ ids: ['f1', 'f2'] })
+    expect(reportFarmerIds('f2', zone)).toEqual({ ids: ['f2'] })
+  })
+  it('returns no orders until a farmer is chosen', () => {
+    expect(reportFarmerIds(null, zone)).toEqual({ ids: null })
+    expect(reportFarmerIds('  ', zone)).toEqual({ ids: null })
+  })
+  it('refuses a farmer from another zone', () => {
+    expect(reportFarmerIds('f9', zone)).toEqual({ ids: null, error: 'forbidden' })
+  })
+})

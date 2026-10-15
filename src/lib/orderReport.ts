@@ -159,6 +159,64 @@ export function computeReportData(orders: FarmerOrder[], filter: ReportFilter, f
   }
 }
 
+// ── Moderator report: one farmer or every farmer in the zone ────────────────
+
+// Who the report is about, when a moderator runs it. `names` maps farmer id →
+// display name; present only in the moderator's report, where it switches on
+// the farmer column and the per-farmer payment table. A farmer's own report
+// never passes it.
+export type ReportFarmers = Record<string, string>
+
+export type FarmerPayout = {
+  farmerId: string
+  name: string
+  orders: number
+  // Completed (handed over) orders — the ones the farmer is owed money for.
+  completedOrders: number
+  earned: number
+  // Approved but not handed over yet: owed once fulfilled, not payable today.
+  awaitingAmount: number
+  declinedOrders: number
+  deduction: number
+  // What to pay the farmer for this window: earned − decline deduction.
+  net: number
+}
+
+/**
+ * Per-farmer payment summary for the moderator's payout run, over the orders
+ * already filtered into the report window. Same rule as the farmer's own
+ * report and the Reports page payouts: the farmer earns the produce price on
+ * each completed order, and each declined order costs feePercent of its price.
+ * Sorted by net payable, highest first.
+ */
+export function farmerPayouts(orders: FarmerOrder[], feePercent: number, names: ReportFarmers): FarmerPayout[] {
+  const byFarmer = new Map<string, FarmerPayout>()
+  for (const o of orders) {
+    const id = o.farmer_id
+    if (!id) continue
+    let rec = byFarmer.get(id)
+    if (!rec) {
+      rec = { farmerId: id, name: names[id] ?? '—', orders: 0, completedOrders: 0, earned: 0, awaitingAmount: 0, declinedOrders: 0, deduction: 0, net: 0 }
+      byFarmer.set(id, rec)
+    }
+    rec.orders += 1
+    const price = Number(o.total_price) || 0
+    const label = statusLabel(o)
+    if (label === 'Completed' && o.status === 'approved') {
+      rec.completedOrders += 1
+      rec.earned += price
+    } else if (label === 'Approved') {
+      rec.awaitingAmount += price
+    } else if (o.status === 'declined') {
+      rec.declinedOrders += 1
+      rec.deduction += declineServiceFee(o, feePercent)
+    }
+  }
+  return Array.from(byFarmer.values())
+    .map((r) => ({ ...r, net: r.earned - r.deduction }))
+    .sort((a, b) => b.net - a.net || a.name.localeCompare(b.name))
+}
+
 // Escape any farmer/buyer-supplied text before injecting it into the report HTML.
 function esc(s: string | number | null | undefined): string {
   if (s === null || s === undefined) return ''
@@ -169,8 +227,9 @@ function esc(s: string | number | null | undefined): string {
     .replace(/"/g, '&quot;')
 }
 
-function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: ReportFilter, feePercent = 0): string {
+function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: ReportFilter, feePercent = 0, farmers?: ReportFarmers): string {
   const { orders: window, counts, revenue, serviceFeeDeducted, quantities, fromDate, toDate, generatedAt } = computeReportData(orders, filter, feePercent)
+  const payouts = farmers ? farmerPayouts(window, feePercent, farmers) : []
   const rangeDesc = `${fmtDate(fromDate.toISOString())} – ${fmtDate(toDate.toISOString())}`
   const statusDesc = filter.statuses.length === 0 ? 'All statuses' : filter.statuses.join(', ')
 
@@ -197,7 +256,8 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: Repo
     return `
     <tr>
       <td class="mono">${esc(o.order_code || '—')}</td>
-      <td>${esc(fmtDate(o.created_at))}</td>
+      <td>${esc(fmtDate(o.created_at))}</td>${farmers ? `
+      <td>${esc(farmers[o.farmer_id] ?? '—')}</td>` : ''}
       <td>${esc(o.buyer_name || '—')}${o.is_self_order ? ' <span class="self">Own order</span>' : ''}${o.buyer_phone ? `<br><span class="muted">+91 ${esc(o.buyer_phone)}</span>` : ''}</td>
       <td>${esc(o.produce_name || '—')}</td>
       <td class="num">${esc(o.quantity ?? '—')} ${esc(o.unit || 'kg')}</td>
@@ -258,6 +318,8 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: Repo
   .status-cancelled { background: #f3f4f6; color: #374151; }
   .self { display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 700; background: #e0f2fe; color: #075985; }
   .qty { margin: 0 0 18px; max-width: 560px; }
+  .pay { max-width: none; }
+  .total td { background: #f0fdf4; border-top: 2px solid #14532d; }
   h2 { font-size: 14px; margin: 0 0 6px; color: #14532d; }
   .empty { text-align: center; padding: 40px; color: #888; }
   footer { margin-top: 18px; font-size: 11px; color: #999; }
@@ -280,10 +342,39 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: Repo
       : ''}
   </div>
 
+  ${payouts.length > 0
+    ? `<h2>Farmer payments</h2>
+  <table class="qty pay">
+    <thead><tr><th>Farmer</th><th>Orders</th><th>Completed</th><th>Earned</th><th>Awaiting handover</th><th>Declined</th><th>Deduction</th><th>Net to pay</th></tr></thead>
+    <tbody>${payouts.map((p) => `
+      <tr>
+        <td><b>${esc(p.name)}</b></td>
+        <td class="num">${p.orders}</td>
+        <td class="num">${p.completedOrders}</td>
+        <td class="num">₹${p.earned}</td>
+        <td class="num">${p.awaitingAmount > 0 ? `₹${p.awaitingAmount}` : '—'}</td>
+        <td class="num">${p.declinedOrders || '—'}</td>
+        <td class="num">${p.deduction > 0 ? `<span class="neg">−₹${p.deduction}</span>` : '—'}</td>
+        <td class="num"><b>₹${p.net}</b></td>
+      </tr>`).join('')}
+      <tr class="total">
+        <td><b>Total</b></td>
+        <td class="num">${payouts.reduce((n, p) => n + p.orders, 0)}</td>
+        <td class="num">${payouts.reduce((n, p) => n + p.completedOrders, 0)}</td>
+        <td class="num">₹${payouts.reduce((n, p) => n + p.earned, 0)}</td>
+        <td class="num">₹${payouts.reduce((n, p) => n + p.awaitingAmount, 0)}</td>
+        <td class="num">${payouts.reduce((n, p) => n + p.declinedOrders, 0)}</td>
+        <td class="num">−₹${payouts.reduce((n, p) => n + p.deduction, 0)}</td>
+        <td class="num"><b>₹${payouts.reduce((n, p) => n + p.net, 0)}</b></td>
+      </tr>
+    </tbody>
+  </table>`
+    : ''}
+
   ${quantities.length > 0
     ? `<h2>Quantity ordered</h2>
   <table class="qty">
-    <thead><tr><th>Harvest</th><th>By buyers</th><th>By you</th><th>Total</th></tr></thead>
+    <thead><tr><th>Harvest</th><th>By buyers</th><th>${farmers ? 'By farmer' : 'By you'}</th><th>Total</th></tr></thead>
     <tbody>${qtyRows}</tbody>
   </table>`
     : ''}
@@ -293,7 +384,7 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: Repo
     : `<table>
     <thead>
       <tr>
-        <th>Order</th><th>Date</th><th>Buyer</th><th>Harvest</th><th>Qty</th>
+        <th>Order</th><th>Date</th>${farmers ? '<th>Farmer</th>' : ''}<th>Buyer</th><th>Harvest</th><th>Qty</th>
         <th>Amount</th><th>Status</th><th>Payment</th><th>Paid</th><th>Refund</th><th>Received</th><th>Delivery</th><th>Fulfil date</th>
       </tr>
     </thead>
@@ -309,8 +400,8 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: Repo
 // dialog, where the farmer chooses "Save as PDF". Dependency-free on purpose —
 // no client-side PDF library to download over a slow 4G connection.
 // Returns false if the window was blocked (caller can surface a message).
-export function downloadOrdersReport(orders: FarmerOrder[], farmerName: string, filter: ReportFilter, feePercent = 0): boolean {
-  const html = buildReportHtml(orders, farmerName, filter, feePercent)
+export function downloadOrdersReport(orders: FarmerOrder[], farmerName: string, filter: ReportFilter, feePercent = 0, farmers?: ReportFarmers): boolean {
+  const html = buildReportHtml(orders, farmerName, filter, feePercent, farmers)
   const win = window.open('', '_blank')
   if (!win) return false
   win.document.open()
