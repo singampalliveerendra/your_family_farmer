@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
+import { canGiveFeedback, isOrderCompleted } from '@/lib/orderFeedback'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -56,8 +57,7 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/produce-reviews
-// Verified buyer leaves a review on a produce they ordered, once the order is
-// delivered / picked up. Body: { order_id, star_rating, review_text? }.
+// A buyer rates / reviews a produce they ordered, in any order status. Body: { order_id, star_rating, review_text? }.
 export async function POST(req: NextRequest) {
   const session = getConsumerSessionFromRequest(req)
   if (!session) return NextResponse.json({ error: 'Login required.' }, { status: 401 })
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
   if (order.consumer_id !== session.consumerId) {
     return NextResponse.json({ error: 'Not your order.' }, { status: 403 })
   }
-  if (!order.produce_listing_id) {
+  if (!canGiveFeedback(order)) {
     return NextResponse.json({ error: 'This order cannot be reviewed.' }, { status: 400 })
   }
 
@@ -102,10 +102,7 @@ export async function POST(req: NextRequest) {
   // rating. Feedback on a declined / cancelled / still-pending order is private
   // (approved = false): it's the buyer telling us about their experience, and is
   // never shown on the produce card so it can't unfairly drag the rating down.
-  const completed =
-    order.status !== 'declined' &&
-    order.status !== 'cancelled' &&
-    (!!order.received_at || !!order.collected_at || !!order.delivered_at || order.delivery_status === 'delivered')
+  const completed = isOrderCompleted(order)
 
   // One review per order.
   const { data: existing } = await supabase

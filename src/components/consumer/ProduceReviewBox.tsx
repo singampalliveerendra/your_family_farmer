@@ -10,16 +10,19 @@ export type MyReview = {
   created_at: string
 }
 
-// Shown on the order detail page once an order is completed. Lets the buyer
-// rate the produce they ordered (one review per order), or shows the review
-// they already left.
+// Shown on the order detail page in every order status. Lets the buyer rate
+// the produce they ordered (one review per order), or shows the review they
+// already left. On a completed order it's a public verified-buyer rating; on
+// any other order it's private feedback (see src/lib/orderFeedback).
 export default function ProduceReviewBox({
   orderId,
   produceName,
+  completed = true,
   existing,
 }: {
   orderId: string
   produceName: string
+  completed?: boolean
   existing: MyReview | null
 }) {
   const { L } = useLang()
@@ -66,7 +69,9 @@ export default function ProduceReviewBox({
           <p className="text-sm text-gray-700 mt-2 leading-relaxed">{review.review_text}</p>
         )}
         <p className="text-[11px] text-green-700 mt-2">
-          {L('Thanks for helping other buyers!', 'ఇతర కొనుగోలుదారులకు సహాయం చేసినందుకు ధన్యవాదాలు!')}
+          {completed
+            ? L('Thanks for helping other buyers!', 'ఇతర కొనుగోలుదారులకు సహాయం చేసినందుకు ధన్యవాదాలు!')
+            : L('Thanks for your feedback!', 'మీ అభిప్రాయానికి ధన్యవాదాలు!')}
         </p>
       </div>
     )
@@ -75,10 +80,14 @@ export default function ProduceReviewBox({
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-4">
       <p className="text-sm font-extrabold text-gray-900">
-        {L('Rate', 'రేటింగ్ ఇవ్వండి')} {produceName}
+        {completed
+          ? <>{L('Rate', 'రేటింగ్ ఇవ్వండి')} {produceName}</>
+          : L('Rate this order', 'ఈ ఆర్డర్‌కు రేటింగ్ ఇవ్వండి')}
       </p>
       <p className="text-[11px] text-gray-500 mt-0.5 mb-3">
-        {L('How was it? Your review helps other buyers.', 'ఎలా ఉంది? మీ సమీక్ష ఇతర కొనుగోలుదారులకు సహాయపడుతుంది.')}
+        {completed
+          ? L('How was it? Your review helps other buyers.', 'ఎలా ఉంది? మీ సమీక్ష ఇతర కొనుగోలుదారులకు సహాయపడుతుంది.')
+          : L('Tell us about this order. This stays private and helps us improve.', 'ఈ ఆర్డర్ గురించి చెప్పండి. ఇది గోప్యంగా ఉంటుంది & మేము మెరుగుపడటానికి సహాయపడుతుంది.')}
       </p>
 
       <div className="flex gap-1 mb-3">
