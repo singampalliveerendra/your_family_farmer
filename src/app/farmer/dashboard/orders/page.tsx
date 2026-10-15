@@ -519,6 +519,7 @@ function OrdersPageInner() {
                   onMarkShipped={() => handleMarkShipped(order.id)}
                   onConfirmPickup={(otp) => handleConfirmPickup(order.id, otp)}
                   onConfirmDelivery={(otp) => handleConfirmDelivery(order.id, otp)}
+                  onResolved={(fields) => setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, ...fields } : o)))}
                 />
               ) : (
                 <HistoryCard
@@ -589,6 +590,9 @@ function HistoryCard({ order }: { order: Order }) {
   // Completion line for an approved order: the final milestone + its date.
   const isShippedFlow = isCourier || isDelivery
   const completion = !isApproved ? null
+    // Closed with "Mark as resolved" rather than the buyer's code — say so.
+    : order.farmer_resolved_at
+      ? { text: `${L('✓ Marked resolved by you', '✓ మీరు పూర్తయినట్లు గుర్తించారు')} · ${stamp(order.farmer_resolved_at)}`, cls: 'text-green-700' }
     : isShippedFlow
       ? order.received_at
         ? { text: `${L('✓ Received', '✓ అందుకున్నారు')} · ${stamp(order.received_at)}`, cls: 'text-green-700' }

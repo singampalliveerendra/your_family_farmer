@@ -69,6 +69,9 @@ type Order = {
   collected_at?: string | null
   shipped_at?: string | null
   received_at?: string | null
+  // The farmer closed it ("Mark as resolved") because no handover code was
+  // given — the closing column is stamped too (src/lib/farmerResolve.ts).
+  farmer_resolved_at?: string | null
   fulfillment_date?: string | null
   // Reason the farmer gave when they moved the pickup/delivery date after
   // approving — shown to the buyer so a date change is never silent.
@@ -924,6 +927,9 @@ function OrderStatusPanel({ order }: { order: Order }) {
   const shipped = !!order.shipped_at
   const received = !!order.received_at
   const delivered = received || collected
+  // Closed by the farmer without the buyer's code — never claim a code was used.
+  const farmerResolved = !!order.farmer_resolved_at
+  const byFarmer = L('Marked completed by the farmer', 'రైతు పూర్తయినట్లు గుర్తించారు')
   // Online orders that have been paid show an extra "Payment received" step.
   const paidOnline = isOnlinePayment(order.payment_method) && isOrderPaid(order.payment_status)
 
@@ -944,10 +950,10 @@ function OrderStatusPanel({ order }: { order: Order }) {
     ...(isShippedFlow
       ? [
           { label: L('Shipped', 'షిప్ చేయబడింది'), sub: L('Farmer is on the way to your address', 'రైతు మీ చిరునామాకు వస్తున్నారు'), at: fmt(order.shipped_at), done: shipped },
-          { label: L('Delivered', 'డెలివరీ అయింది'), sub: L('Farmer confirmed delivery with your code', 'మీ కోడ్‌తో రైతు డెలివరీ ధృవీకరించారు'), at: fmt(order.received_at || order.collected_at), done: delivered },
+          { label: L('Delivered', 'డెలివరీ అయింది'), sub: farmerResolved ? byFarmer : L('Farmer confirmed delivery with your code', 'మీ కోడ్‌తో రైతు డెలివరీ ధృవీకరించారు'), at: fmt(order.received_at || order.collected_at), done: delivered },
         ]
       : [
-          { label: L('Collected', 'తీసుకువెళ్ళారు'), sub: L('Farmer confirmed pickup with your code', 'మీ కోడ్‌తో రైతు పికప్ ధృవీకరించారు'), at: fmt(order.collected_at), done: collected },
+          { label: L('Collected', 'తీసుకువెళ్ళారు'), sub: farmerResolved ? byFarmer : L('Farmer confirmed pickup with your code', 'మీ కోడ్‌తో రైతు పికప్ ధృవీకరించారు'), at: fmt(order.collected_at), done: collected },
         ]),
   ]
 
@@ -996,6 +1002,11 @@ function OrderStatusPanel({ order }: { order: Order }) {
             ✓ {isShippedFlow ? L('Delivered', 'డెలివరీ అయింది') : L('Collected', 'తీసుకువెళ్ళారు')}
           </p>
           <p className="text-xs text-green-700 mt-0.5">{fmt(order.received_at || order.collected_at)}</p>
+          {farmerResolved && (
+            <p className="text-[11px] text-green-800 mt-1 leading-snug">
+              {byFarmer}. {L('If you did not receive this order, use Report a problem below.', 'మీకు ఈ ఆర్డర్ అందకపోతే, కింద "సమస్యను నివేదించండి" నొక్కండి.')}
+            </p>
+          )}
         </div>
       )}
 

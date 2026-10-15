@@ -290,7 +290,8 @@ CREATE TABLE IF NOT EXISTS public."orders" (
   "deposit_forfeited_at" timestamp with time zone,
   "is_preorder" boolean DEFAULT false NOT NULL,
   "preorder_expected_date" date,
-  "is_self_order" boolean DEFAULT false NOT NULL
+  "is_self_order" boolean DEFAULT false NOT NULL,
+  "farmer_resolved_at" timestamp with time zone
 );
 
 CREATE TABLE IF NOT EXISTS public."otp_sessions" (

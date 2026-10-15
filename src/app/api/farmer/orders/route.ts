@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest, refreshFarmerSessionCookie } from '@/lib/farmer-session'
+import { attachFarmerResolved } from '@/lib/farmerResolve'
 import { FARMER_ORDER_COLUMNS, FARMER_ORDER_PREORDER_COLUMNS, FARMER_ORDER_SELF_COLUMNS } from '@/lib/orderColumns'
 
 export const runtime = 'nodejs'
@@ -55,7 +56,9 @@ export async function GET(req: NextRequest) {
       console.error('[YFF farmer/orders] list failed:', error.message)
       return NextResponse.json({ error: 'Could not load orders.' }, { status: 500 })
     }
-    const res = NextResponse.json({ orders: data ?? [] })
+    // farmer_resolved_at rides on a separate tolerant read (src/lib/farmerResolve).
+    const orders = await attachFarmerResolved(supabase, (data ?? []) as unknown as Array<{ id: string }>)
+    const res = NextResponse.json({ orders })
     refreshFarmerSessionCookie(res, session)
     return res
   }
@@ -114,7 +117,7 @@ export async function GET(req: NextRequest) {
   }
 
   const res = NextResponse.json({
-    orders: activeRes.data ?? [],
+    orders: await attachFarmerResolved(supabase, (activeRes.data ?? []) as unknown as Array<{ id: string }>),
     weekOrders: weekRes.data ?? [],
     monthOrders: monthRes.data ?? [],
     todayCount: todayRes.count ?? 0,

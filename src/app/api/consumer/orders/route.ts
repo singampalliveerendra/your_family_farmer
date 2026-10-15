@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
+import { attachFarmerResolved } from '@/lib/farmerResolve'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -92,5 +93,6 @@ export async function GET(req: NextRequest) {
       my_review: reviewMap[o.id] ?? null,
     }
   })
-  return NextResponse.json({ orders: enriched })
+  // Whether the farmer closed it without the buyer's code (tolerant extra read).
+  return NextResponse.json({ orders: await attachFarmerResolved(supabase, enriched) })
 }

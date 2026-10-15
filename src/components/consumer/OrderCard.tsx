@@ -51,6 +51,9 @@ export type ConsumerOrder = {
   collected_at?: string | null
   received_at?: string | null
   delivered_at?: string | null
+  // The farmer closed it ("Mark as resolved") because the buyer couldn't give
+  // the handover code. The closing column is stamped too (src/lib/farmerResolve).
+  farmer_resolved_at?: string | null
   // When the buyer acknowledged a declined/cancelled order (moves it to history).
   acknowledged_at?: string | null
   // The buyer's own feedback for this order, if they've left any.
@@ -282,6 +285,14 @@ export default function OrderCard({
                   day: 'numeric', month: 'short', year: 'numeric',
                   hour: '2-digit', minute: '2-digit',
                 })}
+            </p>
+          )}
+
+          {order.farmer_resolved_at && order.status === 'approved' && (
+            <p className="text-xs text-green-700 font-semibold">
+              ✓ {L('Marked completed by the farmer', 'రైతు పూర్తయినట్లు గుర్తించారు')} · {new Date(order.farmer_resolved_at).toLocaleDateString('en-IN', {
+                day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+              })}
             </p>
           )}
 

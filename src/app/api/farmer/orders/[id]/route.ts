@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
+import { attachFarmerResolved } from '@/lib/farmerResolve'
 import { FARMER_ORDER_DETAIL_COLUMNS, FARMER_ORDER_RESCHEDULE_COLUMNS, FARMER_ORDER_SELF_COLUMNS } from '@/lib/orderColumns'
 
 export const runtime = 'nodejs'
@@ -50,5 +51,6 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   }
   if (!data) return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
 
-  return NextResponse.json({ order: data })
+  const [order] = await attachFarmerResolved(supabase, [data as unknown as { id: string }])
+  return NextResponse.json({ order })
 }
