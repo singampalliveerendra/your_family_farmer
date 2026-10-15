@@ -49,3 +49,11 @@ export const FARMER_ORDER_RESCHEDULE_COLUMNS = ', reschedule_reason, rescheduled
  * orders as it always did, rather than showing nothing at all.
  */
 export const FARMER_ORDER_PREORDER_COLUMNS = ', is_preorder, preorder_expected_date'
+
+/**
+ * The self-order flag (a farmer ordering their own produce), SEPARATE for the
+ * same reason as the two above: scripts/self-order-migration.sql may not have
+ * run yet. Readers try it first and fall back without it, so a missing column
+ * only loses the "Your own order" badge, never the order list.
+ */
+export const FARMER_ORDER_SELF_COLUMNS = ', is_self_order'

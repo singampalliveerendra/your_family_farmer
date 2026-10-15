@@ -4,6 +4,7 @@ import {
   FARMER_ORDER_COLUMNS,
   FARMER_ORDER_DETAIL_COLUMNS,
   FARMER_ORDER_RESCHEDULE_COLUMNS,
+  FARMER_ORDER_SELF_COLUMNS,
 } from '@/lib/orderColumns'
 
 // These two strings are security boundaries, not formatting.
@@ -106,3 +107,15 @@ describe('the farmer order column lists', () => {
     expect(FARMER_ORDER_RESCHEDULE_COLUMNS).toContain('reschedule_reason')
   })
 })
+
+describe('FARMER_ORDER_SELF_COLUMNS', () => {
+  // USE: the self-order flag must stay OUT of the base lists. Postgres fails the
+  // whole select on an unknown column, so inlining it would blank every
+  // farmer's order list on a database without scripts/self-order-migration.sql.
+  it('is kept separate from the base order lists', () => {
+    expect(FARMER_ORDER_SELF_COLUMNS).toBe(', is_self_order')
+    expect(cols(FARMER_ORDER_COLUMNS)).not.toContain('is_self_order')
+    expect(cols(FARMER_ORDER_DETAIL_COLUMNS)).not.toContain('is_self_order')
+  })
+})
+

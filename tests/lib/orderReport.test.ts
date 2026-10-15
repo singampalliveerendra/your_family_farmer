@@ -237,3 +237,21 @@ describe('ordersInReportWindow', () => {
     expect(rows.map((o) => o.id)).toEqual(['new', 'mid'])
   })
 })
+
+describe('computeReportData quantities', () => {
+  // USE: the report's "Quantity ordered" table — the farmer's own orders are
+  // counted in the total and shown separately, and only for the chosen window.
+  it('sums the window\'s quantities, splitting out the farmer\'s own orders', () => {
+    const now = Date.now()
+    const filter = { from: new Date(now - 86400000), to: new Date(now + 86400000), statuses: [] }
+    const data = computeReportData([
+      order({ id: 'a', produce_name: 'Papaya', quantity: 2 }),
+      order({ id: 'b', produce_name: 'Papaya', quantity: 1, is_self_order: true }),
+      order({ id: 'c', produce_name: 'Papaya', quantity: 9, created_at: new Date(now - 10 * 86400000).toISOString() }),
+    ], filter)
+    expect(data.quantities).toEqual([
+      { produce: 'Papaya', unit: 'kg', total: 3, buyers: 2, self: 1, selfOrders: 1 },
+    ])
+  })
+})
+

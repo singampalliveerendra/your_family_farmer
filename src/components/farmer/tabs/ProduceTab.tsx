@@ -70,13 +70,6 @@ export default function ProduceTab({
   const f = farmer as Farmer
   const { addItem } = useCart()
   const { requireAuth } = useConsumerAuth()
-  // When the logged-in farmer views their OWN public profile (e.g. via the
-  // dashboard's "View profile" link), hide the consumer "Add to cart" button —
-  // they can't buy from themselves. Detected client-side from the farmer session.
-  const [isOwner, setIsOwner] = useState(false)
-  useEffect(() => {
-    if (f.id && localStorage.getItem('yff_farmer_id') === f.id) setIsOwner(true)
-  }, [f.id])
   const [listings, setListings] = useState<Produce[]>(produce as Produce[])
 
   // Stock of every unpaused pick, per listing. A produce that has harvests is
@@ -158,7 +151,7 @@ export default function ProduceTab({
                 item={item}
                 review={produceReviews?.[item.id]}
                 farmerInfo={farmerCartInfo}
-                onAddToCart={isOwner ? undefined : (qty) => requireAuth(() => addItem({
+                onAddToCart={(qty) => requireAuth(() => addItem({
                   listingId: item.id,
                   name: item.name,
                   variety: item.variety,
