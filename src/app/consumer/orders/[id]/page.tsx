@@ -13,6 +13,7 @@ import { formatQty } from '@/lib/saleStep'
 import ComplaintModal from '@/components/consumer/ComplaintModal'
 import ProduceReviewBox, { type MyReview } from '@/components/consumer/ProduceReviewBox'
 import { canBuyerCancel } from '@/components/consumer/OrderCard'
+import { canGiveFeedback, isOrderCompleted } from '@/lib/orderFeedback'
 
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
 
@@ -486,14 +487,13 @@ export default function OrderDetailsPage() {
               <OrderStatusPanel order={order} />
             )}
 
-            {/* Rate the produce — only once the order is completed. */}
-            {order.produce_listing_id
-              && order.status !== 'declined'
-              && order.status !== 'cancelled'
-              && (!!order.received_at || !!order.collected_at || !!order.delivered_at || order.delivery_status === 'delivered') && (
+            {/* Rate the produce — offered in every order status. Only a
+                completed order's rating is public; the rest stays private. */}
+            {canGiveFeedback(order) && (
               <ProduceReviewBox
                 orderId={order.id}
                 produceName={order.produce_name ? localizeName(order.produce_name, lang) : L('this harvest', 'ఈ కోత')}
+                completed={isOrderCompleted(order)}
                 existing={order.my_review ?? null}
               />
             )}

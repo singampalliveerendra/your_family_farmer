@@ -6,6 +6,7 @@ import { localizeName, localizeUnit } from '@/lib/localizeName'
 import { cashDue, isGatewayMethod } from '@/lib/payment'
 import { formatQty } from '@/lib/saleStep'
 import type { MyReview } from '@/components/consumer/ProduceReviewBox'
+import { canGiveFeedback, isOrderCompleted } from '@/lib/orderFeedback'
 
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
 
@@ -58,11 +59,8 @@ export type ConsumerOrder = {
 
 // A completed order — delivered / picked up / received, and not declined or
 // cancelled. Feedback on these is published as a public produce rating; feedback
-// on any other order is kept private. Mirrors the gate in /api/produce-reviews.
-export const isCompleted = (o: ConsumerOrder) =>
-  o.status !== 'declined'
-  && o.status !== 'cancelled'
-  && (o.delivery_status === 'delivered' || !!o.collected_at || !!o.received_at || !!o.delivered_at)
+// on any other order is kept private. Same rule as /api/produce-reviews.
+export const isCompleted = (o: ConsumerOrder) => isOrderCompleted(o)
 
 // An order is "resolved" once it reaches a terminal state: delivered (home
 // delivery), picked up (self-pickup) or received (courier). A farmer-DECLINED
@@ -147,11 +145,9 @@ export default function OrderCard({
       && !order.collected_at
       && !order.received_at,
   )
-  // Feedback is only offered once the order is completed (delivered / picked up
-  // / received). Showing it on a pending order is meaningless — the buyer hasn't
-  // received the produce yet. Already-reviewed orders keep the button so the
-  // buyer can see / edit what they left.
-  const canFeedback = Boolean(onFeedback && order.produce_listing_id && (completed || reviewed))
+  // A buyer can rate / review an order in any status. Only a completed order's
+  // rating goes public; the rest is private feedback (see src/lib/orderFeedback).
+  const canFeedback = Boolean(onFeedback && canGiveFeedback(order))
   // Buyer may cancel any time before the order is shipped or handed over
   // (pending or approved-and-awaiting). Shared rule with the detail page + API.
   const canCancel = Boolean(onCancel && canBuyerCancel(order))
