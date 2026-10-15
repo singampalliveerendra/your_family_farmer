@@ -10,6 +10,7 @@ import Link from 'next/link'
 import NextImage from 'next/image'
 import LanguageToggle from '@/components/LanguageToggle'
 import BuyerViewSwitch from '@/components/farmer/BuyerViewSwitch'
+import { SELLER_OPEN_EVENT, SELLER_VIEW_EVENT } from '@/lib/bottomNav'
 import DefaultDashboardSetting from '@/components/DefaultDashboardSetting'
 import SellerSwitchRole from '@/components/farmer/SellerSwitchRole'
 import { clearBuyerView, readBuyerView } from '@/lib/buyerView'
@@ -273,11 +274,32 @@ export default function FarmerDashboard() {
   // window.location rather than useSearchParams so this page needs no Suspense
   // boundary. The param is stripped afterwards, so a refresh (or a Back) doesn't
   // reopen the modal the farmer just closed.
+  // ?view=produce / ?view=profile do the same for the bottom bar's Produce and
+  // Profile tabs when they are tapped from another page (e.g. Orders).
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('edit') !== 'profile') return
-    setShowProfileEdit(true)
+    const q = new URLSearchParams(window.location.search)
+    const view = q.get('view')
+    if (q.get('edit') !== 'profile' && view !== 'profile' && view !== 'produce') return
+    if (view === 'produce') setShowListings(true)
+    else setShowProfileEdit(true)
     window.history.replaceState(null, '', window.location.pathname)
   }, [])
+
+  // The bottom bar on this page asks for a sheet directly (no navigation), and
+  // is told which one is open so the matching tab stays lit.
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const tab = (e as CustomEvent<string>).detail
+      if (tab === 'produce') { setShowProfileEdit(false); setShowListings(true) }
+      if (tab === 'profile') { setShowListings(false); setShowProfileEdit(true) }
+    }
+    window.addEventListener(SELLER_OPEN_EVENT, onOpen)
+    return () => window.removeEventListener(SELLER_OPEN_EVENT, onOpen)
+  }, [])
+  useEffect(() => {
+    const view = showListings ? 'produce' : showProfileEdit ? 'profile' : null
+    window.dispatchEvent(new CustomEvent(SELLER_VIEW_EVENT, { detail: view }))
+  }, [showListings, showProfileEdit])
 
   const loadDashboard = useCallback(async () => {
     // Cookie-verified: a farmer whose session died must land on the login page,

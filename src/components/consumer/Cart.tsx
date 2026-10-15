@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
@@ -123,6 +123,7 @@ import { DEFAULT_STEP, normalizeStep, snapToStep, stepUp, stepDown, formatQty, r
 import { formatHarvestDate } from '@/lib/harvestSchedule'
 import { summarizeCart, grownLineKey } from '@/lib/cartSummary'
 import { flightKeyframes, tapStillFresh } from '@/lib/cartFly'
+import { navKindFor } from '@/lib/bottomNav'
 import { isAddressComplete, formatAddress, type SavedAddress } from '@/lib/savedAddress'
 import AddressFields from '@/components/consumer/AddressFields'
 
@@ -294,11 +295,71 @@ type UpiPaymentState = {
 // produce and harvest detail pages have one) so the two don't overlap.
 const CART_HINT_SEEN_KEY = 'yff_cart_hint_seen_v1'
 
+/**
+ * The add-to-cart moment, shared by the two cart targets: this bar, and the
+ * raised cart button in the bottom menu (components/BottomNav.tsx). Whichever
+ * one is on screen passes `enabled`; the other stays idle so an add never flies
+ * twice. On each add it tosses the item's emoji from the tapped button into
+ * `iconRef`, then calls `onLand` when it arrives (badge bump, haptic tick).
+ */
+export function useCartAddFlight(
+  iconRef: { current: HTMLElement | null },
+  onLand: () => void,
+  onAdd?: (firstEver: boolean) => void,
+  enabled = true,
+) {
+  // Latest callbacks without re-subscribing the listeners on every render.
+  const landRef = useRef(onLand)
+  const addRef = useRef(onAdd)
+  useEffect(() => { landRef.current = onLand; addRef.current = onAdd })
+  // Where and when the buyer last tapped — the flight's take-off point.
+  const lastTap = useRef<{ x: number; y: number; at: number } | null>(null)
+  const lastCart = useRef<CartState | null>(null)
+
+  useEffect(() => {
+    if (!enabled) return
+    const onDown = (e: PointerEvent) => { lastTap.current = { x: e.clientX, y: e.clientY, at: Date.now() } }
+    document.addEventListener('pointerdown', onDown, { capture: true, passive: true })
+    return () => document.removeEventListener('pointerdown', onDown, { capture: true })
+  }, [enabled])
+
+  // React only to CART_EVENT (a write in this tab), never to the initial
+  // hydrate from localStorage — a cart restored on page load is not an "add".
+  useEffect(() => {
+    if (!enabled) return
+    lastCart.current = readCart()
+    const onChange = () => {
+      const next = readCart()
+      const grownKey = grownLineKey(lastCart.current ?? {}, next)
+      lastCart.current = next
+      if (!grownKey) return
+      let seen = true
+      try {
+        seen = localStorage.getItem(CART_HINT_SEEN_KEY) === '1'
+        if (!seen) localStorage.setItem(CART_HINT_SEEN_KEY, '1')
+      } catch { /* storage blocked — skip the hint */ }
+      addRef.current?.(!seen)
+      const land = () => {
+        landRef.current()
+        try { navigator.vibrate?.(12) } catch { /* no haptics */ }
+      }
+      flyToCart(next[grownKey]?.emoji || '🛒', lastTap.current, iconRef, land)
+    }
+    window.addEventListener(CART_EVENT, onChange)
+    return () => window.removeEventListener(CART_EVENT, onChange)
+  }, [enabled, iconRef])
+}
+
 export function CartFab({ raised = false }: { raised?: boolean }) {
   const { cart, items } = useCart()
   const { L } = useLang()
   const router = useRouter()
+  const pathname = usePathname()
   const { lines, subtotal } = summarizeCart(items)
+  // Pages with the bottom menu bar have a cart button in it, so this bar steps
+  // aside there; it stays on the pages the menu skips (produce, harvest, a
+  // farmer's public page), where it is still the way to the cart.
+  const navHasCart = navKindFor(pathname) === 'buyer'
 
   // `bump` is a counter used as the badge's React key, so each add remounts it
   // and replays the one-shot animation.
@@ -307,16 +368,10 @@ export function CartFab({ raised = false }: { raised?: boolean }) {
   const [showHint, setShowHint] = useState(false)
   // `shine` is the landing glow's key, like `bump`: each landing replays it.
   const [shine, setShine] = useState(0)
-  const lastCart = useRef<CartState | null>(null)
   const iconRef = useRef<HTMLSpanElement | null>(null)
-  // Where and when the buyer last tapped — the flight's take-off point.
-  const lastTap = useRef<{ x: number; y: number; at: number } | null>(null)
-
-  useEffect(() => {
-    const onDown = (e: PointerEvent) => { lastTap.current = { x: e.clientX, y: e.clientY, at: Date.now() } }
-    document.addEventListener('pointerdown', onDown, { capture: true, passive: true })
-    return () => document.removeEventListener('pointerdown', onDown, { capture: true })
-  }, [])
+  const addedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const hintTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => { clearTimeout(addedTimer.current); clearTimeout(hintTimer.current) }, [])
 
   // If a UPI payment was in progress (page refreshed mid-payment), send the
   // buyer straight to the cart page so they can finish / record it.
@@ -326,46 +381,24 @@ export function CartFab({ raised = false }: { raised?: boolean }) {
     if (pending && launched) router.push('/consumer/cart')
   }, [router])
 
-  // React only to CART_EVENT (a write in this tab), never to the initial
-  // hydrate from localStorage — a cart restored on page load is not an "add".
-  useEffect(() => {
-    lastCart.current = readCart()
-    let addedTimer: ReturnType<typeof setTimeout> | undefined
-    let hintTimer: ReturnType<typeof setTimeout> | undefined
-    const onChange = () => {
-      const next = readCart()
-      const grownKey = grownLineKey(lastCart.current ?? {}, next)
-      lastCart.current = next
-      if (!grownKey) return
+  // The badge bump + shine land when the flying item arrives, not before.
+  useCartAddFlight(
+    iconRef,
+    () => { setBump((b) => b + 1); setShine((n) => n + 1) },
+    (firstEver) => {
       setJustAdded(true)
-      // The badge bump + shine land when the flying item arrives, not before.
-      const land = () => {
-        setBump((b) => b + 1)
-        setShine((n) => n + 1)
-        try { navigator.vibrate?.(12) } catch { /* no haptics */ }
-      }
-      flyToCart(next[grownKey]?.emoji || '🛒', lastTap.current, iconRef, land)
-      clearTimeout(addedTimer)
-      addedTimer = setTimeout(() => setJustAdded(false), 2000)
-      let seen = true
-      try {
-        seen = localStorage.getItem(CART_HINT_SEEN_KEY) === '1'
-        if (!seen) localStorage.setItem(CART_HINT_SEEN_KEY, '1')
-      } catch { /* storage blocked — skip the hint */ }
-      if (!seen) {
+      clearTimeout(addedTimer.current)
+      addedTimer.current = setTimeout(() => setJustAdded(false), 2000)
+      if (firstEver) {
         setShowHint(true)
-        clearTimeout(hintTimer)
-        hintTimer = setTimeout(() => setShowHint(false), 6000)
+        clearTimeout(hintTimer.current)
+        hintTimer.current = setTimeout(() => setShowHint(false), 6000)
       }
-    }
-    window.addEventListener(CART_EVENT, onChange)
-    return () => {
-      window.removeEventListener(CART_EVENT, onChange)
-      clearTimeout(addedTimer)
-      clearTimeout(hintTimer)
-    }
-  }, [])
+    },
+    !navHasCart,
+  )
 
+  if (navHasCart) return null
   if (Object.keys(cart).length === 0) return null
 
   // A page's own bottom action bar is ~64px tall; clear it (plus a gap) when raised.
@@ -2772,7 +2805,7 @@ function QtyStepper({
   )
 }
 
-function CartIcon() {
+export function CartIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="9" cy="21" r="1" />
