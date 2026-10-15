@@ -88,6 +88,8 @@ export type FarmerOrder = {
   // farmer's promise to pick it, and declining refunds the buyer in full.
   // Optional: the columns may not exist before scripts/preorder-migration.sql.
   is_preorder?: boolean | null
+  // The farmer ordered this from themselves (src/lib/selfOrder.ts).
+  is_self_order?: boolean | null
   preorder_expected_date?: string | null
 }
 
@@ -289,6 +291,7 @@ export default function OrderCard({
             <div className="flex flex-wrap items-center gap-1.5 text-sm">
               <span className="font-semibold text-gray-800">{order.produce_name || '—'}</span>
               {order.is_preorder && <PreorderBadge expectedDate={order.preorder_expected_date} />}
+              {order.is_self_order && <SelfOrderBadge />}
               <span className="text-gray-300">·</span>
               <span className="text-gray-600">{formatQty(order.quantity)} {order.unit || 'kg'}</span>
               {order.total_price != null && order.total_price > 0 && (
@@ -386,6 +389,7 @@ export default function OrderCard({
           <div className="flex flex-wrap items-center gap-1.5 text-sm">
             <span className="font-semibold text-gray-800">{order.produce_name || '—'}</span>
             {order.is_preorder && <PreorderBadge expectedDate={order.preorder_expected_date} />}
+            {order.is_self_order && <SelfOrderBadge />}
             <span className="text-gray-300">·</span>
             <span className="text-gray-600">{formatQty(order.quantity)} {order.unit || 'kg'}</span>
             {order.total_price != null && order.total_price > 0 && (
@@ -819,6 +823,20 @@ function DeliveryTagForFarmer({ order }: { order: FarmerOrder }) {
  * names may not exist on the farm today. The date is the one the buyer was
  * shown when they agreed to wait, frozen at order time.
  */
+/**
+ * The farmer placed this order for their own produce. It runs like any other
+ * order; the badge just keeps it from being mistaken for a buyer's.
+ */
+function SelfOrderBadge() {
+  const { L } = useLang()
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-sky-900 bg-sky-100 border border-sky-300 rounded-full px-2 py-0.5">
+      <span aria-hidden>🏡</span>
+      {L('Your own order', 'మీ సొంత ఆర్డర్')}
+    </span>
+  )
+}
+
 function PreorderBadge({ expectedDate }: { expectedDate?: string | null }) {
   const { L } = useLang()
   const when = formatHarvestDate(expectedDate)

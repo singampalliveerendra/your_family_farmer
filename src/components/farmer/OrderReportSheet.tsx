@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
 import { supabase } from '@/lib/supabase'
 import type { FarmerOrder } from '@/components/farmer/OrderCard'
@@ -108,7 +108,7 @@ export default function OrderReportSheet({
     statuses: statusSel,
   }), [fromStr, toStr, statusSel])
 
-  const { orders: rows, counts, revenue, serviceFeeDeducted, generatedAt } = useMemo(
+  const { orders: rows, counts, revenue, serviceFeeDeducted, quantities, generatedAt } = useMemo(
     () => computeReportData(orders, filter, feePercent),
     [orders, filter, feePercent],
   )
@@ -253,6 +253,30 @@ export default function OrderReportSheet({
           )}
         </div>
 
+        {/* Quantity ordered per harvest — buyers' orders and the farmer's own,
+            summed. Declined / cancelled orders are left out (stock went back). */}
+        {quantities.length > 0 && (
+          <div className="bg-white border border-gray-100 rounded-xl p-3">
+            <p className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">
+              {L('Quantity ordered', 'ఆర్డర్ అయిన పరిమాణం')}
+            </p>
+            <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 gap-y-1.5 text-xs">
+              <span className="text-gray-400 font-semibold">{L('Harvest', 'పంట')}</span>
+              <span className="text-gray-400 font-semibold text-right">{L('Buyers', 'కొనుగోలుదారులు')}</span>
+              <span className="text-gray-400 font-semibold text-right">{L('You', 'మీరు')}</span>
+              <span className="text-gray-400 font-semibold text-right">{L('Total', 'మొత్తం')}</span>
+              {quantities.map((q) => (
+                <Fragment key={`${q.produce}|${q.unit}`}>
+                  <span className="font-semibold text-gray-800 truncate">{q.produce}</span>
+                  <span className="text-gray-600 text-right whitespace-nowrap">{q.buyers} {q.unit}</span>
+                  <span className="text-sky-700 text-right whitespace-nowrap">{q.self} {q.unit}</span>
+                  <span className="font-extrabold text-gray-900 text-right whitespace-nowrap">{q.total} {q.unit}</span>
+                </Fragment>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Order list */}
         {rows.length === 0 ? (
           <div className="text-center py-16">
@@ -269,6 +293,11 @@ export default function OrderReportSheet({
                   <div className="min-w-0">
                     <p className="font-extrabold text-gray-900 text-sm leading-tight">
                       {o.buyer_name || '—'}
+                      {o.is_self_order && (
+                        <span className="ml-1.5 align-middle text-[10px] font-bold text-sky-800 bg-sky-100 rounded-full px-1.5 py-0.5">
+                          {L('Own order', 'సొంత ఆర్డర్')}
+                        </span>
+                      )}
                     </p>
                     {o.buyer_phone && (
                       <p className="text-xs text-gray-500">+91 {o.buyer_phone}</p>

@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
-import { FARMER_ORDER_DETAIL_COLUMNS, FARMER_ORDER_RESCHEDULE_COLUMNS } from '@/lib/orderColumns'
+import { FARMER_ORDER_DETAIL_COLUMNS, FARMER_ORDER_RESCHEDULE_COLUMNS, FARMER_ORDER_SELF_COLUMNS } from '@/lib/orderColumns'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -35,7 +35,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   // Ask for the reschedule columns, but never let their absence take the page
   // down — an environment that hasn't run reschedule-reason-migration.sql should
   // show the order without a reason, exactly as it did before.
-  let { data, error } = await load(FARMER_ORDER_DETAIL_COLUMNS + FARMER_ORDER_RESCHEDULE_COLUMNS)
+  // The self-order flag is optional the same way (scripts/self-order-migration.sql).
+  let { data, error } = await load(FARMER_ORDER_DETAIL_COLUMNS + FARMER_ORDER_RESCHEDULE_COLUMNS + FARMER_ORDER_SELF_COLUMNS)
+  if (error) {
+    ;({ data, error } = await load(FARMER_ORDER_DETAIL_COLUMNS + FARMER_ORDER_RESCHEDULE_COLUMNS))
+  }
   if (error) {
     ;({ data, error } = await load(FARMER_ORDER_DETAIL_COLUMNS))
   }

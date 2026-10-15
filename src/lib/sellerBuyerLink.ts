@@ -70,10 +70,10 @@ export function buyerProfileForSeller(seller: {
 /**
  * Is this buyer the same person as the seller they are ordering from?
  *
- * The buyer view puts a seller one tap away from their own listing — previewing
- * it is half the point — so "add to cart" on your own harvest is an easy
- * mis-tap, and it would place a real order: stock decremented, platform fee
- * charged, a pending order the seller has to approve for themselves.
+ * Farmers may order their own produce. /api/orders/place no longer refuses
+ * this; it uses the answer to MARK the order (orders.is_self_order) so the
+ * farmer's list and report can tell their own orders from buyers' — see
+ * src/lib/selfOrder.ts.
  *
  * Phone is the comparison because it is the same key the two accounts are
  * linked by, and it holds even for a seller who registered as a buyer on their

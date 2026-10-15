@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest, refreshFarmerSessionCookie } from '@/lib/farmer-session'
-import { FARMER_ORDER_COLUMNS, FARMER_ORDER_PREORDER_COLUMNS } from '@/lib/orderColumns'
+import { FARMER_ORDER_COLUMNS, FARMER_ORDER_PREORDER_COLUMNS, FARMER_ORDER_SELF_COLUMNS } from '@/lib/orderColumns'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -41,7 +41,12 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(500)
 
-    let { data, error } = await listAll(FARMER_ORDER_COLUMNS + FARMER_ORDER_PREORDER_COLUMNS)
+    // Optional columns, most first. Each fallback drops one migration's worth,
+    // so a missing self-order column doesn't also cost the pre-order badge.
+    let { data, error } = await listAll(FARMER_ORDER_COLUMNS + FARMER_ORDER_PREORDER_COLUMNS + FARMER_ORDER_SELF_COLUMNS)
+    if (error) {
+      ;({ data, error } = await listAll(FARMER_ORDER_COLUMNS + FARMER_ORDER_PREORDER_COLUMNS))
+    }
     if (error) {
       ;({ data, error } = await listAll(FARMER_ORDER_COLUMNS))
     }
@@ -76,7 +81,7 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: false })
 
   const [activeFirst, weekRes, monthRes, todayRes] = await Promise.all([
-    activeList(FARMER_ORDER_COLUMNS + FARMER_ORDER_PREORDER_COLUMNS),
+    activeList(FARMER_ORDER_COLUMNS + FARMER_ORDER_PREORDER_COLUMNS + FARMER_ORDER_SELF_COLUMNS),
     supabase
       .from('orders')
       .select('id, total_price')
@@ -99,9 +104,9 @@ export async function GET(req: NextRequest) {
   // Same fallback as the 'all' branch: without the pre-order migration the
   // select fails outright, and a dashboard with no orders on it is far worse
   // than one without a pre-order badge.
-  const activeRes = activeFirst.error
-    ? await activeList(FARMER_ORDER_COLUMNS)
-    : activeFirst
+  let activeRes = activeFirst
+  if (activeRes.error) activeRes = await activeList(FARMER_ORDER_COLUMNS + FARMER_ORDER_PREORDER_COLUMNS)
+  if (activeRes.error) activeRes = await activeList(FARMER_ORDER_COLUMNS)
 
   if (activeRes.error) {
     console.error('[YFF farmer/orders] active failed:', activeRes.error.message)

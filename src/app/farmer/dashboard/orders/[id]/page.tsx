@@ -39,6 +39,8 @@ type Order = {
   // platform, not the farmer.
   platform_fee: number | null
   buyer_name: string | null
+  // The farmer ordered this from themselves (src/lib/selfOrder.ts).
+  is_self_order?: boolean | null
   buyer_phone: string | null
   pickup_location: string | null
   pickup_phone: string | null
@@ -371,7 +373,14 @@ export default function FarmerOrderDetailPage() {
             {/* Buyer */}
             <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2">
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">{L('Buyer', 'కొనుగోలుదారు')}</p>
-              <p className="text-base font-extrabold text-gray-900 leading-tight">{order.buyer_name || '—'}</p>
+              <p className="text-base font-extrabold text-gray-900 leading-tight">
+                {order.buyer_name || '—'}
+                {order.is_self_order && (
+                  <span className="ml-1.5 align-middle text-[10px] font-bold text-sky-800 bg-sky-100 rounded-full px-1.5 py-0.5">
+                    🏡 {L('Your own order', 'మీ సొంత ఆర్డర్')}
+                  </span>
+                )}
+              </p>
               {order.buyer_phone && (
                 <a
                   href={`tel:+91${order.buyer_phone}`}

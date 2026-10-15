@@ -38,6 +38,8 @@ helpers are deterministic. That is why CI can run it with no secrets at all.
 | `lib/saleStep.test.ts` | quantities on a step grid, without float drift |
 | `lib/phone.test.ts` | one number, one account, however it is typed |
 | `lib/rate-limit.test.ts` | the brute-force brake |
+| `lib/selfOrder.test.ts` | a farmer's own orders: the flag, and the buyers-vs-own quantity totals |
+| `api/orders-place.test.ts` | `/api/orders/place` end to end on an in-memory fake DB: self-orders, stock, validation |
 | `lib/payment.test.ts` | the paid/claimed/deposit vocabulary — one answer to "is the money in?" |
 | `lib/orderReport.test.ts` | every money figure on the farmer's downloadable report |
 | `lib/payout.test.ts` | bank + UPI validation, and never showing an account number back |

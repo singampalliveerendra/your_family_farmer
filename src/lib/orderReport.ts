@@ -1,6 +1,7 @@
 import type { FarmerOrder } from '@/components/farmer/OrderCard'
 import { isResolved } from '@/components/farmer/OrderCard'
 import { isOrderPaid, isPaymentClaimed } from '@/lib/payment'
+import { produceQuantitySummary, type ProduceQuantity } from '@/lib/selfOrder'
 
 // One-month window for the report: orders created in the last 30 days. Kept in
 // sync with the "month" time filter on the orders page.
@@ -83,6 +84,9 @@ export type ReportData = {
   // full, and is deducted from the farmer's payout. Mirrors the moderator
   // reports payout deduction so the two figures agree. 0 if no fee is set.
   serviceFeeDeducted: number
+  // Quantity ordered per produce in this window, split into buyers vs the
+  // farmer's own orders (declined / cancelled left out — that stock went back).
+  quantities: ProduceQuantity[]
   fromDate: Date
   toDate: Date
   generatedAt: Date
@@ -148,6 +152,7 @@ export function computeReportData(orders: FarmerOrder[], filter: ReportFilter, f
     counts,
     revenue,
     serviceFeeDeducted,
+    quantities: produceQuantitySummary(windowOrders),
     fromDate: filter.from,
     toDate: filter.to,
     generatedAt: new Date(),
@@ -165,7 +170,7 @@ function esc(s: string | number | null | undefined): string {
 }
 
 function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: ReportFilter, feePercent = 0): string {
-  const { orders: window, counts, revenue, serviceFeeDeducted, fromDate, toDate, generatedAt } = computeReportData(orders, filter, feePercent)
+  const { orders: window, counts, revenue, serviceFeeDeducted, quantities, fromDate, toDate, generatedAt } = computeReportData(orders, filter, feePercent)
   const rangeDesc = `${fmtDate(fromDate.toISOString())} – ${fmtDate(toDate.toISOString())}`
   const statusDesc = filter.statuses.length === 0 ? 'All statuses' : filter.statuses.join(', ')
 
@@ -193,7 +198,7 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: Repo
     <tr>
       <td class="mono">${esc(o.order_code || '—')}</td>
       <td>${esc(fmtDate(o.created_at))}</td>
-      <td>${esc(o.buyer_name || '—')}${o.buyer_phone ? `<br><span class="muted">+91 ${esc(o.buyer_phone)}</span>` : ''}</td>
+      <td>${esc(o.buyer_name || '—')}${o.is_self_order ? ' <span class="self">Own order</span>' : ''}${o.buyer_phone ? `<br><span class="muted">+91 ${esc(o.buyer_phone)}</span>` : ''}</td>
       <td>${esc(o.produce_name || '—')}</td>
       <td class="num">${esc(o.quantity ?? '—')} ${esc(o.unit || 'kg')}</td>
       <td class="num">${amountCell}</td>
@@ -206,6 +211,14 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: Repo
       <td>${esc(fmtDateTime(o.fulfillment_date))}</td>
     </tr>`
   }).join('')
+
+  const qtyRows = quantities.map((q) => `
+    <tr>
+      <td>${esc(q.produce)}</td>
+      <td class="num">${esc(q.buyers)} ${esc(q.unit)}</td>
+      <td class="num">${esc(q.self)} ${esc(q.unit)}</td>
+      <td class="num"><b>${esc(q.total)} ${esc(q.unit)}</b></td>
+    </tr>`).join('')
 
   const summaryChips = REPORT_STATUSES
     .map((k) => `<div class="chip"><span class="chip-n">${counts[k]}</span><span class="chip-l">${k}</span></div>`)
@@ -243,6 +256,9 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: Repo
   .status-completed { background: #dcfce7; color: #166534; }
   .status-declined { background: #fee2e2; color: #991b1b; }
   .status-cancelled { background: #f3f4f6; color: #374151; }
+  .self { display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 700; background: #e0f2fe; color: #075985; }
+  .qty { margin: 0 0 18px; max-width: 560px; }
+  h2 { font-size: 14px; margin: 0 0 6px; color: #14532d; }
   .empty { text-align: center; padding: 40px; color: #888; }
   footer { margin-top: 18px; font-size: 11px; color: #999; }
   @media print { body { padding: 0; } @page { margin: 14mm; } }
@@ -263,6 +279,14 @@ function buildReportHtml(orders: FarmerOrder[], farmerName: string, filter: Repo
       ? `<div class="chip deduction"><span class="chip-n">−₹${serviceFeeDeducted}</span><span class="chip-l">Service fee on declined</span></div>`
       : ''}
   </div>
+
+  ${quantities.length > 0
+    ? `<h2>Quantity ordered</h2>
+  <table class="qty">
+    <thead><tr><th>Harvest</th><th>By buyers</th><th>By you</th><th>Total</th></tr></thead>
+    <tbody>${qtyRows}</tbody>
+  </table>`
+    : ''}
 
   ${window.length === 0
     ? '<p class="empty">No orders match these filters.</p>'

@@ -6,6 +6,7 @@ import { createGuestOrderToken } from '@/lib/guest-order-token'
 import { getTierPrice } from '@/lib/pricing'
 import { normalizePhone } from '@/lib/phone'
 import { isSelfOrder } from '@/lib/sellerBuyerLink'
+import { markSelfOrder, withoutSelfOrderFlag } from '@/lib/selfOrder'
 import { isMissingColumnError } from '@/lib/missingColumn'
 import { preorderExpectedDate } from '@/lib/harvestSchedule'
 import { getDeliveryCharges, resolveBatchDeliveryFee } from '@/lib/delivery-fee'
@@ -285,12 +286,12 @@ export async function POST(req: NextRequest) {
 
   if (!farmer) return bad('Farmer not found.', 404)
 
-  // A seller in buyer view is one tap from their own listing — previewing it is
-  // the point — so an accidental order against themselves is easy and would be
-  // entirely real. Refuse it here, where every checkout path passes.
-  if (isSelfOrder(buyerPhone, farmer.phone)) {
-    return bad('This is your own listing. You cannot place an order with yourself.')
-  }
+  // A farmer may order their own produce (for the household, a relative, a
+  // walk-in sale they want on the books). It is a real order in every respect —
+  // stock claimed, approved, fulfilled and paid like any other — and is only
+  // MARKED (is_self_order, below) so the farmer's list and report can tell
+  // "sold to buyers" from "taken by me" while the quantity totals count both.
+  const selfOrder = isSelfOrder(buyerPhone, farmer.phone)
   if (paymentMethod === 'cod' && farmer.cod_enabled !== true) {
     return bad('This farmer is not accepting Cash on Delivery.')
   }
@@ -614,10 +615,23 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  const { data: inserted, error: insertErr } = await supabase
+  // Same rule again: only a self-order names the column, so an ordinary
+  // checkout is untouched on a database without scripts/self-order-migration.sql.
+  markSelfOrder(rows, selfOrder)
+
+  const insertRows = (batch: Array<Record<string, unknown>>) => supabase
     .from('orders')
-    .insert(rows)
+    .insert(batch)
     .select('id, order_code')
+
+  let { data: inserted, error: insertErr } = await insertRows(rows)
+  // Unlike a pre-order, a self-order is a complete, correct order without its
+  // flag — it only loses the "Your own order" badge. So a missing column is
+  // retried without it rather than refusing the farmer's order.
+  if (insertErr && selfOrder && isMissingColumnError(insertErr.message, 'is_self_order')) {
+    console.error('[YFF] self-order placed but scripts/self-order-migration.sql has not been run on this database')
+    ;({ data: inserted, error: insertErr } = await insertRows(withoutSelfOrderFlag(rows)))
+  }
 
   if (insertErr || !inserted) {
     console.error('[YFF] place-order insert failed:', insertErr?.message)
