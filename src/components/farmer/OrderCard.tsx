@@ -10,7 +10,7 @@ import {
   formatStageAt,
   isRiderFlow,
 } from '@/lib/delivery'
-import { isOrderPaid, isPaymentClaimed as isPaymentClaimed_, isDepositPaid, cashDue } from '@/lib/payment'
+import { isOrderPaid, isPaymentClaimed as isPaymentClaimed_, farmerPaymentBadge, type PaymentBadge } from '@/lib/payment'
 import { harvestClock } from '@/lib/harvest'
 import { formatQty } from '@/lib/saleStep'
 import { formatHarvestDate } from '@/lib/harvestSchedule'
@@ -251,11 +251,9 @@ export default function OrderCard({
   const isUpi = order.payment_method === 'upi'
   const isPaid = isOrderPaid(order.payment_status)
   const isPaymentClaimed = isPaymentClaimed_(order.payment_status)
-  // Part-paid COD: the buyer has already put money down and forfeits it if they
-  // walk away, which is exactly what the farmer wants to know before they go
-  // and harvest for this order.
-  const hasDeposit = isDepositPaid(order.payment_status)
-  const balanceDue = cashDue(order)
+  // Paid / deposit (part-paid COD: the buyer forfeits it if they walk away) /
+  // buyer-says-paid / failed / pending — see farmerPaymentBadge.
+  const paymentBadge = farmerPaymentBadge(order)
 
   // Buyer cancelled this order. It doesn't need the approve/decline/fulfillment
   // machinery — just a clear "cancelled by buyer" notice and an Acknowledge tap
@@ -360,28 +358,11 @@ export default function OrderCard({
                   📞 +91 {order.buyer_phone}
                 </a>
               )}
+              {/* Payment, on every order — orders can be placed unpaid, and the
+                  farmer should not have to open each one to find out. */}
+              <PaymentStatusBadge badge={paymentBadge} />
             </div>
             <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
-              {isCod && (
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
-                  isPaid ? 'bg-green-100 text-green-800'
-                  : hasDeposit ? 'bg-blue-100 text-blue-800'
-                  : 'bg-amber-100 text-amber-800'
-                }`}>
-                  {isPaid ? `✓ ${tx.paymentReceived}`
-                    : hasDeposit ? `🔒 Deposit paid · ₹${balanceDue} on delivery`
-                    : tx.codBadge}
-                </span>
-              )}
-              {isUpi && (
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
-                  isPaid ? 'bg-green-100 text-green-800'
-                  : isPaymentClaimed ? 'bg-orange-100 text-orange-800'
-                  : 'bg-blue-100 text-blue-700'
-                }`}>
-                  {isPaid ? '✓ UPI Paid' : isPaymentClaimed ? '⏳ Buyer Paid — Verify' : '📲 UPI'}
-                </span>
-              )}
               <div className="flex flex-col items-end">
                 <span className="text-[11px] text-gray-400 whitespace-nowrap">
                   {timeAgo(order.created_at)}
@@ -841,6 +822,25 @@ function DeliveryTagForFarmer({ order }: { order: FarmerOrder }) {
  * The farmer placed this order for their own produce. It runs like any other
  * order; the badge just keeps it from being mistaken for a buyer's.
  */
+const PAYMENT_BADGE_CLASS: Record<PaymentBadge['tone'], string> = {
+  paid: 'bg-green-100 text-green-800 border-green-200',
+  deposit: 'bg-blue-100 text-blue-800 border-blue-200',
+  verify: 'bg-orange-100 text-orange-800 border-orange-300',
+  failed: 'bg-red-600 text-white border-red-600',
+  pending: 'bg-red-50 text-red-700 border-red-300',
+}
+
+/** One payment badge per order card. Unpaid reads in red so it stands out in a
+ *  long list; paid stays quiet green. Wording lives in farmerPaymentBadge. */
+function PaymentStatusBadge({ badge }: { badge: PaymentBadge }) {
+  const { L } = useLang()
+  return (
+    <span className={`mt-1 inline-flex items-center text-[11px] font-extrabold px-2.5 py-1 rounded-full border whitespace-nowrap ${PAYMENT_BADGE_CLASS[badge.tone]}`}>
+      {L(badge.en, badge.te)}
+    </span>
+  )
+}
+
 function SelfOrderBadge() {
   const { L } = useLang()
   return (
