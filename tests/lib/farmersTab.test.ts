@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { rankFarmers, type FarmerCard } from '@/lib/farmersTab'
+import { rankFarmers, pickGrowText, type FarmerCard } from '@/lib/farmersTab'
 
 const f = (id: string, extra: Partial<FarmerCard> = {}): FarmerCard => ({
   id, slug: id, name: id, village: null, district: null, photo_url: null,
@@ -28,5 +28,22 @@ describe('rankFarmers', () => {
     ], [], origin)
     expect(r.others.map((x) => x.id)).toEqual(['near', 'far', 'nowhere'])
     expect(r.others[0].distanceKm).toBeLessThan(2)
+  })
+})
+
+describe('pickGrowText', () => {
+  it('prefers the produce "How we grow", tidying whitespace', () => {
+    expect(pickGrowText({ produce: '  No  chemicals.\n Cow dung only. ', story: 'x', isAggregator: false }))
+      .toEqual({ grow_text: 'No chemicals. Cow dung only.', grow_source: 'produce' })
+  })
+
+  it('falls back to "How we aggregate" for an aggregator, then the story', () => {
+    expect(pickGrowText({ produce: ' ', aggregate: 'We collect from 20 farms', story: 'x', isAggregator: true }).grow_source).toBe('aggregate')
+    expect(pickGrowText({ aggregate: 'ignored for a farmer', story: 'My farm', isAggregator: false }))
+      .toEqual({ grow_text: 'My farm', grow_source: 'story' })
+  })
+
+  it('is empty when the farmer wrote nothing', () => {
+    expect(pickGrowText({ isAggregator: false })).toEqual({ grow_text: null, grow_source: null })
   })
 })
