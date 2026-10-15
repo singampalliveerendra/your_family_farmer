@@ -39,6 +39,8 @@ helpers are deterministic. That is why CI can run it with no secrets at all.
 | `lib/phone.test.ts` | one number, one account, however it is typed |
 | `lib/rate-limit.test.ts` | the brute-force brake |
 | `lib/selfOrder.test.ts` | a farmer's own orders: the flag, and the buyers-vs-own quantity totals |
+| `lib/teluguTranslit.test.ts` | Telugu typed in English letters meets stored Telugu (sound keys), and the Telugu preview |
+| `lib/orderSearch.test.ts` | Orders-page search for buyers / farmers / aggregators, in either language or script |
 | `api/orders-place.test.ts` | `/api/orders/place` end to end on an in-memory fake DB: self-orders, stock, validation |
 | `lib/payment.test.ts` | the paid/claimed/deposit vocabulary — one answer to "is the money in?" |
 | `lib/orderReport.test.ts` | every money figure on the farmer's downloadable report |

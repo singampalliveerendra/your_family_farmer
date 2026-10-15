@@ -8,6 +8,9 @@ import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import ComplaintModal from '@/components/consumer/ComplaintModal'
 import OrderFeedbackModal from '@/components/consumer/OrderFeedbackModal'
 import OrderCard, { ConsumerOrder as Order, isResolved, isCompleted } from '@/components/consumer/OrderCard'
+import OrderSearchBox from '@/components/OrderSearchBox'
+import { consumerOrderIndex } from '@/lib/orderSearch'
+import { useOrderSearch } from '@/lib/useOrderSearch'
 
 export default function ConsumerOrderHistoryPage() {
   const { tx, L } = useLang()
@@ -44,6 +47,9 @@ export default function ConsumerOrderHistoryPage() {
   // cancelled. Active ones stay on /consumer/orders.
   const completedOrders = orders.filter(isResolved)
   const activeCount = orders.length - completedOrders.length
+  // Text search narrows the list on screen only; counts above stay whole.
+  const { query, setQuery, matches, vocabulary, searching } = useOrderSearch(completedOrders, consumerOrderIndex)
+  const shownOrders = completedOrders.filter(matches)
 
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
@@ -77,6 +83,10 @@ export default function ConsumerOrderHistoryPage() {
               {L('History', 'చరిత్ర')} ({completedOrders.length})
             </span>
           </div>
+        )}
+
+        {state.status === 'authenticated' && !error && !loading && completedOrders.length > 0 && (
+          <OrderSearchBox value={query} onChange={setQuery} matchCount={shownOrders.length} vocabulary={vocabulary} />
         )}
 
         {state.status === 'loading' || loading ? (
@@ -118,9 +128,19 @@ export default function ConsumerOrderHistoryPage() {
               {L('← Active orders', '← ప్రస్తుత ఆర్డర్‌లు')}
             </Link>
           </div>
+        ) : searching && shownOrders.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-4xl mb-2">🔍</div>
+            <p className="font-semibold text-gray-500 text-sm">
+              {L('No orders match your search', 'మీ వెతుకుటకు సరిపోయే ఆర్డర్లు లేవు')}
+            </p>
+            <button onClick={() => setQuery('')} className="mt-3 text-green-700 text-sm underline font-semibold">
+              {L('Clear search', 'వెతుకుట తీసివేయండి')}
+            </button>
+          </div>
         ) : (
           <div className="space-y-3">
-            {completedOrders.map((order) => (
+            {shownOrders.map((order) => (
               <OrderCard key={order.id} order={order} onComplaint={setComplaintFor} onFeedback={setFeedbackFor} />
             ))}
           </div>
