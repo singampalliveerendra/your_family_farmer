@@ -21,7 +21,7 @@ import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName, localizeUnit } from '@/lib/localizeName'
 import { harvestClock } from '@/lib/harvest'
-import { isSoldOutListing } from '@/lib/produceStatus'
+import { isSoldOutListing, splitFeed } from '@/lib/produceStatus'
 import { formatHarvestDate, nextHarvestDate } from '@/lib/harvestSchedule'
 import PreorderConfirm from '@/components/consumer/PreorderConfirm'
 import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
@@ -221,17 +221,19 @@ export default function ConsumerPage() {
   // it when nothing is in range.
   const [distanceFilter, setDistanceFilter]             = useState<number | null>(25)
 
+  // When the feed was last fetched, so tab-focus refetches can be skipped if
+  // the data is still fresh (flicking between apps used to refetch every time).
+  const lastFetchAt = useRef(0)
+
   const fetchData = useCallback(async (silent = false) => {
+    lastFetchAt.current = Date.now()
     if (!silent) setLoading(true)
     try {
-      const [avRes, csRes] = await Promise.all([
-        fetch('/api/produce', { cache: 'no-store' }),
-        fetch('/api/produce?status=coming_soon', { cache: 'no-store' }),
-      ])
-      const av: ProduceListing[] = await avRes.json().catch(() => [])
-      const cs: ProduceListing[] = await csRes.json().catch(() => [])
-      const avArr = Array.isArray(av) ? av : []
-      const csArr = Array.isArray(cs) ? cs : []
+      // One request for both shelves (?status=feed), split here — it used to be
+      // two requests, i.e. two server runs, on every open of the home page.
+      const res = await fetch('/api/produce?status=feed', { cache: 'no-store' })
+      const feed: ProduceListing[] = await res.json().catch(() => [])
+      const { available: avArr, comingSoon: csArr } = splitFeed(Array.isArray(feed) ? feed : [])
       setAvailable(avArr)
       setComingSoon(csArr)
       setFarmerCount(new Set(avArr.map((p) => p.farmer_id)).size)
@@ -279,14 +281,18 @@ export default function ConsumerPage() {
   useEffect(() => {
     fetchData()
     // Background refreshes — no skeleton flash
-    const onVisible = () => { if (document.visibilityState === 'visible') fetchData(true) }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastFetchAt.current > 30_000) fetchData(true)
+    }
     document.addEventListener('visibilitychange', onVisible)
     // Debounce: a burst of listing writes (e.g. a moderator editing several
     // rows back to back) should trigger one refetch, not one per row change.
     let debounceTimer: ReturnType<typeof setTimeout> | null = null
     const scheduleRefetch = () => {
       if (debounceTimer) clearTimeout(debounceTimer)
-      debounceTimer = setTimeout(() => fetchData(true), 2000)
+      // Random spread so every open tab doesn't hit the API in the same
+      // instant; staggered requests land on the CDN-cached copy instead.
+      debounceTimer = setTimeout(() => fetchData(true), 2000 + Math.random() * 3000)
     }
     const channel = supabase
       .channel('produce_listings_consumer')

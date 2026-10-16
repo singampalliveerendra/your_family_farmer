@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
+import { fetchPendingOrderCount } from '@/lib/pendingOrderCount'
 
 export default function MyOrdersChip() {
   const { L } = useLang()
@@ -16,10 +17,8 @@ export default function MyOrdersChip() {
       return
     }
     let cancelled = false
-    fetch('/api/consumer/orders/count', { credentials: 'same-origin' })
-      .then((r) => r.json())
-      .then((json) => { if (!cancelled) setPending(typeof json?.pending === 'number' ? json.pending : 0) })
-      .catch(() => { if (!cancelled) setPending(0) })
+    // Shared with the bottom bar's Orders badge — one request for both.
+    fetchPendingOrderCount().then((n) => { if (!cancelled) setPending(n) })
     return () => { cancelled = true }
   }, [state.status])
 

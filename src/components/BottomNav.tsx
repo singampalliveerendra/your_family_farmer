@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLang } from '@/lib/LanguageContext'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useCart, useCartAddFlight, CartIcon } from '@/components/consumer/Cart'
+import { fetchPendingOrderCount, forgetPendingOrderCount } from '@/lib/pendingOrderCount'
 import { readBuyerView, sellerDashboardPath, type SellerRole } from '@/lib/buyerView'
 import {
   navKindFor, activeBuyerTab, activeSellerTab, sellerTabHref,
@@ -121,12 +122,10 @@ function BuyerBar({ pathname }: { pathname: string }) {
   const [pending, setPending] = useState(0)
   const onOrders = active === 'orders'
   useEffect(() => {
-    if (state.status !== 'authenticated') { setPending(0); return }
+    if (state.status !== 'authenticated') { setPending(0); forgetPendingOrderCount(); return }
     let cancelled = false
-    fetch('/api/consumer/orders/count', { credentials: 'same-origin' })
-      .then((r) => r.json())
-      .then((j) => { if (!cancelled) setPending(typeof j?.pending === 'number' ? j.pending : 0) })
-      .catch(() => {})
+    // Shared with the home page's My orders chip — one request for both.
+    fetchPendingOrderCount().then((n) => { if (!cancelled) setPending(n) })
     return () => { cancelled = true }
   }, [state.status, onOrders])
 

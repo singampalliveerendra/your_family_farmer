@@ -100,6 +100,7 @@ export default function AdminPage() {
     void loadRiders()
     void loadDeliveries()
     const t = setInterval(() => {
+      if (document.visibilityState !== 'visible') return
       void loadRiders()
       void loadDeliveries()
     }, 20_000)

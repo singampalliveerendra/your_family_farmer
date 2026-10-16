@@ -303,21 +303,13 @@ export default function FarmerDashboard() {
     window.dispatchEvent(new CustomEvent(SELLER_VIEW_EVENT, { detail: view }))
   }, [showListings, showSettings, showProfileEdit])
 
-  const loadDashboard = useCallback(async () => {
-    // Cookie-verified: a farmer whose session died must land on the login page,
-    // not on a dashboard whose every action answers "Please log in."
-    const farmerId = await requireFarmerSession()
-    if (!farmerId) return
-
-    const { data: farmerData } = await supabase
-      .from('farmers')
-      .select(FARMER_PUBLIC_COLUMNS)
-      .eq('id', farmerId)
-      .maybeSingle()
-
-    if (!farmerData) { setNotFound(true); setLoading(false); return }
-    setFarmer(farmerData)
-
+  // Just the orders and the figures built from them — what actually changes
+  // while the dashboard sits open. The 25 s poll and coming back to the tab
+  // call ONLY this: they used to re-run the whole dashboard (session check,
+  // profile, listings, demand chart, crop requests), three server calls every
+  // 25 seconds per open dashboard, to pick up a new order.
+  const ordersEtag = useRef<{ url: string; tag: string } | null>(null)
+  const loadOrders = useCallback(async () => {
     const monthStart = new Date()
     monthStart.setDate(1)
     monthStart.setHours(0, 0, 0, 0)
@@ -326,21 +318,26 @@ export default function FarmerDashboard() {
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
 
-    // Orders come from the authenticated route (farmer id from the session
-    // cookie); listings still read the public catalogue with the anon key.
-    // `todayStart`/`monthStart` are the FARMER's local midnight, so they are
-    // passed up rather than recomputed server-side, where the clock is UTC.
+    // The farmer id comes from the session cookie. `todayStart`/`monthStart`
+    // are the FARMER's local midnight, so they are passed up rather than
+    // recomputed server-side, where the clock is UTC.
     const ordersUrl = `/api/farmer/orders?scope=active&todayStart=${encodeURIComponent(todayStart.toISOString())}&monthStart=${encodeURIComponent(monthStart.toISOString())}`
-    const [listingsRes, ordersRes] = await Promise.all([
-      // Full (lightweight) listing rows so the dashboard can show them inline
-      // with a quick suspend/resume; the active-listings count is derived below.
-      supabase.from('produce_listings').select('id, name, emoji, status, price_tier_1_price, unit, stock_qty, rating_avg, review_count').eq('farmer_id', farmerData.id).order('created_at', { ascending: false }),
-      fetch(ordersUrl, { credentials: 'same-origin' })
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null),
-    ])
+    // farmerFetch: a login that expired while the dashboard sat open is sent to
+    // the login page, as the full reload used to do on every poll.
+    // The fingerprint goes back with each poll: an unchanged answer is an empty
+    // 304 (src/lib/etag.ts). It is tied to the URL, which carries today's and
+    // this month's start, so a new day is always a fresh full answer.
+    const sent = ordersEtag.current?.url === ordersUrl ? ordersEtag.current.tag : null
+    const r = await farmerFetch(ordersUrl, {
+      headers: sent ? { 'If-None-Match': sent } : undefined,
+    }).catch(() => null)
+    if (r?.status === 304) return
+    const ordersRes = r?.ok ? await r.json().catch(() => null) : null
+    // A failed poll keeps what is on screen rather than blanking the counts.
+    if (!ordersRes) return
+    const tag = r?.headers.get('ETag')
+    ordersEtag.current = tag ? { url: ordersUrl, tag } : null
 
-    setListings((listingsRes.data ?? []) as DashboardListing[])
     // Drop approved orders that are already resolved (collected / delivered).
     const activeOrders = ((ordersRes?.orders ?? []) as Order[]).filter((o) => !isResolved(o))
     setPendingOrders(activeOrders)
@@ -362,6 +359,33 @@ export default function FarmerDashboard() {
       weeks[bucket] += o.total_price ?? 0
     }
     setWeeklyEarnings(weeks)
+  }, [])
+
+  const loadDashboard = useCallback(async () => {
+    // Cookie-verified: a farmer whose session died must land on the login page,
+    // not on a dashboard whose every action answers "Please log in."
+    const farmerId = await requireFarmerSession()
+    if (!farmerId) return
+
+    const { data: farmerData } = await supabase
+      .from('farmers')
+      .select(FARMER_PUBLIC_COLUMNS)
+      .eq('id', farmerId)
+      .maybeSingle()
+
+    if (!farmerData) { setNotFound(true); setLoading(false); return }
+    setFarmer(farmerData)
+
+    // Orders come from the authenticated route (see loadOrders); listings
+    // still read the public catalogue with the anon key.
+    const [listingsRes] = await Promise.all([
+      // Full (lightweight) listing rows so the dashboard can show them inline
+      // with a quick suspend/resume; the active-listings count is derived below.
+      supabase.from('produce_listings').select('id, name, emoji, status, price_tier_1_price, unit, stock_qty, rating_avg, review_count').eq('farmer_id', farmerData.id).order('created_at', { ascending: false }),
+      loadOrders(),
+    ])
+
+    setListings((listingsRes.data ?? []) as DashboardListing[])
 
     // Demand vs supply across the whole area (all farmers' orders + intents vs
     // all farmers' available produce), computed server-side with the service role.
@@ -385,7 +409,7 @@ export default function FarmerDashboard() {
     setDemandRequests((intents ?? []) as DemandRequest[])
 
     setLoading(false)
-  }, [])
+  }, [loadOrders])
 
   useEffect(() => { loadDashboard() }, [loadDashboard])
 
@@ -487,21 +511,10 @@ export default function FarmerDashboard() {
     prevOrdersRef.current = next
   }, [farmer, pendingOrders, L])
 
-  // Poll for order changes while the tab is visible (replaces realtime).
-  useOrderPolling(() => { loadDashboard() }, !!farmer)
-
-  // Safety net for the realtime subscription: on slow/spotty 4G the websocket
-  // can silently drop while the farmer is on another app. Refetch whenever the
-  // dashboard tab regains focus so they never miss a new order.
-  useEffect(() => {
-    const refetch = () => { if (document.visibilityState === 'visible') loadDashboard() }
-    document.addEventListener('visibilitychange', refetch)
-    window.addEventListener('focus', refetch)
-    return () => {
-      document.removeEventListener('visibilitychange', refetch)
-      window.removeEventListener('focus', refetch)
-    }
-  }, [loadDashboard])
+  // Poll for order changes while the tab is visible (replaces realtime). The
+  // hook also refreshes once when the tab becomes visible again, which covers
+  // a farmer coming back from another app.
+  useOrderPolling(() => { loadOrders() }, !!farmer)
 
   const handleLogout = async () => {
     // Drop the server cookie too — clearing localStorage alone leaves a live

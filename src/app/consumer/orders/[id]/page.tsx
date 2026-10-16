@@ -202,7 +202,7 @@ export default function OrderDetailsPage() {
 
     // Realtime carries the instant updates now, so this poll is just a fallback
     // for when the websocket drops on spotty 4G — a slower 15s is plenty.
-    const timer = setInterval(silentRefresh, 15000)
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') silentRefresh() }, 15000)
     const onVisible = () => { if (document.visibilityState === 'visible') silentRefresh() }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', silentRefresh)

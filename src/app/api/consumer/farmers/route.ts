@@ -1,17 +1,21 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextRequest, NextResponse } from 'next/server'
-import { getConsumerSessionFromRequest } from '@/lib/session'
+import { NextResponse } from 'next/server'
 import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
 import { pickGrowText } from '@/lib/farmersTab'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// GET — the buyer's Farmers tab in one round-trip: every active farmer with
-// their follower and live-listing counts, plus which of them this buyer follows
-// (empty when signed out). Explicit columns only: `farmers` carries the password
-// hash and bank details, and this response is public.
-export async function GET(req: NextRequest) {
+// GET — the buyer's Farmers tab: every active farmer with their follower and
+// live-listing counts. The same for every visitor, so Vercel's CDN serves it
+// for a minute from one run. Who THIS buyer follows is personal and comes from
+// /api/consumer/follows instead — mixing it in here would make the response
+// uncacheable (or worse, cache one buyer's follows for everyone).
+// Explicit columns only: `farmers` carries the password hash and bank details,
+// and this response is public.
+const LIST_CACHE = 'public, s-maxage=60, stale-while-revalidate=300'
+
+export async function GET() {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -25,16 +29,12 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const ids = (farmers ?? []).map((f) => f.id as string)
-  const session = getConsumerSessionFromRequest(req)
 
   // Best-effort counts: a missing table or a failed read leaves them at 0.
-  const [followsRes, listingsRes, mineRes] = await Promise.all([
+  const [followsRes, listingsRes] = await Promise.all([
     ids.length ? supabase.from('farmer_follows').select('farmer_id').in('farmer_id', ids) : Promise.resolve({ data: [] }),
     ids.length
       ? supabase.from('produce_listings').select('farmer_id, how_we_grow, created_at').in('farmer_id', ids).in('status', [...CONSUMER_VISIBLE_STATUSES]).order('created_at', { ascending: false })
-      : Promise.resolve({ data: [] }),
-    session
-      ? supabase.from('farmer_follows').select('farmer_id').eq('consumer_id', session.consumerId)
       : Promise.resolve({ data: [] }),
   ])
 
@@ -65,6 +65,5 @@ export async function GET(req: NextRequest) {
         isAggregator: f.account_type === 'aggregator',
       }),
     })),
-    followingIds: ((mineRes.data ?? []) as Array<{ farmer_id: string }>).map((r) => r.farmer_id),
-  })
+  }, { headers: { 'Cache-Control': LIST_CACHE } })
 }

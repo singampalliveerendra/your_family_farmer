@@ -120,7 +120,7 @@ export default function RiderDashboardPage() {
   useEffect(() => {
     if (!rider) return
     void refresh()
-    const t = setInterval(() => void refresh(), 15_000)
+    const t = setInterval(() => { if (document.visibilityState === 'visible') void refresh() }, 15_000)
     return () => clearInterval(t)
   }, [rider, refresh])
 

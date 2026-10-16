@@ -136,12 +136,18 @@ export const config = {
   // preview gate see ordinary page requests. Static assets, the APK and
   // assetlinks are excluded — matching them would cost a middleware invocation
   // per file and redirecting them helps nobody.
+  //
+  // The catch-all also skips every other /api/* path and any file with an
+  // image/font/text extension: previewGate() returns early for /api anyway and
+  // no role check covers them, so running the proxy there was a paid
+  // invocation per public API call (the shop feed, prices, farmers…) that
+  // could only ever say "carry on".
   matcher: [
     '/api/farmer/:path*',
     '/api/moderator/:path*',
     '/api/rider/:path*',
     '/api/admin/:path*',
     '/api/aggregator/:path*',
-    '/((?!_next/static|_next/image|favicon.ico|icon.png|apple-touch-icon.png|manifest.webmanifest|downloads|.well-known).*)',
+    '/((?!api/|_next/static|_next/image|favicon.ico|icon.png|apple-touch-icon.png|manifest.webmanifest|downloads|.well-known|.*\\.(?:png|jpe?g|gif|svg|webp|ico|woff2?|txt|xml|map)$).*)',
   ],
 }

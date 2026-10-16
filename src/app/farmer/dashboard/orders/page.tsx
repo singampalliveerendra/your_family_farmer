@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, useEffect, useCallback } from 'react'
+import { Suspense, useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useOrderPolling } from '@/lib/useOrderPolling'
@@ -73,12 +73,23 @@ function OrdersPageInner() {
   }, [searchParams])
 
   // Silent refresh keeps the spinner only for the very first load.
+  // Fingerprint of the last list received; sent back on each poll so an
+  // unchanged list comes back as an empty 304 (see src/lib/etag.ts).
+  const ordersEtag = useRef<string | null>(null)
+  const sessionChecked = useRef(false)
+
   const load = useCallback(async (silent = false) => {
     // Verified against the session cookie, not just localStorage: without this
     // an expired session renders a full orders list whose every button 401s.
-    const farmerId = await requireFarmerSession()
-    if (!farmerId) return
-    setFarmerId(farmerId)
+    // Once per visit is enough — after that a poll goes straight to the orders
+    // route, whose own 401 sends an expired login to the login page
+    // (farmerFetch), instead of a second server call every 25 s.
+    if (!silent || !sessionChecked.current) {
+      const farmerId = await requireFarmerSession()
+      if (!farmerId) return
+      sessionChecked.current = true
+      setFarmerId(farmerId)
+    }
 
     if (!silent) setLoading(true)
     // Explicit columns: handover_otp is deliberately NOT fetched — the pickup
@@ -88,8 +99,13 @@ function OrdersPageInner() {
     // the signed session cookie server-side, so the scoping is enforced rather
     // than merely requested — the old .eq('farmer_id', ...) here was a filter
     // anyone could change or drop.
-    const r = await fetch('/api/farmer/orders?scope=all', { credentials: 'same-origin' }).catch(() => null)
+    const r = await farmerFetch('/api/farmer/orders?scope=all', {
+      headers: ordersEtag.current ? { 'If-None-Match': ordersEtag.current } : undefined,
+    }).catch(() => null)
+    // 304: nothing changed since the last poll — keep the list on screen.
+    if (r?.status === 304) { setLoading(false); return }
     const json = r && r.ok ? await r.json().catch(() => null) : null
+    if (r?.ok && json) ordersEtag.current = r.headers.get('ETag')
 
     setOrders((json?.orders ?? []) as Order[])
     setLoading(false)
