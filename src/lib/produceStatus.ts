@@ -58,3 +58,18 @@ export function isSoldOutWithHarvests(
   if (!harvests.length) return isSoldOutListing(item)
   return harvests.every((h) => h.stock_qty != null && h.stock_qty <= 0)
 }
+
+/* The home page's single feed request. `?status=feed` on /api/produce returns
+ * the buyer-visible statuses AND coming_soon in one response (one server run
+ * instead of two); the page splits them back into its two shelves here. */
+export const FEED_STATUSES = [...CONSUMER_VISIBLE_STATUSES, 'coming_soon'] as const
+
+export function splitFeed<T extends { status?: string | null }>(rows: T[]): { available: T[]; comingSoon: T[] } {
+  const available: T[] = []
+  const comingSoon: T[] = []
+  for (const r of rows) {
+    if (r.status === 'coming_soon') comingSoon.push(r)
+    else if ((CONSUMER_VISIBLE_STATUSES as readonly string[]).includes(r.status ?? '')) available.push(r)
+  }
+  return { available, comingSoon }
+}

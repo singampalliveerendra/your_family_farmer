@@ -29,18 +29,25 @@ export default function ConsumerFarmersPage() {
     } catch { /* storage blocked */ }
   }, [])
 
-  // Refetched on sign-in, so "Farmers you follow" fills in without a reload.
+  // The farmer list is the same for everyone (CDN-cached), so it loads once.
   useEffect(() => {
-    if (state.status === 'loading') return
     let cancelled = false
-    fetch('/api/consumer/farmers', { credentials: 'same-origin' })
+    fetch('/api/consumer/farmers')
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((j) => {
-        if (cancelled) return
-        setFarmers(Array.isArray(j?.farmers) ? j.farmers : [])
-        setFollowingIds(Array.isArray(j?.followingIds) ? j.followingIds : [])
-      })
+      .then((j) => { if (!cancelled) setFarmers(Array.isArray(j?.farmers) ? j.farmers : []) })
       .catch(() => { if (!cancelled) setFailed(true) })
+    return () => { cancelled = true }
+  }, [])
+
+  // Who this buyer follows is personal: asked only once signed in, and again on
+  // sign-in so "Farmers you follow" fills in without a reload.
+  useEffect(() => {
+    if (state.status !== 'authenticated') { setFollowingIds([]); return }
+    let cancelled = false
+    fetch('/api/consumer/follows', { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!cancelled && Array.isArray(j?.followingIds)) setFollowingIds(j.followingIds) })
+      .catch(() => {})
     return () => { cancelled = true }
   }, [state.status])
 

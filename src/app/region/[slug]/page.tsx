@@ -6,6 +6,16 @@ import RegionTopBar from '@/components/region/RegionTopBar'
 import RegionHero from '@/components/region/RegionHero'
 import RegionContent from '@/components/region/RegionContent'
 
+// Public, cookie-free page: rebuilt at most once a minute (ISR) rather than per
+// visit, and never left frozen on the first build's copy either.
+export const revalidate = 60
+// No pages are built ahead of time (the list is empty); each one is built on its
+// first visit and then cached as above. Without this Next treats the [slug]
+// page as fully dynamic and the revalidate window is never used.
+export async function generateStaticParams() {
+  return []
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const { data: region } = await supabase

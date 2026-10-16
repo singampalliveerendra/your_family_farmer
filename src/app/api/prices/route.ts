@@ -16,12 +16,16 @@ function svc() {
 // moderator's guideline for that crop in that zone, or { price: null } when
 // none is set. price_guidelines is service-role only, so this reads it server
 // side rather than exposing the table to the anon key.
+// Moderator price guidelines change rarely; let the CDN absorb repeat lookups
+// (the farmer form asks once per crop typed).
+const HINT_CACHE = 'public, s-maxage=300, stale-while-revalidate=600'
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const crop = (searchParams.get('crop') ?? '').trim()
   const region = (searchParams.get('region') ?? '').trim()
   if (!crop || !region) {
-    return NextResponse.json({ price: null })
+    return NextResponse.json({ price: null }, { headers: { 'Cache-Control': HINT_CACHE } })
   }
 
   const supabase = svc()
@@ -37,7 +41,7 @@ export async function GET(req: NextRequest) {
   }
   // Only useful as a hint if at least one bound is set.
   if (!data || (data.min_price == null && data.max_price == null)) {
-    return NextResponse.json({ price: null })
+    return NextResponse.json({ price: null }, { headers: { 'Cache-Control': HINT_CACHE } })
   }
-  return NextResponse.json({ price: data })
+  return NextResponse.json({ price: data }, { headers: { 'Cache-Control': HINT_CACHE } })
 }

@@ -2,7 +2,18 @@ import { supabase } from '@/lib/supabase'
 import { FARMER_PUBLIC_COLUMNS } from '@/lib/farmerColumns'
 import { notFound } from 'next/navigation'
 
-export const dynamic = 'force-dynamic'
+// Rebuilt at most once a minute (ISR) instead of on every visit. This is the
+// page every shared link and QR code opens, and it reads only public data — no
+// cookies — so each view used to cost a server render and five database
+// queries. A farmer's own edits (UPI, stock, photos) show within 60 s; stock is
+// re-checked when an order is placed, so a stale number can never oversell.
+export const revalidate = 60
+// No pages are built ahead of time (the list is empty); each one is built on its
+// first visit and then cached as above. Without this Next treats the [slug]
+// page as fully dynamic and the revalidate window is never used.
+export async function generateStaticParams() {
+  return []
+}
 import { Suspense } from 'react'
 import TopNav from '@/components/farmer/TopNav'
 import FarmCover from '@/components/farmer/FarmCover'

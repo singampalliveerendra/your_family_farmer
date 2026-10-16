@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   CONSUMER_VISIBLE_STATUSES,
+  FEED_STATUSES,
+  splitFeed,
   ORDERABLE_STATUSES,
   isSoldOutListing,
   isSoldOutWithHarvests,
@@ -88,5 +90,23 @@ describe('isSoldOutWithHarvests', () => {
   it('falls back to the template when no harvest has been logged', () => {
     expect(isSoldOutWithHarvests({ status: 'sold_out', stock_qty: 0 }, [])).toBe(true)
     expect(isSoldOutWithHarvests({ status: 'available', stock_qty: 6 }, [])).toBe(false)
+  })
+})
+
+describe('splitFeed', () => {
+  it('splits the one feed response back into the two shelves', () => {
+    const rows = [
+      { id: 'a', status: 'available' },
+      { id: 'b', status: 'coming_soon' },
+      { id: 'c', status: 'sold_out' },
+      { id: 'd', status: 'paused' },
+    ]
+    const { available, comingSoon } = splitFeed(rows)
+    expect(available.map((r) => r.id)).toEqual(['a', 'c'])
+    expect(comingSoon.map((r) => r.id)).toEqual(['b'])
+  })
+
+  it('asks the API for exactly those statuses', () => {
+    expect([...FEED_STATUSES].sort()).toEqual(['available', 'coming_soon', 'sold_out'])
   })
 })

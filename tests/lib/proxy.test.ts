@@ -95,3 +95,27 @@ describe('tester opt-in', () => {
     expect(proxy(req('/consumer', 'yff_tester=maybe')).status).toBe(307)
   })
 })
+
+// Which requests reach the proxy at all. Every proxy run is a paid invocation,
+// so public API calls and static files are kept out — but the role-guarded
+// APIs and every page (the preview gate) must stay in.
+describe('proxy matcher', async () => {
+  const { config } = await import('@/proxy')
+  const matchers = config.matcher.map((m: string) =>
+    new RegExp(`^${m.replace('/:path*', '(?:/.*)?')}$`))
+  const runs = (path: string) => matchers.some((re: RegExp) => re.test(path))
+
+  it('runs on pages and on the role-guarded APIs', () => {
+    for (const p of ['/', '/consumer', '/consumer/produce/abc', '/farmer/ramesh', '/moderator/reports',
+      '/api/farmer/orders', '/api/moderator/orders/report', '/api/rider/jobs', '/api/admin/x', '/api/aggregator/source-farmers']) {
+      expect(runs(p), p).toBe(true)
+    }
+  })
+
+  it('skips public APIs and static files', () => {
+    for (const p of ['/api/produce', '/api/consumer/farmers', '/api/prices', '/api/orders/place',
+      '/icon.png', '/apple-touch-icon.png', '/logo.svg', '/photos/a.webp', '/robots.txt', '/_next/static/x.js']) {
+      expect(runs(p), p).toBe(false)
+    }
+  })
+})
