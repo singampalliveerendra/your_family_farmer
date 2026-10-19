@@ -127,32 +127,40 @@ export default function ProduceDetailPage() {
   const load = useCallback(async () => {
     if (!id) return
     setLoading(true)
-    const { data: l } = await supabase.from('produce_listings').select('*').eq('id', id).maybeSingle()
-    if (!l) { setNotFound(true); setLoading(false); return }
+    // One round trip, not four: these are the links opened from WhatsApp on
+    // slow 4G, and each sequential query was another ~0.4 s of spinner. The
+    // farmer rides along as an embed, and the harvests only need the id, so
+    // they go out at the same time.
+    // Farmer columns are explicit, never '*': `farmers` carries password_hash,
+    // the activation code and the legacy bank columns, and this response is
+    // world-readable.
+    const [{ data: lf }, harvestsRes] = await Promise.all([
+      supabase
+        .from('produce_listings')
+        .select('*, farmer:farmers!farmer_id(id, name, village, slug, phone, method, pickup_locations, pickup_location_phones, pickup_slots, account_type)')
+        .eq('id', id)
+        .maybeSingle(),
+      // Every unpaused pick, newest first: the first row drives the clock, the
+      // whole set decides whether this produce still has anything left.
+      // Fetching only the newest one was enough for the clock but blind to
+      // stock — a crop whose picks were all spent still read as buyable off
+      // the template's number. Best-effort — silent if the table is absent.
+      Promise.resolve(
+        supabase
+          .from('harvests')
+          .select('harvested_at, shelf_life_days, stock_qty')
+          .eq('produce_listing_id', id)
+          .eq('paused', false)
+          .order('harvested_at', { ascending: false }),
+      ).catch(() => ({ data: null })),
+    ])
+    if (!lf) { setNotFound(true); setLoading(false); return }
+    const { farmer: f, ...l } = lf as Listing & { farmer: Farmer | null }
     setItem(l as Listing)
     setLiveStock((l as Listing).stock_qty ?? null)
-    // Explicit columns, never '*': `farmers` carries password_hash, the
-    // activation code and the legacy bank columns, and this response is
-    // world-readable.
-    const { data: f } = await supabase
-      .from('farmers')
-      .select('id, name, village, slug, phone, method, pickup_locations, pickup_location_phones, pickup_slots, account_type')
-      .eq('id', (l as Listing).farmer_id)
-      .maybeSingle()
-    setFarmer((f as Farmer) ?? null)
-    // Every unpaused pick, newest first: the first row drives the clock, the
-    // whole set decides whether this produce still has anything left. Fetching
-    // only the newest one was enough for the clock but blind to stock — a crop
-    // whose picks were all spent still read as buyable off the template's
-    // number. Best-effort — silent if the table is absent.
+    setFarmer(f ?? null)
     try {
-      const { data: hs } = await supabase
-        .from('harvests')
-        .select('harvested_at, shelf_life_days, stock_qty')
-        .eq('produce_listing_id', id)
-        .eq('paused', false)
-        .order('harvested_at', { ascending: false })
-      const rows = (hs ?? []) as Array<{ harvested_at: string; shelf_life_days: number | null; stock_qty: number | null }>
+      const rows = (harvestsRes.data ?? []) as Array<{ harvested_at: string; shelf_life_days: number | null; stock_qty: number | null }>
       setHarvestStocks(rows.map((r) => ({ stock_qty: r.stock_qty ?? null })))
       const h = rows[0]
       // Clock source, in order of preference: a logged `harvests` row, else the
