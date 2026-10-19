@@ -12,6 +12,7 @@ import {
   groupByFarmer,
   batchKey,
   placedBuyerParams,
+  sellerWithGrowers,
   farmerNewOrderParams,
   cancelledParams,
   cancelReason,
@@ -165,6 +166,11 @@ describe('template params', () => {
     expect(placedBuyerParams([row()], 'Lakshmi Farms')).toEqual(['Ravi', 'YFF-20260929-0012', '240', 'Lakshmi Farms'])
   })
 
+  it('yff_order_placed: an aggregator order names the grower in the farmer slot', () => {
+    const from = sellerWithGrowers('Sri Agro', ['Ramu'])
+    expect(placedBuyerParams([row()], from)).toEqual(['Ravi', 'YFF-20260929-0012', '240', 'Sri Agro (grown by Ramu)'])
+  })
+
   it('yff_farmer_new_order: 7 values in order', () => {
     expect(farmerNewOrderParams([row()])).toEqual([
       'YFF-20260929-0012',
@@ -238,5 +244,22 @@ describe('order status messages', () => {
     // A cancelled/pending order gets no "date changed" text.
     expect(isRealReschedule('2026-10-13T05:00:00.000Z', { ...approved, status: 'cancelled' })).toBe(false)
     expect(isRealReschedule('2026-10-13T05:00:00.000Z', { ...approved, status: 'pending' })).toBe(false)
+  })
+})
+
+describe('sellerWithGrowers', () => {
+  // USE: a buyer of an aggregator's produce chose it for the farmer who grew
+  // it — the order-placed WhatsApp must say who that is, not only the business.
+  it('plain farmer (no growers) is just the seller name', () => {
+    expect(sellerWithGrowers('Lakshmi Farms', [])).toBe('Lakshmi Farms')
+    expect(sellerWithGrowers('Lakshmi Farms', [undefined, null, ' '])).toBe('Lakshmi Farms')
+  })
+
+  it('lists each grower once across a multi-line batch', () => {
+    expect(sellerWithGrowers('Sri Agro', ['Ramu', 'Sita', 'ramu', undefined])).toBe('Sri Agro (grown by Ramu, Sita)')
+  })
+
+  it('falls back to the grower alone when the seller has no name', () => {
+    expect(sellerWithGrowers(null, ['Ramu'])).toBe('Ramu')
   })
 })

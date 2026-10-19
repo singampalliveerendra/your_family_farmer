@@ -53,7 +53,7 @@ export type NotifyOrderRow = {
   fulfillment_date?: string | null
 }
 
-type Farmer = { id: string; name: string | null; phone: string | null }
+type Farmer = { id: string; name: string | null; phone: string | null; account_type?: string | null }
 
 /**
  * Meta rejects a template parameter that is empty, contains a newline or tab,
@@ -160,12 +160,33 @@ export function batchKey(rows: NotifyOrderRow[]): string {
   return rows.map((r) => r.id).sort()[0] ?? ''
 }
 
+/**
+ * Who the buyer is told they ordered from. An aggregator sells produce other
+ * farmers grew, so their business name alone hides the grower the buyer chose
+ * them for: "Sri Agro (grown by Ramu, Sita)". A plain farmer, or an aggregator
+ * pick with no grower recorded, is just the seller's name.
+ */
+export function sellerWithGrowers(sellerName: string | null, growerNames: (string | null | undefined)[]): string | null {
+  const seen = new Set<string>()
+  const growers: string[] = []
+  for (const g of growerNames) {
+    const n = String(g ?? '').trim()
+    if (n && !seen.has(n.toLowerCase())) {
+      seen.add(n.toLowerCase())
+      growers.push(n)
+    }
+  }
+  if (growers.length === 0) return sellerName
+  const seller = String(sellerName ?? '').trim()
+  return seller ? `${seller} (grown by ${growers.join(', ')})` : growers.join(', ')
+}
+
 export function placedBuyerParams(rows: NotifyOrderRow[], farmerName: string | null): string[] {
   return [
     waParam(rows[0]?.buyer_name, 60),
     waParam(orderCodeLabel(rows), 60),
     waParam(formatRupees(buyerTotal(rows)), 20),
-    waParam(farmerName, 60),
+    waParam(farmerName, 120),
   ]
 }
 
@@ -298,9 +319,58 @@ export function isRealReschedule(
 // ---------------------------------------------------------------------------
 
 async function loadFarmers(supabase: SupabaseClient, ids: string[]): Promise<Map<string, Farmer>> {
-  const { data, error } = await supabase.from('farmers').select('id, name, phone').in('id', ids)
+  const { data, error } = await supabase.from('farmers').select('id, name, phone, account_type').in('id', ids)
   if (error) console.error('[YFF orderNotify] farmers load failed:', error.message)
   return new Map(((data ?? []) as Farmer[]).map((f) => [f.id, f]))
+}
+
+/**
+ * The grower's name for each aggregator order line: the pick's source farmer
+ * first (that is who grew this batch), else the listing's. Best-effort and
+ * separate from the order load, so an environment missing a source_farmer_id
+ * column only loses the "grown by" words, never the message.
+ */
+async function loadGrowerNames(supabase: SupabaseClient, orderIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>()
+  if (orderIds.length === 0) return out
+  try {
+    const { data: links } = await supabase.from('orders').select('id, harvest_id, produce_listing_id').in('id', orderIds)
+    const rows = (links ?? []) as { id: string; harvest_id: string | null; produce_listing_id: string | null }[]
+    const harvestIds = [...new Set(rows.map((r) => r.harvest_id).filter((x): x is string => !!x))]
+    const listingIds = [...new Set(rows.map((r) => r.produce_listing_id).filter((x): x is string => !!x))]
+
+    const fromHarvest = new Map<string, string>()
+    if (harvestIds.length) {
+      const { data } = await supabase.from('harvests').select('id, source_farmer_id').in('id', harvestIds)
+      for (const h of (data ?? []) as { id: string; source_farmer_id: string | null }[]) {
+        if (h.source_farmer_id) fromHarvest.set(h.id, h.source_farmer_id)
+      }
+    }
+    const fromListing = new Map<string, string>()
+    if (listingIds.length) {
+      const { data } = await supabase.from('produce_listings').select('id, source_farmer_id').in('id', listingIds)
+      for (const l of (data ?? []) as { id: string; source_farmer_id: string | null }[]) {
+        if (l.source_farmer_id) fromListing.set(l.id, l.source_farmer_id)
+      }
+    }
+
+    const sourceOf = new Map<string, string>()
+    for (const r of rows) {
+      const sf = (r.harvest_id && fromHarvest.get(r.harvest_id)) || (r.produce_listing_id && fromListing.get(r.produce_listing_id))
+      if (sf) sourceOf.set(r.id, sf)
+    }
+    const sfIds = [...new Set(sourceOf.values())]
+    if (sfIds.length === 0) return out
+    const { data: sfs } = await supabase.from('source_farmers').select('id, name').in('id', sfIds)
+    const names = new Map(((sfs ?? []) as { id: string; name: string | null }[]).map((f) => [f.id, f.name ?? '']))
+    for (const [orderId, sf] of sourceOf) {
+      const n = names.get(sf)
+      if (n) out.set(orderId, n)
+    }
+  } catch (e) {
+    console.error('[YFF orderNotify] grower names load failed:', e)
+  }
+  return out
 }
 
 /**
@@ -322,15 +392,20 @@ export function notifyOrdersPlaced(supabase: SupabaseClient, orderIds: string[])
       if (rows.length === 0) return
       const groups = groupByFarmer(rows)
       const farmers = await loadFarmers(supabase, groups.map((g) => g[0].farmer_id))
+      const aggregatorRowIds = rows
+        .filter((r) => farmers.get(r.farmer_id)?.account_type === 'aggregator')
+        .map((r) => r.id)
+      const growers = await loadGrowerNames(supabase, aggregatorRowIds)
 
       for (const g of groups) {
         const farmer = farmers.get(g[0].farmer_id) ?? null
         const key = batchKey(g)
+        const fromName = sellerWithGrowers(farmer?.name ?? null, g.map((r) => growers.get(r.id)))
         await queueAndSend(supabase, {
           phone: g[0].buyer_phone,
           event: 'order_placed',
           lang: 'en',
-          body: placedBuyerParams(g, farmer?.name ?? null),
+          body: placedBuyerParams(g, fromName),
           dedupeKey: `order_placed:${key}`,
           orderId: key,
         })
