@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, startTransition } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import GlobalNav from '@/components/consumer/GlobalNav'
@@ -25,6 +25,7 @@ import { isSoldOutListing, splitFeed } from '@/lib/produceStatus'
 import { formatHarvestDate, nextHarvestDate } from '@/lib/harvestSchedule'
 import PreorderConfirm from '@/components/consumer/PreorderConfirm'
 import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
+import { FEED_PAGE_SIZE, FEED_PREFETCH_MARGIN, nextVisibleCount, nextBatchCoverUrls } from '@/lib/feedPaging'
 
 const DEFAULT_REGION = 'tadepalligudem'
 
@@ -459,6 +460,50 @@ export default function ConsumerPage() {
     return cards
   }, [filtered, consumerLat, consumerLng, distanceFilter, harvestsByListing, farmerFilter, sortBy])
 
+  // Draw the grid FEED_PAGE_SIZE cards at a time (see src/lib/feedPaging.ts).
+  // Back to the first page only when the buyer changes what they're looking
+  // at — NOT on the silent background refetches, which would collapse the
+  // list under someone who has scrolled down.
+  const [visibleCount, setVisibleCount] = useState(FEED_PAGE_SIZE)
+  useEffect(() => {
+    setVisibleCount(FEED_PAGE_SIZE)
+  }, [search, method, category, farmerFilter, distanceFilter, sortBy, consumerLat, consumerLng])
+
+  // Sentinel sits under the drawn cards; FEED_PREFETCH_MARGIN makes it fire
+  // ~2 screens early so the next batch is ready before the buyer gets there.
+  // Re-created per batch: if the sentinel is still inside the margin after a
+  // batch (tall screen), the fresh observer fires again straight away.
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const totalCards = displayItems.length
+  const hasMore = visibleCount < totalCards
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el || !hasMore || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) {
+        // Transition: adding cards never blocks a scroll or a tap.
+        startTransition(() => setVisibleCount((c) => nextVisibleCount(c, totalCards)))
+      }
+    }, { rootMargin: FEED_PREFETCH_MARGIN })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [visibleCount, totalCards, hasMore])
+
+  // Warm the next batch's cover photos while the phone is idle, so when those
+  // cards are drawn their image is already in the cache instead of popping in.
+  useEffect(() => {
+    if (!hasMore) return
+    const urls = nextBatchCoverUrls(displayItems.map((c) => c.item), visibleCount)
+    const warm = () => urls.forEach((u) => { const img = new window.Image(); img.src = u })
+    const w = window as Window & { requestIdleCallback?: (cb: () => void) => number; cancelIdleCallback?: (id: number) => void }
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(warm)
+      return () => w.cancelIdleCallback?.(id)
+    }
+    const t = setTimeout(warm, 500)
+    return () => clearTimeout(t)
+  }, [displayItems, visibleCount, hasMore])
+
   return (
     <main className="min-h-screen bg-[#f8f8f8] pb-12">
       <RoleGateModal />
@@ -622,7 +667,7 @@ export default function ConsumerPage() {
           )
         ) : (
           <div className="grid grid-cols-2 gap-2 auto-rows-fr">
-            {displayItems.map((card) => (
+            {displayItems.slice(0, visibleCount).map((card, i) => (
               <ProduceCard
                 key={card.key}
                 item={card.item}
@@ -630,8 +675,22 @@ export default function ConsumerPage() {
                 soldOut={card.soldOut}
                 distanceKm={card.item.distKm}
                 distanceApprox={card.item.distApprox}
+                priority={i < 4}
               />
             ))}
+          </div>
+        )}
+        {!loading && hasMore && (
+          // Load-more sentinel; the button is only a fallback for browsers
+          // without IntersectionObserver — normally it is never tapped.
+          <div ref={sentinelRef} className="flex justify-center py-4">
+            <button
+              type="button"
+              onClick={() => setVisibleCount((c) => nextVisibleCount(c, totalCards))}
+              className="text-sm font-bold text-green-700"
+            >
+              {L('Show more', 'మరిన్ని చూపించు')}
+            </button>
           </div>
         )}
       </div>
@@ -685,7 +744,7 @@ export default function ConsumerPage() {
 // come from there for the collapsed tile: nothing decrements the template's
 // stock_qty when a harvest sells out, so the listing's own number would still
 // claim kilos that are gone.
-function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { item: ProduceListing; harvest?: GridHarvest; soldOut?: boolean; distanceKm?: number | null; distanceApprox?: boolean }) {
+function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, priority }: { item: ProduceListing; harvest?: GridHarvest; soldOut?: boolean; distanceKm?: number | null; distanceApprox?: boolean; priority?: boolean }) {
   const emoji       = item.emoji ?? '🌿'
   const produceBg   = PRODUCE_BG[emoji] ?? DEFAULT_PRODUCE_BG
   const method      = item.method?.toLowerCase() ?? 'natural'
@@ -874,13 +933,15 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox }: { i
             onScroll={onGalleryScroll}
             className="flex h-full w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide"
           >
-            {gallery.map((url) => (
+            {gallery.map((url, gi) => (
               <Link
                 key={url}
                 href={produceHref}
                 className="relative snap-center shrink-0 w-full h-40 block"
               >
-                <Image src={url} alt={localizeName(item.name, lang)} fill sizes="(max-width: 640px) 100vw, 400px" className="object-cover" />
+                {/* The first row's covers load eagerly (above the fold); every
+                    other photo stays lazy. */}
+                <Image src={url} alt={localizeName(item.name, lang)} fill sizes="(max-width: 640px) 100vw, 400px" className="object-cover" priority={priority && gi === 0} />
               </Link>
             ))}
           </div>
