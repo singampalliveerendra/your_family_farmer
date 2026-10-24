@@ -5,8 +5,13 @@ import {
 } from '@/lib/bottomNav'
 
 describe('navKindFor', () => {
-  it('gives the buyer bar on the buyer list pages and region pages', () => {
-    for (const p of ['/consumer', '/consumer/', '/consumer/farmers', '/consumer/orders', '/consumer/orders/history', '/consumer/profile', '/consumer/settings', '/consumer/intents', '/consumer/complaints', '/region/tadepalligudem']) {
+  it('gives the buyer bar on every buyer page, detail pages included', () => {
+    for (const p of [
+      '/consumer', '/consumer/', '/consumer/farmers', '/consumer/orders', '/consumer/orders/history', '/consumer/profile',
+      '/consumer/settings', '/consumer/intents', '/consumer/complaints', '/region/tadepalligudem',
+      '/consumer/cart', '/consumer/produce/abc', '/consumer/harvest/abc', '/consumer/orders/abc',
+      '/farmer/ramesh', '/buyer-protection',
+    ]) {
       expect(navKindFor(p)).toBe('buyer')
     }
   })
@@ -17,9 +22,8 @@ describe('navKindFor', () => {
     }
   })
 
-  // These pages have their own fixed bottom buttons.
-  it('stays off pages with their own bottom bar, and everywhere else', () => {
-    for (const p of ['/consumer/cart', '/consumer/produce/abc', '/consumer/harvest/abc', '/consumer/orders/abc', '/farmer/ramesh', '/farmer/login', '/home', '/', '/moderator', '/rider', null]) {
+  it('stays off the chooser, login/signup, and the moderator/rider/admin areas', () => {
+    for (const p of ['/farmer', '/farmer/login', '/farmer/signup', '/aggregator/login', '/aggregator/signup', '/home', '/', '/moderator', '/moderator/farmers', '/rider', '/admin', null]) {
       expect(navKindFor(p)).toBeNull()
     }
   })

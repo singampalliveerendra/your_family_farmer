@@ -21,39 +21,33 @@ function isUnder(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`)
 }
 
-/* Pages that keep the bar. Everything else is left alone on purpose:
- *  - produce / harvest detail pages and a farmer's public page have their own
- *    fixed "Add to cart" / "WhatsApp" bar at the bottom, and two stacked bars on
- *    a 390px phone leave too little room for the page itself;
- *  - the cart is a checkout flow with its own Place order button;
- *  - a single order page has its own bottom actions (cancel, rate). */
-const BUYER_PAGES = [
-  '/consumer',
-  '/consumer/farmers',
-  '/consumer/orders',
-  '/consumer/orders/history',
-  '/consumer/profile',
-  '/consumer/settings',
-  '/consumer/intents',
-  '/consumer/complaints',
-]
+/* Every buyer and seller page gets the bar, so the way Home / to the cart /
+ * to Orders is always one tap. Pages with their own fixed bottom action bar
+ * (produce and harvest detail: "Add to cart") lift that bar above this one with
+ * BOTTOM_NAV_OFFSET rather than losing the menu.
+ *
+ * Left without a bar on purpose: the /home chooser and `/` (no side picked
+ * yet), login and signup pages (no account yet), and the moderator, rider and
+ * admin areas, which have no bar of their own. */
+const BUYER_PREFIXES = ['/consumer', '/region', '/buyer-protection']
 
-const SELLER_PAGES = [
-  '/farmer/dashboard',
-  '/farmer/dashboard/orders',
-  '/farmer/complaints',
-  '/aggregator/dashboard',
-  '/aggregator/farmers',
-]
+const SELLER_PREFIXES = ['/farmer/dashboard', '/farmer/complaints', '/aggregator/dashboard', '/aggregator/farmers']
 
-/** Which bar this page shows, or null for none. Exact page match, so a new
- *  page under /consumer has to opt in rather than inherit a bar that may
- *  cover its own bottom buttons. */
+// The other /farmer/* pages; anything else under /farmer is a farmer's public
+// page (/farmer/[slug]), which buyers browse.
+const FARMER_NON_PUBLIC = ['/farmer/login', '/farmer/signup']
+
+/** Height the bottom bar takes (bar + phone's home-indicator gap). A page's own
+ *  fixed bottom bar sits at this offset so the two stack instead of overlap. */
+export const BOTTOM_NAV_OFFSET = 'calc(64px + env(safe-area-inset-bottom, 0px))'
+
+/** Which bar this page shows, or null for none. */
 export function navKindFor(pathname: string | null | undefined): NavKind | null {
   if (!pathname) return null
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
-  if (BUYER_PAGES.includes(path) || isUnder(path, '/region')) return 'buyer'
-  if (SELLER_PAGES.includes(path)) return 'seller'
+  if (SELLER_PREFIXES.some((p) => isUnder(path, p))) return 'seller'
+  if (BUYER_PREFIXES.some((p) => isUnder(path, p))) return 'buyer'
+  if (path.startsWith('/farmer/') && !FARMER_NON_PUBLIC.some((p) => isUnder(path, p))) return 'buyer'
   return null
 }
 

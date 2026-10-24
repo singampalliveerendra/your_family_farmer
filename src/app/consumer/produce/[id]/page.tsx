@@ -9,6 +9,7 @@ import { methodLabel, categoryLabel } from '@/lib/produceLabels'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useCart, CartFab, EditableQty } from '@/components/consumer/Cart'
+import { BOTTOM_NAV_OFFSET } from '@/lib/bottomNav'
 import { supabase } from '@/lib/supabase'
 import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
 import { isSoldOutWithHarvests } from '@/lib/produceStatus'
@@ -322,7 +323,7 @@ export default function ProduceDetailPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 pb-28">
+    <main className="min-h-screen bg-gray-50 pb-32">
       {/* Header bar */}
       <div className="sticky top-0 z-40 bg-green-900">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
@@ -573,8 +574,10 @@ export default function ProduceDetailPage() {
       </div>
       </div>
 
-      {/* Sticky add-to-cart bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 px-4 py-3 max-w-lg mx-auto">
+      {/* Sticky add-to-cart bar, stacked on the bottom menu. The extra bottom
+          padding is room for the menu's raised cart button, which pokes up
+          into this bar. */}
+      <div className="fixed left-0 right-0 z-30 bg-white border-t border-gray-200 px-4 pt-3 pb-8 max-w-lg mx-auto" style={{ bottom: BOTTOM_NAV_OFFSET }}>
         {stockMsg && (
           <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 text-center mb-2">{stockMsg}</p>
         )}
