@@ -356,9 +356,8 @@ export function CartFab({ raised = false }: { raised?: boolean }) {
   const router = useRouter()
   const pathname = usePathname()
   const { lines, subtotal } = summarizeCart(items)
-  // Pages with the bottom menu bar have a cart button in it, so this bar steps
-  // aside there; it stays on the pages the menu skips (produce, harvest, a
-  // farmer's public page), where it is still the way to the cart.
+  // Pages with the buyer menu bar have a cart button in it, so this bar steps
+  // aside there (every buyer page now has the menu; this is the fallback).
   const navHasCart = navKindFor(pathname) === 'buyer'
 
   // `bump` is a counter used as the badge's React key, so each add remounts it
