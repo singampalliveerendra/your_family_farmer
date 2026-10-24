@@ -1,0 +1,25 @@
+in dash board the prices that are showing in that how and where the prices are comming from and what the file name is
+
+---
+
+from which table the the price of the produce data is coming from supabase
+
+---
+
+what are the field that we have in orders
+
+---
+
+which column holds each items name , and how does the harvest table link to its listing
+
+---
+
+how can I rename the tables such that it is well organized the details, than the current way the tables are stored?
+
+---
+
+Also how to store the exisiting values in such a way the app is primarily used.
+
+---
+
+I want to understand how can redesign my database tables, such that they are intutive and right design for the currrent need
