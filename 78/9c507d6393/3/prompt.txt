@@ -1,0 +1,59 @@
+total how many changes and features that we have to push to main
+
+---
+
+run
+
+---
+
+[Image #1]
+
+---
+
+[Image #2] except these two push everything to main
+
+---
+
+push to main and make sure that everything is safe to push to prod (main )
+
+---
+
+<task-notification>
+<task-id>bxvxi2ci0</task-id>
+<tool-use-id>toolu_01H3fBBNKTTubsVGVaiEv8Xt</tool-use-id>
+<output-file>/tmp/claude-1000/-home-veerendra-farmer-yourfamilyfarmer/d73f24d4-2851-4945-a5ca-792f9722a116/tasks/bxvxi2ci0.output</output-file>
+<status>failed</status>
+<summary>Background command "for i in $(seq 1 30); do out=$(vercel ls --prod 2&gt;/dev/null | grep -m1 -E "https://"); echo "$out" | grep -qE "Ready|Error|Canceled" &amp;&amp; ! echo "$out" | grep -q "Building\|Queued" &amp;&amp; { echo "$out"; break; }; sleep 20; done" failed with exit code 144</summary>
+</task-notification>
+
+---
+
+how many features are  remaining that we have to push to main
+
+---
+
+I said to push only these changes to the main branch and keep these other two changes in the staging area. Show me exactly which Git commands you used to do that. Explain only the commands related to pushing the selected changes to main while leaving the other two changes staged. Keep the explanation simple and step-by-step.
+
+---
+
+i want to see that what commits need to push in main and stayed in staging by using command and make sure it have to show the commind ids too 0431e12
+
+---
+
+i want to see that what commits need to push in main and stayed in staging by using command and make sure it have to show the commind ids too 0431e12(like this ) just tell me steps i will checck it manually
+
+---
+
+git cherry -v --abbrev=8 origin/main origin/staging instead of this big command is there any small command to check
+
+---
+
+tell me the table name of payments that hoow many payments and sucefully done
+
+---
+
+create a separate table that have to show all status of the payments
+
+---
+
+its showing 33000 payment has been done is that real ? in that table show farmer details also that who pain and how much and
