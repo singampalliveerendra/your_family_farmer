@@ -21,6 +21,7 @@ import { harvestClock } from '@/lib/harvest'
 import { normalizeUrl, linkHost } from '@/lib/links'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import ShareButton from '@/components/consumer/ShareButton'
+import { coverImageUrl } from '@/lib/productShare'
 import { canDeliver, normalizeDeliveryMode } from '@/lib/fulfillment'
 import BackButton from '@/components/BackButton'
 
@@ -314,6 +315,7 @@ export default function HarvestDetailPage() {
                 unit: item.unit,
                 farmerName: farmer?.name,
                 farmerVillage: farmer?.village,
+                imageUrl: coverImageUrl(item),
               }}
             />
             <LanguageToggle />
