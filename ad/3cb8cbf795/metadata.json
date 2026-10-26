@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "ad3cb8cbf795",
+  "strategy": "manual-commit",
+  "branch": "staging",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "src/app/consumer/harvest/[harvestId]/page.tsx",
+    "src/app/consumer/page.tsx",
+    "src/app/consumer/produce/[id]/page.tsx",
+    "src/components/consumer/Cart.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ad/3cb8cbf795/0/metadata.json",
+      "transcript": "/ad/3cb8cbf795/0/full.jsonl",
+      "compact_transcript": "/ad/3cb8cbf795/0/transcript.jsonl",
+      "content_hash": "/ad/3cb8cbf795/0/content_hash.txt",
+      "prompt": "/ad/3cb8cbf795/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 42,
+    "cache_creation_tokens": 19767,
+    "cache_read_tokens": 4135480,
+    "output_tokens": 12201,
+    "api_call_count": 21
+  }
+}
