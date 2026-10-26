@@ -1,8 +1,26 @@
 import { describe, it, expect } from 'vitest'
 import {
   normalizeDeliveryMode, canPickup, canDeliver,
-  effectiveFulfillment, lineFulfillment, isException,
+  effectiveFulfillment, lineFulfillment, isException, parseDeliveryMode,
 } from '@/lib/fulfillment'
+
+describe('parseDeliveryMode', () => {
+  it('accepts the three real choices', () => {
+    expect(parseDeliveryMode('pickup')).toBe('pickup')
+    expect(parseDeliveryMode('courier')).toBe('courier')
+    expect(parseDeliveryMode('both')).toBe('both')
+  })
+  // No answer must stay "no answer" — never quietly become 'pickup' (or
+  // anything else), or a seller who skipped the question gets a mode they
+  // never chose.
+  it('returns null when nothing was picked', () => {
+    expect(parseDeliveryMode('')).toBeNull()
+    expect(parseDeliveryMode(undefined)).toBeNull()
+    expect(parseDeliveryMode(null)).toBeNull()
+    expect(parseDeliveryMode('delivery')).toBeNull()
+    expect(parseDeliveryMode('PICKUP')).toBeNull()
+  })
+})
 
 describe('normalizeDeliveryMode', () => {
   // The cart has always read a missing mode as 'both'.

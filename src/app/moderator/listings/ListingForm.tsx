@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import HarvestManager from '@/components/HarvestManager'
 import { useSourceFarmers, sourceFarmerLabel } from '@/components/SourceFarmerPicker'
 import { STEP_CHOICES } from '@/lib/saleStep'
+import { parseDeliveryMode } from '@/lib/fulfillment'
 
 // Shared add/edit form for a farmer's harvest listing, used by both
 //   /moderator/listings/new          (mode="create")
@@ -70,7 +71,8 @@ export const EMPTY_LISTING_FORM: ListingFormValues = {
   soil_organic_carbon: '', soil_ph: '', pesticide_result: '',
   availability_from: '', availability_to: '',
   harvest_frequency: '', harvest_frequency_count: '',
-  delivery_mode: 'pickup', delivery_charge: '', delivery_radius_km: '',
+  // Empty on purpose: the moderator has to pick, same as the farmer form.
+  delivery_mode: '', delivery_charge: '', delivery_radius_km: '',
   source_farmer_id: '',
 }
 
@@ -203,6 +205,9 @@ export default function ListingForm({
     // refuses it otherwise). Same rule the farmer dashboard enforces.
     if (isAggregator && !form.source_farmer_id) {
       setError('Choose the farmer who grows this produce.'); return
+    }
+    if (!parseDeliveryMode(form.delivery_mode)) {
+      setError('Choose a delivery method: Pickup only, Farmer courier, or Both.'); return
     }
     setError(''); setSubmitting(true)
 
@@ -444,7 +449,7 @@ export default function ListingForm({
           })}
         </div>
         {/* Courier details — only when the farmer offers delivery. */}
-        {form.delivery_mode !== 'pickup' && (
+        {form.delivery_mode && form.delivery_mode !== 'pickup' && (
           <div className="grid grid-cols-2 gap-4 mt-3">
             <Field label="Delivery charge ₹">
               <input value={form.delivery_charge} onChange={set('delivery_charge')} type="number" min="0" className={inputCls} placeholder="e.g. 30" />
