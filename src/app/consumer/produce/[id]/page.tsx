@@ -22,6 +22,7 @@ import { normalizeUrl, linkHost } from '@/lib/links'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import ShareButton from '@/components/consumer/ShareButton'
 import { growerLine } from '@/lib/source-farmers'
+import { canDeliver, normalizeDeliveryMode } from '@/lib/fulfillment'
 import BackButton from '@/components/BackButton'
 
 type Farmer = {
@@ -66,6 +67,7 @@ type Listing = {
   price_tier_1_qty?: number | null
   /** Smallest sellable quantity, in this listing's unit. Null/absent = 1. */
   sale_step?: number | null
+  delivery_mode?: string | null
   price_tier_1_price?: number | null
   price_tier_2_qty?: number | null
   price_tier_2_price?: number | null
@@ -387,6 +389,13 @@ export default function ProduceDetailPage() {
         <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
           <h1 className="text-xl font-extrabold text-gray-900 leading-tight">{localizeName(item.name, lang)}</h1>
           {item.variety && <p className="text-sm text-gray-500 mt-0.5">{localizeName(item.variety, lang)}</p>}
+
+          {/* Farmer doesn't deliver this one — said here, not first in the cart. */}
+          {!canDeliver(normalizeDeliveryMode(item.delivery_mode)) && (
+            <p className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-gray-700 bg-gray-100 rounded-full px-2.5 py-1">
+              🚶 {L('Pickup only — the farmer doesn’t deliver this', 'పికప్ మాత్రమే — రైతు దీన్ని డెలివరీ చేయరు')}
+            </p>
+          )}
 
           {/* Harvest clock — "Harvested 2 hours ago", from the latest harvest. */}
           {latestHarvest && (

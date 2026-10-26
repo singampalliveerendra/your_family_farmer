@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import GlobalNav from '@/components/consumer/GlobalNav'
 import { CartFab, useCart, EditableQty } from '@/components/consumer/Cart'
+import { canDeliver, normalizeDeliveryMode } from '@/lib/fulfillment'
 import RoleGateModal from '@/components/consumer/RoleGateModal'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import ShareButton from '@/components/consumer/ShareButton'
@@ -75,6 +76,8 @@ type ProduceListing = {
   price_tier_1_qty?: number
   /** Smallest sellable quantity, in this listing's unit. Null/absent = 1. */
   sale_step?: number | null
+  /** Farmer-set fulfillment: 'pickup' | 'courier' | 'both' (src/lib/fulfillment.ts). */
+  delivery_mode?: string | null
   price_tier_2_price?: number
   price_tier_2_qty?: number
   price_tier_3_price?: number
@@ -751,6 +754,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, prior
   // the buyer taps anything — the whole point of the feature is that the grower
   // is never hidden behind the middleman.
   const isAggregator  = farmer?.account_type === 'aggregator'
+  const pickupOnly    = !canDeliver(normalizeDeliveryMode(item.delivery_mode))
   const sourceName    = harvest?.source_farmer_name ?? null
   const sourceVillage = harvest?.source_farmer_village ?? null
   // Harvest card links to the harvest page and is keyed on the harvest; template
@@ -1015,7 +1019,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, prior
             on a long-shelf-life crop actively put buyers off. Shelf life still
             decides which harvests the Fresh shelf shows, and the farmer still
             sees the countdown in HarvestManager. */}
-        {(clockAt || isAggregator) && (
+        {(clockAt || isAggregator || pickupOnly) && (
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             {clockAt && (
               <span className="inline-flex items-center gap-1 text-[11px] font-bold text-green-700 bg-green-50 rounded-full px-2 py-0.5">
@@ -1025,6 +1029,12 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, prior
             {isAggregator && (
               <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 rounded-full px-2 py-0.5">
                 🤝 {L('Aggregator', 'సమీకరణదారు')}
+              </span>
+            )}
+            {/* Told up front, so it isn't a surprise in the cart. */}
+            {pickupOnly && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-gray-700 bg-gray-100 rounded-full px-2 py-0.5">
+                🚶 {L('Pickup only', 'పికప్ మాత్రమే')}
               </span>
             )}
           </div>

@@ -125,6 +125,7 @@ import { summarizeCart, grownLineKey } from '@/lib/cartSummary'
 import { flightKeyframes, tapStillFresh } from '@/lib/cartFly'
 import { navKindFor } from '@/lib/bottomNav'
 import { isAddressComplete, formatAddress, type SavedAddress } from '@/lib/savedAddress'
+import { normalizeDeliveryMode, canPickup, canDeliver, effectiveFulfillment, lineFulfillment, isException, type Fulfillment } from '@/lib/fulfillment'
 import AddressFields from '@/components/consumer/AddressFields'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -526,13 +527,16 @@ export function CartSheet({
   const [email, setEmail] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'upi'>('upi')
   const [showMorePayment, setShowMorePayment] = useState(false)
-  // Delivery preference is now chosen PER harvest line (keyed by cartKeyOf), so
-  // one checkout can mix pickup and delivery items. For home_delivery, a flat
+  // ONE pickup/delivery choice for the whole order (src/lib/fulfillment.ts).
+  // Lines whose produce the farmer doesn't allow that way fall back to the
+  // other and are highlighted, instead of asking pickup/delivery per line.
+  // Lines are still SENT per line, so one checkout can still mix the two.
+  // Home delivery is the default — with a saved address it's zero typing.
   // The delivery charge is one figure for the whole checkout: a base charge plus
   // an extra charge for each farmer beyond the first (each is another rider
   // pickup stop). It's charged with the order (prepaid / in the COD deposit) so
   // it can be refunded if an order is declined or cancelled.
-  const [deliveryByItem, setDeliveryByItem] = useState<Record<string, 'self_pickup' | 'home_delivery'>>({})
+  const [orderChoice, setOrderChoice] = useState<Fulfillment>('home_delivery')
   // Per-produce fulfillment the farmer allowed ('pickup' | 'courier' | 'both'),
   // keyed by listingId and fetched fresh at checkout. Constrains which delivery
   // options the consumer may pick per item, so a "Pickup only" produce can't be
@@ -834,39 +838,16 @@ export function CartSheet({
   }, {})
   const farmerGroups = Object.values(byFarmer)
 
-  // Per-item fulfillment permissions from each produce's farmer-set
-  // delivery_mode. A produce allows pickup unless it's courier-only, and allows
-  // home delivery unless it's pickup-only. Every produce allows at least one, so
-  // there's no cart-wide conflict any more — each harvest picks independently.
-  const modeOf = (it: CartItem) => deliveryModes[it.listingId] ?? 'both'
-  const canPickupItem = (it: CartItem) => modeOf(it) !== 'courier'
-  const canDeliverItem = (it: CartItem) => modeOf(it) !== 'pickup'
-  // The chosen (or defaulted) fulfillment for a line. Defaults to pickup when
-  // allowed, else home delivery.
-  const deliveryOf = (it: CartItem): 'self_pickup' | 'home_delivery' =>
-    deliveryByItem[cartKeyOf(it)] ?? (canPickupItem(it) ? 'self_pickup' : 'home_delivery')
-
-  // Seed each item's default choice once its allowed modes are known, keep any
-  // still-valid existing choice, and prune choices for items no longer in cart.
-  useEffect(() => {
-    setDeliveryByItem((prev) => {
-      const next: Record<string, 'self_pickup' | 'home_delivery'> = {}
-      let changed = false
-      const keys = new Set(items.map(cartKeyOf))
-      for (const it of items) {
-        const key = cartKeyOf(it)
-        const current = prev[key]
-        const valid =
-          current === 'home_delivery' ? canDeliverItem(it)
-          : current === 'self_pickup' ? canPickupItem(it)
-          : false
-        next[key] = valid ? current! : (canPickupItem(it) ? 'self_pickup' : 'home_delivery')
-        if (next[key] !== current) changed = true
-      }
-      for (const k of Object.keys(prev)) if (!keys.has(k)) changed = true
-      return changed ? next : prev
-    })
-  }, [items, deliveryModes])
+  // Per-line fulfillment: the order-wide choice, unless this produce's
+  // farmer-set delivery_mode doesn't allow it. If nothing in the cart can go
+  // the chosen way, the choice itself flips (effectiveFulfillment).
+  const modeOf = (it: CartItem) => normalizeDeliveryMode(deliveryModes[it.listingId])
+  const effectiveChoice = effectiveFulfillment(orderChoice, items.map(modeOf))
+  const deliveryOf = (it: CartItem): Fulfillment => lineFulfillment(effectiveChoice, modeOf(it))
+  const isExceptionItem = (it: CartItem) => isException(effectiveChoice, modeOf(it))
+  const exceptionCount = items.filter(isExceptionItem).length
+  const anyCanDeliver = items.some((it) => canDeliver(modeOf(it)))
+  const anyCanPickup = items.some((it) => canPickup(modeOf(it)))
 
   // Address form is needed as soon as any line is home delivery.
   const anyDelivery = items.some((it) => deliveryOf(it) === 'home_delivery')
@@ -2103,6 +2084,50 @@ export function CartSheet({
                 </p>
               </div>
 
+              {/* One pickup/delivery choice for the whole order. Only the lines
+                  that can't follow it are flagged below. */}
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">
+                  {L('How do you want to receive your order?', 'మీ ఆర్డర్ ఎలా అందుకోవాలి?')}
+                </p>
+                <div className="flex gap-2">
+                  {([
+                    ['home_delivery', L('🛵 Home delivery', '🛵 హోమ్ డెలివరీ'), anyCanDeliver],
+                    ['self_pickup', L('🚶 Pickup from farm', '🚶 పొలం నుండి పికప్'), anyCanPickup],
+                  ] as const).map(([value, label, ok]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      disabled={!ok}
+                      onClick={() => setOrderChoice(value)}
+                      className={`flex-1 px-3 py-3 rounded-xl border-2 text-sm font-bold ${
+                        !ok
+                          ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'
+                          : effectiveChoice === value
+                            ? value === 'home_delivery' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-green-600 bg-green-50 text-green-800'
+                            : 'border-gray-200 bg-white text-gray-600'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {!anyCanDeliver && (
+                  <p className="text-[11px] text-gray-500">
+                    {L('The farmers only offer pickup for these items.', 'ఈ వస్తువులకు రైతులు పికప్ మాత్రమే ఇస్తారు.')}
+                  </p>
+                )}
+                {exceptionCount > 0 && (
+                  <p className="text-[12px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                    ⚠ {effectiveChoice === 'home_delivery'
+                      ? L(`${exceptionCount} ${exceptionCount === 1 ? 'item is' : 'items are'} pickup only — the farmer doesn't deliver ${exceptionCount === 1 ? 'it' : 'them'}. Highlighted below.`,
+                          `${exceptionCount} వస్తువు(లు) పికప్ మాత్రమే — రైతు డెలివరీ చేయరు. క్రింద హైలైట్ చేయబడ్డాయి.`)
+                      : L(`${exceptionCount} ${exceptionCount === 1 ? 'item is' : 'items are'} delivery only — ${exceptionCount === 1 ? 'it' : 'they'} will come to your address. Highlighted below.`,
+                          `${exceptionCount} వస్తువు(లు) డెలివరీ మాత్రమే — మీ చిరునామాకు వస్తాయి. క్రింద హైలైట్ చేయబడ్డాయి.`)}
+                  </p>
+                )}
+              </div>
+
               {/* Farmer groups */}
               {farmerGroups.map((group, gi) => {
                 const f = group[0]
@@ -2130,13 +2155,13 @@ export function CartSheet({
                     </div>
 
                     <div className="p-3 space-y-2">
-                      {group.map((it) => {
+                      {/* Lines that can't follow the order choice go last and
+                          are highlighted, so the exception stands apart. */}
+                      {[...group].sort((a, b) => Number(isExceptionItem(a)) - Number(isExceptionItem(b))).map((it) => {
                         const key = cartKeyOf(it)
-                        const choice = deliveryOf(it)
-                        const pickupOk = canPickupItem(it)
-                        const deliverOk = canDeliverItem(it)
+                        const exception = isExceptionItem(it)
                         return (
-                        <div key={key} className="space-y-1.5">
+                        <div key={key} className={exception ? 'space-y-1.5 bg-amber-50 border border-amber-200 rounded-xl p-2 -mx-1' : 'space-y-1.5'}>
                           <div className="flex items-center gap-3">
                           <div className="w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center text-xl flex-shrink-0">
                             {it.emoji ?? '🌿'}
@@ -2210,39 +2235,14 @@ export function CartSheet({
                             ×
                           </button>
                           </div>
-                          {/* Per-harvest pickup / delivery choice. Both shown
-                              always; the option the farmer doesn't offer for this
-                              produce is disabled. */}
-                          <div className="flex gap-1.5 pl-14">
-                            <button
-                              type="button"
-                              disabled={!pickupOk}
-                              onClick={() => setDeliveryByItem((p) => ({ ...p, [key]: 'self_pickup' }))}
-                              className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg border text-xs font-bold ${
-                                !pickupOk
-                                  ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'
-                                  : choice === 'self_pickup'
-                                    ? 'border-green-600 bg-green-50 text-green-800'
-                                    : 'border-gray-200 bg-white text-gray-600'
-                              }`}
-                            >
-                              🚶 {L('Pickup', 'పికప్')}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={!deliverOk}
-                              onClick={() => setDeliveryByItem((p) => ({ ...p, [key]: 'home_delivery' }))}
-                              className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg border text-xs font-bold ${
-                                !deliverOk
-                                  ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'
-                                  : choice === 'home_delivery'
-                                    ? 'border-blue-600 bg-blue-50 text-blue-800'
-                                    : 'border-gray-200 bg-white text-gray-600'
-                              }`}
-                            >
-                              🛵 {L('Delivery', 'డెలివరీ')}
-                            </button>
-                          </div>
+                          {/* Can't follow the order choice — say which way it goes. */}
+                          {exception && (
+                            <p className="pl-14 text-[11px] font-bold text-amber-800">
+                              {deliveryOf(it) === 'self_pickup'
+                                ? L(`🚶 Pickup only — collect from ${f.farmerName}`, `🚶 పికప్ మాత్రమే — ${f.farmerName} వద్ద తీసుకోండి`)
+                                : L('🛵 Delivery only — comes to your address', '🛵 డెలివరీ మాత్రమే — మీ చిరునామాకు వస్తుంది')}
+                            </p>
+                          )}
                         </div>
                         )
                       })}
