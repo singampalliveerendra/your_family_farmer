@@ -7,6 +7,14 @@
 export type DeliveryMode = 'pickup' | 'courier' | 'both'
 export type Fulfillment = 'self_pickup' | 'home_delivery'
 
+// A seller's answer to "how is this delivered?", or null when they haven't
+// given one. New produce starts with NO answer — the forms make the seller pick
+// rather than pre-selecting one: a pre-selected "Pickup only" got saved by
+// farmers who never looked at it, and then showed buyers a "Pickup only" chip.
+export function parseDeliveryMode(raw: unknown): DeliveryMode | null {
+  return raw === 'pickup' || raw === 'courier' || raw === 'both' ? raw : null
+}
+
 // Unknown / missing reads as 'both', matching how the cart always treated it.
 export function normalizeDeliveryMode(raw: unknown): DeliveryMode {
   return raw === 'pickup' || raw === 'courier' ? raw : 'both'

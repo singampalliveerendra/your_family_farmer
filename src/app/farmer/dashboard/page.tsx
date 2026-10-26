@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { parseDeliveryMode, type DeliveryMode } from '@/lib/fulfillment'
 import { methodLabel } from '@/lib/produceLabels'
 import { useOrderPolling } from '@/lib/useOrderPolling'
 import { FARMER_PUBLIC_COLUMNS } from '@/lib/farmerColumns'
@@ -2360,8 +2361,10 @@ function ProduceListingForm({
   const { isAggregator, sourceFarmers, noSourceFarmers } = useSourceFarmers(farmerId)
   // #11 — delivery method for this listing: pickup only, farmer courier, or both.
   // Courier collects a flat charge within a radius (km) the farmer sets.
-  const [deliveryMode, setDeliveryMode] = useState<'pickup' | 'courier' | 'both'>(
-    (editData?.delivery_mode as 'pickup' | 'courier' | 'both') ?? 'pickup',
+  // New produce starts with nothing picked — the farmer has to choose (see
+  // parseDeliveryMode). Editing keeps what was saved.
+  const [deliveryMode, setDeliveryMode] = useState<DeliveryMode | null>(
+    editData ? (parseDeliveryMode(editData.delivery_mode) ?? 'pickup') : null,
   )
   const [deliveryCharge, setDeliveryCharge] = useState(editData?.delivery_charge != null ? String(editData.delivery_charge) : '')
   const [deliveryRadius, setDeliveryRadius] = useState(editData?.delivery_radius_km != null ? String(editData.delivery_radius_km) : '')
@@ -2507,6 +2510,10 @@ function ProduceListingForm({
     // is seeing who grew what they bought.
     if (isAggregator && !sourceFarmerId) {
       setError(L('Choose the farmer who grows this produce.', 'ఈ ఉత్పత్తిని పండించే రైతును ఎంచుకోండి.'))
+      return
+    }
+    if (!deliveryMode) {
+      setError(L('Choose a delivery method: Pickup only, I will courier, or Both.', 'డెలివరీ విధానం ఎంచుకోండి: పికప్ మాత్రమే, నేను డెలివరీ చేస్తా, లేదా రెండూ.'))
       return
     }
     setLoading(true)
@@ -3027,7 +3034,7 @@ function ProduceListingForm({
         {/* Delivery method — pickup only, farmer courier, or both (#11) */}
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {tx.deliveryMethod}
+            {tx.deliveryMethod} <span className="text-red-500">*</span>
           </label>
           <div className="grid grid-cols-3 gap-2">
             {([
@@ -3055,7 +3062,7 @@ function ProduceListingForm({
           </div>
 
           {/* Courier details — only when the farmer offers delivery. */}
-          {deliveryMode !== 'pickup' && (
+          {deliveryMode && deliveryMode !== 'pickup' && (
             <div className="grid grid-cols-2 gap-2 pt-1">
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>

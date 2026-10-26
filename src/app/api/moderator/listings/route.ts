@@ -4,6 +4,7 @@ import { unitAllowsFractions } from '@/lib/saleStep'
 import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
 import { purchaseCountsFor } from '@/lib/purchaseCounts'
 import { normalizeUrl } from '@/lib/links'
+import { parseDeliveryMode } from '@/lib/fulfillment'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -144,9 +145,11 @@ export async function POST(req: NextRequest) {
 
   // Delivery method (pickup | courier | both). Charge & radius only apply when
   // the farmer offers courier — null for pickup-only, matching the farmer form.
-  const deliveryModeRaw = String(b.delivery_mode ?? 'pickup')
-  const deliveryMode = (['pickup', 'courier', 'both'] as const).includes(deliveryModeRaw as 'pickup' | 'courier' | 'both')
-    ? deliveryModeRaw : 'pickup'
+  // Required: no silent 'pickup' default (see parseDeliveryMode).
+  const deliveryMode = parseDeliveryMode(b.delivery_mode)
+  if (!deliveryMode) {
+    return NextResponse.json({ error: 'Choose a delivery method: Pickup only, Farmer courier, or Both.' }, { status: 400 })
+  }
 
   const insert: Record<string, unknown> = {
     farmer_id,
