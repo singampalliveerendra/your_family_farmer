@@ -1,0 +1,49 @@
+[Image #1] Remove the "Show More" button completely. Implement automatic infinite scrolling so that when the user scrolls near the bottom of the product list, the next batch of products loads automatically without any button click.
+
+---
+
+Review the entire application and identify all duplicate or redundant buttons, menu items, and navigation options (e.g., Settings, My Orders, etc.). Count how many duplicates or overlapping functions exist across the app. Create a report listing each duplicate item, where it appears, and why it is redundant. Suggest which version should be kept and which should be removed. Do not make any changes yet. First provide the findings and recommendations for review.
+
+---
+
+B1, B2 , B3 remove this
+
+---
+
+Implement a consistent Back Button across the entire web application. The Back Button must be visible on all applicable pages and should always navigate the user to the last page they previously visited, preserving the natural navigation flow.
+
+---
+
+commit to staging
+
+---
+
+We are asking the user to select delivery or pickup for each item. I think this is redundant.  Initially we added like this because some items are not deliverable. But I think we can smartly show the item which is not deliverable separately and highlight it or somehow let the user know rather than asking for each and every item. explain tghis in telugidh
+
+---
+
+how to test  this explain in step by step
+
+---
+
+When a user clicks the Share on WhatsApp button for an individual product, share not only the product name and details but also include the product image. For example, if the user shares an Orange product, the WhatsApp preview should display the Orange image along with the product information, making the shared message more attractive and easy to identify. Ensure each product share contains its corresponding image.
+
+---
+
+[Image #2] [Image #3] [Image #4] is this what we are tring to do and . where we highilighted the pickup in card ?
+
+---
+
+so commit to staging then i will test
+
+---
+
+git push origin staging
+
+---
+
+When a user clicks the Share on WhatsApp button for an individual product, share not only the product name and details but also include the product image. For example, if the user shares an Orange product, the WhatsApp preview should display the Orange image along with the product information, making the shared message more attractive and easy to identify. Ensure each product share contains its corresponding image.
+
+---
+
+commit and push to staging

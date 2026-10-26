@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "0c750d74a394",
+  "session_id": "49a1ec48-e850-4c83-b8d2-d6b881c616db",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-26T09:22:31.446609225Z",
+  "branch": "staging",
+  "checkpoints_count": 3,
+  "save_step_count": 4,
+  "files_touched": [
+    "src/app/consumer/harvest/[harvestId]/page.tsx",
+    "src/app/consumer/page.tsx",
+    "src/app/consumer/produce/[id]/layout.tsx",
+    "src/app/consumer/produce/[id]/page.tsx",
+    "src/components/consumer/ShareButton.tsx",
+    "src/lib/productShare.ts",
+    "tests/lib/productShare.test.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "ff05ffd14027",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 70,
+    "cache_creation_tokens": 34874,
+    "cache_read_tokens": 7995349,
+    "output_tokens": 20128,
+    "api_call_count": 36
+  },
+  "session_metrics": {
+    "turn_count": 11
+  }
+}
