@@ -5,7 +5,6 @@ import Link from 'next/link'
 import Image from 'next/image'
 import GlobalNav from '@/components/consumer/GlobalNav'
 import { CartFab, useCart, EditableQty } from '@/components/consumer/Cart'
-import MyOrdersChip from '@/components/consumer/MyOrdersChip'
 import RoleGateModal from '@/components/consumer/RoleGateModal'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import ShareButton from '@/components/consumer/ShareButton'
@@ -473,12 +472,17 @@ export default function ConsumerPage() {
   // ~2 screens early so the next batch is ready before the buyer gets there.
   // Re-created per batch: if the sentinel is still inside the margin after a
   // batch (tall screen), the fresh observer fires again straight away.
+  // `loading` is a dependency because the sentinel only mounts once loading
+  // ends — without it the observer was never attached on first load.
   const sentinelRef = useRef<HTMLDivElement>(null)
   const totalCards = displayItems.length
   const hasMore = visibleCount < totalCards
   useEffect(() => {
+    if (loading || !hasMore) return
+    // Very old browsers: no observer, so just draw everything.
+    if (typeof IntersectionObserver === 'undefined') { setVisibleCount(totalCards); return }
     const el = sentinelRef.current
-    if (!el || !hasMore || typeof IntersectionObserver === 'undefined') return
+    if (!el) return
     const io = new IntersectionObserver((entries) => {
       if (entries.some((e) => e.isIntersecting)) {
         // Transition: adding cards never blocks a scroll or a tap.
@@ -487,7 +491,7 @@ export default function ConsumerPage() {
     }, { rootMargin: FEED_PREFETCH_MARGIN })
     io.observe(el)
     return () => io.disconnect()
-  }, [visibleCount, totalCards, hasMore])
+  }, [visibleCount, totalCards, hasMore, loading])
 
   // Warm the next batch's cover photos while the phone is idle, so when those
   // cards are drawn their image is already in the cache instead of popping in.
@@ -522,11 +526,9 @@ export default function ConsumerPage() {
             {L('Straight from the farm. No Middlemen', 'నేరుగా పొలం నుండి. మధ్యవర్తులు లేరు')}
           </p>
 
-          {/* My Orders quick link (only when logged in) + location on the right.
-              The install offer lives on the floating ball and on /home now — it
-              was crowding this row at 390px. */}
+          {/* Location on the right. My orders lives on the bottom bar's Orders
+              tab (with its badge), so there is no second link up here. */}
           <div className="mt-5 flex items-center gap-2">
-            <MyOrdersChip />
             <button
               onClick={() => setShowLocationSheet(true)}
               aria-label={L('Set location', 'లొకేషన్ పెట్టండి')}
@@ -681,16 +683,9 @@ export default function ConsumerPage() {
           </div>
         )}
         {!loading && hasMore && (
-          // Load-more sentinel; the button is only a fallback for browsers
-          // without IntersectionObserver — normally it is never tapped.
-          <div ref={sentinelRef} className="flex justify-center py-4">
-            <button
-              type="button"
-              onClick={() => setVisibleCount((c) => nextVisibleCount(c, totalCards))}
-              className="text-sm font-bold text-green-700"
-            >
-              {L('Show more', 'మరిన్ని చూపించు')}
-            </button>
+          // Load-more sentinel: scrolling near it draws the next batch.
+          <div ref={sentinelRef} className="flex justify-center py-4" aria-hidden="true">
+            <span className="h-5 w-5 rounded-full border-2 border-green-700 border-t-transparent animate-spin" />
           </div>
         )}
       </div>

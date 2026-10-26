@@ -22,6 +22,7 @@ import { normalizeUrl, linkHost } from '@/lib/links'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import ShareButton from '@/components/consumer/ShareButton'
 import { growerLine } from '@/lib/source-farmers'
+import BackButton from '@/components/BackButton'
 
 type Farmer = {
   id: string
@@ -327,9 +328,7 @@ export default function ProduceDetailPage() {
       {/* Header bar */}
       <div className="sticky top-0 z-40 bg-green-900">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
-          <Link href="/consumer" className="text-green-200 text-sm font-semibold flex items-center gap-1">
-            {L('← Back', '← తిరిగి')}
-          </Link>
+          <BackButton fallback="/consumer" className="!text-green-200" />
           <div className="flex items-center gap-4">
             <ShareButton
               variant="pill"

@@ -7,6 +7,7 @@ import { useLang } from '@/lib/LanguageContext'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { formatDistance } from '@/lib/location'
 import { rankFarmers, type FarmerCard, type RankedFarmer } from '@/lib/farmersTab'
+import BackButton from '@/components/BackButton'
 
 // The Farmers tab: who you buy from. The farmers you follow come first, then
 // everyone else, nearest first once a location is set on the home page. This is
@@ -63,7 +64,7 @@ export default function ConsumerFarmersPage() {
     <main className="min-h-screen bg-gray-50">
       <div className="bg-green-900 px-4 pt-6 pb-12">
         <div className="flex items-center justify-between mb-4">
-          <Link href="/consumer" className="text-green-300 text-sm">{L('← Back', 'వెనక్కు')}</Link>
+          <BackButton fallback="/consumer" />
           <LanguageToggle />
         </div>
         <h1 className="text-white text-xl font-extrabold leading-tight">{L('Your farmers', 'మీ రైతులు')}</h1>

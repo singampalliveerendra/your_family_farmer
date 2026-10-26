@@ -6,6 +6,7 @@ import Link from 'next/link'
 import LanguageToggle from '@/components/LanguageToggle'
 import ForgotPasswordModal from '@/components/ForgotPasswordModal'
 import { useLang } from '@/lib/LanguageContext'
+import BackButton from '@/components/BackButton'
 
 // The one login form behind BOTH /farmer/login and /aggregator/login.
 //
@@ -124,6 +125,9 @@ export default function SellerLoginForm({ accountType }: { accountType: SellerTy
 
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
+      <div className="absolute top-4 left-4">
+        <BackButton fallback="/home" tone="light" />
+      </div>
       <div className="absolute top-4 right-4">
         <LanguageToggle variant="light" />
       </div>

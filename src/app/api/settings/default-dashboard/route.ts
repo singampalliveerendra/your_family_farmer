@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 /* The Settings → Default dashboard control, for either kind of account.
  *
  * Accepts a seller OR a buyer session: the setting lives in both the farmer
- * dashboard and the shop's ⚙️ menu, and it is the same setting in both places
+ * dashboard and the shop's Settings page, and it is the same setting in both places
  * because it is filed under the phone (see src/lib/defaultDashboard.ts). The
  * session is re-derived from the HTTP-only cookies — the body never names an
  * account — so nobody can set another person's default. */

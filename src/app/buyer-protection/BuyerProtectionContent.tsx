@@ -1,7 +1,7 @@
 'use client'
 
-import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
+import BackButton from '@/components/BackButton'
 
 // ⚙️ EDIT ME: set your real support contact here. Phone is used for both the
 // "Call" and "WhatsApp" buttons. Leave email blank to hide the email row.
@@ -55,7 +55,7 @@ export default function BuyerProtectionContent() {
   return (
     <main className="min-h-screen bg-gray-50 pb-12">
       <div className="bg-green-700 px-4 pt-6 pb-8">
-        <Link href="/consumer/orders" className="text-white/90 text-sm font-semibold">{L('← Back', 'వెనక్కు')}</Link>
+        <BackButton fallback="/consumer/orders" className="!text-white/90" />
         <h1 className="text-white text-xl font-extrabold leading-tight mt-3">
           {L('Buyer Protection & Refunds', 'కొనుగోలుదారు రక్షణ & రీఫండ్‌లు')}
         </h1>

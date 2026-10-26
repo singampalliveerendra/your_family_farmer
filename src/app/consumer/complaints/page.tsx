@@ -1,11 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import Link from 'next/link'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import ComplaintModal from '@/components/consumer/ComplaintModal'
 import { useLang } from '@/lib/LanguageContext'
+import BackButton from '@/components/BackButton'
 
 type Complaint = {
   id: string
@@ -73,7 +73,7 @@ export default function ConsumerComplaintsPage() {
       {/* Header */}
       <div className="bg-green-900 px-4 pt-6 pb-10">
         <div className="flex items-center justify-between mb-4">
-          <Link href="/consumer" className="text-green-300 text-sm flex items-center gap-1">{L('← Back', 'వెనక్కు')}</Link>
+          <BackButton fallback="/consumer/settings" />
           <LanguageToggle />
         </div>
         <h1 className="text-white text-xl font-extrabold leading-tight">{L('My complaints', 'నా ఫిర్యాదులు')}</h1>

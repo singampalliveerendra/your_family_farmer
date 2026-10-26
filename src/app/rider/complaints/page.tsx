@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useLang } from '@/lib/LanguageContext'
+import BackButton from '@/components/BackButton'
 
 type Complaint = {
   id: string
@@ -73,7 +73,7 @@ export default function RiderComplaintsPage() {
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
       <div className="bg-green-900 px-4 pt-6 pb-10">
-        <Link href="/rider/dashboard" className="text-green-300 text-sm flex items-center gap-1 mb-4">{L('← Dashboard', 'డాష్‌బోర్డ్')}</Link>
+        <BackButton fallback="/rider/dashboard" className="mb-4" />
         <h1 className="text-white text-xl font-extrabold leading-tight">{L('My complaints', 'నా ఫిర్యాదులు')}</h1>
         <p className="text-green-400 text-sm mt-1">{L('Raise an issue with the GoGrameen team', 'సమస్యను నమోదు చేయండి')}</p>
       </div>

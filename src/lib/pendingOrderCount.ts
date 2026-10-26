@@ -1,7 +1,6 @@
 /* The buyer's "orders needing attention" count, shared by everything that shows
- * it. The home page has two badges (the My orders chip and the bottom bar's
- * Orders tab) that each fetched /api/consumer/orders/count on mount — two server
- * runs for one number. Calls within a short window share one request. */
+ * it (today the bottom bar's Orders tab badge). Calls within a short window
+ * share one request, so a second badge never costs a second server run. */
 
 const SHARE_MS = 15_000
 

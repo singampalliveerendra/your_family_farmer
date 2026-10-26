@@ -17,8 +17,8 @@ import { readBuyerView, sellerDashboardPath, showsBuyerViewBar, type SellerRole 
  *
  * Deliberately NOT sticky: the buyer pages already stack a sticky nav, a cart
  * FAB and per-page action bars at both edges of a 390px screen, and a fourth
- * competing layer is worse than scrolling back up. The same link also lives in
- * the ⚙️ menu, which IS always on screen.
+ * competing layer is worse than scrolling back up. The bottom bar's My Store
+ * tab, which IS always on screen, is the same link.
  */
 export default function BuyerViewBar() {
   const pathname = usePathname()

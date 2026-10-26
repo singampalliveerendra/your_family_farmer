@@ -21,6 +21,7 @@ import {
   isHandedOver,
   isRiderFlow,
 } from '@/lib/delivery'
+import BackButton from '@/components/BackButton'
 
 function isOnlinePayment(method: string | null | undefined): boolean {
   return isGatewayMethod(method) || method === 'upi'
@@ -259,9 +260,7 @@ export default function FarmerOrderDetailPage() {
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
       <div className="bg-green-900 px-4 pt-6 pb-10">
-        <Link href="/farmer/dashboard/orders" className="text-green-300 text-sm flex items-center gap-1 mb-4">
-          ← {tx.back}
-        </Link>
+        <BackButton fallback="/farmer/dashboard/orders" className="mb-4" />
         <h1 className="text-white text-xl font-extrabold leading-tight">
           {L('Order details', 'ఆర్డర్ వివరాలు')}
         </h1>

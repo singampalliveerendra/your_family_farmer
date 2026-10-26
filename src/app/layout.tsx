@@ -8,6 +8,7 @@ import StagingBanner from "@/components/StagingBanner";
 import InstallCounter from "@/components/InstallCounter";
 import BuyerViewBar from "@/components/BuyerViewBar";
 import BottomNav from "@/components/BottomNav";
+import NavHistoryTracker from "@/components/NavHistoryTracker";
 
 /* Brand type. Fraunces carries the Latin wordmark (soft, slightly wonky serif
    — the farm-to-table look); it has no Telugu glyphs, so Noto Serif Telugu
@@ -117,6 +118,8 @@ export default function RootLayout({
         {/* Invisible: counts this device's install the first time the app is
             launched from the home screen. */}
         <InstallCounter />
+        {/* Invisible: remembers the in-app pages visited, for the Back button. */}
+        <NavHistoryTracker />
         <LanguageProvider>
           <ConsumerAuthProvider>
             {/* Renders only for a seller who switched into buyer view, and only

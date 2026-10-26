@@ -14,6 +14,7 @@ import ComplaintModal from '@/components/consumer/ComplaintModal'
 import ProduceReviewBox, { type MyReview } from '@/components/consumer/ProduceReviewBox'
 import { canBuyerCancel } from '@/components/consumer/OrderCard'
 import { canGiveFeedback, isOrderCompleted } from '@/lib/orderFeedback'
+import BackButton from '@/components/BackButton'
 
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
 
@@ -289,9 +290,7 @@ export default function OrderDetailsPage() {
     <main className="min-h-screen bg-gray-50 pb-16">
       <div className="bg-green-900 px-4 pt-6 pb-10">
         <div className="flex items-center justify-between mb-4">
-          <Link href="/consumer/orders" className="text-green-300 text-sm flex items-center gap-1">
-            ← {L('Back', 'వెనక్కు')}
-          </Link>
+          <BackButton fallback="/consumer/orders" />
           <LanguageToggle />
         </div>
         <h1 className="text-white text-xl font-extrabold leading-tight">

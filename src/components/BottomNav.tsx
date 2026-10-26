@@ -124,7 +124,7 @@ function BuyerBar({ pathname }: { pathname: string }) {
   useEffect(() => {
     if (state.status !== 'authenticated') { setPending(0); forgetPendingOrderCount(); return }
     let cancelled = false
-    // Shared with the home page's My orders chip — one request for both.
+    // Shared request with anything else showing the count (pendingOrderCount.ts).
     fetchPendingOrderCount().then((n) => { if (!cancelled) setPending(n) })
     return () => { cancelled = true }
   }, [state.status, onOrders])

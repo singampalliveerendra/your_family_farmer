@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { compressImage } from '@/lib/imageCompress'
 import { useLang } from '@/lib/LanguageContext'
+import BackButton from '@/components/BackButton'
 
 const VEHICLE_OPTIONS = (L: (en: string, te: string) => string): Array<{ value: string; label: string }> => [
   { value: 'bike', label: L('Motorbike', 'బైక్') },
@@ -104,6 +105,7 @@ export default function RiderSignupPage() {
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
       <div className="bg-green-900 px-4 pt-8 pb-12">
+        <BackButton fallback="/home" className="mb-3" />
         <h1 className="text-white text-2xl font-extrabold">{L('Become a delivery partner', 'డెలివరీ పార్ట్నర్ కావాలంటే')}</h1>
       </div>
 

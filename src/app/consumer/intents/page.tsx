@@ -7,6 +7,7 @@ import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { supabase } from '@/lib/supabase'
 import { todayInIndia, isPastDate } from '@/lib/date'
+import BackButton from '@/components/BackButton'
 
 type Intent = {
   id: string
@@ -107,9 +108,7 @@ export default function ConsumerIntentsPage() {
       {/* Header */}
       <div className="bg-green-900 px-4 pt-6 pb-10">
         <div className="flex items-center justify-between mb-4">
-          <Link href="/consumer" className="text-green-300 text-sm flex items-center gap-1">
-            {L('← Back', '← తిరిగి')}
-          </Link>
+          <BackButton fallback="/consumer/settings" />
           <LanguageToggle />
         </div>
         <h1 className="text-white text-xl font-extrabold leading-tight">

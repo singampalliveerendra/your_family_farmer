@@ -11,6 +11,7 @@ import OrderCard, { ConsumerOrder as Order, isResolved, isCompleted } from '@/co
 import OrderSearchBox from '@/components/OrderSearchBox'
 import { consumerOrderIndex } from '@/lib/orderSearch'
 import { useOrderSearch } from '@/lib/useOrderSearch'
+import BackButton from '@/components/BackButton'
 
 export default function ConsumerOrderHistoryPage() {
   const { tx, L } = useLang()
@@ -56,9 +57,7 @@ export default function ConsumerOrderHistoryPage() {
       {/* Header */}
       <div className="bg-green-900 px-4 pt-6 pb-10">
         <div className="flex items-center justify-between mb-4">
-          <Link href="/consumer/orders" className="text-green-300 text-sm flex items-center gap-1">
-            {L('← Back to orders', '← ఆర్డర్‌లకు తిరిగి')}
-          </Link>
+          <BackButton fallback="/consumer/orders" />
           <LanguageToggle />
         </div>
         <h1 className="text-white text-xl font-extrabold leading-tight">

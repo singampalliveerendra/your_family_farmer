@@ -7,10 +7,12 @@ import DefaultDashboardSetting from '@/components/DefaultDashboardSetting'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { readBuyerView, sellerDashboardPath, type SellerRole } from '@/lib/buyerView'
+import BackButton from '@/components/BackButton'
 
-// The bottom bar's Settings tab. Holds the Account button (name, phone, saved
-// address) and everything that used to live only in the ⚙️ menu up top:
-// language, requests, complaints, the default dashboard, switch role, log out.
+// The bottom bar's Settings tab — the one place for account things: the Account
+// button (name, phone, saved address), language, requests, complaints, the
+// default dashboard, switch role, log out. Order history is not here: it is the
+// History tab on the Orders page.
 export default function ConsumerSettingsPage() {
   const { L } = useLang()
   const { state, consumer, openAuth, logout } = useConsumerAuth()
@@ -24,7 +26,7 @@ export default function ConsumerSettingsPage() {
   return (
     <main className="min-h-screen bg-gray-50">
       <div className="bg-green-900 px-4 pt-6 pb-12">
-        <Link href="/consumer" className="text-green-300 text-sm">{L('← Back', 'వెనక్కు')}</Link>
+        <BackButton fallback="/consumer" />
         <h1 className="text-white text-xl font-extrabold leading-tight mt-4">⚙️ {L('Settings', 'సెట్టింగ్‌లు')}</h1>
       </div>
 
@@ -68,7 +70,6 @@ export default function ConsumerSettingsPage() {
             <>
               <Row href="/consumer/intents" icon="📣" label={L('My crop requests', 'నా పంట అభ్యర్థనలు')} />
               <Row href="/consumer/complaints" icon="🛟" label={L('My complaints', 'నా ఫిర్యాదులు')} />
-              <Row href="/consumer/orders/history" icon="🧾" label={L('Order history', 'ఆర్డర్ చరిత్ర')} />
               <div className="px-4 py-3">
                 <DefaultDashboardSetting />
               </div>
