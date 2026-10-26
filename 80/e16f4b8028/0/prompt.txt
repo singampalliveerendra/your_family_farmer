@@ -1,0 +1,17 @@
+[Image #1] explain this error in simple
+
+---
+
+[Image #2]
+
+---
+
+[Image #3] there is payout 3000 right but i need who ordered that produc in that payments table also add who ordered that produce in the beside of amount
+
+---
+
+should i run any query
+
+---
+
+for now prod supabase is enogugh to see the  payments
