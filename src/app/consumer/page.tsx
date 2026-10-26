@@ -9,6 +9,7 @@ import { canDeliver, normalizeDeliveryMode } from '@/lib/fulfillment'
 import RoleGateModal from '@/components/consumer/RoleGateModal'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import ShareButton from '@/components/consumer/ShareButton'
+import { coverImageUrl } from '@/lib/productShare'
 import FreshHarvestsTable, { UpcomingHarvestsTable } from '@/components/consumer/FreshHarvestsTable'
 import { supabase } from '@/lib/supabase'
 import { METHOD_SHORT, CATEGORY_LABEL } from '@/lib/produceLabels'
@@ -970,6 +971,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, prior
               unit,
               farmerName: farmer?.name,
               farmerVillage: farmer?.village,
+              imageUrl: coverImageUrl(item),
             }}
           />
         </div>

@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
+import { shareImageFileName } from '@/lib/productShare'
+import { shareTextWithFiles } from '@/lib/produceShare'
 
 // Everything we need to build a rich share message for one harvest/produce.
 export type ShareInfo = {
@@ -14,7 +16,34 @@ export type ShareInfo = {
   unit?: string | null
   farmerName?: string | null
   farmerVillage?: string | null
+  /** The product's cover photo; attached to the share so the chat shows it. */
+  imageUrl?: string | null
 }
+
+// The photo is fetched once per URL and reused. Started on the first touch of
+// the button (and on page load for the product pages' Share pill), so by the
+// time the tap lands it is usually ready — the share sheet must open while the
+// tap is still "live", and a slow download can outlast that.
+const photoCache = new Map<string, Promise<File | null>>()
+function loadPhoto(url: string, name: string): Promise<File | null> {
+  let p = photoCache.get(url)
+  if (!p) {
+    p = fetch(url)
+      .then((r) => (r.ok ? r.blob() : null))
+      .then((b) => (b && b.type.startsWith('image/') ? new File([b], shareImageFileName(name, b.type), { type: b.type }) : null))
+      .catch(() => null)
+    p.then((f) => { if (!f) photoCache.delete(url) })
+    photoCache.set(url, p)
+  }
+  return p
+}
+
+// How long a tap waits for the photo before sharing the text alone.
+const PHOTO_WAIT_MS = 2500
+const within = <T,>(p: Promise<T>, ms: number): Promise<T | null> =>
+  Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))])
+
+const isAbort = (e: unknown) => (e as Error)?.name === 'AbortError'
 
 type Tr = (en: string, te: string) => string
 
@@ -53,6 +82,19 @@ export default function ShareButton({
 }) {
   const { L } = useLang()
   const [toast, setToast] = useState('')
+  const flash = (msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(''), 2200)
+  }
+
+  const warmPhoto = () => { if (info.imageUrl) void loadPhoto(info.imageUrl, info.name) }
+  // The pill sits on the product's own page, where its photo is already on
+  // screen — fetch it up front. Cards wait for a touch: a feed of 15 doesn't
+  // need 15 downloads nobody asked for.
+  useEffect(() => {
+    if (variant === 'pill') warmPhoto()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variant, info.imageUrl])
 
   const onShare = async (e: React.MouseEvent) => {
     // Cards wrap content in links — never let a share tap navigate.
@@ -67,12 +109,38 @@ export default function ShareButton({
 
     // 1) Native share sheet (Android shows WhatsApp/SMS/etc. right here).
     if (typeof navigator !== 'undefined' && navigator.share) {
+      // With the product photo attached: WhatsApp sends the picture with the
+      // message as its caption, so the chat shows the orange, not just a link.
+      if (info.imageUrl && navigator.canShare) {
+        // iPhone WhatsApp drops the photo when text rides along, so there the
+        // photo goes alone and the message is copied for pasting. Copy starts
+        // now, while the tap is live — not after the photo wait.
+        const withText = shareTextWithFiles(navigator.userAgent, navigator.maxTouchPoints)
+        const copied = withText
+          ? null
+          : (navigator.clipboard?.writeText(text) ?? Promise.reject()).then(() => true, () => false)
+        const file = await within(loadPhoto(info.imageUrl, info.name), PHOTO_WAIT_MS)
+        if (file && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share(withText ? { files: [file], text } : { files: [file] })
+            if (copied && (await copied)) {
+              flash(L('Message copied — paste it in the chat too', 'మెసేజ్ కాపీ అయింది — చాట్‌లో కూడా పేస్ట్ చేయండి'))
+            }
+            return
+          } catch (err) {
+            if (isAbort(err)) return
+            // Fall through to the text-only share.
+          }
+        }
+      }
+      // Text + link. The link's own preview still shows the product photo
+      // (Open Graph tags on the produce page).
       try {
         await navigator.share({ title: info.name, text })
         return
-      } catch {
-        // User dismissed the sheet, or share failed — fall through to copy.
-        return
+      } catch (err) {
+        if (isAbort(err)) return
+        // Share failed (not dismissed) — fall through to WhatsApp.
       }
     }
 
@@ -86,11 +154,9 @@ export default function ShareButton({
     // 3) Copy-to-clipboard fallback.
     try {
       await navigator.clipboard.writeText(text)
-      setToast(L('Link copied — paste anywhere to share', 'లింక్ కాపీ అయింది — ఎక్కడైనా పేస్ట్ చేయండి'))
-      setTimeout(() => setToast(''), 2200)
+      flash(L('Link copied — paste anywhere to share', 'లింక్ కాపీ అయింది — ఎక్కడైనా పేస్ట్ చేయండి'))
     } catch {
-      setToast(L('Could not share on this device', 'ఈ పరికరంలో షేర్ చేయలేకపోయాం'))
-      setTimeout(() => setToast(''), 2200)
+      flash(L('Could not share on this device', 'ఈ పరికరంలో షేర్ చేయలేకపోయాం'))
     }
   }
 
@@ -100,6 +166,7 @@ export default function ShareButton({
         <button
           type="button"
           onClick={onShare}
+          onPointerDown={warmPhoto}
           aria-label={L('Share', 'షేర్')}
           className="flex items-center gap-1.5 text-green-100 text-sm font-semibold active:opacity-70"
         >
@@ -110,6 +177,7 @@ export default function ShareButton({
         <button
           type="button"
           onClick={onShare}
+          onPointerDown={warmPhoto}
           aria-label={L('Share this produce', 'ఈ ఉత్పత్తిని షేర్ చేయండి')}
           className="w-8 h-8 rounded-full bg-white/90 shadow-sm flex items-center justify-center text-green-800 active:scale-90 transition-transform"
         >
