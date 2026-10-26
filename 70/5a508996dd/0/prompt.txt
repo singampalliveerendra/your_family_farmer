@@ -1,0 +1,17 @@
+[Image #1] Remove the "Show More" button completely. Implement automatic infinite scrolling so that when the user scrolls near the bottom of the product list, the next batch of products loads automatically without any button click.
+
+---
+
+Review the entire application and identify all duplicate or redundant buttons, menu items, and navigation options (e.g., Settings, My Orders, etc.). Count how many duplicates or overlapping functions exist across the app. Create a report listing each duplicate item, where it appears, and why it is redundant. Suggest which version should be kept and which should be removed. Do not make any changes yet. First provide the findings and recommendations for review.
+
+---
+
+B1, B2 , B3 remove this
+
+---
+
+Implement a consistent Back Button across the entire web application. The Back Button must be visible on all applicable pages and should always navigate the user to the last page they previously visited, preserving the natural navigation flow.
+
+---
+
+commit to staging
