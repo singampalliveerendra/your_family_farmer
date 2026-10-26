@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import ForgotPasswordModal from '@/components/ForgotPasswordModal'
 import { useLang } from '@/lib/LanguageContext'
+import BackButton from '@/components/BackButton'
 
 export default function RiderLoginPage() {
   const { L } = useLang()
@@ -36,6 +37,7 @@ export default function RiderLoginPage() {
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col">
       <div className="bg-green-900 px-4 pt-8 pb-12">
+        <BackButton fallback="/home" className="mb-3" />
         <h1 className="text-white text-2xl font-extrabold">{L('Delivery partner login', 'డెలివరీ పార్ట్నర్ లాగిన్')}</h1>
       </div>
 

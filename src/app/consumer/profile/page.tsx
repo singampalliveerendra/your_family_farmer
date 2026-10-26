@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import LanguageToggle from '@/components/LanguageToggle'
 import AddressFields from '@/components/consumer/AddressFields'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
 import { EMPTY_ADDRESS, isAddressComplete, type SavedAddress } from '@/lib/savedAddress'
+import BackButton from '@/components/BackButton'
 
 // Account — reached from the Settings tab. Who is signed in, plus the buyer's
 // one saved delivery address, which the cart pre-selects for home delivery so
@@ -60,7 +60,7 @@ export default function ConsumerProfilePage() {
     <main className="min-h-screen bg-gray-50 pb-6">
       <div className="bg-green-900 px-4 pt-6 pb-10">
         <div className="flex items-center justify-between mb-4">
-          <Link href="/consumer/settings" className="text-green-300 text-sm flex items-center gap-1">{L('← Settings', '← సెట్టింగ్‌లు')}</Link>
+          <BackButton fallback="/consumer/settings" />
           <LanguageToggle />
         </div>
         <h1 className="text-white text-xl font-extrabold leading-tight">{L('Account', 'ఖాతా')}</h1>

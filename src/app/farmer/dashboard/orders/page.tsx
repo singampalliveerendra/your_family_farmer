@@ -4,7 +4,6 @@ import { Suspense, useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useOrderPolling } from '@/lib/useOrderPolling'
-import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
 import OrderCard, { type FarmerOrder as Order, isResolved } from '@/components/farmer/OrderCard'
 import { DeclineReasonSheet, DeclineSuccessSheet } from '@/components/farmer/DeclineSheets'
@@ -15,6 +14,7 @@ import { farmerOrderIndex } from '@/lib/orderSearch'
 import { useOrderSearch } from '@/lib/useOrderSearch'
 import { farmerFetch, isFarmerSessionExpired, requireFarmerSession } from '@/lib/farmer-auth-client'
 import { formatQty } from '@/lib/saleStep'
+import BackButton from '@/components/BackButton'
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'shipped' | 'completed' | 'declined' | 'cancelled'
 type TimeFilter = 'today' | 'week' | 'month' | 'all'
@@ -424,9 +424,7 @@ function OrdersPageInner() {
       {/* Header */}
       <div className="bg-green-900 px-4 pt-6 pb-10">
         <div className="flex items-start justify-between gap-3">
-          <Link href="/farmer/dashboard" className="text-green-300 text-sm flex items-center gap-1 mb-4">
-            ← {tx.back}
-          </Link>
+          <BackButton fallback="/farmer/dashboard" className="mb-4" />
           {/* View report → opens the on-screen report, where the farmer can
               then download the PDF. */}
           <button

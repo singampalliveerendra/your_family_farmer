@@ -9,7 +9,7 @@ import { sellerSwitchTargets, type SellerRole } from '@/lib/buyerView'
 
 /**
  * "Switch role" for the seller's ⚙️ Settings sheet — the same list the consumer
- * ⚙️ menu shows, so the two sides of the app read alike.
+ * Settings page shows, so the two sides of the app read alike.
  *
  * "Shop as Consumer" goes through enterBuyerMode() like the dashboard's Buyer
  * view card, not a bare /consumer link: a seller has no buyer session, and

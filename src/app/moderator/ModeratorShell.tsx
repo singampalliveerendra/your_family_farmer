@@ -2,6 +2,7 @@
 
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
+import BackButton from '@/components/BackButton'
 
 type NavItem = { label: string; href: string; ready: boolean }
 
@@ -97,6 +98,7 @@ export default function ModeratorShell({
           <div className="flex items-center gap-3 min-w-0">
             <button onClick={() => setMenuOpen(true)} className="md:hidden text-gray-700 text-xl leading-none">☰</button>
             <div className="min-w-0">
+              {pathname !== '/moderator' && <BackButton fallback="/moderator" tone="light" className="mb-1" />}
               <h1 className="text-lg md:text-xl font-extrabold text-gray-900 leading-tight truncate">{title}</h1>
               {subtitle && <p className="text-xs text-gray-500 truncate">{subtitle}</p>}
             </div>

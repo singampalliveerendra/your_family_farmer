@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
 import SourceFarmersManager from '@/components/SourceFarmersManager'
 import { requireFarmerSession } from '@/lib/farmer-auth-client'
+import BackButton from '@/components/BackButton'
 
 // The aggregator's source-farmer registry, on its own page.
 //
@@ -45,9 +45,7 @@ export default function AggregatorFarmersPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-green-800 px-4 pt-5 pb-8">
-        <Link href="/aggregator/dashboard" className="text-green-200 text-xs font-bold">
-          ← {L('Dashboard', 'డాష్‌బోర్డ్')}
-        </Link>
+        <BackButton fallback="/aggregator/dashboard" className="!text-green-200" />
         <h1 className="text-white text-xl font-extrabold mt-2">
           {L('Farmers you aggregate from', 'మీరు సేకరించే రైతులు')}
         </h1>

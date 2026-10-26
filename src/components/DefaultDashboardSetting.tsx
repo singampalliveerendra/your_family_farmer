@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
 import { parseDefaultDashboard, type DefaultDashboard } from '@/lib/defaultDashboard'
 
-/* Settings → Default dashboard. Rendered in the shop's ⚙️ menu and in the
+/* Settings → Default dashboard. Rendered in the shop's Settings page and in the
  * farmer dashboard's Settings sheet — the same setting in both places, since
  * the server files it under the phone that links the two accounts.
  *

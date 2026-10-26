@@ -13,7 +13,7 @@ import { SELLER_LOGIN } from './entryRole'
  * separate tables with separate ids, and the phone is the only thing that ties
  * one person across them (see src/lib/sellerBuyerLink.ts). Keying by phone
  * means a farmer who sets "Consumer" on their dashboard sees the same setting
- * in the shop's ⚙️ menu, and the same answer comes back whichever of the two
+ * in the shop's Settings page, and the same answer comes back whichever of the two
  * sessions `/` happens to find.
  */
 

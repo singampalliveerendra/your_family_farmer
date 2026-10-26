@@ -966,7 +966,7 @@ export default function FarmerDashboard() {
                 ×
               </button>
             </div>
-            {/* Same order as the consumer ⚙️ menu — account links, the default
+            {/* Same order as the consumer Settings page — account links, the default
                 dashboard, log out, then Switch role — so a seller can get across
                 from here too, not only from the Buyer view card further down. */}
             {/* Account first: the bottom bar's Settings tab is the way to the

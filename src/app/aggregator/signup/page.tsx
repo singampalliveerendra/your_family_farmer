@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useLang } from '@/lib/LanguageContext'
+import BackButton from '@/components/BackButton'
 
 // Step 1 of aggregator registration. Kept short on purpose — the remaining
 // spec fields (village, district, operating since, location, cover photo,
@@ -62,6 +63,9 @@ export default function AggregatorSignupPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center py-10 px-4">
+      <div className="absolute top-4 left-4">
+        <BackButton fallback="/home" tone="light" />
+      </div>
       <div className="absolute top-4 right-4">
         <LanguageToggle variant="light" />
       </div>
