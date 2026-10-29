@@ -1,0 +1,18 @@
+<pasted_content id="6da3">
+Replace the current 3-photo upload options with only 2 simple options:
+
+📷 Take Photo
+🖼️ Choose from Gallery
+
+Remove the separate "Add Another Photo" button. After the user selects or captures the first photo, automatically show a small "+" button or upload area below the image to add more photos. Keep the UI clean, mobile-friendly, and easy to use with minimal clicks. Ensure the upload flow works smoothly on both Android and iPhone devices.
+</pasted_content id="6da3">
+
+ [Image #3] is there better suggestion?
+
+---
+
+go ahead and build
+
+---
+
+commit and push to staging

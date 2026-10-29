@@ -3,9 +3,14 @@
   "checkpoint_id": "ecf64a748af7",
   "strategy": "manual-commit",
   "branch": "staging",
-  "checkpoints_count": 7,
+  "checkpoints_count": 9,
   "files_touched": [
-    "src/app/farmer/dashboard/page.tsx"
+    "src/app/farmer/dashboard/page.tsx",
+    "src/app/moderator/listings/ListingForm.tsx",
+    "src/components/PhotoPicker.tsx",
+    "src/lib/compressImage.ts",
+    "src/lib/photoList.ts",
+    "tests/lib/photoList.test.ts"
   ],
   "sessions": [
     {
@@ -14,13 +19,20 @@
       "compact_transcript": "/ec/f64a748af7/0/transcript.jsonl",
       "content_hash": "/ec/f64a748af7/0/content_hash.txt",
       "prompt": "/ec/f64a748af7/0/prompt.txt"
+    },
+    {
+      "metadata": "/ec/f64a748af7/1/metadata.json",
+      "transcript": "/ec/f64a748af7/1/full.jsonl",
+      "compact_transcript": "/ec/f64a748af7/1/transcript.jsonl",
+      "content_hash": "/ec/f64a748af7/1/content_hash.txt",
+      "prompt": "/ec/f64a748af7/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 44,
-    "cache_creation_tokens": 48160,
-    "cache_read_tokens": 1407992,
-    "output_tokens": 14132,
-    "api_call_count": 22
+    "input_tokens": 106,
+    "cache_creation_tokens": 124607,
+    "cache_read_tokens": 3715141,
+    "output_tokens": 34732,
+    "api_call_count": 51
   }
 }
