@@ -17,6 +17,9 @@ import SellerSwitchRole from '@/components/farmer/SellerSwitchRole'
 import { clearBuyerView, readBuyerView } from '@/lib/buyerView'
 import { clearCachedConsumer } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
+import { compressImage } from '@/lib/compressImage'
+import { photosFromSaved, resolvePhotoUrls, type PhotoItem } from '@/lib/photoList'
+import PhotoPicker from '@/components/PhotoPicker'
 import LocationSearch from '@/components/LocationSearch'
 import {
   normalizePickupSchedule, emptyPickupSlot, normalizePickupPhones,
@@ -212,34 +215,6 @@ type PreviewData = {
 // 📦 is a generic L('Other', 'ఇతర') icon so a farmer can list any produce
 // even when no specific icon exists. Keep it last in the picker.
 const EMOJI_OPTIONS = ['🍅', '🍌', '🥭', '🫑', '🥬', '🍆', '🥕', '🌽', '🧅', '🧄', '🥦', '🌿', '🍓', '🫒', '🌾', '🥥', '📦']
-
-async function compressImage(file: File, maxPx = 800, quality = 0.7): Promise<File> {
-  return new Promise((resolve) => {
-    const img = new Image()
-    const blobUrl = URL.createObjectURL(file)
-    img.onload = () => {
-      URL.revokeObjectURL(blobUrl)
-      const scale = Math.min(1, maxPx / Math.max(img.naturalWidth, img.naturalHeight))
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.round(img.naturalWidth * scale)
-      canvas.height = Math.round(img.naturalHeight * scale)
-      const ctx = canvas.getContext('2d')
-      if (!ctx) { resolve(file); return }
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) { resolve(file); return }
-          const name = file.name.replace(/\.[^.]+$/, '.jpg')
-          resolve(new File([blob], name, { type: 'image/jpeg' }))
-        },
-        'image/jpeg',
-        quality,
-      )
-    }
-    img.onerror = () => { URL.revokeObjectURL(blobUrl); resolve(file) }
-    img.src = blobUrl
-  })
-}
 
 const isProfileComplete = (f: Farmer | null) =>
   !!f && f.name?.trim().length > 0 && f.village?.trim().length > 0
@@ -2368,15 +2343,8 @@ function ProduceListingForm({
   )
   const [deliveryCharge, setDeliveryCharge] = useState(editData?.delivery_charge != null ? String(editData.delivery_charge) : '')
   const [deliveryRadius, setDeliveryRadius] = useState(editData?.delivery_radius_km != null ? String(editData.delivery_radius_km) : '')
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string>('')
-  const [existingImageUrl, setExistingImageUrl] = useState(editData?.image_url ?? '')
-  // #12 — extra photos beyond the cover (image_url). New picks + already-saved ones.
-  const [extraFiles, setExtraFiles] = useState<File[]>([])
-  const [extraPreviews, setExtraPreviews] = useState<string[]>([])
-  const [existingExtraUrls, setExistingExtraUrls] = useState<string[]>(
-    (editData?.image_urls ?? []).filter((u) => u && u !== (editData?.image_url ?? '')),
-  )
+  // One ordered list: item 0 is the cover (image_url), the rest are extras.
+  const [photos, setPhotos] = useState<PhotoItem[]>(() => photosFromSaved(editData?.image_url, editData?.image_urls))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   // Set when the save went through but the sale step could not be stored,
@@ -2406,31 +2374,6 @@ function ProduceListingForm({
     return () => { cancelled = true; clearTimeout(t) }
   }, [name, farmerRegion])
 
-  const handlePickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!file.type.startsWith('image/')) {
-      setError(tx.pickImageFile)
-      return
-    }
-    if (file.size > 8 * 1024 * 1024) {
-      setError(tx.imageTooLarge)
-      return
-    }
-    setError('')
-    if (imagePreview) URL.revokeObjectURL(imagePreview)
-    const compressed = await compressImage(file)
-    setImageFile(compressed)
-    setImagePreview(URL.createObjectURL(compressed))
-  }
-
-  const clearImage = () => {
-    if (imagePreview) URL.revokeObjectURL(imagePreview)
-    setImageFile(null)
-    setImagePreview('')
-    setExistingImageUrl('')
-  }
-
   const uploadImage = async (file: File): Promise<string | null> => {
     const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
     const path = `${farmerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
@@ -2445,25 +2388,6 @@ function ProduceListingForm({
     return data.publicUrl
   }
 
-  // #12 — add/remove extra produce photos (beyond the cover).
-  const handlePickExtra = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!file.type.startsWith('image/')) { setError(tx.pickImageFile); return }
-    if (file.size > 8 * 1024 * 1024) { setError(tx.imageTooLarge); return }
-    setError('')
-    const compressed = await compressImage(file)
-    setExtraFiles((f) => [...f, compressed])
-    setExtraPreviews((p) => [...p, URL.createObjectURL(compressed)])
-    e.target.value = '' // allow picking the same file again
-  }
-  const removeNewExtra = (idx: number) => {
-    setExtraPreviews((p) => { if (p[idx]) URL.revokeObjectURL(p[idx]); return p.filter((_, i) => i !== idx) })
-    setExtraFiles((f) => f.filter((_, i) => i !== idx))
-  }
-  const removeExistingExtra = (url: string) =>
-    setExistingExtraUrls((p) => p.filter((u) => u !== url))
-
   const previewData: PreviewData = {
     name: name || 'Harvest name',
     variety: variety || '',
@@ -2473,7 +2397,7 @@ function ProduceListingForm({
     stock: qty || '—',
     unit,
     step: resolveSaleStep(unit, saleStep),
-    images: [imagePreview || existingImageUrl, ...extraPreviews, ...existingExtraUrls].filter(Boolean),
+    images: photos.map((p) => p.url),
     tier1Qty: price1Qty,
     price2,
     tier2Qty: price2Qty,
@@ -2519,22 +2443,11 @@ function ProduceListingForm({
     setLoading(true)
     setError('')
 
-    let imageUrl: string | null = null
-    if (imageFile) {
-      imageUrl = await uploadImage(imageFile)
-      if (!imageUrl) { setLoading(false); return }
-    } else if (existingImageUrl) {
-      imageUrl = existingImageUrl
-    }
-
-    // #12 — upload any new extra photos, then assemble the full ordered set
-    // (cover first). Best-effort: persisted via the secondary update below.
-    const uploadedExtra: string[] = []
-    for (const f of extraFiles) {
-      const u = await uploadImage(f)
-      if (u) uploadedExtra.push(u)
-    }
-    const allImages = [imageUrl, ...existingExtraUrls, ...uploadedExtra].filter(Boolean) as string[]
+    // Upload new picks in order (cover first). Any failure stops the save —
+    // uploadImage has already set the error — so no chosen photo is lost.
+    const allImages = await resolvePhotoUrls(photos, uploadImage)
+    if (!allImages) { setLoading(false); return }
+    const imageUrl: string | null = allImages[0] ?? null
 
     // Harvest date+time (datetime-local, local time) → stored UTC ISO string.
     // Shelf life is an optional non-negative day count.
@@ -3205,94 +3118,12 @@ function ProduceListingForm({
           )}
         </div>
 
-        {/* Produce photo */}
+        {/* Produce photos — cover + extras in one picker */}
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {tx.photoOptional}
+            {L('Photos (optional)', 'ఫోటోలు (ఐచ్ఛికం)')}
           </label>
-          {(imagePreview || existingImageUrl) ? (
-            <div className="relative">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={imagePreview || existingImageUrl}
-                alt={L('Preview', 'ప్రివ్యూ')}
-                className="w-full max-h-64 object-cover rounded-xl border border-gray-200 bg-gray-50"
-              />
-              <button
-                type="button"
-                onClick={clearImage}
-                className="absolute top-2 right-2 bg-white/90 text-gray-700 rounded-full w-8 h-8 flex items-center justify-center text-base font-bold shadow"
-                aria-label={L('Remove photo', 'ఫోటో తీసివేయి')}
-              >
-                ×
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              <label className="flex items-center justify-center gap-2 border-2 border-dashed border-green-300 rounded-xl py-4 px-3 text-green-700 text-sm font-bold cursor-pointer active:bg-green-50">
-                <span className="text-lg leading-none">📷</span>
-                {tx.takePhoto}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePickImage}
-                  className="hidden"
-                />
-              </label>
-              <label className="flex items-center justify-center gap-2 border-2 border-dashed border-green-300 rounded-xl py-4 px-3 text-green-700 text-sm font-bold cursor-pointer active:bg-green-50">
-                <span className="text-lg leading-none">🖼</span>
-                {tx.fromGallery}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePickImage}
-                  className="hidden"
-                />
-              </label>
-            </div>
-          )}
-          <p className="text-[11px] text-gray-500">
-            {tx.buyersSeeCard}
-          </p>
-        </div>
-
-        {/* More photos (#12) — extra images beyond the cover; buyers can view all */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {L('More photos (optional)', 'మరిన్ని ఫోటోలు')}
-          </label>
-          {(existingExtraUrls.length > 0 || extraPreviews.length > 0) && (
-            <div className="flex gap-2 flex-wrap">
-              {existingExtraUrls.map((url) => (
-                <div key={url} className="relative w-20 h-20">
-                  <NextImage src={url} alt="" fill sizes="80px" className="object-cover rounded-xl border border-gray-200" />
-                  <button
-                    type="button"
-                    onClick={() => removeExistingExtra(url)}
-                    className="absolute -top-1.5 -right-1.5 bg-white text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold shadow border"
-                    aria-label={L('Remove photo', 'ఫోటో తీసివేయి')}
-                  >×</button>
-                </div>
-              ))}
-              {extraPreviews.map((src, i) => (
-                <div key={src} className="relative w-20 h-20">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt="" className="w-20 h-20 object-cover rounded-xl border border-gray-200" />
-                  <button
-                    type="button"
-                    onClick={() => removeNewExtra(i)}
-                    className="absolute -top-1.5 -right-1.5 bg-white text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold shadow border"
-                    aria-label={L('Remove photo', 'ఫోటో తీసివేయి')}
-                  >×</button>
-                </div>
-              ))}
-            </div>
-          )}
-          <label className="flex items-center justify-center gap-2 border-2 border-dashed border-green-300 rounded-xl py-3 px-3 text-green-700 text-sm font-bold cursor-pointer active:bg-green-50">
-            <span className="text-lg leading-none">＋</span>
-            {L('Add another photo', 'మరో ఫోటో జోడించండి')}
-            <input type="file" accept="image/*" onChange={handlePickExtra} className="hidden" />
-          </label>
+          <PhotoPicker photos={photos} onChange={setPhotos} onError={setError} />
         </div>
 
         {/* Quality params */}
