@@ -7,6 +7,8 @@ import HarvestManager from '@/components/HarvestManager'
 import { useSourceFarmers, sourceFarmerLabel } from '@/components/SourceFarmerPicker'
 import { STEP_CHOICES } from '@/lib/saleStep'
 import { parseDeliveryMode } from '@/lib/fulfillment'
+import { photosFromSaved, resolvePhotoUrls, type PhotoItem } from '@/lib/photoList'
+import PhotoPicker from '@/components/PhotoPicker'
 
 // Shared add/edit form for a farmer's harvest listing, used by both
 //   /moderator/listings/new          (mode="create")
@@ -123,11 +125,9 @@ export default function ListingForm({
   const [farmerId, setFarmerId] = useState(initialFarmerId)
   const [emoji, setEmoji] = useState(initialEmoji)
   const [form, setForm] = useState<ListingFormValues>(initialForm)
-  // Photos: already-saved image URLs + files newly picked this session (with
-  // object-URL previews). Uploaded to Supabase storage on submit.
-  const [existingImages, setExistingImages] = useState<string[]>(initialImages)
-  const [newFiles, setNewFiles] = useState<File[]>([])
-  const [newPreviews, setNewPreviews] = useState<string[]>([])
+  // Photos: one ordered list, item 0 = cover. New picks are uploaded to
+  // Supabase storage on submit.
+  const [photos, setPhotos] = useState<PhotoItem[]>(() => photosFromSaved(null, initialImages))
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
@@ -149,9 +149,6 @@ export default function ListingForm({
   const set = (k: keyof ListingFormValues) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  // Revoke object URLs on unmount so previews don't leak memory.
-  useEffect(() => () => { newPreviews.forEach((u) => URL.revokeObjectURL(u)) }, [newPreviews])
-
   // Farmer list is only needed when creating (edit keeps the listing's farmer).
   useEffect(() => {
     if (mode !== 'create') return
@@ -161,20 +158,6 @@ export default function ListingForm({
       .catch(() => setError('Could not load farmers.'))
       .finally(() => setLoadingFarmers(false))
   }, [mode])
-
-  const onAddFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? [])
-    if (files.length) {
-      setNewFiles((prev) => [...prev, ...files])
-      setNewPreviews((prev) => [...prev, ...files.map((f) => URL.createObjectURL(f))])
-    }
-    e.target.value = ''
-  }
-  const removeExisting = (i: number) => setExistingImages((prev) => prev.filter((_, x) => x !== i))
-  const removeNew = (i: number) => {
-    setNewPreviews((prev) => { URL.revokeObjectURL(prev[i]); return prev.filter((_, x) => x !== i) })
-    setNewFiles((prev) => prev.filter((_, x) => x !== i))
-  }
 
   // Upload one image to the shared farm-images bucket (same bucket + anon-write
   // policy the farmer dashboard uses). Foldered by farmer so paths stay tidy.
@@ -213,13 +196,8 @@ export default function ListingForm({
 
     // Upload any newly-picked photos first; abort on failure (error is set by
     // uploadImage). The first image becomes the card cover (image_url).
-    const uploaded: string[] = []
-    for (const f of newFiles) {
-      const u = await uploadImage(f)
-      if (!u) { setSubmitting(false); return }
-      uploaded.push(u)
-    }
-    const allImages = [...existingImages, ...uploaded]
+    const allImages = await resolvePhotoUrls(photos, uploadImage)
+    if (!allImages) { setSubmitting(false); return }
 
     const url = mode === 'edit' ? `/api/moderator/listings/${listingId}` : '/api/moderator/listings'
     const method = mode === 'edit' ? 'PUT' : 'POST'
@@ -274,7 +252,7 @@ export default function ListingForm({
         <p className="text-sm text-gray-500 mt-1">Added for {farmer?.name ?? 'the farmer'} and visible to buyers now.</p>
         <div className="flex flex-col gap-2 mt-5">
           <button
-            onClick={() => { setDone(false); setFarmerId(''); setEmoji('📦'); setForm(EMPTY_LISTING_FORM); setExistingImages([]); setNewFiles([]); setNewPreviews([]) }}
+            onClick={() => { setDone(false); setFarmerId(''); setEmoji('📦'); setForm(EMPTY_LISTING_FORM); setPhotos([]) }}
             className="bg-green-800 text-white text-sm font-bold px-4 py-3 rounded-xl active:bg-green-900"
           >
             + Add another
@@ -502,27 +480,7 @@ export default function ListingForm({
       {/* Photos */}
       <div className="border-t border-gray-100 pt-4">
         <p className="text-sm font-extrabold text-green-800 mb-3">Photos</p>
-        <div className="flex flex-wrap gap-2">
-          {existingImages.map((u, i) => (
-            <div key={u} className="relative w-20 h-20 rounded-xl overflow-hidden border border-gray-200">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={u} alt="" className="w-full h-full object-cover" />
-              <button type="button" onClick={() => removeExisting(i)} className="absolute top-0 right-0 bg-black/60 text-white text-xs w-5 h-5 leading-5 text-center rounded-bl-lg">×</button>
-            </div>
-          ))}
-          {newPreviews.map((u, i) => (
-            <div key={u} className="relative w-20 h-20 rounded-xl overflow-hidden border border-green-300">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={u} alt="" className="w-full h-full object-cover" />
-              <button type="button" onClick={() => removeNew(i)} className="absolute top-0 right-0 bg-black/60 text-white text-xs w-5 h-5 leading-5 text-center rounded-bl-lg">×</button>
-            </div>
-          ))}
-          <label className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center text-2xl text-gray-400 cursor-pointer active:bg-gray-50">
-            +
-            <input type="file" accept="image/*" multiple className="hidden" onChange={onAddFiles} />
-          </label>
-        </div>
-        <p className="text-[11px] text-gray-400 mt-1">First photo is the cover buyers see.</p>
+        <PhotoPicker photos={photos} onChange={setPhotos} onError={setError} />
       </div>
 
       <Field label="Description">
