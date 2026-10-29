@@ -1,0 +1,142 @@
+<pasted_content id="bf64">
+Analyze my Vercel project and recommend the most important alerts to prevent unexpected billing charges, downtime, performance issues, and security risks.
+Prioritize usage limits, spending thresholds, failed deployments, high error rates, serverless function failures, and unusual traffic spikes.
+Suggest appropriate alert thresholds and explain which alerts are available on my current Pro plan and which require additional configuration.
+Do not change any settings or enable paid features without my approval; first provide a recommended alert configuration to keep my project safe and costs under control.
+</pasted_content id="bf64">
+
+---
+
+[Image #2]
+
+---
+
+<pasted_content id="bf64">
+Notifications
+Manage your personal notification settings for the singampalliveerendra's projects team.
+
+Web
+
+Receive notifications in your Vercel notification inbox.
+
+Email
+
+Receive notifications at your selected email address.
+
+singampalliveerendra5@gmail.com
+
+Push
+Subscribe Device
+
+Receive notifications on subscribed devices.
+
+SMS
+
++917601059161
+Mute
+
+Select projects to mute notifications for.
+
+Monitors    Push    Email    Web
+Default Alert Rule    
+
+
+
+usage metric    
+
+
+
+Manage All Alert Subscriptions
+Usage    Push    Email    Web
+75% of included credit
+
+
+
+On-Demand Usage Summary
+
+
+
+Team    SMS    Push    Email    Web
+Feature Requests
+
+
+
+Spend Management
+
+
+
+
+Team join and role change requests
+
+
+
+Deployments    Push    Email    Web
+Deployment Access Requests
+
+
+
+Deployment Failures
+
+
+
+Deployment Ready
+
+
+
+Domains    Push    Email    Web
+Configuration
+
+
+
+Renewals
+
+
+
+Transfers
+
+
+
+Marketplace Integrations    Push    Email    Web
+Integration Updates
+
+
+
+Global Config    Push    Email    Web
+Schema Validation Errors
+
+
+
+Size Limit Alerts
+
+
+
+Git Integrations    Push    Email    Web
+Import detection
+
+
+
+Comment notifications are managed per deployment, change your preference via the toolbar menu. Learn More →
+</pasted_content id="bf64">
+
+---
+
+<pasted_content id="bf64">
+Hi Vercel Support, my Pro plan is showing two invoices for two months.
+Do I need to pay the next invoice to continue using the Pro plan?
+If I don't pay and switch to the Hobby (Free) plan, will I be charged anything further?
+Will my account automatically move to the Free plan for the next month?
+</pasted_content id="bf64">
+
+[Image #5]
+
+---
+
+whats your answer with that question
+
+---
+
+to reduce limit what  precoutions shoukd i take
+
+---
+
+what if farmer uploads 10 mb photo
