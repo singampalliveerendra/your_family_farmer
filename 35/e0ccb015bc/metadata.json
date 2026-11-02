@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.12.0",
+  "checkpoint_id": "35e0ccb015bc",
+  "strategy": "manual-commit",
+  "branch": "staging",
+  "checkpoints_count": 7,
+  "files_touched": [
+    "src/components/farmer/ShareProduceButton.tsx",
+    "src/lib/produceShare.ts",
+    "tests/lib/produceShare.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/35/e0ccb015bc/0/metadata.json",
+      "transcript": "/35/e0ccb015bc/0/full.jsonl",
+      "compact_transcript": "/35/e0ccb015bc/0/transcript.jsonl",
+      "content_hash": "/35/e0ccb015bc/0/content_hash.txt",
+      "prompt": "/35/e0ccb015bc/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 114,
+    "cache_creation_tokens": 261951,
+    "cache_read_tokens": 5339337,
+    "output_tokens": 39030,
+    "api_call_count": 51
+  }
+}
