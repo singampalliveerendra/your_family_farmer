@@ -23,10 +23,11 @@ export type ShareListing = {
   image_url?: string | null
 }
 
-// Tiles per image. 3 columns × 3 rows keeps each photo big enough to read on a
-// phone at the 1080×1350 (4:5) size WhatsApp and Status show uncropped.
+// Tiles per image: 3 columns × 4 rows at the 1080×1350 (4:5) size WhatsApp and
+// Status show uncropped. 12 (not 9) so a 90-item catalogue makes 8 images and
+// fits in ONE share — Chrome refuses more than 10 files per share.
 export const SHARE_COLS = 3
-export const SHARE_PER_PAGE = 9
+export const SHARE_PER_PAGE = 12
 
 /**
  * The listings a buyer could actually order right now — the same rule the
