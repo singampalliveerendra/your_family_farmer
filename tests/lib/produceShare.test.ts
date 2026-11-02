@@ -6,6 +6,10 @@ import {
   farmerShareUrl,
   optimizedImageUrl,
   pickShareItems,
+  SHARE_MAX_BYTES,
+  SHARE_MAX_FILES,
+  shareBatchLabel,
+  shareBatches,
   shareCaption,
   shareFileName,
   shareTextWithFiles,
@@ -178,5 +182,59 @@ describe('shareTextWithFiles', () => {
   it('keeps the caption with the images on Android and on a real Mac', () => {
     expect(shareTextWithFiles(ANDROID)).toBe(true)
     expect(shareTextWithFiles(IPAD_DESKTOP, 0)).toBe(true)
+  })
+})
+
+describe('shareBatches', () => {
+  // Chrome refuses a share of more than 10 files or 50 MB with "Permission
+  // denied", and canShare() says yes anyway. An aggregator with 11 images saw
+  // "Sharing failed" on every tap until the images went out in batches.
+  const MB = 1024 * 1024
+
+  it('keeps up to 10 images in one share', () => {
+    expect(shareBatches(Array(10).fill(2 * MB))).toEqual([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]])
+  })
+
+  it('splits 11 images into 10 + 1', () => {
+    const b = shareBatches(Array(11).fill(2 * MB))
+    expect(b).toEqual([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [10]])
+  })
+
+  it('never puts more than 10 files in a batch, and keeps every image in order', () => {
+    const b = shareBatches(Array(25).fill(MB))
+    expect(b.map((x) => x.length)).toEqual([10, 10, 5])
+    expect(b.flat()).toEqual([...Array(25).keys()])
+    expect(Math.max(...b.map((x) => x.length))).toBeLessThanOrEqual(SHARE_MAX_FILES)
+  })
+
+  it('starts a new batch before the total size passes the cap', () => {
+    const b = shareBatches([20 * MB, 20 * MB, 20 * MB])
+    expect(b).toEqual([[0, 1], [2]])
+    for (const batch of b) {
+      expect(batch.length * 20 * MB).toBeLessThanOrEqual(SHARE_MAX_BYTES)
+    }
+  })
+
+  it('still sends a single oversized image on its own instead of dropping it', () => {
+    expect(shareBatches([60 * MB, MB])).toEqual([[0], [1]])
+  })
+
+  it('has nothing to share when there are no images', () => {
+    expect(shareBatches([])).toEqual([])
+  })
+})
+
+describe('shareBatchLabel', () => {
+  const en = (e: string) => e
+  const te = (_e: string, t: string) => t
+
+  it('names the image range, counting from 1', () => {
+    expect(shareBatchLabel([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], en)).toBe('Share images 1–10')
+    expect(shareBatchLabel([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], te)).toBe('చిత్రాలు 1–10 పంపండి')
+  })
+
+  it('says "image" for a batch of one', () => {
+    expect(shareBatchLabel([10], en)).toBe('Share image 11')
+    expect(shareBatchLabel([10], te)).toBe('చిత్రం 11 పంపండి')
   })
 })

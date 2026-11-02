@@ -12,6 +12,8 @@ import {
   farmerShareUrl,
   optimizedImageUrl,
   pickShareItems,
+  shareBatchLabel,
+  shareBatches,
   shareCaption,
   shareFileName,
   shareTextWithFiles,
@@ -60,6 +62,8 @@ export default function ShareProduceButton({
   const [msg, setMsg] = useState('')
   const [pages, setPages] = useState<Page[]>([])
   const [caption, setCaption] = useState('')
+  // Batches already shared (by index), so the farmer can see which tap is next.
+  const [sent, setSent] = useState<number[]>([])
 
   // Free the blob URLs once the preview closes or the component goes away.
   useEffect(() => () => pages.forEach((p) => URL.revokeObjectURL(p.url)), [pages])
@@ -134,6 +138,7 @@ export default function ShareProduceButton({
         out.push({ blob, url: URL.createObjectURL(blob), file: new File([blob], name, { type: 'image/png' }) })
       }
       setCaption(shareCaption(farmer.name || '', url, L))
+      setSent([])
       setPages(out)
     } catch {
       flash(L('Could not make the images. Please try again.', 'చిత్రాలు తయారు కాలేదు. మళ్ళీ ప్రయత్నించండి.'))
@@ -144,11 +149,19 @@ export default function ShareProduceButton({
 
   const close = () => setPages([])
 
-  const files = pages.map((p) => p.file)
+  // Chrome shares at most 10 files (50 MB) per call and canShare() doesn't
+  // warn about it, so more than that goes out in batches, one tap each.
+  const batches = shareBatches(pages.map((p) => p.blob.size))
+  const batchFiles = (b: number[]) => b.map((i) => pages[i].file)
   const canShareFiles =
-    typeof navigator !== 'undefined' && !!navigator.canShare && files.length > 0 && navigator.canShare({ files })
+    typeof navigator !== 'undefined' &&
+    !!navigator.canShare &&
+    batches.length > 0 &&
+    navigator.canShare({ files: batchFiles(batches[0]) })
 
-  const shareAll = async () => {
+  const shareBatch = async (batchIndex: number) => {
+    const files = batchFiles(batches[batchIndex] ?? [])
+    if (!files.length) return
     // The link always goes on the clipboard too: if the receiving app drops
     // the caption, the farmer pastes it. Started, not awaited — Safari only
     // allows share() while the tap is still "live", and an await before it can
@@ -157,6 +170,7 @@ export default function ShareProduceButton({
     const withText = shareTextWithFiles(navigator.userAgent, navigator.maxTouchPoints)
     try {
       await navigator.share(withText ? { files, text: caption } : { files })
+      setSent((prev) => (prev.includes(batchIndex) ? prev : [...prev, batchIndex]))
       if (!withText && (await copied)) {
         flash(L('Link copied — paste it in the WhatsApp message too.', 'లింక్ కాపీ అయింది — వాట్సాప్ మెసేజ్‌లో కూడా పేస్ట్ చేయండి.'))
       }
@@ -234,10 +248,33 @@ export default function ShareProduceButton({
             </div>
             <div className="px-4 py-3 border-t border-gray-100 space-y-2">
               {msg && <p className="text-xs text-center text-gray-700">{msg}</p>}
-              {canShareFiles && (
-                <button onClick={shareAll} className="w-full bg-green-700 text-white font-bold py-3 rounded-xl">
+              {canShareFiles && batches.length === 1 && (
+                <button onClick={() => shareBatch(0)} className="w-full bg-green-700 text-white font-bold py-3 rounded-xl">
                   📤 {L('Share on WhatsApp & more', 'వాట్సాప్ & ఇతరాల్లో పంపండి')}
                 </button>
+              )}
+              {canShareFiles && batches.length > 1 && (
+                <>
+                  <p className="text-xs text-center text-gray-600">
+                    {L(
+                      'Phones can send only 10 images at a time. Tap each button in turn.',
+                      'ఫోన్ ఒక్కసారికి 10 చిత్రాలు మాత్రమే పంపగలదు. ఒక్కో బటన్ వరుసగా నొక్కండి.',
+                    )}
+                  </p>
+                  {batches.map((b, i) => {
+                    const done = sent.includes(i)
+                    return (
+                      <button
+                        key={b[0]}
+                        onClick={() => shareBatch(i)}
+                        className={`w-full font-bold py-3 rounded-xl ${done ? 'bg-green-50 text-green-800 border border-green-700' : 'bg-green-700 text-white'}`}
+                      >
+                        {done ? '✓' : '📤'} {shareBatchLabel(b, L)}
+                        {done && ` · ${L('Sent', 'పంపారు')}`}
+                      </button>
+                    )
+                  })}
+                </>
               )}
               <div className="flex gap-2">
                 <button onClick={downloadAll} className="flex-1 border border-green-700 text-green-800 font-semibold py-2.5 rounded-xl text-sm">
