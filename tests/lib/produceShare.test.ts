@@ -238,3 +238,12 @@ describe('shareBatchLabel', () => {
     expect(shareBatchLabel([10], te)).toBe('చిత్రం 11 పంపండి')
   })
 })
+
+describe('catalogue size vs the 10-file share limit', () => {
+  it('fits a 90-item catalogue into one share (8 images, 12 per image)', () => {
+    const pages = chunkForShare(Array.from({ length: 90 }, (_, i) => i))
+    expect(SHARE_PER_PAGE).toBe(12)
+    expect(pages).toHaveLength(8)
+    expect(shareBatches(pages.map(() => 2 * 1024 * 1024))).toHaveLength(1)
+  })
+})

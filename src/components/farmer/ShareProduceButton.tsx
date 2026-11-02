@@ -426,7 +426,12 @@ async function drawPage(o: {
   const gridTop = HEADER_H + 30
   const gridH = H - FOOTER_H - gridTop - 10
   const tileH = (gridH - GAP * (rows - 1)) / rows
-  const photoH = Math.round(tileH * 0.62)
+  const photoH = Math.round(tileH * 0.56)
+  // Name and price share the strip under the photo, placed by its height so
+  // they stay inside the tile whatever the rows per image.
+  const textH = tileH - photoH
+  const nameY = photoH + Math.round(textH * 0.42)
+  const priceY = tileH - Math.round(textH * 0.14)
 
   o.tiles.forEach((t, i) => {
     const x = PAD + (i % SHARE_COLS) * (tileW + GAP)
@@ -450,7 +455,7 @@ async function drawPage(o: {
     } else {
       ctx.fillStyle = '#dcfce7'
       ctx.fillRect(x, y, tileW, photoH)
-      ctx.font = `110px ${font}`
+      ctx.font = `${Math.round(photoH * 0.6)}px ${font}`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillText(t.emoji, x + tileW / 2, y + photoH / 2 + 6)
@@ -462,9 +467,9 @@ async function drawPage(o: {
     const tx = x + 16
     const maxW = tileW - 32
     ctx.fillStyle = '#111827'
-    fitText(ctx, t.name, tx, y + photoH + 44, maxW, '700', 32, 22, font)
+    fitText(ctx, t.name, tx, y + nameY, maxW, '700', 30, 20, font)
     ctx.fillStyle = GREEN_TEXT
-    fitText(ctx, t.price, tx, y + photoH + 88, maxW, '800', 32, 20, font)
+    fitText(ctx, t.price, tx, y + priceY, maxW, '800', 30, 20, font)
   })
 
   // Footer — the link in words + QR, since the image itself can't be tapped
