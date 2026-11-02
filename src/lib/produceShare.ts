@@ -134,3 +134,50 @@ export function shareTextWithFiles(ua: string, maxTouchPoints = 0): boolean {
   const ios = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && maxTouchPoints > 1)
   return !ios
 }
+
+/**
+ * Chrome (Android and desktop) refuses a share with more than 10 files or more
+ * than 50 MB in total. It throws NotAllowedError "Permission denied", and
+ * canShare() does NOT check either limit, so the Share button shows and then
+ * fails. An aggregator with 90+ products gets 11+ images, so they go out in
+ * batches, each from its own tap (share() needs a fresh tap every time).
+ * The byte cap keeps headroom under Chrome's 50 MB.
+ */
+export const SHARE_MAX_FILES = 10
+export const SHARE_MAX_BYTES = 45 * 1024 * 1024
+
+/**
+ * Split files (given by their sizes in bytes) into share batches, in order.
+ * Returns the indexes in each batch. A single file over the byte cap still
+ * gets a batch of its own: the browser can refuse it, but we don't drop it.
+ */
+export function shareBatches(
+  sizes: readonly number[],
+  maxFiles = SHARE_MAX_FILES,
+  maxBytes = SHARE_MAX_BYTES,
+): number[][] {
+  const out: number[][] = []
+  let batch: number[] = []
+  let bytes = 0
+  sizes.forEach((size, i) => {
+    if (batch.length > 0 && (batch.length >= maxFiles || bytes + size > maxBytes)) {
+      out.push(batch)
+      batch = []
+      bytes = 0
+    }
+    batch.push(i)
+    bytes += size
+  })
+  if (batch.length) out.push(batch)
+  return out
+}
+
+/** The button for one batch: "Share images 1–10", or "Share image 11" for one. */
+export function shareBatchLabel(batch: readonly number[], L: Tr): string {
+  if (batch.length === 0) return ''
+  const first = batch[0] + 1
+  const last = batch[batch.length - 1] + 1
+  return first === last
+    ? L(`Share image ${first}`, `చిత్రం ${first} పంపండి`)
+    : L(`Share images ${first}–${last}`, `చిత్రాలు ${first}–${last} పంపండి`)
+}
