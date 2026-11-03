@@ -129,11 +129,15 @@ export async function fetchCashfreeOrder(orderId: string): Promise<CashfreeOrder
 // checkout, so a payment finishing after we've cancelled the rows and released
 // the stock is refused by Cashfree rather than landing on a cancelled order.
 // Best-effort: an order that's already PAID or EXPIRED just returns an error.
-export async function terminateCashfreeOrder(orderId: string): Promise<void> {
+// Returns false when Cashfree refused — e.g. a UPI payment is still in
+// progress on the order. Callers must then NOT treat the order as dead.
+export async function terminateCashfreeOrder(orderId: string): Promise<boolean> {
   try {
     await cf('PATCH', `/orders/${encodeURIComponent(orderId)}`, { order_status: 'TERMINATED' })
+    return true
   } catch (e) {
-    console.warn('[YFF cashfree] terminate failed (often harmless):', orderId, (e as Error).message)
+    console.warn('[YFF cashfree] terminate failed:', orderId, (e as Error).message)
+    return false
   }
 }
 
@@ -154,7 +158,27 @@ export async function fetchCashfreePayments(orderId: string): Promise<CashfreePa
 
 export type Settlement =
   | { paid: true; paymentId: string; label: string | null }
-  | { paid: false; orderStatus: string }
+  // inFlight: a payment attempt is still PENDING at Cashfree — typically a UPI
+  // app payment the bank hasn't confirmed yet. It can still turn into SUCCESS,
+  // so the order must NOT be abandoned while this is true.
+  | { paid: false; orderStatus: string; inFlight: boolean }
+
+/** A payment attempt that has not reached a final state yet. */
+export function hasPaymentInFlight(payments: Array<Pick<CashfreePayment, 'payment_status'>>): boolean {
+  return payments.some((p) => p.payment_status === 'PENDING')
+}
+
+/**
+ * May we cancel an unpaid order (and release its stock)? Only when Cashfree
+ * says it is not paid, no attempt is still pending, and the Cashfree order is
+ * no longer open for payment. An ACTIVE order can still be paid — that is how
+ * YFF-20261029-0383 was cancelled while its UPI payment went through.
+ */
+export function isSafeToAbandon(s: Settlement): boolean {
+  if (s.paid) return false
+  if (s.inFlight) return false
+  return s.orderStatus !== 'ACTIVE'
+}
 
 /**
  * Ask Cashfree whether an order is really paid, in full.
@@ -168,15 +192,17 @@ export type Settlement =
  */
 export async function getSettlement(orderId: string): Promise<Settlement> {
   const order = await fetchCashfreeOrder(orderId)
-  if (order.order_status !== 'PAID') return { paid: false, orderStatus: order.order_status }
-
   const payments = await fetchCashfreePayments(orderId)
+  if (order.order_status !== 'PAID') {
+    return { paid: false, orderStatus: order.order_status, inFlight: hasPaymentInFlight(payments) }
+  }
+
   const ok = payments.find(
     (p) => p.payment_status === 'SUCCESS' && Number(p.payment_amount) + 0.001 >= Number(order.order_amount),
   )
   if (!ok) {
     console.warn('[YFF cashfree] order PAID but no covering SUCCESS payment:', orderId)
-    return { paid: false, orderStatus: 'UNDERPAID' }
+    return { paid: false, orderStatus: 'UNDERPAID', inFlight: false }
   }
   return { paid: true, paymentId: String(ok.cf_payment_id), label: resolvePaymentLabel(ok) }
 }

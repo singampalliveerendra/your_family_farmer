@@ -617,6 +617,9 @@ export function CartSheet({
   // Razorpay online payment: which farmer group is mid-payment, and whether
   // the latest order was paid online (drives the success copy below).
   const [payingOnline, setPayingOnline] = useState<string | null>(null)
+  // The checkout closed and we're asking Cashfree whether it was paid (can take
+  // up to ~2 min while a UPI app payment is confirmed by the bank).
+  const [confirmingPay, setConfirmingPay] = useState(false)
   const [onlinePaid, setOnlinePaid] = useState(false)
 
   // Global platform fee (moderator commission), added on top of each farmer
@@ -1136,8 +1139,9 @@ export function CartSheet({
     // })
     // rzp.open()
     // Cashfree: open the checkout, then let the server decide what happened.
-    const outcome = await runCashfreeCheckout(createRes, { guestToken: placed.guestToken })
+    const outcome = await runCashfreeCheckout(createRes, { guestToken: placed.guestToken }, () => setConfirmingPay(true))
     setPayingOnline(null)
+    setConfirmingPay(false)
     if (outcome.kind === 'paid') {
       clearFarmer(f.farmerId)
       setSentFarmers((s) => ({ ...s, [f.farmerId]: true }))
@@ -1150,6 +1154,15 @@ export function CartSheet({
     if (outcome.kind === 'unpaid') {
       showToast(L('Deposit not paid. Your order was not placed.', 'డిపాజిట్ చెల్లించలేదు. మీ ఆర్డర్ నమోదు కాలేదు.'))
       void abandonOrders()
+      return
+    }
+    if (outcome.kind === 'processing') {
+      // A UPI payment is still being confirmed. Don't cancel anything — the
+      // webhook marks the order paid when the bank confirms.
+      showToast(L(
+        'Your payment is still being confirmed by the bank. Please check My Orders in a few minutes — do not pay again.',
+        'మీ చెల్లింపును బ్యాంక్ ఇంకా ధృవీకరిస్తోంది. కొన్ని నిమిషాల్లో నా ఆర్డర్లు చూడండి — మళ్ళీ చెల్లించవద్దు.',
+      ))
       return
     }
     showToast(outcome.error ?? L('Deposit could not be verified. Please contact support.', 'డిపాజిట్ ధృవీకరించలేకపోయాం. సపోర్ట్‌ను సంప్రదించండి.'))
@@ -1416,8 +1429,9 @@ export function CartSheet({
     // })
     // rzp.open()
     // 3. Open the Cashfree checkout; 4. the server confirms with Cashfree.
-    const outcome = await runCashfreeCheckout(createRes, { guestToken: result.guestToken })
+    const outcome = await runCashfreeCheckout(createRes, { guestToken: result.guestToken }, () => setConfirmingPay(true))
     setPayingOnline(null)
+    setConfirmingPay(false)
     if (outcome.kind === 'paid') {
       clearFarmer(f.farmerId)
       setOnlinePaid(true)
@@ -1431,6 +1445,15 @@ export function CartSheet({
       // and release the stock so nothing is initiated.
       showToast(L('Payment not completed. Your order was not placed.', 'చెల్లింపు పూర్తి కాలేదు. మీ ఆర్డర్ నమోదు కాలేదు.'))
       void abandonOrders()
+      return
+    }
+    if (outcome.kind === 'processing') {
+      // A UPI payment is still being confirmed. Don't cancel anything — the
+      // webhook marks the order paid when the bank confirms.
+      showToast(L(
+        'Your payment is still being confirmed by the bank. Please check My Orders in a few minutes — do not pay again.',
+        'మీ చెల్లింపును బ్యాంక్ ఇంకా ధృవీకరిస్తోంది. కొన్ని నిమిషాల్లో నా ఆర్డర్లు చూడండి — మళ్ళీ చెల్లించవద్దు.',
+      ))
       return
     }
     showToast(outcome.error ?? L('Payment could not be verified. Please contact support.', 'చెల్లింపు ధృవీకరించలేకపోయాం. సపోర్ట్‌ను సంప్రదించండి.'))
@@ -1586,8 +1609,9 @@ export function CartSheet({
     //   void abandon(allOrderIds)
     // })
     // rzp.open()
-    const outcome = await runCashfreeCheckout(createRes, { guestBatches })
+    const outcome = await runCashfreeCheckout(createRes, { guestBatches }, () => setConfirmingPay(true))
     setPayingOnline(null)
+    setConfirmingPay(false)
     if (outcome.kind === 'paid') {
       clear() // whole cart paid in one go
       setOnlinePaid(true)
@@ -1599,6 +1623,15 @@ export function CartSheet({
     if (outcome.kind === 'unpaid') {
       showToast(L('Payment not completed. Your order was not placed.', 'చెల్లింపు పూర్తి కాలేదు. మీ ఆర్డర్ నమోదు కాలేదు.'))
       void abandon(allOrderIds)
+      return
+    }
+    if (outcome.kind === 'processing') {
+      // A UPI payment is still being confirmed. Don't cancel anything — the
+      // webhook marks the order paid when the bank confirms.
+      showToast(L(
+        'Your payment is still being confirmed by the bank. Please check My Orders in a few minutes — do not pay again.',
+        'మీ చెల్లింపును బ్యాంక్ ఇంకా ధృవీకరిస్తోంది. కొన్ని నిమిషాల్లో నా ఆర్డర్లు చూడండి — మళ్ళీ చెల్లించవద్దు.',
+      ))
       return
     }
     showToast(outcome.error ?? L('Payment could not be verified. Please contact support.', 'చెల్లింపు ధృవీకరించలేకపోయాం. సపోర్ట్‌ను సంప్రదించండి.'))
@@ -2599,7 +2632,7 @@ export function CartSheet({
                           : 'bg-blue-600 text-white active:bg-blue-700 disabled:opacity-50'
                       }`}
                     >
-                      {payingOnline != null ? L('Opening payment...', 'చెల్లింపు తెరుస్తోంది...') : `💳 Order & Pay ₹${cartSubtotal + cartFee}`}
+                      {confirmingPay ? L('Confirming payment...', 'చెల్లింపు ధృవీకరిస్తోంది...') : payingOnline != null ? L('Opening payment...', 'చెల్లింపు తెరుస్తోంది...') : `💳 Order & Pay ₹${cartSubtotal + cartFee}`}
                     </button>
                   )
                 })() : (

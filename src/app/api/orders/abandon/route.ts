@@ -2,8 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
 import { hasMoneyIn } from '@/lib/payment'
-import { getSettlement, terminateCashfreeOrder } from '@/lib/cashfree'
-import { markCashfreePaid } from '@/lib/cashfree-settle'
+import { getSettlement, isSafeToAbandon, terminateCashfreeOrder } from '@/lib/cashfree'
+import { ABANDON_REASON, markCashfreePaid } from '@/lib/cashfree-settle'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -41,12 +41,14 @@ export async function POST(req: NextRequest) {
     .in('id', orderIds)
   if (loadErr) return NextResponse.json({ error: loadErr.message }, { status: 500 })
 
-  // The checkout closing is not proof nothing was paid — a UPI collect can
-  // complete after the modal is gone. So before cancelling anything, ask
-  // Cashfree about each order this batch opened: a paid one is recorded as paid
-  // and left alone; an unpaid one is TERMINATED, so a payment that would have
-  // landed later is refused instead of hitting a cancelled order.
-  const paidCashfree = new Set<string>()
+  // The checkout closing is not proof nothing was paid — a UPI app payment can
+  // complete after the modal is gone (YFF-20261029-0383: cancelled here, paid
+  // seconds later). So before cancelling anything, ask Cashfree about each
+  // order this batch opened: a paid one is recorded as paid; one with a payment
+  // still processing is left alone; an unpaid one is TERMINATED and checked
+  // again, and only cancelled once Cashfree confirms it can no longer be paid.
+  // Anything we leave alone is settled by the webhook / reconcile cron.
+  const keepCashfree = new Set<string>()
   const cfIds = [...new Set(
     (orders ?? [])
       .filter((o) => o.consumer_id === session.consumerId && o.cashfree_order_id)
@@ -54,21 +56,38 @@ export async function POST(req: NextRequest) {
   )]
   for (const cfId of cfIds) {
     try {
-      const s = await getSettlement(cfId)
-      if (s.paid) {
-        paidCashfree.add(cfId)
-        const err = await markCashfreePaid(supabase, { cashfreeOrderId: cfId, paymentId: s.paymentId, label: s.label })
+      const before = await getSettlement(cfId)
+      if (before.paid) {
+        keepCashfree.add(cfId)
+        const err = await markCashfreePaid(supabase, { cashfreeOrderId: cfId, paymentId: before.paymentId, label: before.label })
         if (err) console.error('[YFF abandon] late-paid update failed:', err)
         continue
+      }
+      if (before.inFlight) {
+        console.warn('[YFF abandon] payment still processing, leaving orders alone:', cfId)
+        keepCashfree.add(cfId)
+        continue
+      }
+      await terminateCashfreeOrder(cfId)
+      // Whether or not the terminate call succeeded, believe only Cashfree's
+      // state afterwards: a payment may have slipped in between the two calls.
+      const after = await getSettlement(cfId)
+      if (after.paid) {
+        keepCashfree.add(cfId)
+        const err = await markCashfreePaid(supabase, { cashfreeOrderId: cfId, paymentId: after.paymentId, label: after.label })
+        if (err) console.error('[YFF abandon] late-paid update failed:', err)
+        continue
+      }
+      if (!isSafeToAbandon(after)) {
+        console.warn('[YFF abandon] Cashfree order still payable, leaving orders alone:', cfId, after.orderStatus)
+        keepCashfree.add(cfId)
       }
     } catch (e) {
       // Unknown state: don't cancel what might be paid. The reconcile cron
       // settles it either way.
       console.error('[YFF abandon] settlement lookup failed, leaving orders alone:', cfId, e)
-      paidCashfree.add(cfId)
-      continue
+      keepCashfree.add(cfId)
     }
-    await terminateCashfreeOrder(cfId)
   }
 
   let cancelled = 0
@@ -82,7 +101,7 @@ export async function POST(req: NextRequest) {
     // dismiss after a successful capture, and cancelling then would take the
     // buyer's deposit and void their order.
     if (hasMoneyIn(order.payment_status)) continue
-    if (order.cashfree_order_id && paidCashfree.has(order.cashfree_order_id)) continue
+    if (order.cashfree_order_id && keepCashfree.has(order.cashfree_order_id)) continue
 
     // Return the reserved stock before flipping the row, mirroring a cancel.
     // Harvest orders return the harvest's stock; legacy orders the listing's.
@@ -100,7 +119,7 @@ export async function POST(req: NextRequest) {
 
     const { error: updErr } = await supabase
       .from('orders')
-      .update({ status: 'cancelled', decline_reason: 'Payment not completed' })
+      .update({ status: 'cancelled', decline_reason: ABANDON_REASON })
       .eq('id', order.id)
     if (updErr) {
       console.error('[YFF] abandon update failed:', updErr.message)

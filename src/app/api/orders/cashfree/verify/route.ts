@@ -13,8 +13,10 @@ export const dynamic = 'force-dynamic'
 // hint. We ask Cashfree directly and mark the rows paid only if it says PAID
 // for the full amount. Nothing the browser sends can make an order paid.
 //
-// Returns { ok: true } when paid, { ok: false, paid: false } when Cashfree says
-// it isn't (the client then abandons the order).
+// Returns { ok: true } when paid, { ok: false, paid: false, pending, orderStatus }
+// when Cashfree says it isn't yet. pending = a payment attempt is still
+// processing and may yet succeed; the client keeps polling (see
+// src/lib/cashfreePoll.ts) and only abandons once it is clearly unpaid.
 export async function POST(req: NextRequest) {
   const session = getConsumerSessionFromRequest(req)
 
@@ -71,7 +73,15 @@ export async function POST(req: NextRequest) {
   }
 
   if (!settlement.paid) {
-    return NextResponse.json({ ok: false, paid: false, orderStatus: settlement.orderStatus })
+    // pending: a UPI app payment is still being confirmed by the bank. The
+    // client keeps asking instead of abandoning — abandoning here is what
+    // cancelled YFF-20261029-0383 while its payment went through.
+    return NextResponse.json({
+      ok: false,
+      paid: false,
+      pending: settlement.inFlight,
+      orderStatus: settlement.orderStatus,
+    })
   }
 
   const err = await markCashfreePaid(supabase, {

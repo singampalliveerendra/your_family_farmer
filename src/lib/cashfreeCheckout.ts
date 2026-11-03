@@ -5,6 +5,8 @@
 //
 // The SDK is loaded lazily — only the first time a buyer pays online — so the
 // catalogue stays light on slow connections.
+import { nextPollStep, POLL_INTERVAL_MS } from '@/lib/cashfreePoll'
+
 const CASHFREE_SDK = 'https://sdk.cashfree.com/js/v3/cashfree.js'
 
 type CashfreeCheckoutResult = {
@@ -49,6 +51,9 @@ export type CashfreeOutcome =
   | { kind: 'paid'; paymentId: string }
   // Cashfree says it is NOT paid (closed, failed, dropped). Safe to abandon.
   | { kind: 'unpaid' }
+  // A UPI payment is still being confirmed by the bank after ~2 minutes of
+  // asking. Do NOT abandon — the webhook / cron records it if it succeeds.
+  | { kind: 'processing' }
   // We could not find out. Do NOT abandon — money may have been taken; the
   // webhook / reconcile cron will settle it.
   | { kind: 'unknown'; error: string | null }
@@ -62,6 +67,8 @@ export type CashfreeOutcome =
 export async function runCashfreeCheckout(
   created: CashfreeCreateResponse,
   auth: { guestToken?: string; guestBatches?: Array<{ orderIds: string[]; token: string }> },
+  // Called once the checkout has closed and we start asking the server.
+  onConfirming?: () => void,
 ): Promise<CashfreeOutcome> {
   if (!window.Cashfree) return { kind: 'unknown', error: null }
   const cashfree = window.Cashfree({ mode: created.mode })
@@ -74,16 +81,41 @@ export async function runCashfreeCheckout(
     console.warn('[YFF] cashfree checkout threw:', e)
   }
 
-  const vr = await fetch('/api/orders/cashfree/verify', {
+  // Ask until Cashfree gives a clear answer — see src/lib/cashfreePoll.ts for
+  // why a single "not paid yet" is not enough with UPI apps.
+  onConfirming?.()
+  const started = Date.now()
+  for (;;) {
+    const vr = await verifyOnce(created.cashfreeOrderId, auth)
+    if (vr?.ok && vr.paymentId) return { kind: 'paid', paymentId: vr.paymentId }
+    if (!(vr && vr.ok === false && vr.paid === false)) return { kind: 'unknown', error: vr?.error ?? null }
+
+    const step = nextPollStep({ inFlight: !!vr.pending, orderStatus: vr.orderStatus ?? null }, Date.now() - started)
+    if (step === 'unpaid') return { kind: 'unpaid' }
+    if (step === 'processing') return { kind: 'processing' }
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
+  }
+}
+
+type VerifyReply = {
+  ok?: boolean
+  paid?: boolean
+  pending?: boolean
+  orderStatus?: string
+  paymentId?: string
+  error?: string
+}
+
+function verifyOnce(
+  cashfreeOrderId: string,
+  auth: { guestToken?: string; guestBatches?: Array<{ orderIds: string[]; token: string }> },
+): Promise<VerifyReply | null> {
+  return fetch('/api/orders/cashfree/verify', {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cashfreeOrderId: created.cashfreeOrderId, ...auth }),
+    body: JSON.stringify({ cashfreeOrderId, ...auth }),
   })
     .then((r) => r.json().catch(() => null))
-    .catch(() => null) as { ok?: boolean; paid?: boolean; paymentId?: string; error?: string } | null
-
-  if (vr?.ok && vr.paymentId) return { kind: 'paid', paymentId: vr.paymentId }
-  if (vr && vr.ok === false && vr.paid === false) return { kind: 'unpaid' }
-  return { kind: 'unknown', error: vr?.error ?? null }
+    .catch(() => null) as Promise<VerifyReply | null>
 }
