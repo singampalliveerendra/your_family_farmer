@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
+import { readWithSaleMode } from '@/lib/wholesaleVisibility'
 import { useCart } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
@@ -60,18 +61,22 @@ export default function TodaysHarvest() {
     let cancelled = false
     const start = new Date(Date.now() - 2 * DAY).toISOString()
     const end = new Date(Date.now() + 3 * DAY).toISOString()
-    supabase
-      .from('harvests')
-      .select('id, harvested_at, shelf_life_days, approx_quantity, stock_qty, unit, produce_listing_id, produce_listings!inner(id, name, variety, emoji, image_url, image_urls, method, status, price_tier_1_price, unit, shelf_life_days)')
-      .eq('paused', false)
-      .gte('harvested_at', start)
-      .lte('harvested_at', end)
-      // A harvest has its own stock, so a 'sold_out' template must not hide it —
-      // only a genuine takedown (paused/suspended) should. See produceStatus.ts.
-      .in('produce_listings.status', CONSUMER_VISIBLE_STATUSES)
-      .order('harvested_at', { ascending: false })
-      .limit(30)
-      .then(({ data }) => {
+    // Wholesale-only produce never reaches household buyers; the filter is
+    // dropped only on a server without the column (no wholesale rows there).
+    void readWithSaleMode((withMode) => {
+      const q = supabase
+        .from('harvests')
+        .select('id, harvested_at, shelf_life_days, approx_quantity, stock_qty, unit, produce_listing_id, produce_listings!inner(id, name, variety, emoji, image_url, image_urls, method, status, price_tier_1_price, unit, shelf_life_days)')
+        .eq('paused', false)
+        .gte('harvested_at', start)
+        .lte('harvested_at', end)
+        // A harvest has its own stock, so a 'sold_out' template must not hide it —
+        // only a genuine takedown (paused/suspended) should. See produceStatus.ts.
+        .in('produce_listings.status', CONSUMER_VISIBLE_STATUSES)
+      return (withMode ? q.neq('produce_listings.sale_mode', 'wholesale') : q)
+        .order('harvested_at', { ascending: false })
+        .limit(30)
+    }).then(({ data }) => {
         if (cancelled) return
         setRows((data ?? []) as HarvestRow[])
         setLoaded(true)

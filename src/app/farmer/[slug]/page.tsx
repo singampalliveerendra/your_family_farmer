@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { retailRows } from '@/lib/wholesaleVisibility'
 import { FARMER_PUBLIC_COLUMNS } from '@/lib/farmerColumns'
 import { notFound } from 'next/navigation'
 
@@ -76,11 +77,14 @@ export default async function FarmerPage({ params }: { params: Promise<{ slug: s
 
   if (!farmer) notFound()
 
-  const { data: produce } = await supabase
+  const { data: allProduce } = await supabase
     .from('produce_listings')
     .select('*')
     .eq('farmer_id', farmer.id)
     .order('created_at', { ascending: false })
+  // The public farmer page is for household buyers: no wholesale-only produce,
+  // and no wholesale price on a "both" one (src/lib/wholesaleVisibility.ts).
+  const produce = retailRows(allProduce)
 
   const { data: reviews } = await supabase
     .from('reviews')

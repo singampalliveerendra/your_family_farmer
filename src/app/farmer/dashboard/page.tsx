@@ -39,6 +39,7 @@ import { formatHarvestDate, nextHarvestDate } from '@/lib/harvestSchedule'
 import { localizeName, localizeUnit } from '@/lib/localizeName'
 import ShareProduceButton from '@/components/farmer/ShareProduceButton'
 import WholesaleFields from '@/components/WholesaleFields'
+import WholesaleLowStockAlerts from '@/components/farmer/WholesaleLowStockAlerts'
 import {
   wholesaleFormFromRow, resolveWholesaleForm, needsRetailPrice, offersRetail,
   isWholesaleColumnMissing, missingColumnAction, withoutWholesale, wholesaleColumnsToSend, WHOLESALE_NOT_READY,
@@ -256,6 +257,10 @@ export default function FarmerDashboard() {
   const [showProfileEdit, setShowProfileEdit] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showListings, setShowListings] = useState(false)
+  // "Add more stock" on a wholesale low-stock alert opens that produce's edit
+  // form inside Manage Listings; the key reloads the alerts after a save.
+  const [openListingId, setOpenListingId] = useState<string | null>(null)
+  const [lowStockKey, setLowStockKey] = useState(0)
 
   // ?edit=profile opens the profile modal straight away — the "Edit profile"
   // button on the farmer's own public page links here. Read off
@@ -695,6 +700,16 @@ export default function FarmerDashboard() {
           </Link>
         )}
 
+        {/* Wholesale produce hidden for low stock — three ways to fix it. */}
+        {farmer && (
+          <WholesaleLowStockAlerts
+            farmerId={farmer.id}
+            refreshKey={lowStockKey}
+            onAddStock={(id) => { setOpenListingId(id); setShowListings(true) }}
+            onChanged={loadDashboard}
+          />
+        )}
+
         {/* Stat cards — fixed order per client spec: 1) Today's orders,
             2) Active listings, 3) Approved this week, 4) Revenue. Tiles deep-link
             into the relevant Orders view rather than separate dashboard sections. */}
@@ -909,8 +924,9 @@ export default function FarmerDashboard() {
           farmerVillage={farmer.village}
           defaultMethod={farmer.method ?? 'natural'}
           farmerSoilPh={farmer.soil_ph ?? null}
-          onClose={() => setShowListings(false)}
-          onChanged={loadDashboard}
+          initialEditId={openListingId}
+          onClose={() => { setShowListings(false); setOpenListingId(null); setLowStockKey((k) => k + 1) }}
+          onChanged={() => { loadDashboard(); setLowStockKey((k) => k + 1) }}
         />
       )}
 
@@ -3756,6 +3772,7 @@ function ManageListingsModal({
   farmerVillage = '',
   defaultMethod,
   farmerSoilPh = null,
+  initialEditId = null,
   onClose,
   onChanged,
 }: {
@@ -3766,6 +3783,8 @@ function ManageListingsModal({
   farmerVillage?: string
   defaultMethod: string
   farmerSoilPh?: number | null
+  /** Open straight into this produce's edit form (wholesale "Add more stock"). */
+  initialEditId?: string | null
   onClose: () => void
   onChanged: () => void
 }) {
@@ -3791,6 +3810,15 @@ function ManageListingsModal({
     if (err) { setError(err.message); return }
     setRows((data ?? []) as ListingRow[])
   }, [farmerId])
+
+  // Opened from a wholesale low-stock alert: go straight to that produce's
+  // edit form (its harvests are where stock is added). Once only.
+  const [openedInitial, setOpenedInitial] = useState(false)
+  if (!openedInitial && initialEditId && rows.length) {
+    setOpenedInitial(true)
+    const row = rows.find((r) => r.id === initialEditId)
+    if (row) setEditingRow(row)
+  }
 
   useEffect(() => { load() }, [load])
 

@@ -45,6 +45,20 @@ export async function GET() {
   }
   const followers = tally(followsRes.data as Array<{ farmer_id: string }> | null)
   const listings = tally(listingsRes.data as Array<{ farmer_id: string }> | null)
+  // Household buyers don't see wholesale-only produce, so it isn't counted.
+  // On a server without the column this read errors and nothing is taken off —
+  // correct, since no produce can be wholesale-only there.
+  if (ids.length) {
+    const { data: wsOnly } = await supabase
+      .from('produce_listings')
+      .select('farmer_id')
+      .in('farmer_id', ids)
+      .in('status', [...CONSUMER_VISIBLE_STATUSES])
+      .eq('sale_mode', 'wholesale')
+    for (const [fid, n] of tally(wsOnly as Array<{ farmer_id: string }> | null)) {
+      listings.set(fid, Math.max(0, (listings.get(fid) ?? 0) - n))
+    }
+  }
 
   // "How we grow" is written per produce; newest wins (rows come newest first).
   const growByFarmer = new Map<string, string>()

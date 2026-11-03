@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { purchaseCountsFor } from '@/lib/purchaseCounts'
 import { CONSUMER_VISIBLE_STATUSES, FEED_STATUSES } from '@/lib/produceStatus'
+import { retailRows } from '@/lib/wholesaleVisibility'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -26,13 +27,16 @@ export async function GET(request: NextRequest) {
     : status === 'feed' ? [...FEED_STATUSES]
     : [status]
 
-  const { data: produce, error } = await supabase
+  const { data: allProduce, error } = await supabase
     .from('produce_listings')
     .select('*')
     .in('status', wanted)
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // Household buyers only (web feed + Android app): wholesale-only produce is
+  // dropped and "both" loses its wholesale price (src/lib/wholesaleVisibility.ts).
+  const produce = retailRows(allProduce)
   if (!produce?.length) return NextResponse.json([], { headers: { 'Cache-Control': FEED_CACHE } })
 
   const farmerIds = [...new Set(produce.map((p) => p.farmer_id))]

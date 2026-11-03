@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { supabase } from '@/lib/supabase'
+import { readWithSaleMode } from '@/lib/wholesaleVisibility'
 import { installCount } from '@/lib/installCount'
 import HomeLanding from '@/components/home/HomeLanding'
 
@@ -33,13 +34,17 @@ type Shot = { id: string; name: string; image_url: string }
 
 async function farmShots(limit = 6): Promise<Shot[]> {
   try {
-    const { data } = await supabase
-      .from('produce_listings')
-      .select('id, name, image_url')
-      .not('image_url', 'is', null)
-      .in('status', ['available', 'sold_out'])
-      .order('created_at', { ascending: false })
-      .limit(limit)
+    // Household-facing page: no wholesale-only produce in the photos.
+    const { data } = await readWithSaleMode((withMode) => {
+      const q = supabase
+        .from('produce_listings')
+        .select('id, name, image_url')
+        .not('image_url', 'is', null)
+        .in('status', ['available', 'sold_out'])
+      return (withMode ? q.neq('sale_mode', 'wholesale') : q)
+        .order('created_at', { ascending: false })
+        .limit(limit)
+    })
     return ((data ?? []) as Shot[]).filter((r) => !!r.image_url)
   } catch {
     // A marketing page must never 500 because the catalogue hiccuped — the

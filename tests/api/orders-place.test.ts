@@ -28,6 +28,8 @@ const db = {
   orders: [] as Row[],
   // Simulates a database that has not run scripts/self-order-migration.sql.
   missingSelfOrderColumn: false,
+  // Simulates a database that has not run scripts/wholesale-migration.sql.
+  missingSaleModeColumn: false,
   insertAttempts: [] as Row[][],
 }
 
@@ -51,6 +53,7 @@ function resetDb() {
   ]
   db.orders = []
   db.missingSelfOrderColumn = false
+  db.missingSaleModeColumn = false
   db.insertAttempts = []
 }
 
@@ -67,8 +70,12 @@ function query(table: string) {
   const filters: Array<(r: Row) => boolean> = []
   let insertRows: Row[] | null = null
   let single: 'maybe' | 'one' | null = null
+  let selectCols = ''
 
   const run = () => {
+    if (db.missingSaleModeColumn && table === 'produce_listings' && selectCols.includes('sale_mode')) {
+      return { data: null, error: { message: 'column produce_listings.sale_mode does not exist' } }
+    }
     if (table === 'platform_settings') {
       // No fee, no deposit, launch delivery defaults — the plain checkout.
       return { data: { fee_percent: 0, cod_deposit_percent: 0, delivery_base_fee: 30, delivery_extra_fee: 15 }, error: null }
@@ -88,7 +95,7 @@ function query(table: string) {
   }
 
   const b: Record<string, unknown> = {
-    select: () => b,
+    select: (cols?: string) => { selectCols = cols ?? ''; return b },
     order: () => b,
     limit: () => b,
     eq: (col: string, v: unknown) => { filters.push((r) => r[col] === v); return b },
@@ -128,6 +135,12 @@ vi.mock('@/lib/session', async (importOriginal) => ({
   getConsumerSessionFromRequest: () => (sessionConsumerId ? { consumerId: sessionConsumerId } : null),
 }))
 vi.mock('@/lib/orderNotify', () => ({ notifyOrdersPlaced: vi.fn() }))
+// The wholesale low-stock check runs in after(), which needs a real request
+// scope; here we only check the route hands it the right claims.
+const scheduleWholesaleLowStockCheck = vi.fn()
+vi.mock('@/lib/wholesaleLowStockAlert', () => ({
+  scheduleWholesaleLowStockCheck: (...a: unknown[]) => scheduleWholesaleLowStockCheck(...a),
+}))
 
 const { POST } = await import('@/app/api/orders/place/route')
 
@@ -296,5 +309,179 @@ describe('ordinary buyer orders are unchanged', () => {
     const res = await place(order({ deliveryType: 'home_delivery', deliveryAddress: 'short' }))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toMatch(/too short/)
+  })
+})
+
+describe('wholesale — the household checkout', () => {
+  beforeEach(() => scheduleWholesaleLowStockCheck.mockClear())
+
+  it('refuses wholesale-only produce, takes no stock and writes nothing', async () => {
+    db.listings[0].sale_mode = 'wholesale'
+    const res = await place(order())
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/no longer available/)
+    expect(db.orders).toHaveLength(0)
+    expect(db.listings[0].stock_qty).toBe(10)
+    expect(scheduleWholesaleLowStockCheck).not.toHaveBeenCalled()
+  })
+
+  it('sells a "both" produce at its retail price', async () => {
+    Object.assign(db.listings[0], { sale_mode: 'both', wholesale_price: 25, wholesale_min_qty: 5 })
+    const res = await place(order())
+    expect(res.status).toBe(200)
+    expect(db.orders[0]).toMatchObject({ quantity: 2, total_price: 80 }) // 2 × ₹40 retail, not ₹25
+    expect(db.listings[0].stock_qty).toBe(8)
+  })
+
+  it('hands the stock it took to the wholesale low-stock check', async () => {
+    Object.assign(db.listings[0], { sale_mode: 'both' })
+    await place(order())
+    expect(scheduleWholesaleLowStockCheck).toHaveBeenCalledTimes(1)
+    expect(scheduleWholesaleLowStockCheck.mock.calls[0][1]).toEqual([{ listingId: LISTING_ID, harvestId: null, qty: 2 }])
+  })
+
+  it('a refused order never reaches the low-stock check', async () => {
+    db.listings[0].stock_qty = 1 // asks for 2
+    const res = await place(order())
+    expect(res.status).toBe(400)
+    expect(scheduleWholesaleLowStockCheck).not.toHaveBeenCalled()
+  })
+
+  it('works on a database without the wholesale columns (retries without sale_mode)', async () => {
+    db.missingSaleModeColumn = true
+    const res = await place(order())
+    expect(res.status).toBe(200)
+    expect(db.orders).toHaveLength(1)
+  })
+
+  it('a pre-migration row with no sale_mode is retail', async () => {
+    const res = await place(order())
+    expect(res.status).toBe(200)
+  })
+})
+
+describe('wholesale — buying with the "Buy wholesale" toggle', () => {
+  const WS = { sale_mode: 'both', wholesale_price: 30, wholesale_min_qty: 4, wholesale_pack_size: 2, wholesale_transport_states: ['AP'] }
+  const ADDRESS = { deliveryAddress: '12-3 Main Road, Near Temple', deliveryCity: 'Tadepalligudem', deliveryPincode: '534101' }
+  beforeEach(() => {
+    Object.assign(db.listings[0], WS) // Tomato: retail ₹40, wholesale ₹30, min 4, packs of 2, stock 10
+    scheduleWholesaleLowStockCheck.mockClear()
+  })
+
+  it('a pickup line is priced at the wholesale price and marked wholesale', async () => {
+    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 6, wholesale: true, deliveryType: 'self_pickup' }] }))
+    expect(res.status).toBe(200)
+    expect(db.orders[0]).toMatchObject({ quantity: 6, total_price: 180, order_type: 'wholesale', delivery_type: 'self_pickup', delivery_fee: 0 })
+    expect(db.listings[0].stock_qty).toBe(4) // shared stock
+  })
+
+  it('retail and wholesale lines of the same produce in one cart', async () => {
+    const res = await place(order({ items: [
+      { listingId: LISTING_ID, qty: 1 },
+      { listingId: LISTING_ID, qty: 4, wholesale: true },
+    ] }))
+    expect(res.status).toBe(200)
+    expect(db.orders.map((o) => [o.order_type, o.total_price])).toEqual([['retail', 40], ['wholesale', 120]])
+    expect(db.listings[0].stock_qty).toBe(5)
+  })
+
+  it('a retail-only cart never names order_type (works before the migration)', async () => {
+    const res = await place(order())
+    expect(res.status).toBe(200)
+    expect(db.orders[0]).not.toHaveProperty('order_type')
+  })
+
+  it('delivery + the farmer transports → farmer delivery, no app delivery charge', async () => {
+    const res = await place(order({ ...ADDRESS, deliveryType: 'home_delivery', items: [{ listingId: LISTING_ID, qty: 4, wholesale: true, deliveryType: 'home_delivery' }] }))
+    expect(res.status).toBe(200)
+    expect(db.orders[0]).toMatchObject({ delivery_type: 'courier', delivery_fee: 0, delivery_status: null, delivery_pincode: '534101' })
+    expect((await res.json()).deliveryFee).toBe(0)
+  })
+
+  it('farmer delivery still needs the address', async () => {
+    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 4, wholesale: true, deliveryType: 'home_delivery' }] }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/delivery address/)
+    expect(db.listings[0].stock_qty).toBe(10)
+  })
+
+  it('delivery asked but the farmer does not transport → refused', async () => {
+    db.listings[0].wholesale_transport_states = []
+    const res = await place(order({ ...ADDRESS, items: [{ listingId: LISTING_ID, qty: 4, wholesale: true, deliveryType: 'home_delivery' }] }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/pickup only/)
+    expect(db.orders).toHaveLength(0)
+  })
+
+  it.each([
+    ['below the minimum', 2, /at least 4 kg/],
+    ['not whole packs', 5, /packs of 2 kg/],
+  ])('%s → refused, no stock taken', async (_n, qty, msg) => {
+    const res = await place(order({ items: [{ listingId: LISTING_ID, qty, wholesale: true }] }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(msg)
+    expect(db.listings[0].stock_qty).toBe(10)
+  })
+
+  it('a produce that is Retail now → refused', async () => {
+    db.listings[0].sale_mode = 'retail'
+    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 4, wholesale: true }] }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/not sold wholesale any more/)
+  })
+
+  it('wholesale-only produce stays hidden from every buyer → refused', async () => {
+    db.listings[0].sale_mode = 'wholesale'
+    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 4, wholesale: true }] }))
+    expect(res.status).toBe(400)
+    expect(db.orders).toHaveLength(0)
+  })
+
+  it('on a database without the wholesale columns → refused, retail still works', async () => {
+    db.missingSaleModeColumn = true
+    for (const k of Object.keys(WS)) delete db.listings[0][k] // the row has no such columns there
+    const ws = await place(order({ items: [{ listingId: LISTING_ID, qty: 4, wholesale: true }] }))
+    expect(ws.status).toBe(400)
+    const retail = await place(order())
+    expect(retail.status).toBe(200)
+  })
+
+  it('not enough stock → refused, never turned into a pre-order', async () => {
+    db.listings[0].stock_qty = 3
+    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 4, wholesale: true, preorder: true }] }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/sold out/)
+    expect(db.orders).toHaveLength(0)
+  })
+
+  it('the cart cannot set the price', async () => {
+    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 4, wholesale: true, price: 1, pricePerKg: 1 }] }))
+    expect(res.status).toBe(200)
+    expect(db.orders[0].total_price).toBe(120)
+  })
+
+  it('a wholesale order also goes to the low-stock check', async () => {
+    await place(order({ items: [{ listingId: LISTING_ID, qty: 4, wholesale: true }] }))
+    expect(scheduleWholesaleLowStockCheck.mock.calls[0][1]).toEqual([{ listingId: LISTING_ID, harvestId: null, qty: 4 }])
+  })
+
+  it('"courier" on a RETAIL line is not honoured per line (falls back as before)', async () => {
+    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 2, deliveryType: 'courier' }] }))
+    expect(res.status).toBe(200)
+    expect(db.orders[0].delivery_type).toBe('self_pickup') // request-level fallback
+  })
+})
+
+describe('two lines on one produce (regression)', () => {
+  it('two harvests of the same produce in one cart are not refused', async () => {
+    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 1 }, { listingId: LISTING_ID, qty: 2 }] }))
+    expect(res.status).toBe(200)
+    expect(db.orders).toHaveLength(2)
+    expect(db.listings[0].stock_qty).toBe(7)
+  })
+  it('a really missing produce is still refused', async () => {
+    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 1 }, { listingId: '99999999-9999-4999-8999-999999999999', qty: 1 }] }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/no longer available/)
   })
 })

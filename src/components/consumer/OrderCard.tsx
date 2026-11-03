@@ -1,5 +1,6 @@
 'use client'
 
+import WholesaleOrderBadge from '@/components/WholesaleOrderBadge'
 import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName, localizeUnit } from '@/lib/localizeName'
@@ -12,6 +13,8 @@ type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_deliver
 
 export type ConsumerOrder = {
   id: string
+  // 'wholesale' for a "Buy wholesale" line (src/lib/orderType.ts); absent = retail.
+  order_type?: 'retail' | 'wholesale' | null
   order_code: string | null
   produce_name: string | null
   produce_listing_id?: string | null
@@ -221,6 +224,7 @@ export default function OrderCard({
               <p className="font-extrabold text-gray-900 text-sm leading-tight">
                 {localizeName(order.produce_name, lang) || '—'}
               </p>
+              <WholesaleOrderBadge order={order} audience="buyer" />
               {order.order_code && (
                 <p className="text-[11px] font-mono font-semibold text-gray-400 mt-0.5">
                   {order.order_code}

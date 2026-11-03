@@ -117,6 +117,7 @@ export default function ListingForm({
   fixedFarmerName,
   initialWholesale = EMPTY_WHOLESALE_FORM,
   wholesaleReady = false,
+  lowStock = null,
 }: {
   mode: 'create' | 'edit'
   zone: string
@@ -130,6 +131,8 @@ export default function ListingForm({
   initialWholesale?: WholesaleForm
   /** The loaded row has the wholesale columns (migration has run). */
   wholesaleReady?: boolean
+  /** Wholesale hidden because stock is below the minimum (edit only). */
+  lowStock?: { left: number; min: number } | null
 }) {
   const router = useRouter()
 
@@ -462,7 +465,13 @@ export default function ListingForm({
       </div>
 
       {/* Retail / Wholesale / Both — wholesale details open only when needed */}
-      <div className="border-t border-gray-100 pt-4 max-w-md">
+      <div className="border-t border-gray-100 pt-4 max-w-md space-y-3">
+        {lowStock && (
+          <p role="alert" className="text-xs text-amber-900 bg-amber-50 border-2 border-amber-300 rounded-xl px-3 py-2 font-semibold leading-snug">
+            🚚 Wholesale is hidden: only {lowStock.left} {form.unit} left, below the minimum of {lowStock.min} {form.unit}.
+            Lower the minimum below, switch to Retail, or add stock under Harvest timings. The farmer sees the same alert.
+          </p>
+        )}
         <WholesaleFields value={wholesale} onChange={setWholesale} unit={form.unit} L={EN} />
       </div>
 

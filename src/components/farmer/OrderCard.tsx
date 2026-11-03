@@ -1,5 +1,6 @@
 'use client'
 
+import WholesaleOrderBadge from '@/components/WholesaleOrderBadge'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useLang } from '@/lib/LanguageContext'
@@ -92,6 +93,8 @@ export type FarmerOrder = {
   is_preorder?: boolean | null
   // The farmer ordered this from themselves (src/lib/selfOrder.ts).
   is_self_order?: boolean | null
+  // 'wholesale' for a "Buy wholesale" line (src/lib/orderType.ts); absent = retail.
+  order_type?: 'retail' | 'wholesale' | null
   preorder_expected_date?: string | null
   // The farmer closed it with "Mark as resolved" instead of the buyer's code
   // (src/lib/farmerResolve.ts). The closing column is stamped as well.
@@ -299,6 +302,7 @@ export default function OrderCard({
               <span className="font-semibold text-gray-800">{order.produce_name || '—'}</span>
               {order.is_preorder && <PreorderBadge expectedDate={order.preorder_expected_date} />}
               {order.is_self_order && <SelfOrderBadge />}
+              <WholesaleOrderBadge order={order} audience="farmer" />
               <span className="text-gray-300">·</span>
               <span className="text-gray-600">{formatQty(order.quantity)} {order.unit || 'kg'}</span>
               {order.total_price != null && order.total_price > 0 && (
@@ -380,6 +384,7 @@ export default function OrderCard({
             <span className="font-semibold text-gray-800">{order.produce_name || '—'}</span>
             {order.is_preorder && <PreorderBadge expectedDate={order.preorder_expected_date} />}
             {order.is_self_order && <SelfOrderBadge />}
+              <WholesaleOrderBadge order={order} audience="farmer" />
             <span className="text-gray-300">·</span>
             <span className="text-gray-600">{formatQty(order.quantity)} {order.unit || 'kg'}</span>
             {order.total_price != null && order.total_price > 0 && (

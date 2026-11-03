@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { readWithSaleMode, retailOnly } from '@/lib/wholesaleVisibility'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
 import {
@@ -77,12 +78,16 @@ export default function ShareProduceButton({
     if (busy) return
     setBusy(true)
     try {
-      const { data: listings } = await supabase
-        .from('produce_listings')
-        .select('id, name, emoji, status, price_tier_1_price, unit, stock_qty, sale_step, image_url')
-        .eq('farmer_id', farmer.id)
-        .order('created_at', { ascending: false })
-      const rows = (listings ?? []) as ShareListing[]
+      const cols = 'id, name, emoji, status, price_tier_1_price, unit, stock_qty, sale_step, image_url'
+      const { data: listings } = await readWithSaleMode((withMode) =>
+        supabase
+          .from('produce_listings')
+          .select(withMode ? `${cols}, sale_mode` : cols)
+          .eq('farmer_id', farmer.id)
+          .order('created_at', { ascending: false }))
+      // The catalogue images go to household buyers on WhatsApp: wholesale-only
+      // produce is never on them (a "both" one shows its retail price).
+      const rows = retailOnly((listings ?? []) as unknown as Array<ShareListing & { sale_mode?: unknown }>) as ShareListing[]
 
       // Harvests are the stock authority once logged — same read as the
       // public Produce tab, so the image never offers what the page won't sell.

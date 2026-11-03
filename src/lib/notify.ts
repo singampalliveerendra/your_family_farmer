@@ -29,6 +29,9 @@ export const TEMPLATES = {
   order_rescheduled: 'yff_order_rescheduled',
   order_delivered: 'yff_order_delivered',
   farmer_order_cancelled: 'yff_farmer_order_cancelled',
+  // Wholesale stock fell below the farmer's minimum (src/lib/wholesaleLowStockAlert.ts).
+  // Sent only when WHOLESALE_LOW_STOCK_WHATSAPP=1 — the template must be approved first.
+  farmer_wholesale_low_stock: 'yff_wholesale_low_stock',
 } as const
 
 export type NotifyEvent = keyof typeof TEMPLATES

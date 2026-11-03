@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { notifyOrdersPlaced } from '@/lib/orderNotify'
+import { alertWholesaleLowStock } from '@/lib/wholesaleLowStockAlert'
 
 // Record a confirmed Cashfree payment on every order row of its cart. Shared by
 // /verify (browser), the webhook, and the reconcile cron, which can race each
@@ -72,7 +73,14 @@ export async function reviveAbandonedOrders(
       }
     }
   }
-  if (revived.length) console.warn('[YFF cashfree-settle] revived abandoned orders after late payment:', cashfreeOrderId, revived)
+  if (revived.length) {
+    console.warn('[YFF cashfree-settle] revived abandoned orders after late payment:', cashfreeOrderId, revived)
+    // The stock just taken back can push a wholesale produce below its minimum.
+    const claims = ((rows ?? []) as RevivableRow[])
+      .filter((r) => revived.includes(r.id) && r.produce_listing_id && r.quantity != null && r.quantity > 0)
+      .map((r) => ({ listingId: r.produce_listing_id as string, harvestId: r.harvest_id, qty: r.quantity as number }))
+    await alertWholesaleLowStock(supabase, claims)
+  }
   return revived
 }
 

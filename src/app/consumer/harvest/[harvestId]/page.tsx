@@ -9,8 +9,11 @@ import { methodLabel, categoryLabel } from '@/lib/produceLabels'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useCart, CartFab, EditableQty } from '@/components/consumer/Cart'
+import { WholesaleSwitch, WholesaleBuyBar } from '@/components/consumer/WholesaleBuy'
+import { canBuyWholesale, wholesaleCartKey, wholesaleLineOf, wholesaleQtyRules } from '@/lib/wholesaleOrder'
 import { BOTTOM_NAV_OFFSET } from '@/lib/bottomNav'
 import { supabase } from '@/lib/supabase'
+import { isRetailVisible } from '@/lib/wholesaleVisibility'
 import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
 import { formatHarvestDate, nextHarvestDate } from '@/lib/harvestSchedule'
 import PreorderConfirm from '@/components/consumer/PreorderConfirm'
@@ -76,6 +79,12 @@ type Listing = {
   price_tier_1_qty?: number | null
   /** Smallest sellable quantity, in this listing's unit. Null/absent = 1. */
   sale_step?: number | null
+  // Wholesale (scripts/wholesale-migration.sql) — absent before it runs.
+  sale_mode?: string | null
+  wholesale_price?: number | null
+  wholesale_min_qty?: number | null
+  wholesale_pack_size?: number | null
+  wholesale_transport_states?: string[] | null
   delivery_mode?: string | null
   price_tier_1_price?: number | null
   price_tier_2_qty?: number | null
@@ -118,6 +127,8 @@ export default function HarvestDetailPage() {
   // Open while the buyer decides whether to wait for the next harvest.
   const [askPreorder, setAskPreorder] = useState(false)
   const [adding, setAdding] = useState(false)
+  // Retail | Buy wholesale switch (only shown for produce sold as Both).
+  const [buyWholesale, setBuyWholesale] = useState(false)
   const [showReviews, setShowReviews] = useState(false)
 
   // Swipe gallery
@@ -153,7 +164,8 @@ export default function HarvestDetailPage() {
     // harvest carries its own stock_qty — a farmer can be out of the former
     // while this pick still has kilos left. The CTA below reads liveStock, so
     // an actually-empty harvest still shows "Out of stock".
-    if (!l || !CONSUMER_VISIBLE_STATUSES.includes((l as Listing).status as 'available')) {
+    // Wholesale-only produce is not for household buyers (wholesaleVisibility.ts).
+    if (!l || !isRetailVisible(l) || !CONSUMER_VISIBLE_STATUSES.includes((l as Listing).status as 'available')) {
       setNotFound(true); setLoading(false); return
     }
     setItem(l as Listing)
@@ -205,6 +217,15 @@ export default function HarvestDetailPage() {
   const sourceFarmer = harvest.source_farmer ?? null
   const canAdd = !!farmer && !!farmer.phone
   const inCart = cart[harvest.id]
+  // "Buy wholesale" from THIS harvest's stock (one order = one harvest), so a
+  // pick with less than the minimum can't be bought wholesale — the same rule
+  // that hides it (src/lib/wholesaleOrder.ts, wholesaleVisibility.ts).
+  const wsLine = wholesaleLineOf(item)
+  const wsRules = wsLine ? wholesaleQtyRules(wsLine, item.sale_step, item.unit) : null
+  const wsAvailable = !!wsLine && canBuyWholesale(item, liveStock)
+  const wsKey = wholesaleCartKey(harvest.id)
+  const inCartWs = cart[wsKey]
+  const showWholesale = !!wsLine && buyWholesale
   // This PICK is spent. The produce is not: the farmer harvests it again, so the
   // page offers to wait for that instead of dead-ending on "Out of stock".
   const isOutOfStock = liveStock !== null && liveStock <= 0
@@ -264,6 +285,41 @@ export default function HarvestDetailPage() {
       priceTier2Qty: item.price_tier_2_qty ?? undefined,
       priceTier2Price: item.price_tier_2_price ?? undefined,
       priceTier3Price: item.price_tier_3_price ?? undefined,
+      farmerId: farmer.id,
+      farmerName: farmer.name,
+      farmerPhone: farmer.phone,
+      farmerVillage: farmer.village,
+      farmerSlug: farmer.slug,
+      farmerPickupLocations: farmer.pickup_locations ?? [],
+      farmerPickupSlots: normalizePickupSchedule(farmer.pickup_slots, farmer.pickup_locations ?? []),
+      farmerPickupPhones: normalizePickupPhones(farmer.pickup_location_phones, farmer.pickup_locations ?? []),
+    })
+  }
+
+  const doAddWholesale = async () => {
+    if (!farmer || !wsLine) return
+    setAdding(true); setStockMsg('')
+    const { data } = await supabase.from('harvests').select('stock_qty').eq('id', harvest.id).single()
+    const fresh = data?.stock_qty ?? null
+    if (fresh !== null) setLiveStock(fresh)
+    setAdding(false)
+    if (!canBuyWholesale(item, fresh)) {
+      setStockMsg(L('Not enough stock for wholesale right now.', 'ప్రస్తుతం హోల్‌సేల్‌కు సరిపడా స్టాక్ లేదు.'))
+      return
+    }
+    addItem({
+      listingId: item.id,
+      harvestId: harvest.id,
+      harvestedAt: harvest.harvested_at,
+      shelfLifeDays: harvestShelf ?? undefined,
+      name: item.name,
+      variety: item.variety ?? undefined,
+      emoji: item.emoji ?? undefined,
+      unit,
+      stockQty: fresh ?? undefined,
+      saleStep: item.sale_step ?? undefined,
+      wholesale: wsLine,
+      pricePerKg: wsLine.price,
       farmerId: farmer.id,
       farmerName: farmer.name,
       farmerPhone: farmer.phone,
@@ -411,7 +467,21 @@ export default function HarvestDetailPage() {
             </p>
           )}
 
-          {tiers.length > 1 && (
+          {wsLine && wsRules && (
+            <div className="mt-3 border-t border-gray-100 pt-3">
+              <WholesaleSwitch
+                line={wsLine}
+                rules={wsRules}
+                wholesale={buyWholesale}
+                onChange={(w) => { setBuyWholesale(w); setStockMsg('') }}
+                available={wsAvailable}
+                unitLabel={unitLabel}
+                L={L}
+              />
+            </div>
+          )}
+
+          {tiers.length > 1 && !showWholesale && (
             <div className="mt-3 border-t border-gray-100 pt-3">
               <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide mb-1.5">{L('Buy more, save more', 'ఎక్కువ కొంటే తక్కువ ధర')}</p>
               <div className="flex flex-wrap gap-2">
@@ -553,6 +623,19 @@ export default function HarvestDetailPage() {
           <Link href={farmerHref} className="flex items-center justify-center w-full h-12 bg-green-800 text-white font-bold rounded-xl">
             {L('View farmer', 'రైతును చూడండి')}
           </Link>
+        ) : showWholesale && wsLine && wsRules ? (
+          <WholesaleBuyBar
+            line={wsLine}
+            rules={wsRules}
+            qty={inCartWs?.qty}
+            stock={liveStock}
+            available={wsAvailable}
+            busy={adding}
+            unitLabel={unitLabel}
+            onAdd={() => requireAuth(() => { void doAddWholesale() })}
+            onSet={(n) => { setQty(wsKey, n); setStockMsg('') }}
+            L={L}
+          />
         ) : !inCart ? (
           <button
             onClick={() => requireAuth(() => {
