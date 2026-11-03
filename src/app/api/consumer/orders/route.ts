@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
 import { attachFarmerResolved } from '@/lib/farmerResolve'
+import { attachOrderType } from '@/lib/orderType'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -94,5 +95,6 @@ export async function GET(req: NextRequest) {
     }
   })
   // Whether the farmer closed it without the buyer's code (tolerant extra read).
-  return NextResponse.json({ orders: await attachFarmerResolved(supabase, enriched) })
+  // Retail or wholesale (tolerant extra read, src/lib/orderType.ts).
+  return NextResponse.json({ orders: await attachOrderType(supabase, await attachFarmerResolved(supabase, enriched)) })
 }

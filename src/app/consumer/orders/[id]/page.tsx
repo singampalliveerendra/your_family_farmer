@@ -1,5 +1,6 @@
 'use client'
 
+import WholesaleOrderBadge from '@/components/WholesaleOrderBadge'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
@@ -73,6 +74,8 @@ type Order = {
   // The farmer closed it ("Mark as resolved") because no handover code was
   // given — the closing column is stamped too (src/lib/farmerResolve.ts).
   farmer_resolved_at?: string | null
+  // 'wholesale' for a "Buy wholesale" line (src/lib/orderType.ts).
+  order_type?: 'retail' | 'wholesale' | null
   fulfillment_date?: string | null
   // Reason the farmer gave when they moved the pickup/delivery date after
   // approving — shown to the buyer so a date change is never silent.
@@ -333,6 +336,7 @@ export default function OrderDetailsPage() {
                     {formatQty(order.quantity)} {order.unit || 'kg'}
                     {order.total_price ? ` · ₹${order.total_price}` : ''}
                   </p>
+                  <div className="mt-1.5"><WholesaleOrderBadge order={order} audience="buyer" note /></div>
                 </div>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${statusColor(order.status)}`}>
                   {statusLabel(order.status)}

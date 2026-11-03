@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation'
 import ModeratorShell, { useModeratorAuth } from '../../../ModeratorShell'
 import ListingForm, { type ListingFormValues, EMPTY_LISTING_FORM } from '../../ListingForm'
 import { wholesaleFormFromRow, type WholesaleForm } from '@/lib/wholesale'
+import { supabase } from '@/lib/supabase'
+import { isWholesaleLowStock, wholesaleStock, type StockHarvest } from '@/lib/wholesaleVisibility'
 
 // Prefill state pulled from the listing, passed straight into ListingForm.
 type Loaded = {
@@ -15,6 +17,8 @@ type Loaded = {
   images: string[]
   wholesale: WholesaleForm
   wholesaleReady: boolean
+  /** Set when the wholesale side is hidden for low stock (same rule as the farmer's alert). */
+  lowStock: { left: number; min: number } | null
 }
 
 const numStr = (v: number | null | undefined) => (v == null ? '' : String(v))
@@ -45,6 +49,10 @@ export default function EditListingPage() {
     const urls = Array.isArray(l.image_urls) ? (l.image_urls as unknown[]).filter((u): u is string => typeof u === 'string' && !!u) : []
     const cover = typeof l.image_url === 'string' ? l.image_url : ''
     const images = urls.length ? urls : (cover ? [cover] : [])
+    // Unpaused harvests decide wholesale stock (src/lib/wholesaleVisibility.ts).
+    const { data: hv } = await supabase.from('harvests').select('id, stock_qty').eq('produce_listing_id', id).eq('paused', false)
+    const harvests = (hv ?? []) as StockHarvest[]
+    const low = isWholesaleLowStock(l, harvests)
     setLoaded({
       form: {
         ...EMPTY_LISTING_FORM,
@@ -83,6 +91,7 @@ export default function EditListingPage() {
       images,
       wholesale: wholesaleFormFromRow(l),
       wholesaleReady: 'sale_mode' in l,
+      lowStock: low ? { left: wholesaleStock(l, harvests) ?? 0, min: Number(l.wholesale_min_qty) } : null,
     })
   }, [id])
 
@@ -114,6 +123,7 @@ export default function EditListingPage() {
           fixedFarmerName={loaded.farmerName}
           initialWholesale={loaded.wholesale}
           wholesaleReady={loaded.wholesaleReady}
+          lowStock={loaded.lowStock}
         />
       )}
     </ModeratorShell>

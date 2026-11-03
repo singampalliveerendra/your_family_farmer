@@ -9,7 +9,12 @@ import { methodLabel, categoryLabel } from '@/lib/produceLabels'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useCart, CartFab, EditableQty } from '@/components/consumer/Cart'
+import { WholesaleSwitch, WholesaleBuyBar } from '@/components/consumer/WholesaleBuy'
+import { canBuyWholesale, wholesaleCartKey, wholesaleLineOf, wholesaleQtyRules } from '@/lib/wholesaleOrder'
+import { isWholesaleLowStock } from '@/lib/wholesaleVisibility'
+import { BOTTOM_NAV_OFFSET } from '@/lib/bottomNav'
 import { supabase } from '@/lib/supabase'
+import { isRetailVisible } from '@/lib/wholesaleVisibility'
 import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
 import { isSoldOutWithHarvests } from '@/lib/produceStatus'
 import { formatHarvestDate, nextHarvestDate } from '@/lib/harvestSchedule'
@@ -20,7 +25,10 @@ import { harvestClock } from '@/lib/harvest'
 import { normalizeUrl, linkHost } from '@/lib/links'
 import ProduceReviewsModal from '@/components/consumer/ProduceReviewsModal'
 import ShareButton from '@/components/consumer/ShareButton'
+import { coverImageUrl } from '@/lib/productShare'
 import { growerLine } from '@/lib/source-farmers'
+import { canDeliver, normalizeDeliveryMode } from '@/lib/fulfillment'
+import BackButton from '@/components/BackButton'
 
 type Farmer = {
   id: string
@@ -64,6 +72,13 @@ type Listing = {
   price_tier_1_qty?: number | null
   /** Smallest sellable quantity, in this listing's unit. Null/absent = 1. */
   sale_step?: number | null
+  // Wholesale (scripts/wholesale-migration.sql) — absent before it runs.
+  sale_mode?: string | null
+  wholesale_price?: number | null
+  wholesale_min_qty?: number | null
+  wholesale_pack_size?: number | null
+  wholesale_transport_states?: string[] | null
+  delivery_mode?: string | null
   price_tier_1_price?: number | null
   price_tier_2_qty?: number | null
   price_tier_2_price?: number | null
@@ -111,6 +126,8 @@ export default function ProduceDetailPage() {
   const [liveStock, setLiveStock] = useState<number | null>(null)
   const [stockMsg, setStockMsg] = useState('')
   const [adding, setAdding] = useState(false)
+  // Retail | Buy wholesale switch (only shown for produce sold as Both).
+  const [buyWholesale, setBuyWholesale] = useState(false)
   const [showReviews, setShowReviews] = useState(false)
   // Latest harvest for this produce — powers the "Harvested 2 hours ago" clock.
   const [latestHarvest, setLatestHarvest] = useState<{ at: string; shelf: number | null } | null>(null)
@@ -160,7 +177,9 @@ export default function ProduceDetailPage() {
           .order('harvested_at', { ascending: false }),
       ).catch(() => ({ data: null })),
     ])
-    if (!lf) { setNotFound(true); setLoading(false); return }
+    // Wholesale-only produce is not for household buyers: a direct or shared
+    // link to it reads exactly like a produce that no longer exists.
+    if (!lf || !isRetailVisible(lf)) { setNotFound(true); setLoading(false); return }
     const { farmer: f, ...l } = lf as Listing & { farmer: Farmer | null }
     setItem(l as Listing)
     setLiveStock((l as Listing).stock_qty ?? null)
@@ -235,6 +254,15 @@ export default function ProduceDetailPage() {
   const farmerHref = farmer ? `/farmer/${farmer.slug}` : '#'
   const canAdd = !!farmer && !!farmer.phone
   const inCart = cart[item.id]
+  // "Buy wholesale" — only on a produce sold as Both (src/lib/wholesaleOrder.ts).
+  // This page sells the produce itself (no harvest), so its own stock is what a
+  // wholesale line claims; the harvest-based low-stock rule hides it too.
+  const wsLine = wholesaleLineOf(item)
+  const wsRules = wsLine ? wholesaleQtyRules(wsLine, item.sale_step, item.unit) : null
+  const wsAvailable = !!wsLine && canBuyWholesale(item, liveStock) && !isWholesaleLowStock(item, harvestStocks)
+  const wsKey = wholesaleCartKey(item.id)
+  const inCartWs = cart[wsKey]
+  const showWholesale = !!wsLine && buyWholesale
   // Status counts alongside the number: this page can be reached for a produce
   // whose stock_qty is null but that the auto-flip already marked 'sold_out'.
   // And where the produce has logged picks, those outrank the template's number
@@ -257,6 +285,38 @@ export default function ProduceDetailPage() {
   // maximum" and refuse to go up from one step.
   const stockCap = inCart?.preorder === true ? null : liveStock
   const atMax = stockCap !== null && inCart != null && inCart.qty >= stockCap
+
+  const doAddWholesale = async () => {
+    if (!farmer || !wsLine) return
+    setAdding(true); setStockMsg('')
+    const { data } = await supabase.from('produce_listings').select('stock_qty').eq('id', item.id).single()
+    const fresh = data?.stock_qty ?? null
+    if (fresh !== null) setLiveStock(fresh)
+    setAdding(false)
+    if (!canBuyWholesale(item, fresh)) {
+      setStockMsg(L('Not enough stock for wholesale right now.', 'ప్రస్తుతం హోల్‌సేల్‌కు సరిపడా స్టాక్ లేదు.'))
+      return
+    }
+    addItem({
+      listingId: item.id,
+      name: item.name,
+      variety: item.variety ?? undefined,
+      emoji: item.emoji ?? undefined,
+      unit,
+      stockQty: fresh ?? undefined,
+      saleStep: item.sale_step ?? undefined,
+      wholesale: wsLine,
+      pricePerKg: wsLine.price,
+      farmerId: farmer.id,
+      farmerName: farmer.name,
+      farmerPhone: farmer.phone,
+      farmerVillage: farmer.village,
+      farmerSlug: farmer.slug,
+      farmerPickupLocations: farmer.pickup_locations ?? [],
+      farmerPickupSlots: normalizePickupSchedule(farmer.pickup_slots, farmer.pickup_locations ?? []),
+      farmerPickupPhones: normalizePickupPhones(farmer.pickup_location_phones, farmer.pickup_locations ?? []),
+    })
+  }
 
   const doAdd = async (preorder = false) => {
     if (!farmer) return
@@ -322,13 +382,11 @@ export default function ProduceDetailPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 pb-28">
+    <main className="min-h-screen bg-gray-50 pb-32">
       {/* Header bar */}
       <div className="sticky top-0 z-40 bg-green-900">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
-          <Link href="/consumer" className="text-green-200 text-sm font-semibold flex items-center gap-1">
-            {L('← Back', '← తిరిగి')}
-          </Link>
+          <BackButton fallback="/consumer" className="!text-green-200" />
           <div className="flex items-center gap-4">
             <ShareButton
               variant="pill"
@@ -342,6 +400,7 @@ export default function ProduceDetailPage() {
                 unit: item.unit,
                 farmerName: farmer?.name,
                 farmerVillage: farmer?.village,
+                imageUrl: coverImageUrl(item),
               }}
             />
             <LanguageToggle />
@@ -387,6 +446,13 @@ export default function ProduceDetailPage() {
         <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
           <h1 className="text-xl font-extrabold text-gray-900 leading-tight">{localizeName(item.name, lang)}</h1>
           {item.variety && <p className="text-sm text-gray-500 mt-0.5">{localizeName(item.variety, lang)}</p>}
+
+          {/* Farmer doesn't deliver this one — said here, not first in the cart. */}
+          {!canDeliver(normalizeDeliveryMode(item.delivery_mode)) && (
+            <p className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-gray-700 bg-gray-100 rounded-full px-2.5 py-1">
+              🚶 {L('Pickup only — the farmer doesn’t deliver this', 'పికప్ మాత్రమే — రైతు దీన్ని డెలివరీ చేయరు')}
+            </p>
+          )}
 
           {/* Harvest clock — "Harvested 2 hours ago", from the latest harvest. */}
           {latestHarvest && (
@@ -434,7 +500,21 @@ export default function ProduceDetailPage() {
             </p>
           )}
 
-          {tiers.length > 1 && (
+          {wsLine && wsRules && (
+            <div className="mt-3 border-t border-gray-100 pt-3">
+              <WholesaleSwitch
+                line={wsLine}
+                rules={wsRules}
+                wholesale={buyWholesale}
+                onChange={(w) => { setBuyWholesale(w); setStockMsg('') }}
+                available={wsAvailable}
+                unitLabel={unitLabel}
+                L={L}
+              />
+            </div>
+          )}
+
+          {tiers.length > 1 && !showWholesale && (
             <div className="mt-3 border-t border-gray-100 pt-3">
               <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide mb-1.5">{L('Buy more, save more', 'ఎక్కువ కొంటే తక్కువ ధర')}</p>
               <div className="flex flex-wrap gap-2">
@@ -573,8 +653,10 @@ export default function ProduceDetailPage() {
       </div>
       </div>
 
-      {/* Sticky add-to-cart bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 px-4 py-3 max-w-lg mx-auto">
+      {/* Sticky add-to-cart bar, stacked on the bottom menu. The extra bottom
+          padding is room for the menu's raised cart button, which pokes up
+          into this bar. */}
+      <div className="fixed left-0 right-0 z-30 bg-white border-t border-gray-200 px-4 pt-3 pb-8 max-w-lg mx-auto" style={{ bottom: BOTTOM_NAV_OFFSET }}>
         {stockMsg && (
           <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 text-center mb-2">{stockMsg}</p>
         )}
@@ -582,6 +664,19 @@ export default function ProduceDetailPage() {
           <Link href={farmerHref} className="flex items-center justify-center w-full h-12 bg-green-800 text-white font-bold rounded-xl">
             {L('View farmer', 'రైతును చూడండి')}
           </Link>
+        ) : showWholesale && wsLine && wsRules ? (
+          <WholesaleBuyBar
+            line={wsLine}
+            rules={wsRules}
+            qty={inCartWs?.qty}
+            stock={liveStock}
+            available={wsAvailable}
+            busy={adding}
+            unitLabel={unitLabel}
+            onAdd={() => requireAuth(() => { void doAddWholesale() })}
+            onSet={(n) => { setQty(wsKey, n); setStockMsg('') }}
+            L={L}
+          />
         ) : !inCart ? (
           <button
             onClick={() => requireAuth(() => {

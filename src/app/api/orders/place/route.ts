@@ -16,6 +16,9 @@ import { ORDERABLE_STATUSES } from '@/lib/produceStatus'
 import { normalizePickupPhones } from '@/lib/pickup-slots'
 import { rateLimit } from '@/lib/rate-limit'
 import { notifyOrdersPlaced } from '@/lib/orderNotify'
+import { isRetailVisible, readWithSaleMode } from '@/lib/wholesaleVisibility'
+import { scheduleWholesaleLowStockCheck } from '@/lib/wholesaleLowStockAlert'
+import { checkWholesaleLine } from '@/lib/wholesaleOrder'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -30,7 +33,12 @@ type IncomingItem = {
   listingId: string
   harvestId?: string
   qty: number
-  deliveryType?: 'self_pickup' | 'home_delivery'
+  // 'courier' is only honoured on a wholesale line: the farmer transports it.
+  deliveryType?: 'self_pickup' | 'home_delivery' | 'courier'
+  // "Buy wholesale" line (src/lib/wholesaleOrder.ts): priced at the produce's
+  // wholesale price, minimum + pack size enforced below, stamped
+  // order_type='wholesale'. Only a produce sold as Both can be bought this way.
+  wholesale?: boolean
   // The buyer saw "this harvest is finished, the next one is expected <date>"
   // and chose to wait. Consent ONLY — it never creates a pre-order on its own:
   // the stock claim below still runs, and a line that claims successfully is an
@@ -72,6 +80,12 @@ type ListingRow = {
   price_tier_2_qty: number | null
   price_tier_2_price: number | null
   price_tier_3_price: number | null
+  /** Absent on a server without scripts/wholesale-migration.sql (= retail). */
+  sale_mode?: string | null
+  wholesale_price?: number | null
+  wholesale_min_qty?: number | null
+  wholesale_pack_size?: number | null
+  wholesale_transport_states?: string[] | null
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -179,10 +193,18 @@ export async function POST(req: NextRequest) {
     body.deliveryType === 'home_delivery' ? 'home_delivery'
     : body.deliveryType === 'courier' ? 'courier'
     : 'self_pickup'
-  const rowDeliveryTypeOf = (it: IncomingItem): 'self_pickup' | 'home_delivery' | 'courier' =>
+  const retailDeliveryTypeOf = (it: IncomingItem): 'self_pickup' | 'home_delivery' | 'courier' =>
     it.deliveryType === 'home_delivery' ? 'home_delivery'
     : it.deliveryType === 'self_pickup' ? 'self_pickup'
     : bodyDeliveryType
+  // A wholesale line never goes with our rider: any delivery is the farmer's
+  // own transport ('courier', charge agreed with the farmer), and whether the
+  // farmer transports at all is checked per line below. So it never adds the
+  // app delivery charge, but it does need the address.
+  const rowDeliveryTypeOf = (it: IncomingItem): 'self_pickup' | 'home_delivery' | 'courier' =>
+    it.wholesale === true
+      ? (it.deliveryType === 'self_pickup' || it.deliveryType == null ? 'self_pickup' : 'courier')
+      : retailDeliveryTypeOf(it)
   // The address form is required as soon as ANY item ships (home delivery or
   // courier). We validate it once here for the whole batch.
   const anyDelivery = items.some((it) => rowDeliveryTypeOf(it) !== 'self_pickup')
@@ -304,14 +326,22 @@ export async function POST(req: NextRequest) {
 
   // Pull live listing rows — never trust prices from the client cart
   const listingIds = items.map((i) => i.listingId)
-  const { data: listings } = await supabase
-    .from('produce_listings')
-    .select(
-      'id, name, unit, stock_qty, status, farmer_id, sale_step, price_tier_1_qty, price_tier_1_price, price_tier_2_qty, price_tier_2_price, price_tier_3_price',
-    )
-    .in('id', listingIds) as { data: ListingRow[] | null }
+  const LISTING_COLS = 'id, name, unit, stock_qty, status, farmer_id, sale_step, price_tier_1_qty, price_tier_1_price, price_tier_2_qty, price_tier_2_price, price_tier_3_price'
+  const WHOLESALE_COLS = 'sale_mode, wholesale_price, wholesale_min_qty, wholesale_pack_size, wholesale_transport_states'
+  const { data: listings } = await readWithSaleMode((withMode) =>
+    supabase
+      .from('produce_listings')
+      .select(withMode ? `${LISTING_COLS}, ${WHOLESALE_COLS}` : LISTING_COLS)
+      .in('id', listingIds)) as { data: ListingRow[] | null }
 
-  if (!listings || listings.length !== listingIds.length) {
+  // Compared with the UNIQUE ids: two lines can share a produce (two harvests
+  // of it, or a retail and a wholesale line), and .in() returns each row once.
+  if (!listings || listings.length !== new Set(listingIds).size) {
+    return bad('One or more items in your cart are no longer available.')
+  }
+  // This is the household checkout: wholesale-only produce can't be bought
+  // here, even from a cart filled before the farmer switched it to wholesale.
+  if (listings.some((l) => !isRetailVisible(l))) {
     return bad('One or more items in your cart are no longer available.')
   }
 
@@ -408,34 +438,45 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // The step is the farmer's, so it is enforced here and not only in the UI:
-    // a crafted request must not be able to order 0.137 kg of something nobody
-    // can weigh out. Every offered step divides 1 evenly, so quantities from
-    // carts saved before this feature existed are still on the grid.
-    const step = normalizeStep(listing.sale_step, listing.unit)
-    if (snapToStep(item.qty, step) !== roundQty(item.qty)) {
-      return bad(`${listing.name} is sold in multiples of ${formatQty(step)} ${listing.unit || 'kg'}.`)
-    }
+    let linePrice: number
+    let rowDeliveryType: 'self_pickup' | 'home_delivery' | 'courier'
+    if (item.wholesale === true) {
+      // Wholesale: price, minimum, packs and transport all from the live row.
+      const ws = checkWholesaleLine(listing, item.qty, rowDeliveryTypeOf(item))
+      if (!ws.ok) return bad(ws.error)
+      linePrice = ws.linePrice
+      rowDeliveryType = ws.deliveryType
+    } else {
+      // The step is the farmer's, so it is enforced here and not only in the UI:
+      // a crafted request must not be able to order 0.137 kg of something nobody
+      // can weigh out. Every offered step divides 1 evenly, so quantities from
+      // carts saved before this feature existed are still on the grid.
+      const step = normalizeStep(listing.sale_step, listing.unit)
+      if (snapToStep(item.qty, step) !== roundQty(item.qty)) {
+        return bad(`${listing.name} is sold in multiples of ${formatQty(step)} ${listing.unit || 'kg'}.`)
+      }
 
-    const unitPrice = getTierPrice(item.qty, {
-      priceTier1Qty: listing.price_tier_1_qty,
-      priceTier1Price: listing.price_tier_1_price,
-      priceTier2Qty: listing.price_tier_2_qty,
-      priceTier2Price: listing.price_tier_2_price,
-      priceTier3Price: listing.price_tier_3_price,
-    })
+      const unitPrice = getTierPrice(item.qty, {
+        priceTier1Qty: listing.price_tier_1_qty,
+        priceTier1Price: listing.price_tier_1_price,
+        priceTier2Qty: listing.price_tier_2_qty,
+        priceTier2Price: listing.price_tier_2_price,
+        priceTier3Price: listing.price_tier_3_price,
+      })
 
-    const linePrice = unitPrice != null ? Math.round(unitPrice * item.qty) : null
-    if (linePrice == null || linePrice <= 0) {
-      return bad(`Price not set for ${listing.name}. Please ask the farmer.`)
+      const retailPrice = unitPrice != null ? Math.round(unitPrice * item.qty) : null
+      if (retailPrice == null || retailPrice <= 0) {
+        return bad(`Price not set for ${listing.name}. Please ask the farmer.`)
+      }
+      linePrice = retailPrice
+      // Each item carries its own fulfillment. Address fields live only on rows
+      // that ship (home delivery / courier); the pickup point lives only on
+      // pickup rows. Guests always keep their address on every row as the
+      // farmer's contact record, even for pickup.
+      rowDeliveryType = rowDeliveryTypeOf(item)
     }
     total += linePrice
 
-    // Each item carries its own fulfillment. Address fields live only on rows
-    // that ship (home delivery / courier); the pickup point lives only on
-    // pickup rows. Guests always keep their address on every row as the
-    // farmer's contact record, even for pickup.
-    const rowDeliveryType = rowDeliveryTypeOf(item)
     const rowShips = rowDeliveryType === 'home_delivery' || rowDeliveryType === 'courier'
 
     rows.push({
@@ -502,6 +543,14 @@ export async function POST(req: NextRequest) {
   // carries it (null where absent) so the bulk insert has a uniform column set.
   if (harvestIds.length > 0) {
     items.forEach((it, i) => { if (rows[i]) rows[i].harvest_id = it.harvestId ?? null })
+  }
+
+  // Retail or wholesale, per row. Same rule as harvest_id: only named when the
+  // cart actually has a wholesale line (an ordinary checkout is untouched on a
+  // database without the column — and wholesale lines are already refused
+  // there, since the produce can't read as Both).
+  if (items.some((it) => it.wholesale === true)) {
+    items.forEach((it, i) => { if (rows[i]) rows[i].order_type = it.wholesale === true ? 'wholesale' : 'retail' })
   }
 
   // Platform fee (moderator commission) — a % charged PER ITEM and stamped on
@@ -587,7 +636,8 @@ export async function POST(req: NextRequest) {
       // where the last kilo went while they were typing their address: without
       // consent on the line, we still refuse rather than quietly converting a
       // purchase into a wait.
-      if (item.preorder === true) {
+      // A wholesale line never waits: its minimum is a promise of stock now.
+      if (item.preorder === true && item.wholesale !== true) {
         preorderRows.add(i)
         continue
       }
@@ -660,6 +710,13 @@ export async function POST(req: NextRequest) {
   if (paymentMethod === 'upi' || (paymentMethod === 'cod' && codDeposit === 0)) {
     notifyOrdersPlaced(supabase, orderIds)
   }
+  // Retail and wholesale share stock: if this order took a "both" produce
+  // below its wholesale minimum, its wholesale side hides itself and the
+  // farmer is told. After the response — never slows or fails the order.
+  scheduleWholesaleLowStockCheck(
+    supabase,
+    claimed.map((c) => ({ listingId: c.listingId, harvestId: c.harvestId ?? null, qty: c.qty })),
+  )
   return NextResponse.json({
     ok: true,
     orderIds,

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { retailRows } from '@/lib/wholesaleVisibility'
 import { NextRequest, NextResponse } from 'next/server'
 import { purchaseCountsFor } from '@/lib/purchaseCounts'
 import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
@@ -51,7 +52,8 @@ export async function GET(request: NextRequest) {
     .in('status', CONSUMER_VISIBLE_STATUSES)
     .order('created_at', { ascending: false })
 
-  let filtered = produce ?? []
+  // Household buyers only — wholesale-only produce is never a search result.
+  let filtered = retailRows(produce)
 
   // Bilingual: each listing is indexed under its English AND Telugu names, so
   // ?q=టమాటా finds a listing stored as "Tomato" (and ?q=tomato finds "టమాటా").

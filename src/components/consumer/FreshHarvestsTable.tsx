@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { readWithSaleMode } from '@/lib/wholesaleVisibility'
 import { useCart, EditableQty } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
@@ -77,34 +78,41 @@ function HarvestTable({ variant }: { variant: Variant }) {
   useEffect(() => {
     let cancelled = false
     const now = Date.now()
-    const base = supabase
-      .from('harvests')
-      .select('id, harvested_at, produce_listing_id, stock_qty, shelf_life_days, produce_listings!inner(id, name, emoji, status, shelf_life_days)')
-      // A harvest has its own stock, so a 'sold_out' template must not hide it —
-      // only a genuine takedown (paused/suspended) should. See produceStatus.ts.
-      .in('produce_listings.status', CONSUMER_VISIBLE_STATUSES)
-      // Paused picks are hidden from buyers without being deleted.
-      .eq('paused', false)
-    // Fresh = already picked and still inside its shelf life, newest first.
-    // Upcoming = picks in the next 7 days (pre-book), soonest first.
-    //
-    // Shelf life is what decides freshness, not a fixed age: a 30-day turmeric
-    // and a 2-day leafy green are both "fresh" for as long as the farmer says
-    // they keep. Postgres can't compare a row against its own shelf-life column
-    // through PostgREST, so we over-fetch a generous window here and let
-    // freshnessLeftDays() (the same helper behind the "3 days fresh left" label)
-    // make the call below — one definition of fresh, not two.
-    const q =
-      variant === 'fresh'
-        ? base
-            .gte('harvested_at', new Date(now - MAX_SHELF_LIFE_DAYS * DAY).toISOString())
-            .lte('harvested_at', new Date(now).toISOString())
-            .order('harvested_at', { ascending: false })
-        : base
-            .gt('harvested_at', new Date(now).toISOString())
-            .lte('harvested_at', new Date(now + 7 * DAY).toISOString())
-            .order('harvested_at', { ascending: true })
-    q.limit(60).then(({ data }) => {
+    // Built fresh per attempt: supabase-js builders change in place, and the
+    // retry without the wholesale filter must not inherit it.
+    const build = (withMode: boolean) => {
+      const base0 = supabase
+        .from('harvests')
+        .select('id, harvested_at, produce_listing_id, stock_qty, shelf_life_days, produce_listings!inner(id, name, emoji, status, shelf_life_days)')
+        // A harvest has its own stock, so a 'sold_out' template must not hide it —
+        // only a genuine takedown (paused/suspended) should. See produceStatus.ts.
+        .in('produce_listings.status', CONSUMER_VISIBLE_STATUSES)
+        // Paused picks are hidden from buyers without being deleted.
+        .eq('paused', false)
+      // Wholesale-only produce never reaches household buyers.
+      const base = withMode ? base0.neq('produce_listings.sale_mode', 'wholesale') : base0
+      // Fresh = already picked and still inside its shelf life, newest first.
+      // Upcoming = picks in the next 7 days (pre-book), soonest first.
+      //
+      // Shelf life is what decides freshness, not a fixed age: a 30-day turmeric
+      // and a 2-day leafy green are both "fresh" for as long as the farmer says
+      // they keep. Postgres can't compare a row against its own shelf-life column
+      // through PostgREST, so we over-fetch a generous window here and let
+      // freshnessLeftDays() (the same helper behind the "3 days fresh left" label)
+      // make the call below — one definition of fresh, not two.
+      const q =
+        variant === 'fresh'
+          ? base
+              .gte('harvested_at', new Date(now - MAX_SHELF_LIFE_DAYS * DAY).toISOString())
+              .lte('harvested_at', new Date(now).toISOString())
+              .order('harvested_at', { ascending: false })
+          : base
+              .gt('harvested_at', new Date(now).toISOString())
+              .lte('harvested_at', new Date(now + 7 * DAY).toISOString())
+              .order('harvested_at', { ascending: true })
+      return q.limit(60)
+    }
+    void readWithSaleMode(build).then(({ data }) => {
       if (cancelled) return
       const all = (data ?? []) as HarvestRow[]
       // Fresh shows only today's and yesterday's picks (and still inside shelf

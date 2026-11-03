@@ -60,6 +60,13 @@ import { formatPickupSlots, type PickupSchedule, type PickupPhones } from '@/lib
 //   })
 // }
 import { loadCashfreeScript, runCashfreeCheckout } from '@/lib/cashfreeCheckout'
+import {
+  snapWholesaleQty, wholesaleStepDown, wholesaleStepUp,
+  WHOLESALE_PICKUP_NOTE, WHOLESALE_TRANSPORT_NOTE, type WholesaleLine,
+} from '@/lib/wholesaleOrder'
+import { cartKeyOf, wsRules, wholesaleAddQty } from '@/lib/cartLine'
+// Re-exported: pages import the cart key from here.
+export { cartKeyOf }
 
 export type CartItem = {
   listingId: string
@@ -107,14 +114,17 @@ export type CartItem = {
   // and a 0 there would have snapToStep quietly clamp the line to nothing.
   preorder?: boolean
   preorderExpectedDate?: string
+  // "Buy wholesale" line (src/lib/wholesaleOrder.ts): wholesale price, minimum
+  // and pack size from the produce. Its own cart line — never merged with the
+  // retail line of the same harvest. The server re-reads every number.
+  wholesale?: WholesaleLine
 }
 
 export type CartState = Record<string, CartItem>
 
 // The cart is keyed per harvest so two harvests of the same produce are two
 // separate lines. Legacy produce-card items (no harvestId) key by listingId.
-export const cartKeyOf = (item: { listingId: string; harvestId?: string }): string =>
-  item.harvestId ?? item.listingId
+// cartKeyOf / wsRules live in src/lib/cartLine.ts (unit-tested there).
 
 export type ConsumerInfo = { name: string; phone: string }
 
@@ -152,6 +162,8 @@ const writeCart = (next: CartState) => {
 }
 
 function getActiveTier(qty: number, item: CartItem): { price?: number; isDiscount: boolean } {
+  // Wholesale lines have one price, no tiers.
+  if (item.wholesale) return { price: item.wholesale.price, isDiscount: false }
   const { priceTier1Qty, priceTier1Price, priceTier2Qty, priceTier2Price, priceTier3Price } = item
   if (priceTier1Qty == null || priceTier1Price == null)
     return { price: item.pricePerKg, isDiscount: false }
@@ -183,6 +195,14 @@ export function useCart() {
     const next = { ...readCart() }
     const key = cartKeyOf(item)
     const existing = next[key]
+    if (item.wholesale) {
+      // Wholesale: the minimum is the default add, packs after that.
+      const q = wholesaleAddQty({ ...item, wholesale: item.wholesale }, existing?.qty, qty)
+      if (q <= 0) return // not even the minimum is in stock
+      next[key] = { ...item, qty: q, pricePerKg: item.wholesale.price }
+      writeCart(next)
+      return
+    }
     // One step is the default add AND the minimum: "add to cart" on a 250 g
     // mirchi puts 250 g in, not a kilo.
     const step = normalizeStep(item.saleStep, item.unit)
@@ -200,7 +220,12 @@ export function useCart() {
     // 0 still means "remove" — stepDown() returns 0 rather than parking the
     // line at a fraction of a step the farmer cannot weigh out.
     if (qty <= 0) delete next[listingId]
-    else if (next[listingId]) {
+    else if (next[listingId]?.wholesale) {
+      const existing = next[listingId]
+      const q = snapWholesaleQty(qty, wsRules(existing), existing.stockQty ?? null)
+      if (q <= 0) delete next[listingId]
+      else next[listingId] = { ...existing, qty: q }
+    } else if (next[listingId]) {
       const existing = next[listingId]
       const step = normalizeStep(existing.saleStep, existing.unit)
       const cappedQty = snapToStep(qty, step, existing.stockQty ?? null)
@@ -844,17 +869,28 @@ export function CartSheet({
   // Per-line fulfillment: the order-wide choice, unless this produce's
   // farmer-set delivery_mode doesn't allow it. If nothing in the cart can go
   // the chosen way, the choice itself flips (effectiveFulfillment).
-  const modeOf = (it: CartItem) => normalizeDeliveryMode(deliveryModes[it.listingId])
+  // A wholesale line follows the farmer's transport answer instead: delivery
+  // only when they transport, and then it is THEIR delivery ('courier' — no
+  // rider, no app delivery charge, transport agreed with the farmer).
+  const modeOf = (it: CartItem) => it.wholesale
+    ? (it.wholesale.transportStates.length ? 'both' : 'pickup')
+    : normalizeDeliveryMode(deliveryModes[it.listingId])
   const effectiveChoice = effectiveFulfillment(orderChoice, items.map(modeOf))
-  const deliveryOf = (it: CartItem): Fulfillment => lineFulfillment(effectiveChoice, modeOf(it))
+  const deliveryOf = (it: CartItem): Fulfillment | 'courier' => {
+    const f = lineFulfillment(effectiveChoice, modeOf(it))
+    return it.wholesale && f === 'home_delivery' ? 'courier' : f
+  }
+  // Any line that goes to the buyer's address (our rider or the farmer's own).
+  const shipsToBuyer = (it: CartItem) => deliveryOf(it) !== 'self_pickup'
   const isExceptionItem = (it: CartItem) => isException(effectiveChoice, modeOf(it))
   const exceptionCount = items.filter(isExceptionItem).length
   const anyCanDeliver = items.some((it) => canDeliver(modeOf(it)))
   const anyCanPickup = items.some((it) => canPickup(modeOf(it)))
 
-  // Address form is needed as soon as any line is home delivery.
+  // anyDelivery = a line goes with OUR rider: it gates the app delivery charge.
+  // The address is needed for that AND for a farmer-delivered wholesale line.
   const anyDelivery = items.some((it) => deliveryOf(it) === 'home_delivery')
-  const needsAddress = anyDelivery
+  const needsAddress = items.some(shipsToBuyer)
 
   // The address actually being sent — the saved one copied in, or what the
   // buyer typed. Every order still gets its own copy of these fields.
@@ -957,7 +993,7 @@ export function CartSheet({
     // Whether this farmer's order has any home-delivery line — decides if we
     // send the address. Pickup location is always sent; the API stamps it on
     // pickup rows only.
-    const groupHasDelivery = group.some((it) => deliveryOf(it) === 'home_delivery')
+    const groupHasDelivery = group.some(shipsToBuyer)
     // This farmer's position in the checkout — index 0 carries the base delivery
     // charge, the rest carry the additional charge. anyDelivery is the whole-cart
     // gate (does ANY line, at any farmer, ship by our rider).
@@ -977,6 +1013,7 @@ export function CartSheet({
           harvestId: it.harvestId,
           qty: it.qty,
           deliveryType: deliveryOf(it),
+          wholesale: it.wholesale ? true : undefined,
           // Consent to wait for the next harvest. The server still tries to
           // claim stock for the line and only makes it a pre-order if there is
           // genuinely none, so this can never turn an in-stock buy into a wait.
@@ -2168,7 +2205,7 @@ export function CartSheet({
                   (s, it) => s + (it.pricePerKg ?? 0) * it.qty,
                   0,
                 )
-                const groupHasDelivery = group.some((it) => deliveryOf(it) === 'home_delivery')
+                const groupHasDelivery = group.some(shipsToBuyer)
                 const groupHasPickup = group.some((it) => deliveryOf(it) === 'self_pickup')
                 return (
                   <div
@@ -2219,6 +2256,13 @@ export function CartSheet({
                                 })()}
                               </p>
                             )}
+                            {it.wholesale && (
+                              <p className="inline-flex items-center gap-1 mt-0.5 text-[10px] font-bold text-amber-900 bg-amber-100 rounded-full px-1.5 py-0.5">
+                                <span aria-hidden>🚚</span>
+                                {L('Wholesale', 'హోల్‌సేల్')}
+                                {it.wholesale.packSize ? ` · ${L(`packs of ${formatQty(it.wholesale.packSize)} ${it.unit || 'kg'}`, `${formatQty(it.wholesale.packSize)} ${it.unit || 'kg'} ప్యాక్‌లు`)}` : ''}
+                              </p>
+                            )}
                             {it.pricePerKg && (
                               <>
                                 <p className="text-xs text-gray-500">₹{it.pricePerKg}/{it.unit || 'kg'} × {formatQty(it.qty)}</p>
@@ -2249,15 +2293,20 @@ export function CartSheet({
                             qty={it.qty}
                             maxQty={it.stockQty}
                             unit={it.unit || 'kg'}
-                            step={normalizeStep(it.saleStep, it.unit)}
+                            step={it.wholesale ? wsRules(it).step : normalizeStep(it.saleStep, it.unit)}
                             onSet={(n) => setQty(cartKeyOf(it), n)}
-                            onDec={() => setQty(cartKeyOf(it), stepDown(it.qty, normalizeStep(it.saleStep, it.unit)))}
+                            onDec={() => setQty(cartKeyOf(it), it.wholesale
+                              ? wholesaleStepDown(it.qty, wsRules(it))
+                              : stepDown(it.qty, normalizeStep(it.saleStep, it.unit)))}
                             onInc={() => {
-                              if (it.stockQty != null && it.qty >= it.stockQty) {
+                              const next = it.wholesale
+                                ? wholesaleStepUp(it.qty, wsRules(it), it.stockQty ?? null)
+                                : stepUp(it.qty, normalizeStep(it.saleStep, it.unit), it.stockQty ?? null)
+                              if (next <= it.qty) {
                                 showToast(L('No more stock available', 'స్టాక్ అయిపోయింది'))
                                 return
                               }
-                              setQty(cartKeyOf(it), stepUp(it.qty, normalizeStep(it.saleStep, it.unit), it.stockQty ?? null))
+                              setQty(cartKeyOf(it), next)
                             }}
                           />
                           <button
@@ -2268,8 +2317,18 @@ export function CartSheet({
                             ×
                           </button>
                           </div>
+                          {/* Wholesale: who moves it, and that transport is agreed with the farmer. */}
+                          {it.wholesale && (
+                            <p className="pl-14 text-[11px] font-semibold text-amber-900">
+                              {deliveryOf(it) === 'courier'
+                                ? `🚚 ${L(WHOLESALE_TRANSPORT_NOTE.en, WHOLESALE_TRANSPORT_NOTE.te)}`
+                                : it.wholesale.transportStates.length === 0
+                                  ? `🚶 ${L(WHOLESALE_PICKUP_NOTE.en, WHOLESALE_PICKUP_NOTE.te)}`
+                                  : null}
+                            </p>
+                          )}
                           {/* Can't follow the order choice — say which way it goes. */}
-                          {exception && (
+                          {exception && !it.wholesale && (
                             <p className="pl-14 text-[11px] font-bold text-amber-800">
                               {deliveryOf(it) === 'self_pickup'
                                 ? L(`🚶 Pickup only — collect from ${f.farmerName}`, `🚶 పికప్ మాత్రమే — ${f.farmerName} వద్ద తీసుకోండి`)
@@ -2345,8 +2404,8 @@ export function CartSheet({
                   {L('Delivery & pickup details', 'డెలివరీ & పికప్ వివరాలు')}
                 </p>
 
-                {/* Address — only when at least one item is home delivery */}
-                {anyDelivery && (
+                {/* Address — when at least one item comes to the buyer */}
+                {needsAddress && (
                   <div className="space-y-3">
                     <p className="text-[11px] font-extrabold text-blue-700 uppercase tracking-wide">
                       🛵 {L('Delivery address', 'డెలివరీ చిరునామా')}

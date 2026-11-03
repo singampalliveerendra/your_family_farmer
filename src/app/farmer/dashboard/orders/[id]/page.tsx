@@ -1,5 +1,6 @@
 'use client'
 
+import WholesaleOrderBadge from '@/components/WholesaleOrderBadge'
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
@@ -44,6 +45,8 @@ type Order = {
   buyer_name: string | null
   // The farmer ordered this from themselves (src/lib/selfOrder.ts).
   is_self_order?: boolean | null
+  // 'wholesale' for a "Buy wholesale" line (src/lib/orderType.ts); absent = retail.
+  order_type?: 'retail' | 'wholesale' | null
   buyer_phone: string | null
   pickup_location: string | null
   pickup_phone: string | null
@@ -404,6 +407,7 @@ export default function FarmerOrderDetailPage() {
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
                 {isDelivery ? L('Home delivery', 'ఇంటికి డెలివరీ') : isCourier ? L('Courier', 'కొరియర్') : L('Self pickup', 'స్వయంగా తీసుకోవడం')}
               </p>
+              <WholesaleOrderBadge order={order} audience="farmer" note />
               {(isDelivery || isCourier) && order.delivery_address ? (
                 <>
                   <p className="text-sm text-gray-800 leading-snug whitespace-pre-line">📦 {order.delivery_address}</p>

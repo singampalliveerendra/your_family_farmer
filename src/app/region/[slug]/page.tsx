@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { retailRows } from '@/lib/wholesaleVisibility'
 import { FARMER_PUBLIC_COLUMNS } from '@/lib/farmerColumns'
 import { notFound } from 'next/navigation'
 import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
@@ -53,7 +54,7 @@ export default async function RegionPage({ params }: { params: Promise<{ slug: s
 
   const farmerIds = (farmers ?? []).map((f) => f.id)
 
-  const { data: produce } = farmerIds.length
+  const { data: allProduce } = farmerIds.length
     ? await supabase
         .from('produce_listings')
         .select('*')
@@ -61,6 +62,8 @@ export default async function RegionPage({ params }: { params: Promise<{ slug: s
         .in('status', CONSUMER_VISIBLE_STATUSES)
         .order('created_at', { ascending: false })
     : { data: [] }
+  // Household buyers only — no wholesale-only produce on a region page.
+  const produce = retailRows(allProduce)
 
   // Follower counts per farmer → rank the farmers list by popularity. Best-effort:
   // an absent farmer_follows table just leaves every count at 0.

@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
 import { attachFarmerResolved } from '@/lib/farmerResolve'
+import { attachOrderType } from '@/lib/orderType'
 import { FARMER_ORDER_COLUMNS, FARMER_ORDER_PREORDER_COLUMNS, FARMER_ORDER_SELF_COLUMNS } from '@/lib/orderColumns'
 import { reportFarmerIds } from '@/lib/moderatorOrderReport'
 
@@ -58,6 +59,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Could not load orders.' }, { status: 500 })
   }
 
-  const orders = await attachFarmerResolved(supabase, (data ?? []) as unknown as Array<{ id: string }>)
+  const orders = await attachOrderType(supabase, await attachFarmerResolved(supabase, (data ?? []) as unknown as Array<{ id: string }>))
   return NextResponse.json({ farmers, orders })
 }

@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 import type { Metadata } from 'next'
 import { supabase } from '@/lib/supabase'
-import { productMetadata } from '@/lib/productShare'
+import { isRetailVisible, readWithSaleMode } from '@/lib/wholesaleVisibility'
+import { productMetadata, type ProductMetaInput } from '@/lib/productShare'
 
 // The page under this layout is a client component: the server only sends its
 // empty shell, and the phone loads the produce itself. That shell is the same
@@ -24,15 +25,19 @@ export const revalidate = 300
 // chat instead of the generic site card. See src/lib/productShare.ts.
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
-  const { data } = await supabase
-    .from('produce_listings')
-    .select('name, variety, method, unit, price_tier_1_price, image_url, image_urls, farmer:farmers!farmer_id(name, village)')
-    .eq('id', id)
-    .maybeSingle()
-  // Missing, or hidden from the public by RLS: keep the site's default preview.
-  if (!data) return {}
-  const farmer = Array.isArray(data.farmer) ? data.farmer[0] : data.farmer
-  return productMetadata({ ...data, farmer })
+  const cols = 'name, variety, method, unit, price_tier_1_price, image_url, image_urls, farmer:farmers!farmer_id(name, village)'
+  const { data } = await readWithSaleMode((withMode) =>
+    supabase.from('produce_listings').select(withMode ? `${cols}, sale_mode` : cols).eq('id', id).maybeSingle())
+  // Missing, hidden from the public by RLS, or wholesale-only (never previewed
+  // for household buyers): keep the site's default preview.
+  // The column list is built at runtime, so supabase-js can't type the row.
+  const row = data as unknown as (Omit<ProductMetaInput, 'farmer'> & {
+    sale_mode?: unknown
+    farmer: ProductMetaInput['farmer'] | ProductMetaInput['farmer'][]
+  }) | null
+  if (!row || !isRetailVisible(row)) return {}
+  const farmer = Array.isArray(row.farmer) ? row.farmer[0] : row.farmer
+  return productMetadata({ ...row, farmer })
 }
 
 export default function Layout({ children }: { children: ReactNode }) {
