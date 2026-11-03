@@ -7,6 +7,8 @@ import {
   normaliseRefundStatus,
   resolvePaymentLabel,
   getSettlement,
+  hasPaymentInFlight,
+  isSafeToAbandon,
 } from '@/lib/cashfree'
 
 const SECRET = process.env.CASHFREE_SECRET_KEY as string
@@ -145,10 +147,31 @@ describe('getSettlement', () => {
     expect(await getSettlement('gg_1')).toEqual({ paid: true, paymentId: '777', label: 'PhonePe' })
   })
 
-  // USE: the buyer closed the modal. Not paid → the Cart abandons the order.
-  it('reports an ACTIVE order as unpaid', async () => {
+  // USE: the buyer closed the modal without trying to pay. Not paid, nothing
+  // in flight.
+  it('reports an ACTIVE order with no attempt as unpaid, nothing in flight', async () => {
     stub({ order_id: 'gg_1', order_amount: 450, order_status: 'ACTIVE' }, [])
-    expect(await getSettlement('gg_1')).toEqual({ paid: false, orderStatus: 'ACTIVE' })
+    expect(await getSettlement('gg_1')).toEqual({ paid: false, orderStatus: 'ACTIVE', inFlight: false })
+  })
+
+  // USE: YFF-20261029-0383 — the buyer is in PhonePe, the bank hasn't
+  // confirmed. Not paid YET, and it must say so, or the order gets cancelled
+  // while the money is on its way.
+  it('flags a PENDING UPI attempt as in flight', async () => {
+    stub(
+      { order_id: 'gg_1', order_amount: 135, order_status: 'ACTIVE' },
+      [{ cf_payment_id: 6862236548, payment_status: 'PENDING', payment_amount: 135, payment_group: 'upi' }],
+    )
+    expect(await getSettlement('gg_1')).toEqual({ paid: false, orderStatus: 'ACTIVE', inFlight: true })
+  })
+
+  // USE: a failed attempt is final — it doesn't hold the order open.
+  it('does not treat a FAILED attempt as in flight', async () => {
+    stub(
+      { order_id: 'gg_1', order_amount: 135, order_status: 'ACTIVE' },
+      [{ cf_payment_id: 1, payment_status: 'FAILED', payment_amount: 135 }],
+    )
+    expect(await getSettlement('gg_1')).toMatchObject({ paid: false, inFlight: false })
   })
 
   // USE: never mark an order paid off a payment smaller than what we charged.
@@ -170,5 +193,39 @@ describe('getSettlement', () => {
       ],
     )
     expect(await getSettlement('gg_1')).toMatchObject({ paid: true, paymentId: '2' })
+  })
+})
+
+describe('hasPaymentInFlight', () => {
+  // USE: only PENDING can still turn into money; every other status is final.
+  it('is true only for a PENDING attempt', () => {
+    expect(hasPaymentInFlight([])).toBe(false)
+    expect(hasPaymentInFlight([{ payment_status: 'FAILED' }, { payment_status: 'USER_DROPPED' }])).toBe(false)
+    expect(hasPaymentInFlight([{ payment_status: 'FAILED' }, { payment_status: 'PENDING' }])).toBe(true)
+  })
+})
+
+describe('isSafeToAbandon', () => {
+  // USE: the abandon route cancels the order and releases stock only when this
+  // says yes. A wrong yes = a paid order shown as "Cancelled by buyer".
+  it('never abandons a paid order', () => {
+    expect(isSafeToAbandon({ paid: true, paymentId: '1', label: null })).toBe(false)
+  })
+
+  it('never abandons while a payment is in flight', () => {
+    expect(isSafeToAbandon({ paid: false, orderStatus: 'ACTIVE', inFlight: true })).toBe(false)
+    expect(isSafeToAbandon({ paid: false, orderStatus: 'TERMINATION_REQUESTED', inFlight: true })).toBe(false)
+  })
+
+  // USE: terminate failed and the Cashfree order is still open — it can still
+  // be paid, so leave it for the webhook / cron.
+  it('does not abandon an order Cashfree still accepts payment on', () => {
+    expect(isSafeToAbandon({ paid: false, orderStatus: 'ACTIVE', inFlight: false })).toBe(false)
+  })
+
+  it('abandons once Cashfree has closed the order', () => {
+    expect(isSafeToAbandon({ paid: false, orderStatus: 'TERMINATED', inFlight: false })).toBe(true)
+    expect(isSafeToAbandon({ paid: false, orderStatus: 'TERMINATION_REQUESTED', inFlight: false })).toBe(true)
+    expect(isSafeToAbandon({ paid: false, orderStatus: 'EXPIRED', inFlight: false })).toBe(true)
   })
 })
