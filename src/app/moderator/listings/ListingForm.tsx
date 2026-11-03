@@ -9,6 +9,14 @@ import { STEP_CHOICES } from '@/lib/saleStep'
 import { parseDeliveryMode } from '@/lib/fulfillment'
 import { photosFromSaved, resolvePhotoUrls, type PhotoItem } from '@/lib/photoList'
 import PhotoPicker from '@/components/PhotoPicker'
+import WholesaleFields from '@/components/WholesaleFields'
+import {
+  EMPTY_WHOLESALE_FORM, resolveWholesaleForm, offersRetail, wholesaleRequestBody, type WholesaleForm,
+} from '@/lib/wholesale'
+
+// The moderator area is English-only (staff screens), so the shared wholesale
+// section is given an English-only translator here.
+const EN = (en: string) => en
 
 // Shared add/edit form for a farmer's harvest listing, used by both
 //   /moderator/listings/new          (mode="create")
@@ -107,6 +115,8 @@ export default function ListingForm({
   initialFarmerId = '',
   initialImages = [],
   fixedFarmerName,
+  initialWholesale = EMPTY_WHOLESALE_FORM,
+  wholesaleReady = false,
 }: {
   mode: 'create' | 'edit'
   zone: string
@@ -116,6 +126,10 @@ export default function ListingForm({
   initialFarmerId?: string
   initialImages?: string[]
   fixedFarmerName?: string
+  /** Retail / Wholesale / Both and the wholesale details, for Edit. */
+  initialWholesale?: WholesaleForm
+  /** The loaded row has the wholesale columns (migration has run). */
+  wholesaleReady?: boolean
 }) {
   const router = useRouter()
 
@@ -131,6 +145,7 @@ export default function ListingForm({
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
+  const [wholesale, setWholesale] = useState<WholesaleForm>(initialWholesale)
 
   // Only fires for an aggregator seller; a plain farmer gets no extra field.
   // Keyed on the chosen farmer, so switching sellers in create mode reloads
@@ -192,6 +207,9 @@ export default function ListingForm({
     if (!parseDeliveryMode(form.delivery_mode)) {
       setError('Choose a delivery method: Pickup only, Farmer courier, or Both.'); return
     }
+    // Same wholesale rules as the farmer form; the API checks them again.
+    const wholesaleResult = resolveWholesaleForm(wholesale, form.unit)
+    if (!wholesaleResult.ok) { setError(wholesaleResult.error.en); return }
     setError(''); setSubmitting(true)
 
     // Upload any newly-picked photos first; abort on failure (error is set by
@@ -208,6 +226,9 @@ export default function ListingForm({
     const payload = mode === 'edit'
       ? editableFields
       : { ...editableFields, harvest_date }
+    // Retail on a server without the wholesale columns sends nothing extra,
+    // so an un-migrated environment saves exactly as before.
+    const wholesaleBody = wholesaleRequestBody(wholesale, wholesaleReady)
 
     const r = await fetch(url, {
       method,
@@ -215,6 +236,7 @@ export default function ListingForm({
       credentials: 'same-origin',
       body: JSON.stringify({
         ...payload,
+        ...wholesaleBody,
         farmer_id: farmerId,
         emoji,
         image_url: allImages[0] ?? null,
@@ -252,7 +274,7 @@ export default function ListingForm({
         <p className="text-sm text-gray-500 mt-1">Added for {farmer?.name ?? 'the farmer'} and visible to buyers now.</p>
         <div className="flex flex-col gap-2 mt-5">
           <button
-            onClick={() => { setDone(false); setFarmerId(''); setEmoji('📦'); setForm(EMPTY_LISTING_FORM); setPhotos([]) }}
+            onClick={() => { setDone(false); setFarmerId(''); setEmoji('📦'); setForm(EMPTY_LISTING_FORM); setPhotos([]); setWholesale(EMPTY_WHOLESALE_FORM) }}
             className="bg-green-800 text-white text-sm font-bold px-4 py-3 rounded-xl active:bg-green-900"
           >
             + Add another
@@ -439,9 +461,15 @@ export default function ListingForm({
         )}
       </div>
 
-      {/* Pricing */}
+      {/* Retail / Wholesale / Both — wholesale details open only when needed */}
+      <div className="border-t border-gray-100 pt-4 max-w-md">
+        <WholesaleFields value={wholesale} onChange={setWholesale} unit={form.unit} L={EN} />
+      </div>
+
+      {/* Pricing — retail tiers; not asked when sold wholesale only */}
+      {offersRetail(wholesale.saleMode) && (
       <div className="border-t border-gray-100 pt-4">
-        <p className="text-sm font-extrabold text-green-800 mb-3">Pricing (per {form.unit})</p>
+        <p className="text-sm font-extrabold text-green-800 mb-3">Retail pricing (per {form.unit})</p>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Tier 1 — min qty">
             <input value={form.price_tier_1_qty} onChange={set('price_tier_1_qty')} type="number" min="1" className={inputCls} />
@@ -460,6 +488,7 @@ export default function ListingForm({
           </Field>
         </div>
       </div>
+      )}
 
       {/* Quality & soil — mirrors the farmer's quality fields. */}
       <div className="border-t border-gray-100 pt-4">

@@ -1,0 +1,350 @@
+/**
+ * Wholesale — a produce can be sold Retail, Wholesale or Both.
+ *
+ * Columns (scripts/wholesale-migration.sql), all on produce_listings:
+ *   sale_mode                   'retail' | 'wholesale' | 'both'
+ *   wholesale_price             ₹ per listing unit
+ *   wholesale_min_qty           least a wholesale buyer can order
+ *   wholesale_pack_size         optional; wholesale orders go in multiples of it
+ *   wholesale_transport_states  {} = buyer collects, else AP and/or TG
+ *
+ * Retail and wholesale share one stock (harvests.stock_qty), so nothing here
+ * touches stock.
+ *
+ * One set of rules for every form and route — the farmer/aggregator dashboard,
+ * the moderator form, and the moderator API — so they cannot drift apart. The
+ * database CHECKs in the migration are the last line; these rules are stricter
+ * and give the farmer a message in their own language.
+ */
+
+import { isMissingColumnError } from '@/lib/missingColumn'
+import { roundQty, unitAllowsFractions } from '@/lib/saleStep'
+
+export const SALE_MODES = ['retail', 'wholesale', 'both'] as const
+export type SaleMode = (typeof SALE_MODES)[number]
+
+export const TRANSPORT_STATES = ['AP', 'TG'] as const
+export type TransportState = (typeof TRANSPORT_STATES)[number]
+
+export const SALE_MODE_LABELS: Record<SaleMode, { en: string; te: string; icon: string }> = {
+  retail: { en: 'Retail', te: 'చిల్లర', icon: '🛒' },
+  wholesale: { en: 'Wholesale', te: 'హోల్‌సేల్', icon: '🚚' },
+  both: { en: 'Both', te: 'రెండూ', icon: '🔁' },
+}
+
+export const TRANSPORT_STATE_LABELS: Record<TransportState, { en: string; te: string }> = {
+  AP: { en: 'Andhra Pradesh', te: 'ఆంధ్రప్రదేశ్' },
+  TG: { en: 'Telangana', te: 'తెలంగాణ' },
+}
+
+// Column limits: numeric(8,2) for the price, numeric(10,3) for quantities
+// (the same as stock_qty).
+export const MAX_WHOLESALE_PRICE = 999999.99
+export const MAX_WHOLESALE_QTY = 9999999.999
+
+/** Every wholesale column, for stripping a payload on a pre-migration server. */
+export const WHOLESALE_COLUMNS = [
+  'sale_mode',
+  'wholesale_price',
+  'wholesale_min_qty',
+  'wholesale_pack_size',
+  'wholesale_transport_states',
+] as const
+
+export type Msg = { en: string; te: string }
+
+/** Unknown, missing or misspelt reads as 'retail' — how every listing behaved before. */
+export function parseSaleMode(raw: unknown): SaleMode {
+  return raw === 'wholesale' || raw === 'both' ? raw : 'retail'
+}
+
+export const offersWholesale = (mode: SaleMode): boolean => mode !== 'retail'
+export const offersRetail = (mode: SaleMode): boolean => mode !== 'wholesale'
+
+/** What the form holds: strings straight from the inputs. */
+export type WholesaleForm = {
+  saleMode: SaleMode
+  price: string
+  minQty: string
+  packSize: string
+  /** Transport Yes/No. null = not answered yet. */
+  transport: boolean | null
+  states: TransportState[]
+}
+
+export const EMPTY_WHOLESALE_FORM: WholesaleForm = {
+  saleMode: 'retail',
+  price: '',
+  minQty: '',
+  packSize: '',
+  transport: null,
+  states: [],
+}
+
+/** The columns a save writes. Retail writes only sale_mode, so saved wholesale values survive a switch back. */
+export type WholesaleColumns =
+  | { sale_mode: 'retail' }
+  | {
+      sale_mode: 'wholesale' | 'both'
+      wholesale_price: number
+      wholesale_min_qty: number
+      wholesale_pack_size: number | null
+      wholesale_transport_states: TransportState[]
+    }
+
+export type WholesaleResult = { ok: true; columns: WholesaleColumns } | { ok: false; error: Msg }
+
+const fail = (en: string, te: string): WholesaleResult => ({ ok: false, error: { en, te } })
+
+const round2 = (n: number) => Math.round(n * 100) / 100
+
+/**
+ * '' / null / undefined → null (left blank). Anything else must be a finite
+ * number; otherwise NaN, so the caller reports it instead of treating it as blank.
+ */
+function toNumber(raw: unknown): number | null {
+  if (raw === null || raw === undefined) return null
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : NaN
+  if (typeof raw !== 'string') return NaN
+  const s = raw.trim()
+  if (!s) return null
+  // Number('') is 0 and Number('1e3') is 1000 — accept plain decimals only.
+  if (!/^\d*\.?\d+$|^\d+\.$/.test(s)) return NaN
+  return Number(s)
+}
+
+/** Clean the state list: known states only, no repeats, always AP before TG. */
+export function normalizeStates(raw: unknown): TransportState[] {
+  const list = Array.isArray(raw) ? raw : typeof raw === 'string' ? raw.split(',') : []
+  const set = new Set(list.map((s) => String(s).trim().toUpperCase()))
+  return TRANSPORT_STATES.filter((s) => set.has(s))
+}
+
+/** Yes/No from a form or a JSON body. Anything not clearly yes/no is unanswered. */
+export function parseTransport(raw: unknown): boolean | null {
+  if (raw === true || raw === 'yes' || raw === 'true' || raw === 1 || raw === '1') return true
+  if (raw === false || raw === 'no' || raw === 'false' || raw === 0 || raw === '0') return false
+  return null
+}
+
+/** Is `qty` a whole number of `pack`s? Tolerant of float noise (0.1 + 0.2). */
+export function isMultipleOf(qty: number, pack: number): boolean {
+  if (!(pack > 0)) return false
+  const ratio = qty / pack
+  return Math.abs(ratio - Math.round(ratio)) < 1e-6
+}
+
+/**
+ * Check the wholesale part of a produce form and turn it into columns.
+ *
+ * Rules:
+ *  - Retail: nothing else is checked; only sale_mode is written.
+ *  - Wholesale / Both:
+ *     • price required, > 0, at most MAX_WHOLESALE_PRICE, kept to 2 decimals
+ *       (quantities to 3, like stock)
+ *     • pack size OR minimum quantity required (either is enough):
+ *         only pack  → minimum = one pack
+ *         only min   → no pack size (any qty ≥ min)
+ *         both       → minimum must be a whole number of packs
+ *     • quantities > 0, at most MAX_WHOLESALE_QTY; whole numbers on
+ *       piece / bunch / dozen units
+ *     • transport must be answered; Yes needs at least one state
+ */
+export function resolveWholesale(input: {
+  saleMode: unknown
+  price: unknown
+  minQty: unknown
+  packSize: unknown
+  transport: unknown
+  states: unknown
+  unit?: string | null
+}): WholesaleResult {
+  const mode = parseSaleMode(input.saleMode)
+  if (mode === 'retail') return { ok: true, columns: { sale_mode: 'retail' } }
+
+  const price = toNumber(input.price)
+  if (price === null) return fail('Enter the wholesale price.', 'హోల్‌సేల్ ధర నమోదు చేయండి.')
+  if (Number.isNaN(price) || price <= 0) {
+    return fail('Wholesale price must be a number above 0.', 'హోల్‌సేల్ ధర 0 కంటే ఎక్కువ సంఖ్య ఉండాలి.')
+  }
+  if (price > MAX_WHOLESALE_PRICE) {
+    return fail('Wholesale price is too high.', 'హోల్‌సేల్ ధర చాలా ఎక్కువగా ఉంది.')
+  }
+
+  const pack = toNumber(input.packSize)
+  const min = toNumber(input.minQty)
+  if (pack === null && min === null) {
+    return fail('Enter the pack size or the minimum quantity.', 'ప్యాక్ పరిమాణం లేదా కనీస పరిమాణం నమోదు చేయండి.')
+  }
+  for (const [n, en, te] of [
+    [pack, 'Pack size', 'ప్యాక్ పరిమాణం'],
+    [min, 'Minimum quantity', 'కనీస పరిమాణం'],
+  ] as const) {
+    if (n === null) continue
+    if (Number.isNaN(n) || n <= 0) return fail(`${en} must be a number above 0.`, `${te} 0 కంటే ఎక్కువ సంఖ్య ఉండాలి.`)
+    if (n > MAX_WHOLESALE_QTY) return fail(`${en} is too large.`, `${te} చాలా ఎక్కువగా ఉంది.`)
+    if (!unitAllowsFractions(input.unit) && !Number.isInteger(n)) {
+      return fail(`${en} must be a whole number for this unit.`, `ఈ యూనిట్‌కు ${te} పూర్తి సంఖ్య ఉండాలి.`)
+    }
+  }
+
+  const packSize = pack === null ? null : roundQty(pack)
+  const minQty = min === null ? (packSize as number) : roundQty(min)
+  if (packSize !== null && !isMultipleOf(minQty, packSize)) {
+    return fail(
+      `Minimum quantity must be a whole number of packs (${packSize}, ${roundQty(packSize * 2)}, ${roundQty(packSize * 3)}…).`,
+      `కనీస పరిమాణం పూర్తి ప్యాక్‌లలో ఉండాలి (${packSize}, ${roundQty(packSize * 2)}, ${roundQty(packSize * 3)}…).`,
+    )
+  }
+
+  const transport = parseTransport(input.transport)
+  if (transport === null) {
+    return fail('Can you transport wholesale orders? Choose Yes or No.', 'హోల్‌సేల్ ఆర్డర్లను మీరు రవాణా చేయగలరా? అవును లేదా కాదు ఎంచుకోండి.')
+  }
+  const states = transport ? normalizeStates(input.states) : []
+  if (transport && states.length === 0) {
+    return fail('Choose where you can transport: Andhra Pradesh, Telangana or both.', 'ఎక్కడికి రవాణా చేయగలరో ఎంచుకోండి: ఆంధ్రప్రదేశ్, తెలంగాణ లేదా రెండూ.')
+  }
+
+  return {
+    ok: true,
+    columns: {
+      sale_mode: mode,
+      wholesale_price: round2(price),
+      wholesale_min_qty: minQty,
+      wholesale_pack_size: packSize,
+      wholesale_transport_states: states,
+    },
+  }
+}
+
+/** Same as resolveWholesale, from the dashboard/moderator form state. */
+export function resolveWholesaleForm(form: WholesaleForm, unit?: string | null): WholesaleResult {
+  return resolveWholesale({ ...form, unit })
+}
+
+/**
+ * Read a JSON request body (moderator API). Accepts the column names, so the
+ * moderator form can send exactly what it stores, plus `wholesale_transport`
+ * as the Yes/No. A body with no sale_mode at all is retail.
+ */
+export function resolveWholesaleBody(b: Record<string, unknown>, unit?: string | null): WholesaleResult {
+  return resolveWholesale({
+    saleMode: b.sale_mode,
+    price: b.wholesale_price,
+    minQty: b.wholesale_min_qty,
+    packSize: b.wholesale_pack_size,
+    transport: b.wholesale_transport,
+    states: b.wholesale_transport_states,
+    unit,
+  })
+}
+
+/**
+ * Server check for a payload that already uses the column names (the farmer
+ * dashboard's edit goes through /api/farmer/update-listing with columns, not
+ * form strings). Transport is read from the state list: a non-empty list is
+ * Yes, an empty one No.
+ *   - no wholesale key at all → { ok: true, columns: null } (leave the row alone)
+ *   - a stray wholesale field without sale_mode → refused, so a caller can't
+ *     change the price of a live wholesale listing past the rules
+ *   - otherwise → the same rules as the form, normalised columns back
+ */
+export function resolveWholesaleColumns(
+  payload: Record<string, unknown>,
+  unit?: string | null,
+): { ok: true; columns: WholesaleColumns | null } | { ok: false; error: Msg } {
+  const touched = WHOLESALE_COLUMNS.filter((c) => c in payload)
+  if (touched.length === 0) return { ok: true, columns: null }
+  if (!('sale_mode' in payload)) {
+    return { ok: false, error: { en: 'Send sale_mode with the wholesale fields.', te: 'హోల్‌సేల్ వివరాలతో పాటు అమ్మకం విధానం కూడా పంపండి.' } }
+  }
+  const states = payload.wholesale_transport_states
+  return resolveWholesale({
+    saleMode: payload.sale_mode,
+    price: payload.wholesale_price,
+    minQty: payload.wholesale_min_qty,
+    packSize: payload.wholesale_pack_size,
+    transport: Array.isArray(states) ? states.length > 0 : states == null ? false : null,
+    states,
+    unit,
+  })
+}
+
+const numStr = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? String(v) : typeof v === 'string' ? v : '')
+
+/**
+ * A saved listing row → form state, for Edit. A row from before the migration
+ * (no sale_mode key) reads as Retail with empty fields. Transport is answered
+ * only when the row is already wholesale — a retail row was never asked.
+ */
+export function wholesaleFormFromRow(row: Record<string, unknown> | null | undefined): WholesaleForm {
+  if (!row) return { ...EMPTY_WHOLESALE_FORM }
+  const saleMode = parseSaleMode(row.sale_mode)
+  const states = normalizeStates(row.wholesale_transport_states)
+  return {
+    saleMode,
+    price: numStr(row.wholesale_price),
+    minQty: numStr(row.wholesale_min_qty),
+    packSize: numStr(row.wholesale_pack_size),
+    transport: states.length > 0 ? true : saleMode === 'retail' ? null : false,
+    states,
+  }
+}
+
+/** Did the save fail only because the wholesale columns don't exist on this server yet? */
+export function isWholesaleColumnMissing(msg: string | null | undefined): boolean {
+  return WHOLESALE_COLUMNS.some((c) => isMissingColumnError(msg, c))
+}
+
+/** A copy of the payload with every wholesale column removed. */
+export function withoutWholesale<T extends Record<string, unknown>>(payload: T): T {
+  const copy: Record<string, unknown> = { ...payload }
+  for (const c of WHOLESALE_COLUMNS) delete copy[c]
+  return copy as T
+}
+
+/**
+ * What to do when a save failed on a missing wholesale column
+ * (scripts/wholesale-migration.sql not run on this server):
+ *   retail     → 'retry' without the wholesale columns; nothing is lost,
+ *                retail is what the row already is.
+ *   wholesale  → 'refuse': saving would silently drop the farmer's choice.
+ */
+export function missingColumnAction(mode: SaleMode): 'retry' | 'refuse' {
+  return mode === 'retail' ? 'retry' : 'refuse'
+}
+
+export const WHOLESALE_NOT_READY: Msg = {
+  en: 'Wholesale is not switched on for this server yet. Choose Retail for now, or ask the moderator.',
+  te: 'ఈ సర్వర్‌లో హోల్‌సేల్ ఇంకా ప్రారంభం కాలేదు. ప్రస్తుతానికి చిల్లర ఎంచుకోండి, లేదా మోడరేటర్‌ను అడగండి.',
+}
+
+/** A retail price is required unless the produce is sold wholesale only. */
+export function needsRetailPrice(mode: SaleMode): boolean {
+  return offersRetail(mode)
+}
+
+/**
+ * Which wholesale columns a save should include. Retail on a server that has
+ * no wholesale columns yet (`serverReady` false) sends nothing, so an
+ * un-migrated environment keeps saving exactly as before; otherwise the
+ * resolved columns go as they are.
+ */
+export function wholesaleColumnsToSend(columns: WholesaleColumns, serverReady: boolean): Partial<Record<(typeof WHOLESALE_COLUMNS)[number], unknown>> {
+  if (columns.sale_mode === 'retail' && !serverReady) return {}
+  return { ...columns }
+}
+
+/** The moderator form's request body for the wholesale part (read back by resolveWholesaleBody). */
+export function wholesaleRequestBody(form: WholesaleForm, serverReady: boolean): Record<string, unknown> {
+  if (form.saleMode === 'retail' && !serverReady) return {}
+  return {
+    sale_mode: form.saleMode,
+    wholesale_price: form.price,
+    wholesale_min_qty: form.minQty,
+    wholesale_pack_size: form.packSize,
+    wholesale_transport: form.transport,
+    wholesale_transport_states: form.states,
+  }
+}

@@ -5,6 +5,7 @@ import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
 import { purchaseCountsFor } from '@/lib/purchaseCounts'
 import { normalizeUrl } from '@/lib/links'
 import { parseDeliveryMode } from '@/lib/fulfillment'
+import { resolveWholesaleBody, isWholesaleColumnMissing, WHOLESALE_NOT_READY } from '@/lib/wholesale'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -189,11 +190,20 @@ export async function POST(req: NextRequest) {
   // Tier 3 sits just above tier 2's band (matches the farmer form's qty rule).
   if (price3) { insert.price_tier_3_price = price3; insert.price_tier_3_qty = (price2Qty ?? 1) + 1 }
 
+  // Retail / Wholesale / Both (src/lib/wholesale.ts). Retail adds nothing —
+  // the column defaults to 'retail' — so an un-migrated server is unaffected.
+  const wholesale = resolveWholesaleBody(b, unit)
+  if (!wholesale.ok) return NextResponse.json({ error: wholesale.error.en }, { status: 400 })
+  if (wholesale.columns.sale_mode !== 'retail') Object.assign(insert, wholesale.columns)
+
   const { data: created, error } = await supabase
     .from('produce_listings')
     .insert(insert)
     .select('id')
     .single()
+  if (error && isWholesaleColumnMissing(error.message)) {
+    return NextResponse.json({ error: WHOLESALE_NOT_READY.en }, { status: 503 })
+  }
   if (error) {
     console.error('[YFF moderator/listings POST] insert failed:', error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
