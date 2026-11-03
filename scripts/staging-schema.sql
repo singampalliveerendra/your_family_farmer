@@ -816,3 +816,51 @@ ALTER TABLE public.consumers_auth
   ADD COLUMN IF NOT EXISTS address_pincode text,
   ADD COLUMN IF NOT EXISTS address_alt_phone text,
   ADD COLUMN IF NOT EXISTS address_updated_at timestamptz;
+
+
+-- ============================================================================
+-- Sale step (scripts/sale-step-migration.sql) — was missing from this file.
+-- ============================================================================
+ALTER TABLE public.produce_listings
+  ADD COLUMN IF NOT EXISTS sale_step numeric(6,3);
+ALTER TABLE public.produce_listings
+  ALTER COLUMN stock_qty TYPE numeric(10,3),
+  ALTER COLUMN price_tier_1_qty TYPE numeric(10,3),
+  ALTER COLUMN price_tier_2_qty TYPE numeric(10,3),
+  ALTER COLUMN price_tier_3_qty TYPE numeric(10,3);
+ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_sale_step_positive;
+ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_sale_step_positive
+  CHECK (sale_step IS NULL OR sale_step > 0);
+
+
+-- ============================================================================
+-- Wholesale (scripts/wholesale-migration.sql)
+-- Retail / Wholesale / Both per produce; retail and wholesale share
+-- harvests.stock_qty. orders.order_type marks each order.
+-- ============================================================================
+ALTER TABLE public.produce_listings
+  ADD COLUMN IF NOT EXISTS sale_mode text NOT NULL DEFAULT 'retail',
+  ADD COLUMN IF NOT EXISTS wholesale_price numeric(8,2),
+  ADD COLUMN IF NOT EXISTS wholesale_min_qty numeric(10,3),
+  ADD COLUMN IF NOT EXISTS wholesale_pack_size numeric(10,3),
+  ADD COLUMN IF NOT EXISTS wholesale_transport_states text[] NOT NULL DEFAULT '{}';
+ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_sale_mode_check;
+ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_sale_mode_check
+  CHECK (sale_mode IN ('retail', 'wholesale', 'both'));
+ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_wholesale_fields_check;
+ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_wholesale_fields_check
+  CHECK (sale_mode = 'retail' OR (COALESCE(wholesale_price, 0) > 0 AND COALESCE(wholesale_min_qty, 0) > 0));
+ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_wholesale_pack_check;
+ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_wholesale_pack_check
+  CHECK (wholesale_pack_size IS NULL OR wholesale_pack_size > 0);
+ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_wholesale_transport_check;
+ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_wholesale_transport_check
+  CHECK (wholesale_transport_states <@ ARRAY['AP', 'TG']::text[]);
+CREATE INDEX IF NOT EXISTS idx_produce_listings_wholesale
+  ON public.produce_listings (sale_mode) WHERE sale_mode <> 'retail';
+
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS order_type text NOT NULL DEFAULT 'retail';
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_order_type_check;
+ALTER TABLE public.orders ADD CONSTRAINT orders_order_type_check
+  CHECK (order_type IN ('retail', 'wholesale'));

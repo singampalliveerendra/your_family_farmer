@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import ModeratorShell, { useModeratorAuth } from '../../../ModeratorShell'
 import ListingForm, { type ListingFormValues, EMPTY_LISTING_FORM } from '../../ListingForm'
+import { wholesaleFormFromRow, type WholesaleForm } from '@/lib/wholesale'
 
 // Prefill state pulled from the listing, passed straight into ListingForm.
 type Loaded = {
@@ -12,6 +13,8 @@ type Loaded = {
   farmerId: string
   farmerName: string
   images: string[]
+  wholesale: WholesaleForm
+  wholesaleReady: boolean
 }
 
 const numStr = (v: number | null | undefined) => (v == null ? '' : String(v))
@@ -78,6 +81,8 @@ export default function EditListingPage() {
       farmerId: (l.farmer_id as string) ?? '',
       farmerName: (json.farmer_name as string) ?? '—',
       images,
+      wholesale: wholesaleFormFromRow(l),
+      wholesaleReady: 'sale_mode' in l,
     })
   }, [id])
 
@@ -107,6 +112,8 @@ export default function EditListingPage() {
           initialFarmerId={loaded.farmerId}
           initialImages={loaded.images}
           fixedFarmerName={loaded.farmerName}
+          initialWholesale={loaded.wholesale}
+          wholesaleReady={loaded.wholesaleReady}
         />
       )}
     </ModeratorShell>

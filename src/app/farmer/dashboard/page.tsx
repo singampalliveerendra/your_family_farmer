@@ -38,6 +38,12 @@ import { previewNum, resolveSaleStep, previewAvailability, previewTiers } from '
 import { formatHarvestDate, nextHarvestDate } from '@/lib/harvestSchedule'
 import { localizeName, localizeUnit } from '@/lib/localizeName'
 import ShareProduceButton from '@/components/farmer/ShareProduceButton'
+import WholesaleFields from '@/components/WholesaleFields'
+import {
+  wholesaleFormFromRow, resolveWholesaleForm, needsRetailPrice, offersRetail,
+  isWholesaleColumnMissing, missingColumnAction, withoutWholesale, wholesaleColumnsToSend, WHOLESALE_NOT_READY,
+  type WholesaleForm,
+} from '@/lib/wholesale'
 import {
   clearFarmerLocalSession,
   farmerFetch,
@@ -142,6 +148,12 @@ type ListingRow = {
   // Aggregators only: which of their source farmers grows this produce. Every
   // harvest logged against the listing inherits it.
   source_farmer_id?: string | null
+  // Wholesale (scripts/wholesale-migration.sql). Absent before that migration.
+  sale_mode?: string | null
+  wholesale_price?: number | null
+  wholesale_min_qty?: number | null
+  wholesale_pack_size?: number | null
+  wholesale_transport_states?: string[] | null
   created_at: string
 }
 
@@ -2343,6 +2355,11 @@ function ProduceListingForm({
   )
   const [deliveryCharge, setDeliveryCharge] = useState(editData?.delivery_charge != null ? String(editData.delivery_charge) : '')
   const [deliveryRadius, setDeliveryRadius] = useState(editData?.delivery_radius_km != null ? String(editData.delivery_radius_km) : '')
+  // Retail / Wholesale / Both, and the wholesale details (src/lib/wholesale.ts).
+  const [wholesale, setWholesale] = useState<WholesaleForm>(() => wholesaleFormFromRow(editData as Record<string, unknown> | null | undefined))
+  // Whether this server has the wholesale columns. A listing loaded with
+  // select('*') carries sale_mode once the migration has run.
+  const rowHasWholesale = !!editData && 'sale_mode' in editData
   // One ordered list: item 0 is the cover (image_url), the rest are extras.
   const [photos, setPhotos] = useState<PhotoItem[]>(() => photosFromSaved(editData?.image_url, editData?.image_urls))
   const [loading, setLoading] = useState(false)
@@ -2416,11 +2433,20 @@ function ProduceListingForm({
 
   const handlePublish = async () => {
     if (!name.trim()) { setError(tx.produceNameRequired); return }
+    // A retail price is needed unless the produce is sold wholesale only.
     const price1Num = Number(price1)
-    if (!price1 || !Number.isFinite(price1Num) || price1Num <= 0) {
+    if (needsRetailPrice(wholesale.saleMode) && (!price1 || !Number.isFinite(price1Num) || price1Num <= 0)) {
       setError(tx.priceRequired)
       return
     }
+    const wholesaleResult = resolveWholesaleForm(wholesale, unit)
+    if (!wholesaleResult.ok) {
+      setError(L(wholesaleResult.error.en, wholesaleResult.error.te))
+      return
+    }
+    // Retail on a server without the wholesale columns sends nothing extra, so
+    // an un-migrated environment keeps saving exactly as before.
+    const wholesaleCols = wholesaleColumnsToSend(wholesaleResult.columns, rowHasWholesale)
     // Shelf life is mandatory — it drives the freshness label buyers rely on.
     // (Harvest date/time is now per-pick in the harvests model, not on the
     // produce, so it's no longer required here.)
@@ -2489,6 +2515,7 @@ function ProduceListingForm({
         // sending null would trip the trigger on an environment where the
         // column doesn't exist yet.
         ...(isAggregator && sourceFarmerId ? { source_farmer_id: sourceFarmerId } : {}),
+        ...wholesaleCols,
       }
 
       const sendEdit = async (body: Record<string, unknown>) => {
@@ -2510,6 +2537,16 @@ function ProduceListingForm({
           delete editPayload.sale_step
           ;({ res, json } = await sendEdit(editPayload))
           if (res.ok) setStepNotSaved(true)
+        }
+        // Pre-migration environment for wholesale: retail just drops the
+        // columns; a wholesale choice is refused rather than silently lost.
+        if (!res.ok && isWholesaleColumnMissing(json.error)) {
+          if (missingColumnAction(wholesale.saleMode) === 'refuse') {
+            setLoading(false)
+            setError(L(WHOLESALE_NOT_READY.en, WHOLESALE_NOT_READY.te))
+            return
+          }
+          ;({ res, json } = await sendEdit(withoutWholesale(editPayload)))
         }
       } catch (e) {
         if (isFarmerSessionExpired(e)) return
@@ -2578,6 +2615,8 @@ function ProduceListingForm({
       if (deliveryCharge) payload.delivery_charge = Number(deliveryCharge)
       if (deliveryRadius) payload.delivery_radius_km = Number(deliveryRadius)
     }
+    // New produce: retail needs nothing (the column defaults to 'retail').
+    Object.assign(payload, wholesaleColumnsToSend(wholesaleResult.columns, false))
 
     const insertPayload: Record<string, unknown> = { ...payload, farmer_id: farmerId, status: 'available' }
     const doInsert = (body: Record<string, unknown>) =>
@@ -2590,6 +2629,13 @@ function ProduceListingForm({
       delete insertPayload.sale_step
       ;({ data: inserted, error: err } = await doInsert(insertPayload))
       if (!err) setStepNotSaved(true)
+    }
+    // Wholesale columns missing on this server: refuse rather than publish a
+    // retail listing the farmer did not ask for.
+    if (err && isWholesaleColumnMissing(err.message)) {
+      setLoading(false)
+      setError(L(WHOLESALE_NOT_READY.en, WHOLESALE_NOT_READY.te))
+      return
     }
 
     if (err) { setLoading(false); setError(err.message); return }
@@ -3003,7 +3049,11 @@ function ProduceListingForm({
           )}
         </div>
 
-        {/* Pricing tiers */}
+        {/* Retail / Wholesale / Both — the wholesale details open only when needed */}
+        <WholesaleFields value={wholesale} onChange={setWholesale} unit={unit} L={L} />
+
+        {/* Pricing tiers — retail prices; not asked when sold wholesale only */}
+        {offersRetail(wholesale.saleMode) && (
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
             {tx.pricingTiers}
@@ -3079,6 +3129,7 @@ function ProduceListingForm({
             </p>
           )}
         </div>
+        )}
 
         {/* Description */}
         <div className="space-y-2">

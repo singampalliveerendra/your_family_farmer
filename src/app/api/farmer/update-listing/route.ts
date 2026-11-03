@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
+import { resolveWholesaleColumns, withoutWholesale } from '@/lib/wholesale'
+import { reqLang, tr } from '@/lib/serverLang'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -46,13 +48,26 @@ export async function POST(request: NextRequest) {
   // current status + stock so we can keep the sold-out flag in sync below.
   const { data: existing } = await supabaseAdmin
     .from('produce_listings')
-    .select('id, status, stock_qty')
+    .select('id, status, stock_qty, unit')
     .eq('id', listingId)
     .eq('farmer_id', session.farmerId)
     .maybeSingle()
 
   if (!existing) {
     return NextResponse.json({ error: 'Listing not found or access denied' }, { status: 403 })
+  }
+
+  // Wholesale fields get the same rules as the form (src/lib/wholesale.ts),
+  // normalised before they reach the DB. Untouched when none are sent.
+  const unit = typeof cleanPayload.unit === 'string' ? cleanPayload.unit : (existing.unit as string | null)
+  const wholesale = resolveWholesaleColumns(cleanPayload, unit)
+  if (!wholesale.ok) {
+    return NextResponse.json({ error: tr(reqLang(request), wholesale.error.en, wholesale.error.te) }, { status: 400 })
+  }
+  if (wholesale.columns) {
+    const rest = withoutWholesale(cleanPayload)
+    for (const k of Object.keys(cleanPayload)) delete cleanPayload[k]
+    Object.assign(cleanPayload, rest, wholesale.columns)
   }
 
   // Stock ↔ status sync. Whenever a farmer edits the quantity we refresh the

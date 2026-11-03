@@ -105,6 +105,18 @@ SELECT * FROM (
     CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
       WHERE table_name='consumers_auth' AND column_name='address_line')
       THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  -- wholesale-migration.sql. Without it the Retail/Wholesale/Both picker still
+  -- saves Retail, but Wholesale or Both is refused ("not switched on yet").
+  SELECT 16, 'wholesale', 'produce_listings.sale_mode',
+    CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_name='produce_listings' AND column_name='sale_mode')
+      THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  SELECT 17, 'wholesale', 'orders.order_type',
+    CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_name='orders' AND column_name='order_type')
+      THEN 'PRESENT' ELSE 'MISSING' END
 
 ) checks ORDER BY ord;
 

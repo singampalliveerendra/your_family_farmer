@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { unitAllowsFractions } from '@/lib/saleStep'
 import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
 import { normalizeUrl } from '@/lib/links'
+import { resolveWholesaleBody, isWholesaleColumnMissing, withoutWholesale, WHOLESALE_NOT_READY } from '@/lib/wholesale'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -235,15 +236,29 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const sourceFarmerId = toUuid(b.source_farmer_id)
   if (sourceFarmerId) update.source_farmer_id = sourceFarmerId
 
-  const { data: updated, error } = await supabase
-    .from('produce_listings')
-    .update(update)
-    .eq('id', id)
-    .select('id, farmer_id')
-    .single()
-  if (error) {
-    console.error('[YFF moderator/listings PUT] update failed:', error.message)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  // Retail / Wholesale / Both. Only when the caller sent sale_mode, so an older
+  // caller can't reset a wholesale listing to retail by leaving it out.
+  if ('sale_mode' in b) {
+    const wholesale = resolveWholesaleBody(b, unit)
+    if (!wholesale.ok) return NextResponse.json({ error: wholesale.error.en }, { status: 400 })
+    Object.assign(update, wholesale.columns)
+  }
+
+  const save = (row: Record<string, unknown>) =>
+    supabase.from('produce_listings').update(row).eq('id', id).select('id, farmer_id').single()
+  let { data: updated, error } = await save(update)
+  // Server without the wholesale columns: retail drops them and saves;
+  // a wholesale choice is refused rather than silently lost.
+  if (error && isWholesaleColumnMissing(error.message)) {
+    if (update.sale_mode !== 'retail') {
+      return NextResponse.json({ error: WHOLESALE_NOT_READY.en }, { status: 503 })
+    }
+    ;({ data: updated, error } = await save(withoutWholesale(update)))
+  }
+  if (error || !updated) {
+    const msg = error?.message ?? 'Update failed'
+    console.error('[YFF moderator/listings PUT] update failed:', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 
   // Only a caller that supplied a harvest date owns the harvest row. When the
