@@ -20,6 +20,7 @@ const NAV: NavItem[] = [
   { label: 'Supply & demand', href: '/moderator/supply', ready: true },
   { label: 'Reports', href: '/moderator/reports', ready: true },
   { label: 'Order reports', href: '/moderator/order-report', ready: true },
+  { label: 'Subscriptions', href: '/moderator/subscriptions', ready: true },
 ]
 
 export default function ModeratorShell({

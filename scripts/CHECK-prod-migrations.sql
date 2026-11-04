@@ -117,6 +117,18 @@ SELECT * FROM (
     CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
       WHERE table_name='orders' AND column_name='order_type')
       THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  -- subscription-migration.sql. Without it the homepage shows "Plans coming
+  -- soon" and the moderator Plans screen cannot save.
+  SELECT 18, 'subscriptions', 'subscription_plans table',
+    CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables
+      WHERE table_name='subscription_plans')
+      THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  SELECT 19, 'subscriptions', 'aggregator_subscriptions table',
+    CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables
+      WHERE table_name='aggregator_subscriptions')
+      THEN 'PRESENT' ELSE 'MISSING' END
 
 ) checks ORDER BY ord;
 
