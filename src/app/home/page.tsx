@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
-import { supabase } from '@/lib/supabase'
-import { readWithSaleMode } from '@/lib/wholesaleVisibility'
+import { farmShots } from '@/lib/farmShots'
 import { installCount } from '@/lib/installCount'
 import HomeLanding from '@/components/home/HomeLanding'
 import { activePlans } from '@/lib/publicPlans'
@@ -30,29 +29,6 @@ export const metadata: Metadata = {
 // Photos change only when the catalogue does; ten minutes keeps the landing
 // page fast without going stale for a day.
 export const revalidate = 600
-
-type Shot = { id: string; name: string; image_url: string }
-
-async function farmShots(limit = 6): Promise<Shot[]> {
-  try {
-    // Household-facing page: no wholesale-only produce in the photos.
-    const { data } = await readWithSaleMode((withMode) => {
-      const q = supabase
-        .from('produce_listings')
-        .select('id, name, image_url')
-        .not('image_url', 'is', null)
-        .in('status', ['available', 'sold_out'])
-      return (withMode ? q.neq('sale_mode', 'wholesale') : q)
-        .order('created_at', { ascending: false })
-        .limit(limit)
-    })
-    return ((data ?? []) as Shot[]).filter((r) => !!r.image_url)
-  } catch {
-    // A marketing page must never 500 because the catalogue hiccuped — the
-    // photo sections simply don't render.
-    return []
-  }
-}
 
 export default async function HomePage() {
   // Both are cheap and independent, and both are covered by `revalidate`

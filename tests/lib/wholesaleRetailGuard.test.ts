@@ -14,6 +14,7 @@ const BUYER_AREAS = [
   'src/app/consumer',
   'src/app/region',
   'src/app/home',
+  'src/lib/farmShots.ts',
   'src/app/farmer/[slug]',
   'src/components/consumer',
   'src/components/farmer/tabs',
@@ -93,7 +94,7 @@ describe('the surfaces the request named are covered', () => {
     'src/app/consumer/produce/[id]/page.tsx',
     'src/app/consumer/produce/[id]/layout.tsx',
     'src/app/consumer/harvest/[harvestId]/page.tsx',
-    'src/app/home/page.tsx',
+    'src/lib/farmShots.ts', // /home and the role pages' photos
     'src/components/consumer/TodaysHarvest.tsx',
     'src/components/consumer/FreshHarvestsTable.tsx',
     'src/app/api/orders/place/route.ts',

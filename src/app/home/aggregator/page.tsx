@@ -3,6 +3,7 @@ import RoleExplainer from '@/components/home/RoleExplainer'
 import AggregatorPlans from '@/components/home/AggregatorPlans'
 import { AGGREGATOR_CONTENT } from '@/lib/roleContent'
 import { activePlans } from '@/lib/publicPlans'
+import { farmShots } from '@/lib/farmShots'
 
 /* /home/aggregator — what an aggregator is, the Buying / Selling / Combined
  * plans with live prices and offers, the terms, then signup or login
@@ -21,9 +22,9 @@ export const metadata: Metadata = {
 export const revalidate = 300
 
 export default async function AggregatorHomePage() {
-  const plans = await activePlans()
+  const [plans, photos] = await Promise.all([activePlans(), farmShots(4)])
   return (
-    <RoleExplainer content={AGGREGATOR_CONTENT}>
+    <RoleExplainer content={AGGREGATOR_CONTENT} photos={photos}>
       <AggregatorPlans plans={plans} />
     </RoleExplainer>
   )

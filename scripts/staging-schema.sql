@@ -963,3 +963,56 @@ CREATE POLICY subscription_plans_public_read ON public.subscription_plans
 
 REVOKE ALL ON public.aggregator_subscriptions FROM anon, authenticated;
 -- (no policies: service role only)
+
+-- ── Aggregator subscription payments (scripts/subscription-payments-migration.sql, 2026-11-04) ──
+ALTER TABLE public.aggregator_subscriptions
+  ADD COLUMN IF NOT EXISTS cashfree_order_id text,
+  ADD COLUMN IF NOT EXISTS payment_ref       text,
+  ADD COLUMN IF NOT EXISTS payment_label     text,
+  ADD COLUMN IF NOT EXISTS paid_at           timestamptz,
+  ADD COLUMN IF NOT EXISTS receipt_no        text,
+  ADD COLUMN IF NOT EXISTS duration_days     integer,
+  ADD COLUMN IF NOT EXISTS start_mode        text NOT NULL DEFAULT 'now';
+
+CREATE UNIQUE INDEX IF NOT EXISTS aggregator_subscriptions_cashfree_order_idx
+  ON public.aggregator_subscriptions (cashfree_order_id) WHERE cashfree_order_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS aggregator_subscriptions_receipt_idx
+  ON public.aggregator_subscriptions (receipt_no) WHERE receipt_no IS NOT NULL;
+
+ALTER TABLE public.aggregator_subscriptions DROP CONSTRAINT IF EXISTS aggregator_subscriptions_start_mode_check;
+ALTER TABLE public.aggregator_subscriptions ADD CONSTRAINT aggregator_subscriptions_start_mode_check
+  CHECK (start_mode IN ('now', 'after_current'));
+ALTER TABLE public.aggregator_subscriptions DROP CONSTRAINT IF EXISTS aggregator_subscriptions_duration_check;
+ALTER TABLE public.aggregator_subscriptions ADD CONSTRAINT aggregator_subscriptions_duration_check
+  CHECK (duration_days IS NULL OR duration_days BETWEEN 1 AND 3650);
+-- A payment row only counts once it is really paid: an ACTIVE payment row must
+-- name its Cashfree order and when it was paid.
+ALTER TABLE public.aggregator_subscriptions DROP CONSTRAINT IF EXISTS aggregator_subscriptions_paid_check;
+ALTER TABLE public.aggregator_subscriptions ADD CONSTRAINT aggregator_subscriptions_paid_check
+  CHECK (source <> 'payment' OR status <> 'active' OR (cashfree_order_id IS NOT NULL AND paid_at IS NOT NULL));
+-- Only payment rows carry a Cashfree order.
+ALTER TABLE public.aggregator_subscriptions DROP CONSTRAINT IF EXISTS aggregator_subscriptions_cashfree_check;
+ALTER TABLE public.aggregator_subscriptions ADD CONSTRAINT aggregator_subscriptions_cashfree_check
+  CHECK (cashfree_order_id IS NULL OR source = 'payment');
+
+CREATE INDEX IF NOT EXISTS aggregator_subscriptions_ending_idx
+  ON public.aggregator_subscriptions (status, ends_at);
+
+CREATE TABLE IF NOT EXISTS public.subscription_listing_holds (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  aggregator_id   uuid NOT NULL REFERENCES public.farmers(id) ON DELETE CASCADE,
+  listing_id      uuid NOT NULL REFERENCES public.produce_listings(id) ON DELETE CASCADE,
+  previous_status text NOT NULL,
+  held_at         timestamptz NOT NULL DEFAULT now(),
+  held_by         uuid REFERENCES public.moderators(id) ON DELETE SET NULL,
+  released_at     timestamptz
+);
+-- A listing is held at most once at a time.
+CREATE UNIQUE INDEX IF NOT EXISTS subscription_listing_holds_open_idx
+  ON public.subscription_listing_holds (listing_id) WHERE released_at IS NULL;
+CREATE INDEX IF NOT EXISTS subscription_listing_holds_agg_idx
+  ON public.subscription_listing_holds (aggregator_id, released_at);
+
+ALTER TABLE public.subscription_listing_holds ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.subscription_listing_holds FROM anon, authenticated;
+-- (no policies: service role only)

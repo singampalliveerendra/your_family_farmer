@@ -40,6 +40,7 @@ import { localizeName, localizeUnit } from '@/lib/localizeName'
 import ShareProduceButton from '@/components/farmer/ShareProduceButton'
 import WholesaleFields from '@/components/WholesaleFields'
 import WholesaleLowStockAlerts from '@/components/farmer/WholesaleLowStockAlerts'
+import SubscriptionStatusCard from '@/components/farmer/SubscriptionStatusCard'
 import {
   wholesaleFormFromRow, resolveWholesaleForm, needsRetailPrice, offersRetail,
   isWholesaleColumnMissing, missingColumnAction, withoutWholesale, wholesaleColumnsToSend, WHOLESALE_NOT_READY,
@@ -631,6 +632,9 @@ export default function FarmerDashboard() {
             the farmer moved from the harvest form to the produce form: they now
             answer it once per produce, not once per pick, so the registry is
             setup and does not deserve the top of the dashboard. */}
+        {/* Aggregator plan status (Phase 4) — farmers are free and never see it. */}
+        {farmer?.account_type === 'aggregator' && <SubscriptionStatusCard />}
+
         {farmer?.account_type === 'aggregator' && (
           <Link
             href="/aggregator/farmers"

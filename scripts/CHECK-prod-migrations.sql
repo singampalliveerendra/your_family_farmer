@@ -129,6 +129,18 @@ SELECT * FROM (
     CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables
       WHERE table_name='aggregator_subscriptions')
       THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  -- subscription-payments-migration.sql. Without it an aggregator cannot pay
+  -- for a plan (start refuses) and moderators cannot hide/restore listings.
+  SELECT 20, 'subscription-payments', 'aggregator_subscriptions.cashfree_order_id',
+    CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_name='aggregator_subscriptions' AND column_name='cashfree_order_id')
+      THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  SELECT 21, 'subscription-payments', 'subscription_listing_holds table',
+    CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables
+      WHERE table_name='subscription_listing_holds')
+      THEN 'PRESENT' ELSE 'MISSING' END
 
 ) checks ORDER BY ord;
 

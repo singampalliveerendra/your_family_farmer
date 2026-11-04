@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getSettlement } from '@/lib/cashfree'
 import { markCashfreePaid } from '@/lib/cashfree-settle'
+import { settleSubscriptionPayment } from '@/lib/subscriptionSettle'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -75,10 +76,39 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Aggregator plan payments get the same safety net: a 'pending' plan whose
+  // Cashfree order was actually paid becomes active. Best-effort — before
+  // scripts/subscription-payments-migration.sql the query just errors and the
+  // shop's reconcile above is unaffected.
+  let subsChecked = 0
+  let subsReconciled = 0
+  const { data: subs, error: subsErr } = await supabase
+    .from('aggregator_subscriptions')
+    .select('cashfree_order_id')
+    .eq('status', 'pending')
+    .not('cashfree_order_id', 'is', null)
+    .lt('created_at', cutoff)
+    .limit(BATCH_LIMIT)
+  if (!subsErr) {
+    for (const r of (subs ?? []) as Array<{ cashfree_order_id: string }>) {
+      subsChecked += 1
+      try {
+        const s = await getSettlement(r.cashfree_order_id)
+        if (!s.paid) continue
+        const out = await settleSubscriptionPayment(supabase, { cashfreeOrderId: r.cashfree_order_id, paymentId: s.paymentId, label: s.label })
+        if (out.ok) subsReconciled += 1
+        else errors.push(`${r.cashfree_order_id}: ${out.error}`)
+      } catch (e) {
+        errors.push(`${r.cashfree_order_id}: ${(e as Error).message}`)
+      }
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     checked: cfIds.length,
     reconciled,
+    subscriptions: { checked: subsChecked, reconciled: subsReconciled },
     errors: errors.length ? errors : undefined,
   })
 }

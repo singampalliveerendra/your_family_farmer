@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { MAX_PLAN_DAYS, MAX_PLAN_PRICE, PLAN_KINDS, SUB_SOURCES } from '@/lib/subscriptionPlans'
 import { PUBLIC_PLAN_COLUMNS } from '@/lib/publicPlans'
+import { SUB_ROW_COLUMNS } from '@/lib/subscriptionSettle'
 
 // The subscription migration, the schema snapshot and src/lib/subscriptionPlans.ts
 // must agree. Comments are stripped so a mention in a comment can't pass.
@@ -60,5 +61,39 @@ describe('migration only', () => {
     const c = readFileSync(join(process.cwd(), 'scripts/CHECK-prod-migrations.sql'), 'utf8')
     expect(c).toMatch(/table_name='subscription_plans'/)
     expect(c).toMatch(/table_name='aggregator_subscriptions'/)
+  })
+})
+
+describe.each(['subscription-payments-migration.sql', 'staging-schema.sql'])('payments part: %s', (file) => {
+  const s = sql(file)
+  it('adds every column the settle / receipt code writes', () => {
+    for (const c of ['cashfree_order_id', 'payment_ref', 'payment_label', 'paid_at', 'receipt_no', 'duration_days', 'start_mode']) {
+      expect(s).toMatch(new RegExp(`ADD COLUMN IF NOT EXISTS ${c}\\b`))
+    }
+    // Across both parts: the server reads every one of these columns.
+    const both = file === 'staging-schema.sql' ? s : s + sql('subscription-migration.sql')
+    for (const c of SUB_ROW_COLUMNS.split(',').map((x) => x.trim())) expect(both, c).toMatch(new RegExp(`\\b${c}\\b`))
+  })
+  it('a payment row only counts once really paid; only payments carry a Cashfree order', () => {
+    expect(s).toMatch(/source <> 'payment' OR status <> 'active' OR \(cashfree_order_id IS NOT NULL AND paid_at IS NOT NULL\)/)
+    expect(s).toMatch(/cashfree_order_id IS NULL OR source = 'payment'/)
+    expect(s).toMatch(/start_mode IN \('now', 'after_current'\)/)
+  })
+  it('one Cashfree order and one receipt number per row', () => {
+    expect(s).toMatch(/UNIQUE INDEX IF NOT EXISTS aggregator_subscriptions_cashfree_order_idx/)
+    expect(s).toMatch(/UNIQUE INDEX IF NOT EXISTS aggregator_subscriptions_receipt_idx/)
+  })
+  it('holds: one open hold per listing, server-only', () => {
+    expect(s).toMatch(/subscription_listing_holds_open_idx[\s\S]*WHERE released_at IS NULL/)
+    expect(s).toMatch(/REVOKE ALL ON public\.subscription_listing_holds FROM anon, authenticated/)
+    expect(s).not.toMatch(/CREATE POLICY[^;]*subscription_listing_holds/)
+  })
+})
+
+describe('prod check lists the payments part', () => {
+  it('both new pieces', () => {
+    const c = readFileSync(join(process.cwd(), 'scripts/CHECK-prod-migrations.sql'), 'utf8')
+    expect(c).toMatch(/column_name='cashfree_order_id'/)
+    expect(c).toMatch(/table_name='subscription_listing_holds'/)
   })
 })

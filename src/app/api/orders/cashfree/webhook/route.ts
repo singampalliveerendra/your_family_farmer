@@ -2,6 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getSettlement, verifyWebhookSignature } from '@/lib/cashfree'
 import { markCashfreePaid } from '@/lib/cashfree-settle'
+import { isSubscriptionOrderId } from '@/lib/subscriptionLifecycle'
+import { settleSubscriptionPayment } from '@/lib/subscriptionSettle'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -49,6 +51,21 @@ export async function POST(req: NextRequest) {
   )
 
   try {
+    // An aggregator's plan payment ("gs_…", src/lib/subscriptionLifecycle.ts)
+    // shares this webhook with the shop's orders ("gg_…"). Same full-amount
+    // rule; a failed attempt just leaves the plan pending (they can retry).
+    if (isSubscriptionOrderId(cashfreeOrderId)) {
+      if (event.type === 'PAYMENT_SUCCESS_WEBHOOK' && cashfreeOrderId) {
+        const s = await getSettlement(cashfreeOrderId)
+        if (s.paid) {
+          const r = await settleSubscriptionPayment(supabase, { cashfreeOrderId, paymentId: s.paymentId, label: s.label })
+          if (!r.ok) console.error('[YFF cashfree/webhook] subscription settle failed:', r.error)
+        } else {
+          console.warn('[YFF cashfree/webhook] subscription success event but not settled:', cashfreeOrderId, s.orderStatus)
+        }
+      }
+      return NextResponse.json({ ok: true })
+    }
     if (event.type === 'PAYMENT_SUCCESS_WEBHOOK' && cashfreeOrderId) {
       // The signed payload would do, but going back to the API applies the
       // exact same full-amount rule /verify uses, in one place.

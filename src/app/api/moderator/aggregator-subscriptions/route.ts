@@ -16,26 +16,48 @@ function client() {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const SUB_COLUMNS = 'id, aggregator_id, kind, source, status, starts_at, ends_at, amount_paid, plan_name, note, created_at'
+// Payment columns (scripts/subscription-payments-migration.sql) are asked for
+// first and dropped if that migration has not run, so the list still loads.
+const BASE_SUB_COLUMNS = 'id, aggregator_id, kind, source, status, starts_at, ends_at, amount_paid, plan_name, note, created_at'
+const SUB_COLUMNS = `${BASE_SUB_COLUMNS}, paid_at, receipt_no, payment_label`
 
-/** Every aggregator with all their subscription rows (newest first). */
+/**
+ * Every aggregator with all their subscription rows (newest first), how many
+ * listings buyers can see now, and how many a moderator has hidden.
+ */
 export async function GET(req: NextRequest) {
   if (!isModeratorRequest(req)) return NextResponse.json({ error: 'Moderator login required.' }, { status: 401 })
   const supabase = client()
-  const [aggs, subs] = await Promise.all([
-    supabase
-      .from('farmers')
-      .select('id, name, village, phone, active, created_at')
-      .eq('account_type', 'aggregator')
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('aggregator_subscriptions')
-      .select(SUB_COLUMNS)
-      .order('created_at', { ascending: false }),
-  ])
+  const aggs = await supabase
+    .from('farmers')
+    .select('id, name, village, phone, active, created_at')
+    .eq('account_type', 'aggregator')
+    .order('created_at', { ascending: false })
   if (aggs.error) return NextResponse.json({ error: 'Could not load aggregators.' }, { status: 500 })
+  const ids = ((aggs.data ?? []) as Array<{ id: string }>).map((a) => a.id)
+
+  let subs: { data: unknown[] | null; error: unknown } = await supabase.from('aggregator_subscriptions').select(SUB_COLUMNS).order('created_at', { ascending: false })
+  if (subs.error) subs = await supabase.from('aggregator_subscriptions').select(BASE_SUB_COLUMNS).order('created_at', { ascending: false })
   if (subs.error) return NextResponse.json({ aggregators: aggs.data ?? [], subscriptions: [], configured: false })
-  return NextResponse.json({ aggregators: aggs.data ?? [], subscriptions: subs.data ?? [], configured: true })
+
+  const [listings, holds] = ids.length
+    ? await Promise.all([
+        supabase.from('produce_listings').select('farmer_id').in('farmer_id', ids).in('status', ['available', 'sold_out', 'coming_soon']),
+        supabase.from('subscription_listing_holds').select('aggregator_id').in('aggregator_id', ids).is('released_at', null),
+      ])
+    : [{ data: [] }, { data: [] }]
+  const count = (rows: unknown, key: string) => {
+    const m: Record<string, number> = {}
+    for (const r of (Array.isArray(rows) ? rows : []) as Array<Record<string, string>>) m[r[key]] = (m[r[key]] ?? 0) + 1
+    return m
+  }
+  return NextResponse.json({
+    aggregators: aggs.data ?? [],
+    subscriptions: subs.data ?? [],
+    visibleListings: count(listings.data, 'farmer_id'),
+    hiddenListings: count(holds.data, 'aggregator_id'),
+    configured: true,
+  })
 }
 
 /** Turn a subscription on by hand: { aggregatorId, kind, days | forever, note }. */
