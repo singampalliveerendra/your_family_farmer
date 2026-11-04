@@ -360,7 +360,7 @@ describe('wholesale — the household checkout', () => {
   })
 })
 
-describe('wholesale — buying with the "Buy wholesale" toggle', () => {
+describe('wholesale — bulk is for aggregators only (decision 2026-11-04)', () => {
   const WS = { sale_mode: 'both', wholesale_price: 30, wholesale_min_qty: 4, wholesale_pack_size: 2, wholesale_transport_states: ['AP'] }
   const ADDRESS = { deliveryAddress: '12-3 Main Road, Near Temple', deliveryCity: 'Tadepalligudem', deliveryPincode: '534101' }
   beforeEach(() => {
@@ -368,104 +368,67 @@ describe('wholesale — buying with the "Buy wholesale" toggle', () => {
     scheduleWholesaleLowStockCheck.mockClear()
   })
 
-  it('a pickup line is priced at the wholesale price and marked wholesale', async () => {
+  it('a bulk line is refused: no order, no stock taken, no low-stock check', async () => {
     const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 6, wholesale: true, deliveryType: 'self_pickup' }] }))
-    expect(res.status).toBe(200)
-    expect(db.orders[0]).toMatchObject({ quantity: 6, total_price: 180, order_type: 'wholesale', delivery_type: 'self_pickup', delivery_fee: 0 })
-    expect(db.listings[0].stock_qty).toBe(4) // shared stock
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/only for aggregators/)
+    expect(db.orders).toHaveLength(0)
+    expect(db.listings[0].stock_qty).toBe(10)
+    expect(scheduleWholesaleLowStockCheck).not.toHaveBeenCalled()
   })
 
-  it('retail and wholesale lines of the same produce in one cart', async () => {
+  it('a cart mixing a retail and a bulk line is refused whole (the retail line is not placed)', async () => {
     const res = await place(order({ items: [
       { listingId: LISTING_ID, qty: 1 },
       { listingId: LISTING_ID, qty: 4, wholesale: true },
     ] }))
-    expect(res.status).toBe(200)
-    expect(db.orders.map((o) => [o.order_type, o.total_price])).toEqual([['retail', 40], ['wholesale', 120]])
-    expect(db.listings[0].stock_qty).toBe(5)
+    expect(res.status).toBe(400)
+    expect(db.orders).toHaveLength(0)
+    expect(db.listings[0].stock_qty).toBe(10)
   })
 
-  it('a retail-only cart never names order_type (works before the migration)', async () => {
+  it.each([
+    ['with delivery', { ...ADDRESS, deliveryType: 'home_delivery', items: [{ listingId: LISTING_ID, qty: 4, wholesale: true, deliveryType: 'home_delivery' }] }],
+    ['as a pre-order', { items: [{ listingId: LISTING_ID, qty: 4, wholesale: true, preorder: true }] }],
+    ['with a crafted price', { items: [{ listingId: LISTING_ID, qty: 4, wholesale: true, price: 1, pricePerKg: 1 }] }],
+    ['on wholesale-only produce', { items: [{ listingId: LISTING_ID, qty: 4, wholesale: true }] }],
+  ])('refused %s too', async (name, overrides) => {
+    if (name === 'on wholesale-only produce') db.listings[0].sale_mode = 'wholesale'
+    const res = await place(order(overrides as Record<string, unknown>))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/only for aggregators/)
+    expect(db.orders).toHaveLength(0)
+  })
+
+  it('a guest is refused the same way', async () => {
+    sessionConsumerId = null
+    const res = await place(order({
+      guest: { name: 'Ravi', email: 'ravi@example.com', phone: '9123456780' },
+      deliveryAddress: 'Door 4, Main street, Tadepalligudem',
+      items: [{ listingId: LISTING_ID, qty: 4, wholesale: true }],
+    }))
+    expect(res.status).toBe(400)
+    expect(db.orders).toHaveLength(0)
+  })
+
+  it('wholesale: false (or absent) is an ordinary retail line at the retail price', async () => {
+    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 4, wholesale: false }] }))
+    expect(res.status).toBe(200)
+    expect(db.orders[0]).toMatchObject({ quantity: 4, total_price: 160 }) // 4 × ₹40, never ₹30
+  })
+
+  it('a retail order never names order_type (works before the migration)', async () => {
     const res = await place(order())
     expect(res.status).toBe(200)
     expect(db.orders[0]).not.toHaveProperty('order_type')
   })
 
-  it('delivery + the farmer transports → farmer delivery, no app delivery charge', async () => {
-    const res = await place(order({ ...ADDRESS, deliveryType: 'home_delivery', items: [{ listingId: LISTING_ID, qty: 4, wholesale: true, deliveryType: 'home_delivery' }] }))
-    expect(res.status).toBe(200)
-    expect(db.orders[0]).toMatchObject({ delivery_type: 'courier', delivery_fee: 0, delivery_status: null, delivery_pincode: '534101' })
-    expect((await res.json()).deliveryFee).toBe(0)
-  })
-
-  it('farmer delivery still needs the address', async () => {
-    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 4, wholesale: true, deliveryType: 'home_delivery' }] }))
-    expect(res.status).toBe(400)
-    expect((await res.json()).error).toMatch(/delivery address/)
-    expect(db.listings[0].stock_qty).toBe(10)
-  })
-
-  it('delivery asked but the farmer does not transport → refused', async () => {
-    db.listings[0].wholesale_transport_states = []
-    const res = await place(order({ ...ADDRESS, items: [{ listingId: LISTING_ID, qty: 4, wholesale: true, deliveryType: 'home_delivery' }] }))
-    expect(res.status).toBe(400)
-    expect((await res.json()).error).toMatch(/pickup only/)
-    expect(db.orders).toHaveLength(0)
-  })
-
-  it.each([
-    ['below the minimum', 2, /at least 4 kg/],
-    ['not whole packs', 5, /packs of 2 kg/],
-  ])('%s → refused, no stock taken', async (_n, qty, msg) => {
-    const res = await place(order({ items: [{ listingId: LISTING_ID, qty, wholesale: true }] }))
-    expect(res.status).toBe(400)
-    expect((await res.json()).error).toMatch(msg)
-    expect(db.listings[0].stock_qty).toBe(10)
-  })
-
-  it('a produce that is Retail now → refused', async () => {
-    db.listings[0].sale_mode = 'retail'
-    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 4, wholesale: true }] }))
-    expect(res.status).toBe(400)
-    expect((await res.json()).error).toMatch(/not sold wholesale any more/)
-  })
-
-  it('wholesale-only produce stays hidden from every buyer → refused', async () => {
-    db.listings[0].sale_mode = 'wholesale'
-    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 4, wholesale: true }] }))
-    expect(res.status).toBe(400)
-    expect(db.orders).toHaveLength(0)
-  })
-
-  it('on a database without the wholesale columns → refused, retail still works', async () => {
-    db.missingSaleModeColumn = true
-    for (const k of Object.keys(WS)) delete db.listings[0][k] // the row has no such columns there
-    const ws = await place(order({ items: [{ listingId: LISTING_ID, qty: 4, wholesale: true }] }))
-    expect(ws.status).toBe(400)
-    const retail = await place(order())
-    expect(retail.status).toBe(200)
-  })
-
-  it('not enough stock → refused, never turned into a pre-order', async () => {
-    db.listings[0].stock_qty = 3
-    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 4, wholesale: true, preorder: true }] }))
-    expect(res.status).toBe(400)
-    expect((await res.json()).error).toMatch(/sold out/)
-    expect(db.orders).toHaveLength(0)
-  })
-
-  it('the cart cannot set the price', async () => {
-    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 4, wholesale: true, price: 1, pricePerKg: 1 }] }))
-    expect(res.status).toBe(200)
-    expect(db.orders[0].total_price).toBe(120)
-  })
-
-  it('a wholesale order also goes to the low-stock check', async () => {
-    await place(order({ items: [{ listingId: LISTING_ID, qty: 4, wholesale: true }] }))
+  it('a retail order of a "both" produce still goes to the low-stock check', async () => {
+    await place(order({ items: [{ listingId: LISTING_ID, qty: 4 }] }))
     expect(scheduleWholesaleLowStockCheck.mock.calls[0][1]).toEqual([{ listingId: LISTING_ID, harvestId: null, qty: 4 }])
   })
 
-  it('"courier" on a RETAIL line is not honoured per line (falls back as before)', async () => {
+  it('"courier" on a retail line is not honoured per line (falls back as before)', async () => {
     const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 2, deliveryType: 'courier' }] }))
     expect(res.status).toBe(200)
     expect(db.orders[0].delivery_type).toBe('self_pickup') // request-level fallback
