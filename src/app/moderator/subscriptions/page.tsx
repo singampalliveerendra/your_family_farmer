@@ -7,11 +7,13 @@ import {
   PLAN_KINDS,
   PLAN_KIND_LABELS,
   accessOf,
+  inr,
   validatePlan,
   type PlanKind,
   type PlanRow,
   type SubscriptionRow,
 } from '@/lib/subscriptionPlans'
+import { HIDE_AFTER_DAYS, hideDue, standingOf } from '@/lib/subscriptionLifecycle'
 
 // Moderator → Subscriptions (decision 2026-11-04). Moderators are the
 // super-users for now, so this screen is platform-wide, not per zone.
@@ -23,7 +25,7 @@ import {
 // English only, like the rest of the moderator area.
 
 type Aggregator = { id: string; name: string; village: string | null; phone: string | null; active: boolean; created_at: string }
-type Sub = SubscriptionRow & { aggregator_id: string; note?: string | null }
+type Sub = SubscriptionRow & { aggregator_id: string; note?: string | null; paid_at?: string | null; receipt_no?: string | null; payment_label?: string | null }
 
 type Form = {
   id: string | null
@@ -113,6 +115,7 @@ export default function ModeratorSubscriptionsPage() {
   const [plans, setPlans] = useState<PlanRow[]>([])
   const [aggs, setAggs] = useState<Aggregator[]>([])
   const [subs, setSubs] = useState<Sub[]>([])
+  const [listingCounts, setListingCounts] = useState<{ visible: Record<string, number>; hidden: Record<string, number> }>({ visible: {}, hidden: {} })
   const [configured, setConfigured] = useState(true)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -131,6 +134,7 @@ export default function ModeratorSubscriptionsPage() {
     setPlans((p.plans ?? []) as PlanRow[])
     setAggs((s.aggregators ?? []) as Aggregator[])
     setSubs((s.subscriptions ?? []) as Sub[])
+    setListingCounts({ visible: s.visibleListings ?? {}, hidden: s.hiddenListings ?? {} })
     setConfigured(p.configured !== false && s.configured !== false)
   }, [])
 
@@ -154,6 +158,24 @@ export default function ModeratorSubscriptionsPage() {
   const quickToggle = async (p: PlanRow, change: Partial<Form>) => {
     if (busy) return
     await savePlan({ ...formFromPlan(p), ...change })
+  }
+
+  const listingsAction = async (a: Aggregator, action: 'hide' | 'restore') => {
+    const ask = action === 'hide'
+      ? `Hide all of ${a.name}'s listings from buyers? Do this only after you have spoken to them. You can restore them any time.`
+      : `Put ${a.name}'s hidden listings back for buyers?`
+    if (busy || !confirm(ask)) return
+    setBusy(true); setError('')
+    const r = await fetch('/api/moderator/aggregator-subscriptions/listings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ aggregatorId: a.id, action }),
+    }).catch(() => null)
+    setBusy(false)
+    const j = r ? await r.json().catch(() => ({})) : {}
+    if (!r || !r.ok) { setError(j?.error ?? 'Could not do that.'); return }
+    await load()
   }
 
   const switchOff = async (s: Sub) => {
@@ -242,7 +264,7 @@ export default function ModeratorSubscriptionsPage() {
           )}
         </>
       ) : (
-        <AggregatorList aggs={aggs} subs={subs} busy={busy} onGrant={setGrantFor} onSwitchOff={switchOff} />
+        <AggregatorList aggs={aggs} subs={subs} counts={listingCounts} busy={busy} onGrant={setGrantFor} onSwitchOff={switchOff} onListings={listingsAction} />
       )}
 
       {form && (
@@ -264,17 +286,40 @@ export default function ModeratorSubscriptionsPage() {
   )
 }
 
-function AggregatorList({ aggs, subs, busy, onGrant, onSwitchOff }: {
+function AggregatorList({ aggs, subs, counts, busy, onGrant, onSwitchOff, onListings }: {
   aggs: Aggregator[]
   subs: Sub[]
+  counts: { visible: Record<string, number>; hidden: Record<string, number> }
   busy: boolean
   onGrant: (a: Aggregator) => void
   onSwitchOff: (s: Sub) => void
+  onListings: (a: Aggregator, action: 'hide' | 'restore') => void
 }) {
   const [q, setQ] = useState('')
-  const shown = aggs.filter((a) => !q.trim() || `${a.name} ${a.village ?? ''} ${a.phone ?? ''}`.toLowerCase().includes(q.trim().toLowerCase()))
+  const [filter, setFilter] = useState<'all' | 'ending' | 'expired'>('all')
+  const mineOf = (a: Aggregator) => subs.filter((s) => s.aggregator_id === a.id)
+  const matches = (a: Aggregator) => {
+    if (filter === 'ending') return standingOf(mineOf(a)).state === 'ending'
+    if (filter === 'expired') return hideDue(mineOf(a)).due
+    return true
+  }
+  const shown = aggs.filter((a) => matches(a) && (!q.trim() || `${a.name} ${a.village ?? ''} ${a.phone ?? ''}`.toLowerCase().includes(q.trim().toLowerCase())))
+  const n = { ending: aggs.filter((a) => standingOf(mineOf(a)).state === 'ending').length, expired: aggs.filter((a) => hideDue(mineOf(a)).due).length }
   return (
     <div className="space-y-3">
+      <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter">
+        {([['all', `All (${aggs.length})`], ['ending', `Ending in 3 days (${n.ending})`], ['expired', `Expired ${HIDE_AFTER_DAYS}+ days (${n.expired})`]] as const).map(([k, label]) => (
+          <button
+            key={k}
+            type="button"
+            aria-pressed={filter === k}
+            onClick={() => setFilter(k)}
+            className={`shrink-0 min-h-[40px] rounded-full border px-3 text-xs font-bold ${filter === k ? 'border-green-800 bg-green-800 text-white' : 'border-gray-200 bg-white text-gray-700'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
@@ -283,8 +328,11 @@ function AggregatorList({ aggs, subs, busy, onGrant, onSwitchOff }: {
       />
       {shown.length === 0 && <p className="text-sm text-gray-400 py-8 text-center">No aggregators found.</p>}
       {shown.map((a) => {
-        const mine = subs.filter((s) => s.aggregator_id === a.id)
+        const mine = mineOf(a)
         const access = accessOf(mine)
+        const due = hideDue(mine)
+        const visible = counts.visible[a.id] ?? 0
+        const hidden = counts.hidden[a.id] ?? 0
         return (
           <div key={a.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
@@ -299,6 +347,14 @@ function AggregatorList({ aggs, subs, busy, onGrant, onSwitchOff }: {
                   ) : access.endsAt ? (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">Till {fmt(access.endsAt)}</span>
                   ) : null}
+                  {due.endedAt && !access.selling && (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${due.due ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
+                      Ended {due.daysSince} day{due.daysSince === 1 ? '' : 's'} ago
+                    </span>
+                  )}
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-50 text-gray-500">
+                    {visible} listing{visible === 1 ? '' : 's'} live{hidden ? ` · ${hidden} hidden` : ''}
+                  </span>
                 </div>
               </div>
               <button onClick={() => onGrant(a)} className="shrink-0 bg-green-800 text-white text-xs font-bold px-3 py-2 rounded-xl">Activate…</button>
@@ -311,6 +367,8 @@ function AggregatorList({ aggs, subs, busy, onGrant, onSwitchOff }: {
                       <span className="font-semibold">{PLAN_KIND_LABELS[s.kind as PlanKind]?.en ?? s.kind}</span>
                       {' · '}{SOURCE_LABEL[s.source] ?? s.source}
                       {' · '}{s.ends_at ? `till ${fmt(s.ends_at)}` : 'no end'}
+                      {Number(s.amount_paid) > 0 ? ` · paid ${inr(Number(s.amount_paid))}` : ''}
+                      {(s as Sub).receipt_no ? <span className="text-gray-400"> · {(s as Sub).receipt_no}</span> : null}
                       {(s as Sub).note ? <span className="text-gray-400"> · {(s as Sub).note}</span> : null}
                     </span>
                     <button disabled={busy} onClick={() => onSwitchOff(s as Sub)} className="shrink-0 text-red-700 font-bold underline">Switch off</button>
@@ -318,6 +376,20 @@ function AggregatorList({ aggs, subs, busy, onGrant, onSwitchOff }: {
                 ))}
               </ul>
             )}
+            {(due.due && visible > 0) || hidden > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3">
+                {due.due && visible > 0 && (
+                  <button disabled={busy} onClick={() => onListings(a, 'hide')} className="min-h-[40px] rounded-xl bg-red-700 px-3 text-xs font-bold text-white disabled:opacity-50">
+                    Hide {visible} listing{visible === 1 ? '' : 's'}
+                  </button>
+                )}
+                {hidden > 0 && (
+                  <button disabled={busy} onClick={() => onListings(a, 'restore')} className="min-h-[40px] rounded-xl border border-gray-300 px-3 text-xs font-bold text-gray-800 disabled:opacity-50">
+                    Restore {hidden} hidden listing{hidden === 1 ? '' : 's'}
+                  </button>
+                )}
+              </div>
+            ) : null}
           </div>
         )
       })}

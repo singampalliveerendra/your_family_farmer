@@ -1,9 +1,15 @@
 {
-  "regions": ["bom1"],
+  "regions": [
+    "bom1"
+  ],
   "crons": [
     {
       "path": "/api/cron/reconcile-payments",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/subscription-reminders",
+      "schedule": "30 3 * * *"
     }
   ]
 }

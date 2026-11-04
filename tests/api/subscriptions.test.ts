@@ -38,6 +38,8 @@ function query(table: string) {
   const b: Record<string, unknown> = {
     select: () => b,
     eq: (c: string, v: unknown) => { filters.push((r) => r[c] === v); return b },
+    in: (c: string, vs: unknown[]) => { filters.push((r) => vs.includes(r[c])); return b },
+    is: (c: string, v: unknown) => { filters.push((r) => (r[c] ?? null) === v); return b },
     order: () => b,
     update: (s: Row) => { updateSet = s; return b },
     insert: (r: Row) => { insertRow = r; return b },

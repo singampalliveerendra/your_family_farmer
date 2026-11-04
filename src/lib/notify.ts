@@ -32,6 +32,9 @@ export const TEMPLATES = {
   // Wholesale stock fell below the farmer's minimum (src/lib/wholesaleLowStockAlert.ts).
   // Sent only when WHOLESALE_LOW_STOCK_WHATSAPP=1 — the template must be approved first.
   farmer_wholesale_low_stock: 'yff_wholesale_low_stock',
+  // An aggregator's plan ends in 3 days (src/lib/subscriptionReminders.ts).
+  // Sent only when SUBSCRIPTION_REMINDER_WHATSAPP=1 — the template must be approved first.
+  aggregator_subscription_expiring: 'yff_subscription_expiring',
 } as const
 
 export type NotifyEvent = keyof typeof TEMPLATES
