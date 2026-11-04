@@ -41,6 +41,7 @@ import ShareProduceButton from '@/components/farmer/ShareProduceButton'
 import WholesaleFields from '@/components/WholesaleFields'
 import WholesaleLowStockAlerts from '@/components/farmer/WholesaleLowStockAlerts'
 import SubscriptionStatusCard from '@/components/farmer/SubscriptionStatusCard'
+import { sellingLockText } from '@/lib/sellingLock'
 import {
   wholesaleFormFromRow, resolveWholesaleForm, needsRetailPrice, offersRetail,
   isWholesaleColumnMissing, missingColumnAction, withoutWholesale, wholesaleColumnsToSend, WHOLESALE_NOT_READY,
@@ -2658,7 +2659,8 @@ function ProduceListingForm({
       return
     }
 
-    if (err) { setLoading(false); setError(err.message); return }
+    // The selling lock (Phase 7) in plain words, not the database's.
+    if (err) { setLoading(false); setError(sellingLockText(err.message, L)); return }
 
     // Quality fields are best-effort (columns may not exist until the migration
     // scripts/produce-quality-fields-migration.sql runs) — never block the listing.
@@ -3838,7 +3840,7 @@ function ManageListingsModal({
       .update({ status: next })
       .eq('id', row.id)
       .select('id')
-    if (err) { setError(err.message); load() }
+    if (err) { setError(sellingLockText(err.message, L)); load() }
     else if (!data?.length) { setError(L('Could not update — please try again.', 'నవీకరించలేకపోయాం — మళ్ళీ ప్రయత్నించండి.')); load() }
     else { onChanged() }
   }

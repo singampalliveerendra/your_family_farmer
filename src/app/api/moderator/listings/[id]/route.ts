@@ -4,6 +4,7 @@ import { unitAllowsFractions } from '@/lib/saleStep'
 import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
 import { normalizeUrl } from '@/lib/links'
 import { resolveWholesaleBody, isWholesaleColumnMissing, withoutWholesale, WHOLESALE_NOT_READY } from '@/lib/wholesale'
+import { SELLING_PLAN_REQUIRED_MODERATOR, isSellingPlanError } from '@/lib/sellingLock'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -74,6 +75,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .select('id, status, rejection_reason')
     .single()
   if (error) {
+    if (isSellingPlanError(error.message)) return NextResponse.json({ error: SELLING_PLAN_REQUIRED_MODERATOR, code: 'SELLING_PLAN_REQUIRED' }, { status: 403 })
     console.error('[YFF moderator/listings PATCH] failed:', error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
@@ -254,6 +256,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: WHOLESALE_NOT_READY.en }, { status: 503 })
     }
     ;({ data: updated, error } = await save(withoutWholesale(update)))
+  }
+  if (error && isSellingPlanError(error.message)) {
+    return NextResponse.json({ error: SELLING_PLAN_REQUIRED_MODERATOR, code: 'SELLING_PLAN_REQUIRED' }, { status: 403 })
   }
   if (error || !updated) {
     const msg = error?.message ?? 'Update failed'

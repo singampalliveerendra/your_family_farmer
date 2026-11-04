@@ -7,8 +7,9 @@ import Icon from '@/components/home/Icon'
 import { accessOf, type SubscriptionRow } from '@/lib/subscriptionPlans'
 import { standingOf, type Standing } from '@/lib/subscriptionLifecycle'
 
-/* The aggregator dashboard's plan strip (Phase 4) and the way into the bulk
- * market (Phase 5): what they can do now and
+/* The aggregator dashboard's plan strip (Phase 4), the way into the bulk
+ * market (Phase 5), the selling-lock notice and Shop as a consumer (Phase 7):
+ * what they can do now and
  * the one thing to do next — renew when ending or ended, choose a plan when
  * they have none. Stays out of the way when all is fine (one quiet line), and
  * shows nothing at all for farmers (they are free) or before the subscription
@@ -68,6 +69,14 @@ export default function SubscriptionStatusCard() {
       </span>
       <span className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-extrabold text-white" style={{ background: tone.bar }}>{cta}</span>
     </Link>
+    {/* The selling lock (Phase 7): say it BEFORE they fill a whole produce
+        form, not after the save is refused. */}
+    {!a.selling && (
+      <p className="rounded-2xl border border-[#d99a1e]/40 bg-[#fdf4df] px-4 py-3 text-[13px] font-semibold leading-snug text-[#6b4a07]">
+        {L('You can’t put produce on sale yet — that needs a Selling plan (or Buying + Selling).', 'మీరు ఇంకా ఉత్పత్తులను అమ్మకానికి పెట్టలేరు — దానికి సెల్లింగ్ ప్లాన్ (లేదా కొనుగోలు + అమ్మకం) అవసరం.')}{' '}
+        <Link href="/aggregator/subscription" className="underline">{L('See plans', 'ప్లాన్లు చూడండి')}</Link>
+      </p>
+    )}
     {/* The bulk market (Phase 5) — open to every aggregator; a Buying plan
         unlocks seller contacts and ordering. */}
     <Link href="/aggregator/market" className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/10">
@@ -75,6 +84,17 @@ export default function SubscriptionStatusCard() {
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-extrabold text-[#27486a]">{L('Bulk market', 'బల్క్ మార్కెట్')}</span>
         <span className="block text-[11px] text-black/55">{L('Buy bulk lots from farmers and other aggregators', 'రైతులు, ఇతర అగ్రిగేటర్ల నుండి బల్క్ లాట్‌లు కొనండి')}</span>
+      </span>
+      <Icon name="arrow" className="h-5 w-5 shrink-0 text-black/35" />
+    </Link>
+    {/* Shop as a consumer (Phase 7) — an aggregator buys everyday retail
+        produce like any family. The shop has its own consumer login (same
+        phone number is fine); the seller account is not affected. */}
+    <Link href="/consumer" className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/10">
+      <Icon name="cart" className="h-6 w-6 shrink-0 text-[#2f6f4f]" />
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-extrabold text-[#2f6f4f]">{L('Shop as a consumer', 'వినియోగదారుగా కొనండి')}</span>
+        <span className="block text-[11px] text-black/55">{L('Buy everyday produce for your home — log in to the shop with your phone number.', 'మీ ఇంటి కోసం రోజువారీ ఉత్పత్తులు కొనండి — మీ ఫోన్ నంబర్‌తో షాప్‌లో లాగిన్ అవ్వండి.')}</span>
       </span>
       <Icon name="arrow" className="h-5 w-5 shrink-0 text-black/35" />
     </Link>

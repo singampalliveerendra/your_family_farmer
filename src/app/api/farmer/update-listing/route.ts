@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
 import { resolveWholesaleColumns, withoutWholesale } from '@/lib/wholesale'
+import { SELLING_PLAN_REQUIRED, isSellingPlanError } from '@/lib/sellingLock'
 import { reqLang, tr } from '@/lib/serverLang'
 
 export const runtime = 'nodejs'
@@ -97,6 +98,11 @@ export async function POST(request: NextRequest) {
     .eq('farmer_id', session.farmerId)
     .select('id, status, stock_qty')
 
+  // The selling lock (Phase 7): an aggregator without a Selling plan cannot
+  // put produce back on sale.
+  if (error && isSellingPlanError(error.message)) {
+    return NextResponse.json({ error: tr(reqLang(request), SELLING_PLAN_REQUIRED.en, SELLING_PLAN_REQUIRED.te), code: 'SELLING_PLAN_REQUIRED' }, { status: 403 })
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!updated?.length) return NextResponse.json({ error: 'Update failed' }, { status: 500 })
 

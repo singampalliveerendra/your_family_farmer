@@ -153,6 +153,13 @@ SELECT * FROM (
     CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
       WHERE table_name='orders' AND column_name='buyer_aggregator_id')
       THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  -- selling-lock-migration.sql. Without it a new aggregator can put produce
+  -- on sale with no Selling plan (the app has no other gate).
+  SELECT 24, 'selling-lock', 'trigger produce_listings_selling_plan',
+    CASE WHEN EXISTS (SELECT 1 FROM pg_trigger
+      WHERE tgname='produce_listings_selling_plan' AND NOT tgisinternal)
+      THEN 'PRESENT' ELSE 'MISSING' END
 
 ) checks ORDER BY ord;
 
