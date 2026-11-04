@@ -1,10 +1,14 @@
 /**
- * Buying wholesale — the "Buy wholesale" toggle on a produce page, the cart
- * line it creates, and the server's check of that line.
+ * Buying wholesale (bulk) — the quantity grid, the cart line and the server's
+ * check of one bulk line.
  *
- * Decisions (2026-11-03):
- *  - Anyone may buy wholesale, but only on a produce sold as BOTH. Wholesale-
- *    only produce stays hidden from every buyer for now (wholesaleVisibility.ts).
+ * Decisions:
+ *  - 2026-11-04 (final model): bulk is ONLY for subscribed aggregators. Normal
+ *    household buyers never see or buy it — the "Buy wholesale" toggle was
+ *    removed from the consumer pages and /api/orders/place refuses any bulk
+ *    line. These rules stay for the aggregators' bulk market (not built yet).
+ *  - 2026-11-03: only a produce sold as BOTH was offered; wholesale-only was
+ *    hidden from every buyer (wholesaleVisibility.ts).
  *  - Price: wholesale_price per unit, no tiers.
  *  - Quantity: at least the minimum; in whole packs when a pack size is set,
  *    otherwise in the produce's own sale step.
@@ -123,6 +127,12 @@ export function canBuyWholesale(l: WholesaleListing | null | undefined, stock: n
 /** The cart key: a wholesale line never merges with the retail line of the same harvest. */
 export function wholesaleCartKey(baseKey: string): string {
   return `${baseKey}:wholesale`
+}
+
+/** The household checkout's answer to a bulk line (decision 2026-11-04). */
+export const BULK_FOR_AGGREGATORS_ONLY: Msg = {
+  en: 'Bulk buying is only for aggregators. Please remove the wholesale item from your cart.',
+  te: 'బల్క్ కొనుగోలు అగ్రిగేటర్లకు మాత్రమే. దయచేసి మీ కార్ట్ నుండి హోల్‌సేల్ వస్తువును తీసివేయండి.',
 }
 
 export const WHOLESALE_TRANSPORT_NOTE: Msg = {

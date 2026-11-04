@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  BULK_FOR_AGGREGATORS_ONLY,
   WHOLESALE_PICKUP_NOTE,
   WHOLESALE_TRANSPORT_CHARGE_NOTE,
   WHOLESALE_TRANSPORT_NOTE,
@@ -181,9 +182,16 @@ describe('checkWholesaleLine (server)', () => {
   })
 })
 
+describe('BULK_FOR_AGGREGATORS_ONLY', () => {
+  it('says who bulk is for and what to do', () => {
+    expect(BULK_FOR_AGGREGATORS_ONLY.en).toMatch(/only for aggregators/)
+    expect(BULK_FOR_AGGREGATORS_ONLY.en).toMatch(/remove/)
+  })
+})
+
 describe('notes', () => {
   it('both languages', () => {
-    for (const m of [WHOLESALE_TRANSPORT_NOTE, WHOLESALE_TRANSPORT_CHARGE_NOTE, WHOLESALE_PICKUP_NOTE]) {
+    for (const m of [BULK_FOR_AGGREGATORS_ONLY, WHOLESALE_TRANSPORT_NOTE, WHOLESALE_TRANSPORT_CHARGE_NOTE, WHOLESALE_PICKUP_NOTE]) {
       expect(m.en).toBeTruthy()
       expect(m.te).toMatch(/[ఀ-౿]/)
     }

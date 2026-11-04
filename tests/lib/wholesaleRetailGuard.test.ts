@@ -62,6 +62,26 @@ describe('every buyer-facing read of produce filters out wholesale-only', () => 
   })
 })
 
+describe('no buyer-facing screen offers bulk buying (decision 2026-11-04)', () => {
+  // Bulk is only for subscribed aggregators. A household page, the cart or a
+  // consumer component that brings back a "Buy wholesale" path fails here.
+  const HOUSEHOLD = ['src/app/consumer', 'src/components/consumer', 'src/app/farmer/[slug]', 'src/app/region', 'src/app/home']
+    .flatMap(files).filter((f) => /\.(ts|tsx)$/.test(f))
+
+  it('found the household screens', () => {
+    expect(HOUSEHOLD.length).toBeGreaterThan(10)
+  })
+
+  it.each(HOUSEHOLD.map((f) => [f]))('%s', (f) => {
+    const src = readFileSync(join(ROOT, f), 'utf8')
+    expect(src).not.toMatch(/@\/lib\/wholesaleOrder|WholesaleBuy|wholesale:\s*(true|wsLine)/)
+  })
+
+  it('the "Buy wholesale" toggle component is gone', () => {
+    expect(() => statSync(join(ROOT, 'src/components/consumer/WholesaleBuy.tsx'))).toThrow()
+  })
+})
+
 describe('the surfaces the request named are covered', () => {
   // home feed + Android, search + Android, farmer pages, share images
   it.each([

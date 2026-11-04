@@ -9,9 +9,6 @@ import { methodLabel, categoryLabel } from '@/lib/produceLabels'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useCart, CartFab, EditableQty } from '@/components/consumer/Cart'
-import { WholesaleSwitch, WholesaleBuyBar } from '@/components/consumer/WholesaleBuy'
-import { canBuyWholesale, wholesaleCartKey, wholesaleLineOf, wholesaleQtyRules } from '@/lib/wholesaleOrder'
-import { isWholesaleLowStock } from '@/lib/wholesaleVisibility'
 import { BOTTOM_NAV_OFFSET } from '@/lib/bottomNav'
 import { supabase } from '@/lib/supabase'
 import { isRetailVisible } from '@/lib/wholesaleVisibility'
@@ -72,12 +69,8 @@ type Listing = {
   price_tier_1_qty?: number | null
   /** Smallest sellable quantity, in this listing's unit. Null/absent = 1. */
   sale_step?: number | null
-  // Wholesale (scripts/wholesale-migration.sql) — absent before it runs.
+  // Retail / wholesale / both (scripts/wholesale-migration.sql); absent before it runs.
   sale_mode?: string | null
-  wholesale_price?: number | null
-  wholesale_min_qty?: number | null
-  wholesale_pack_size?: number | null
-  wholesale_transport_states?: string[] | null
   delivery_mode?: string | null
   price_tier_1_price?: number | null
   price_tier_2_qty?: number | null
@@ -126,8 +119,6 @@ export default function ProduceDetailPage() {
   const [liveStock, setLiveStock] = useState<number | null>(null)
   const [stockMsg, setStockMsg] = useState('')
   const [adding, setAdding] = useState(false)
-  // Retail | Buy wholesale switch (only shown for produce sold as Both).
-  const [buyWholesale, setBuyWholesale] = useState(false)
   const [showReviews, setShowReviews] = useState(false)
   // Latest harvest for this produce — powers the "Harvested 2 hours ago" clock.
   const [latestHarvest, setLatestHarvest] = useState<{ at: string; shelf: number | null } | null>(null)
@@ -254,15 +245,6 @@ export default function ProduceDetailPage() {
   const farmerHref = farmer ? `/farmer/${farmer.slug}` : '#'
   const canAdd = !!farmer && !!farmer.phone
   const inCart = cart[item.id]
-  // "Buy wholesale" — only on a produce sold as Both (src/lib/wholesaleOrder.ts).
-  // This page sells the produce itself (no harvest), so its own stock is what a
-  // wholesale line claims; the harvest-based low-stock rule hides it too.
-  const wsLine = wholesaleLineOf(item)
-  const wsRules = wsLine ? wholesaleQtyRules(wsLine, item.sale_step, item.unit) : null
-  const wsAvailable = !!wsLine && canBuyWholesale(item, liveStock) && !isWholesaleLowStock(item, harvestStocks)
-  const wsKey = wholesaleCartKey(item.id)
-  const inCartWs = cart[wsKey]
-  const showWholesale = !!wsLine && buyWholesale
   // Status counts alongside the number: this page can be reached for a produce
   // whose stock_qty is null but that the auto-flip already marked 'sold_out'.
   // And where the produce has logged picks, those outrank the template's number
@@ -285,38 +267,6 @@ export default function ProduceDetailPage() {
   // maximum" and refuse to go up from one step.
   const stockCap = inCart?.preorder === true ? null : liveStock
   const atMax = stockCap !== null && inCart != null && inCart.qty >= stockCap
-
-  const doAddWholesale = async () => {
-    if (!farmer || !wsLine) return
-    setAdding(true); setStockMsg('')
-    const { data } = await supabase.from('produce_listings').select('stock_qty').eq('id', item.id).single()
-    const fresh = data?.stock_qty ?? null
-    if (fresh !== null) setLiveStock(fresh)
-    setAdding(false)
-    if (!canBuyWholesale(item, fresh)) {
-      setStockMsg(L('Not enough stock for wholesale right now.', 'ప్రస్తుతం హోల్‌సేల్‌కు సరిపడా స్టాక్ లేదు.'))
-      return
-    }
-    addItem({
-      listingId: item.id,
-      name: item.name,
-      variety: item.variety ?? undefined,
-      emoji: item.emoji ?? undefined,
-      unit,
-      stockQty: fresh ?? undefined,
-      saleStep: item.sale_step ?? undefined,
-      wholesale: wsLine,
-      pricePerKg: wsLine.price,
-      farmerId: farmer.id,
-      farmerName: farmer.name,
-      farmerPhone: farmer.phone,
-      farmerVillage: farmer.village,
-      farmerSlug: farmer.slug,
-      farmerPickupLocations: farmer.pickup_locations ?? [],
-      farmerPickupSlots: normalizePickupSchedule(farmer.pickup_slots, farmer.pickup_locations ?? []),
-      farmerPickupPhones: normalizePickupPhones(farmer.pickup_location_phones, farmer.pickup_locations ?? []),
-    })
-  }
 
   const doAdd = async (preorder = false) => {
     if (!farmer) return
@@ -500,21 +450,7 @@ export default function ProduceDetailPage() {
             </p>
           )}
 
-          {wsLine && wsRules && (
-            <div className="mt-3 border-t border-gray-100 pt-3">
-              <WholesaleSwitch
-                line={wsLine}
-                rules={wsRules}
-                wholesale={buyWholesale}
-                onChange={(w) => { setBuyWholesale(w); setStockMsg('') }}
-                available={wsAvailable}
-                unitLabel={unitLabel}
-                L={L}
-              />
-            </div>
-          )}
-
-          {tiers.length > 1 && !showWholesale && (
+          {tiers.length > 1 && (
             <div className="mt-3 border-t border-gray-100 pt-3">
               <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide mb-1.5">{L('Buy more, save more', 'ఎక్కువ కొంటే తక్కువ ధర')}</p>
               <div className="flex flex-wrap gap-2">
@@ -664,19 +600,6 @@ export default function ProduceDetailPage() {
           <Link href={farmerHref} className="flex items-center justify-center w-full h-12 bg-green-800 text-white font-bold rounded-xl">
             {L('View farmer', 'రైతును చూడండి')}
           </Link>
-        ) : showWholesale && wsLine && wsRules ? (
-          <WholesaleBuyBar
-            line={wsLine}
-            rules={wsRules}
-            qty={inCartWs?.qty}
-            stock={liveStock}
-            available={wsAvailable}
-            busy={adding}
-            unitLabel={unitLabel}
-            onAdd={() => requireAuth(() => { void doAddWholesale() })}
-            onSet={(n) => { setQty(wsKey, n); setStockMsg('') }}
-            L={L}
-          />
         ) : !inCart ? (
           <button
             onClick={() => requireAuth(() => {
