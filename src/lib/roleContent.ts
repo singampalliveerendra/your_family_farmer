@@ -192,7 +192,6 @@ export const AGGREGATOR_CONTENT: RoleContent = {
   ],
   faqs: [
     { q: ['Can I see the bulk produce before I pay?', 'చెల్లించే ముందు బల్క్ ఉత్పత్తులు చూడవచ్చా?'], a: ['Yes. You see every bulk listing with the farmer’s name, village and district. Ordering and the farmer’s phone number unlock after you subscribe.', 'అవును. రైతు పేరు, గ్రామం, జిల్లాతో ప్రతి బల్క్ లిస్టింగ్ చూడవచ్చు. సబ్‌స్క్రైబ్ చేసాక ఆర్డర్ చేయడం, రైతు ఫోన్ నంబర్ వస్తాయి.'] },
-    { q: ['Is there a free plan?', 'ఉచిత ప్లాన్ ఉందా?'], a: ['When one is offered it shows above at ₹0, and you can start it without paying.', 'ఉంటే అది పైన ₹0గా కనిపిస్తుంది, చెల్లించకుండానే మొదలుపెట్టవచ్చు.'] },
     { q: ['Can I buy from other aggregators?', 'ఇతర అగ్రిగేటర్ల నుండి కొనవచ్చా?'], a: ['Yes. With a Buying plan you can buy bulk from farmers and from other aggregators.', 'అవును. కొనుగోలు ప్లాన్‌తో రైతులు, ఇతర అగ్రిగేటర్ల నుండి బల్క్‌గా కొనవచ్చు.'] },
     { q: ['Can I also shop as a normal buyer?', 'సాధారణ కొనుగోలుదారుగా కూడా కొనవచ్చా?'], a: ['Yes. Open the shop and log in with your phone number as a consumer.', 'అవును. షాప్ తెరిచి మీ ఫోన్ నంబర్‌తో వినియోగదారుగా లాగిన్ అవ్వండి.'] },
   ],
