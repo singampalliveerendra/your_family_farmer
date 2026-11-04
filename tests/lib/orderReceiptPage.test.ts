@@ -13,9 +13,10 @@ describe('order receipt page', () => {
   it('checks the farmer session first', () => {
     expect(PAGE).toMatch(/requireFarmerSession\(\)/)
   })
-  it('reads only public profile columns of the seller (never password or bank fields)', () => {
-    const sel = PAGE.match(/from\('farmers'\)\.select\('([^']+)'\)/)
-    expect(sel?.[1]).toBe('name, village, phone, account_type')
+  it('reads the seller through their own login-checked profile route, never the farmers table', () => {
+    // Since the security fix (2026-11-04) the seller's phone is not public.
+    expect(PAGE).toMatch(/\/api\/farmer\/profile/)
+    expect(PAGE).not.toMatch(/from\(\s*['"]farmers['"]\s*\)/)
   })
   it('builds every number with src/lib/orderReceipt.ts', () => {
     expect(PAGE).toMatch(/buildOrderReceipt\(/)

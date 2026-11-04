@@ -9,31 +9,22 @@
 -- this file is the whole set in one place.
 -- ============================================================
 
--- 1. farm-images — PUBLIC. Farmer/harvest/produce photos.
---    Anon-write, matching the public-write model used elsewhere in the MVP.
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('farm-images', 'farm-images', true)
-ON CONFLICT (id) DO UPDATE SET public = true;
+-- 1. farm-images — PUBLIC to READ (photo links work for everyone).
+--    NO public write since scripts/seller-writes-lockdown.sql (2026-11-05):
+--    uploads use a one-time signed link from /api/uploads/farm-image for one
+--    path in the caller's own folder. No list policy either — public photo
+--    links never need one. Photos only, 8 MB max.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('farm-images', 'farm-images', true, 8388608,
+        ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])
+ON CONFLICT (id) DO UPDATE SET public = true,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 DROP POLICY IF EXISTS "farm-images public read" ON storage.objects;
-CREATE POLICY "farm-images public read"
-  ON storage.objects FOR SELECT
-  USING (bucket_id = 'farm-images');
-
 DROP POLICY IF EXISTS "farm-images public upload" ON storage.objects;
-CREATE POLICY "farm-images public upload"
-  ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'farm-images');
-
 DROP POLICY IF EXISTS "farm-images public update" ON storage.objects;
-CREATE POLICY "farm-images public update"
-  ON storage.objects FOR UPDATE
-  USING (bucket_id = 'farm-images');
-
 DROP POLICY IF EXISTS "farm-images public delete" ON storage.objects;
-CREATE POLICY "farm-images public delete"
-  ON storage.objects FOR DELETE
-  USING (bucket_id = 'farm-images');
 
 -- 2. payment-proofs — PRIVATE. Consumer UPI screenshots.
 --    No anon policies: only API routes (service role) upload/list/sign.

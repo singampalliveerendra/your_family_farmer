@@ -43,7 +43,9 @@ export async function GET(request: NextRequest) {
 
   const { data: farmers } = await supabase
     .from('farmers')
-    .select('id, name, village, slug, phone, method, region_slug, pickup_locations, pickup_slots, pickup_location_phones, lat, lng, account_type')
+    // No phone, pickup-point phones or exact location: since the security fix
+    // (2026-11-04) those are not public. Distance uses the village instead.
+    .select('id, name, village, slug, method, region_slug, pickup_locations, pickup_slots, account_type')
     .in('id', farmerIds)
     .eq('active', true)
 

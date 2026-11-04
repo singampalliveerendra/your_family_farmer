@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
 import { requireFarmerSession } from '@/lib/farmer-auth-client'
 import BackButton from '@/components/BackButton'
@@ -33,7 +32,8 @@ export default function SubscriptionReceiptPage() {
       if (!me || cancelled) return
       const [res, who] = await Promise.all([
         fetch('/api/aggregator/subscription', { credentials: 'same-origin', cache: 'no-store' }).then((x) => (x.ok ? x.json() : null)).catch(() => null),
-        Promise.resolve(supabase.from('farmers').select('name, village, phone').eq('id', me).maybeSingle()).catch(() => ({ data: null })),
+        // Own profile from the server: the phone is not public (security fix).
+        fetch('/api/farmer/profile', { credentials: 'same-origin', cache: 'no-store' }).then((x) => (x.ok ? x.json() : null)).then((j) => ({ data: j?.farmer ?? null })).catch(() => ({ data: null })),
       ])
       if (cancelled) return
       const row = ((res?.subscriptions ?? []) as ReceiptSub[]).find((s) => s.id === id)

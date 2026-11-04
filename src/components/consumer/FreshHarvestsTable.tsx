@@ -180,11 +180,13 @@ function HarvestTable({ variant }: { variant: Variant }) {
       if (!listing) { setAdding((s) => ({ ...s, [r.id]: false })); return }
       const { data: farmer } = await supabase
         .from('farmers')
-        .select('id, name, phone, village, slug, pickup_locations, pickup_slots')
+        .select('id, name, village, slug, pickup_locations, pickup_slots')
         .eq('id', listing.farmer_id)
         .single()
       setAdding((s) => ({ ...s, [r.id]: false }))
-      if (!farmer?.phone || !listing.price_tier_1_price) return
+      // The farmer's phone is not public any more (security fix, 2026-11-04),
+      // so a real farmer and a price are what make a card addable.
+      if (!farmer || !listing.price_tier_1_price) return
       addItem({
         listingId: listing.id,
         harvestId: r.id,
@@ -203,7 +205,7 @@ function HarvestTable({ variant }: { variant: Variant }) {
         priceTier3Price: listing.price_tier_3_price,
         farmerId: farmer.id,
         farmerName: farmer.name,
-        farmerPhone: farmer.phone,
+        farmerPhone: '',
         farmerVillage: farmer.village ?? '',
         farmerSlug: farmer.slug,
         farmerPickupLocations: farmer.pickup_locations ?? [],

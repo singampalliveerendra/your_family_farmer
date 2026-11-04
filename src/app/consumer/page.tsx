@@ -1440,19 +1440,28 @@ function DemandIntentBanner() {
     }
     setLoading(true)
     setError('')
-    const { supabase: sb } = await import('@/lib/supabase')
-    const { error: err } = await sb.from('demand_intents').insert({
-      crop_name: crop.trim(),
-      quantity_kg: qty ? Number(qty) : null,
-      needed_by_date: date || null,
-      delivery_location: location.trim() || null,
-      requester_name: name.trim(),
-      requester_phone: phone.trim(),
-      consumer_id: consumer?.id ?? null,
-      region_slug: intentRegionSlug(),
-    })
+    // Posted through the server (security fix, 2026-11-04): buyers' phones and
+    // locations are no longer public, and who asked comes from the login.
+    const r = await fetch('/api/consumer/intents', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        crop_name: crop.trim(),
+        quantity_kg: qty ? Number(qty) : null,
+        needed_by_date: date || null,
+        delivery_location: location.trim() || null,
+        requester_name: name.trim(),
+        requester_phone: phone.trim(),
+        region_slug: intentRegionSlug(),
+      }),
+    }).catch(() => null)
     setLoading(false)
-    if (err) { setError(err.message); return }
+    if (!r || !r.ok) {
+      const j = r ? await r.json().catch(() => null) : null
+      setError(j?.error ?? L('Could not post your request. Please try again.', 'మీ అభ్యర్థన పంపలేకపోయాం. మళ్లీ ప్రయత్నించండి.'))
+      return
+    }
     setSubmitted(true)
   }
 

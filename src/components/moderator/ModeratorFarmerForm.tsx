@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { uploadFarmImage } from '@/lib/farmImageUpload'
 import LocationSearch from '@/components/LocationSearch'
 import {
   normalizePickupSchedule, emptyPickupSlot, normalizePickupPhones,
@@ -156,7 +157,6 @@ export default function ModeratorFarmerForm({
   const [cover, setCover] = useState<PhotoState>(emptyPhoto(initial.cover_photo_url))
   const [avatar, setAvatar] = useState<PhotoState>(emptyPhoto(initial.photo_url))
   const [cert, setCert] = useState<PhotoState>(emptyPhoto(initial.pesticide_cert_url))
-  const [qr, setQr] = useState<PhotoState>(emptyPhoto(initial.upi_qr_code_url))
 
   const pickPhoto = (set: (p: PhotoState) => void, current: PhotoState) => async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -192,14 +192,14 @@ export default function ModeratorFarmerForm({
     )
   }
 
-  const uploadPhoto = async (file: File, folder: string, suffix: string): Promise<string | null> => {
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-    const path = `${folder}/${suffix}-${Date.now()}.${ext}`
-    const { error: upErr } = await supabase.storage
-      .from('farm-images')
-      .upload(path, file, { contentType: file.type, upsert: false })
-    if (upErr) { setError(`Upload failed: ${upErr.message}`); return null }
-    return supabase.storage.from('farm-images').getPublicUrl(path).data.publicUrl
+  // One-time signed upload link (security fix, 2026-11-04): the server puts it
+  // in the farmer's folder when they are in this moderator's zone, or in the
+  // moderator's onboarding folder for a farmer who has no account yet.
+  const uploadPhoto = async (file: File, _folder: string, suffix: string): Promise<string | null> => {
+    const kind = suffix === 'cover' ? 'cover' : suffix === 'avatar' ? 'profile' : 'certificate'
+    const r = await uploadFarmImage(file, kind, mode === 'edit' ? farmerId ?? null : null)
+    if (r.err) { setError(r.err); return null }
+    return r.url
   }
 
   const addPickup = () => {
@@ -262,19 +262,22 @@ export default function ModeratorFarmerForm({
       const url = await uploadPhoto(p.file, folder, suffix)
       return { url, failed: url === null }
     }
-    const [coverR, avatarR, certR, qrR] = await Promise.all([
+    const [coverR, avatarR, certR] = await Promise.all([
       resolve(cover, 'cover'),
       resolve(avatar, 'avatar'),
       resolve(cert, 'pesticide-cert'),
-      resolve(qr, 'upi-qr'),
     ])
-    if (coverR.failed || avatarR.failed || certR.failed || qrR.failed) {
+    if (coverR.failed || avatarR.failed || certR.failed) {
       setSubmitting(false)
       return // error already set by uploadPhoto
     }
 
+    // UPI ID / QR are no longer collected (2026-11-04: buyers pay through
+    // Cashfree, payouts go to the bank details). Left out so an edit never
+    // overwrites what is stored.
+    const { upi_id: _dropUpi, ...formWithoutUpi } = form
     const payload = {
-      ...form,
+      ...formWithoutUpi,
       pickup_locations: pickupLocations,
       pickup_slots: normalizePickupSchedule(schedule, pickupLocations),
       pickup_location_phones: normalizePickupPhones(pickupPhones, pickupLocations),
@@ -282,7 +285,6 @@ export default function ModeratorFarmerForm({
       cover_photo_url: coverR.url,
       photo_url: avatarR.url,
       pesticide_cert_url: certR.url,
-      upi_qr_code_url: qrR.url,
       lat, lng,
       location_name: lat != null && lng != null ? (locationName || form.village) : null,
     }
@@ -578,9 +580,6 @@ export default function ModeratorFarmerForm({
         </div>
 
         <div className="grid md:grid-cols-2 gap-4 mt-4">
-          <Field label="UPI ID (for payouts)">
-            <input value={form.upi_id} onChange={set('upi_id')} placeholder="name@ybl" className={inputCls} />
-          </Field>
           <label className="flex items-center gap-2 mt-6">
             <input type="checkbox" checked={codEnabled} onChange={(e) => setCodEnabled(e.target.checked)} className="w-4 h-4 accent-green-700" />
             <span className="text-sm font-semibold text-gray-700">Accepts Cash on Delivery</span>
@@ -596,11 +595,6 @@ export default function ModeratorFarmerForm({
           </Field>
         </div>
 
-        <div className="mt-4">
-          <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wide block mb-1">UPI QR code</span>
-          <p className="text-[11px] text-gray-500 mb-2">Buyers scan this to pay. Upload a screenshot of their UPI QR.</p>
-          <PhotoUpload preview={photoDisplay(qr)} onPick={pickPhoto(setQr, qr)} onClear={clearPhoto(setQr, qr)} aspectClass="aspect-square max-w-[160px]" />
-        </div>
       </div>
 
       {error && (

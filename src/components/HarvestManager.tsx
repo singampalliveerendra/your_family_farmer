@@ -15,9 +15,11 @@ import { useSourceFarmers, sourceFarmerNameOf } from '@/components/SourceFarmerP
    Lives inside the produce Edit form on BOTH surfaces: the farmer dashboard and
    the moderator's Edit Harvest page (moderators log harvests on a farmer's
    behalf). Shared so the two can't drift apart. */
-export default function HarvestManager({ listingId, farmerId, unit, produceShelfLife, sourceFarmerId }: {
+export default function HarvestManager({ listingId, farmerId, unit, produceShelfLife, sourceFarmerId, api = 'farmer' }: {
   listingId: string
   farmerId: string
+  /** Whose routes save the harvests: the seller's own (default) or a moderator's (own zone). */
+  api?: 'farmer' | 'moderator'
   unit?: string | null
   produceShelfLife?: number | null
   /** The produce's source farmer (aggregators only). Every pick logged here is
@@ -83,6 +85,21 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
 
   useEffect(() => { void loadHarvests() }, [loadHarvests])
 
+  // Every write goes through a login-checked route (security fix, 2026-11-04):
+  // the public key can no longer add, change or delete harvests.
+  const base = api === 'moderator' ? '/api/moderator/harvests' : '/api/farmer/harvests'
+  const send = async (url: string, method: 'POST' | 'PATCH' | 'DELETE', body?: unknown): Promise<string | null> => {
+    const r = await fetch(url, {
+      method,
+      credentials: 'same-origin',
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    }).catch(() => null)
+    if (r?.ok) return null
+    const j = r ? await r.json().catch(() => null) : null
+    return (j?.error as string | undefined) ?? L('Could not save. Please try again.', 'సేవ్ కాలేదు. మళ్లీ ప్రయత్నించండి.')
+  }
+
   const submitHarvest = async () => {
     setHarvestErr('')
     setHarvestMsg('')
@@ -98,21 +115,16 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
     setSavingHarvest(true)
     // Shelf life is not logged per-harvest — it's a produce-level property, so
     // the consumer freshness label falls back to the listing's shelf_life_days.
-    const { error: err } = await supabase.from('harvests').insert({
+    // The quantity entered is this harvest's sellable stock; the server takes
+    // the farmer and the grower from the produce itself.
+    const err = await send(base, 'POST', {
       produce_listing_id: listingId,
-      farmer_id: farmerId,
       harvested_at: when.toISOString(),
       approx_quantity: approxQty ? Number(approxQty) : null,
-      // The quantity entered is this harvest's sellable stock: each harvest is
-      // its own product with its own inventory (decremented as buyers order).
-      stock_qty: approxQty ? Number(approxQty) : null,
       unit: unit ?? null,
-      // Inherited from the produce. Omitted entirely for a farmer, so their
-      // insert is unchanged.
-      ...(isAggregator && sourceFarmerId ? { source_farmer_id: sourceFarmerId } : {}),
     })
     setSavingHarvest(false)
-    if (err) { setHarvestErr(err.message); return }
+    if (err) { setHarvestErr(err); return }
     setHarvestMsg(L('Harvest logged ✓', 'కోత నమోదైంది ✓'))
     setApproxQty(''); setHarvestedAt(nowLocal())
     void loadHarvests()
@@ -132,17 +144,14 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
     const when = new Date(editAt)
     if (isNaN(when.getTime())) { setEditErr(L('Pick a valid harvest date & time.', 'సరైన కోత తేదీ & సమయం ఎంచుకోండి.')); return }
     setSavingEdit(true)
-    const { error: err } = await supabase.from('harvests').update({
+    // Editing the quantity resets this harvest's sellable stock (the server
+    // does that); the grower it was credited to is never touched.
+    const err = await send(`${base}/${editingHarvestId}`, 'PATCH', {
       harvested_at: when.toISOString(),
       approx_quantity: editQty ? Number(editQty) : null,
-      // Editing the quantity resets this harvest's sellable stock to the new
-      // amount (the farmer is stating what's actually available now).
-      stock_qty: editQty ? Number(editQty) : null,
-      // source_farmer_id is deliberately not touched: the pick keeps whichever
-      // farmer it was credited to when it was logged.
-    }).eq('id', editingHarvestId)
+    })
     setSavingEdit(false)
-    if (err) { setEditErr(err.message); return }
+    if (err) { setEditErr(err); return }
     setEditingHarvestId(null)
     void loadHarvests()
   }
@@ -155,17 +164,17 @@ export default function HarvestManager({ listingId, farmerId, unit, produceShelf
     setHarvestErr('')
     // Optimistic: the list is short and the round-trip on 4G is the slow part.
     setHarvests((prev) => prev.map((x) => (x.id === h.id ? { ...x, paused: next } : x)))
-    const { error: err } = await supabase.from('harvests').update({ paused: next }).eq('id', h.id)
+    const err = await send(`${base}/${h.id}`, 'PATCH', { paused: next })
     if (err) {
       setHarvests((prev) => prev.map((x) => (x.id === h.id ? { ...x, paused: h.paused } : x)))
-      setHarvestErr(err.message)
+      setHarvestErr(err)
     }
   }
 
   const deleteHarvest = async (h: Harvest) => {
     if (!window.confirm(L('Delete this harvest? This cannot be undone.', 'ఈ కోతను తొలగించాలా? దీన్ని తిరిగి మార్చలేరు.'))) return
-    const { error: err } = await supabase.from('harvests').delete().eq('id', h.id)
-    if (err) { setHarvestErr(err.message); return }
+    const err = await send(`${base}/${h.id}`, 'DELETE')
+    if (err) { setHarvestErr(err); return }
     if (editingHarvestId === h.id) setEditingHarvestId(null)
     void loadHarvests()
   }

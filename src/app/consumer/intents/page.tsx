@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
-import { supabase } from '@/lib/supabase'
 import { todayInIndia, isPastDate } from '@/lib/date'
 import BackButton from '@/components/BackButton'
 
@@ -36,13 +35,11 @@ export default function ConsumerIntentsPage() {
     if (!consumer) return
     setLoading(true)
     setError('')
-    const { data, error: err } = await supabase
-      .from('demand_intents')
-      .select('id, crop_name, quantity_kg, needed_by_date, delivery_location, fulfilled, created_at')
-      .eq('consumer_id', consumer.id)
-      .order('created_at', { ascending: false })
-    if (err) { setError(err.message); setLoading(false); return }
-    setIntents((data ?? []) as Intent[])
+    // The buyer's own requests, through the server (security fix, 2026-11-04).
+    const r = await fetch('/api/consumer/intents', { credentials: 'same-origin', cache: 'no-store' }).catch(() => null)
+    const j = r ? await r.json().catch(() => null) : null
+    if (!r || !r.ok) { setError(j?.error ?? L('Could not load your requests.', 'మీ అభ్యర్థనలు తెరవలేకపోయాం.')); setLoading(false); return }
+    setIntents((j?.intents ?? []) as Intent[])
     setLoading(false)
   }, [consumer])
 
@@ -75,13 +72,14 @@ export default function ConsumerIntentsPage() {
       needed_by_date: draft.date || null,
       delivery_location: draft.location.trim() || null,
     }
-    const { error: err } = await supabase
-      .from('demand_intents')
-      .update(patch)
-      .eq('id', id)
-      .eq('consumer_id', consumer?.id ?? '')
+    const r = await fetch(`/api/consumer/intents/${id}`, {
+      method: 'PATCH',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    }).catch(() => null)
     setSavingId(null)
-    if (err) { setError(err.message); return }
+    if (!r || !r.ok) { const j = r ? await r.json().catch(() => null) : null; setError(j?.error ?? L('Could not save.', 'సేవ్ కాలేదు.')); return }
     setIntents((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)))
     setEditingId(null)
   }
@@ -90,13 +88,9 @@ export default function ConsumerIntentsPage() {
     if (!confirm(L('Remove this intent?', 'ఈ డిమాండ్‌ను తొలగించాలా?'))) return
     setSavingId(id)
     setError('')
-    const { error: err } = await supabase
-      .from('demand_intents')
-      .delete()
-      .eq('id', id)
-      .eq('consumer_id', consumer?.id ?? '')
+    const r = await fetch(`/api/consumer/intents/${id}`, { method: 'DELETE', credentials: 'same-origin' }).catch(() => null)
     setSavingId(null)
-    if (err) { setError(err.message); return }
+    if (!r || !r.ok) { const j = r ? await r.json().catch(() => null) : null; setError(j?.error ?? L('Could not remove.', 'తీసివేయలేకపోయాం.')); return }
     setIntents((prev) => prev.filter((it) => it.id !== id))
   }
 

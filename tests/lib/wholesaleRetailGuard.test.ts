@@ -33,7 +33,6 @@ const ALLOWED: Record<string, string> = {
   // Its produce comes in as a prop from the filtered /farmer/[slug] page; the
   // reads here are harvest stock for those ids, delete, and the owner's
   // quick-add insert.
-  'src/components/farmer/tabs/ProduceTab.tsx': 'works on produce passed in from the filtered page',
 }
 
 function files(p: string): string[] {
