@@ -21,6 +21,8 @@ const db = {
   tables: {} as Record<string, Row[]>,
   // Simulates a database without scripts/wholesale-migration.sql.
   noWholesaleColumns: false,
+  // Simulates the Phase 7 selling-lock trigger refusing the write.
+  sellingLock: false,
   writes: [] as Array<{ table: string; kind: 'insert' | 'update'; row: Row }>,
 }
 
@@ -40,6 +42,7 @@ function query(table: string) {
   const run = () => {
     const rows = (db.tables[table] ??= [])
     if (insertRow) {
+      if (db.sellingLock) return { data: null, error: { message: 'SELLING_PLAN_REQUIRED: a Selling plan is needed to put produce on sale.' } }
       const err = missingColumn(insertRow)
       if (err) return { data: null, error: err }
       const row = { id: `new-${rows.length + 1}`, ...insertRow }
@@ -49,6 +52,7 @@ function query(table: string) {
     }
     const hit = rows.filter((r) => filters.every((f) => f(r)))
     if (updateSet) {
+      if (db.sellingLock && table === 'produce_listings') return { data: null, error: { message: 'SELLING_PLAN_REQUIRED: a Selling plan is needed to put produce on sale.' } }
       const err = missingColumn(updateSet)
       if (err) return { data: null, error: err }
       for (const r of hit) Object.assign(r, updateSet)
@@ -104,6 +108,7 @@ const lastListingWrite = () => [...db.writes].reverse().find((w) => w.table === 
 
 beforeEach(() => {
   db.noWholesaleColumns = false
+  db.sellingLock = false
   db.writes = []
   sessionFarmerId = FARMER_ID
   isModerator = true
@@ -350,5 +355,37 @@ describe('/api/moderator/listings/[id] PUT — wholesale', () => {
   it('needs a moderator', async () => {
     isModerator = false
     expect((await edit(editBody(wholesaleBody()))).status).toBe(401)
+  })
+})
+
+describe('the selling lock (Phase 7) is explained, not dumped', () => {
+  it('farmer/aggregator edit → 403 in plain words (Telugu by default), with a code', async () => {
+    db.sellingLock = true
+    const res = await updateListing(req('/api/farmer/update-listing', { listingId: LISTING_ID, payload: { status: 'available' } }))
+    expect(res.status).toBe(403)
+    const j = await res.json()
+    expect(j.code).toBe('SELLING_PLAN_REQUIRED')
+    expect(j.error).toMatch(/[ఀ-౿]/)
+    expect(j.error).not.toMatch(/SELLING_PLAN_REQUIRED/)
+  })
+  it('in English when chosen', async () => {
+    db.sellingLock = true
+    const j = await (await updateListing(req('/api/farmer/update-listing', { listingId: LISTING_ID, payload: { status: 'available' } }, 'POST', 'en'))).json()
+    expect(j.error).toMatch(/Selling plan is needed/)
+  })
+  it('moderator create → 403 telling them to activate a plan', async () => {
+    db.sellingLock = true
+    const res = await moderatorCreate(req('/api/moderator/listings', createBody()))
+    expect(res.status).toBe(403)
+    expect((await res.json()).error).toMatch(/Activate a plan/)
+  })
+  it('moderator edit → 403 the same way', async () => {
+    db.sellingLock = true
+    const res = await moderatorEdit(
+      req(`/api/moderator/listings/${LISTING_ID}`, { name: 'Tomato', unit: 'kg', shelf_life_days: '5', delivery_mode: 'pickup', price_tier_1_price: '40', stock_qty: '50' }, 'PUT'),
+      { params: Promise.resolve({ id: LISTING_ID }) },
+    )
+    expect(res.status).toBe(403)
+    expect((await res.json()).code).toBe('SELLING_PLAN_REQUIRED')
   })
 })

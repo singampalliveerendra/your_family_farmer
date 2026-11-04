@@ -6,6 +6,7 @@ import { purchaseCountsFor } from '@/lib/purchaseCounts'
 import { normalizeUrl } from '@/lib/links'
 import { parseDeliveryMode } from '@/lib/fulfillment'
 import { resolveWholesaleBody, isWholesaleColumnMissing, WHOLESALE_NOT_READY } from '@/lib/wholesale'
+import { SELLING_PLAN_REQUIRED_MODERATOR, isSellingPlanError } from '@/lib/sellingLock'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -205,6 +206,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: WHOLESALE_NOT_READY.en }, { status: 503 })
   }
   if (error) {
+    if (isSellingPlanError(error.message)) return NextResponse.json({ error: SELLING_PLAN_REQUIRED_MODERATOR, code: 'SELLING_PLAN_REQUIRED' }, { status: 403 })
     console.error('[YFF moderator/listings POST] insert failed:', error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

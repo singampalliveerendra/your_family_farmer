@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { activationDates, subscriptionReceiptNo } from '@/lib/subscriptionLifecycle'
 import { isPlanKind, unlocksSelling, type PlanKind, type SubscriptionRow } from '@/lib/subscriptionPlans'
+import { isSellingPlanError } from '@/lib/sellingLock'
 
 /* Server-side steps of a subscription, shared by every path that can reach
  * them — so the browser verify, the Cashfree webhook and the nightly
@@ -109,11 +110,13 @@ export async function holdListings(
 /**
  * Put back what a hold took down. Only listings still at the hidden status
  * are restored — one the farmer or a moderator changed since is left alone.
+ * A listing the selling lock refuses (no Selling plan — Phase 7) stays hidden
+ * AND stays held, so paying for a plan later still brings it back.
  */
 export async function releaseHolds(
   supabase: SupabaseClient,
   aggregatorId: string,
-): Promise<{ ok: true; released: number } | { ok: false; error: string }> {
+): Promise<{ ok: true; released: number; blocked: number } | { ok: false; error: string }> {
   try {
     const { data: holds, error } = await supabase
       .from('subscription_listing_holds')
@@ -123,17 +126,19 @@ export async function releaseHolds(
     if (error) return { ok: false, error: error.message }
     const list = (holds ?? []) as Array<{ id: string; listing_id: string; previous_status: string }>
     let released = 0
+    let blocked = 0
     for (const h of list) {
-      const { data: back } = await supabase
+      const { data: back, error: upErr } = await supabase
         .from('produce_listings')
         .update({ status: h.previous_status })
         .eq('id', h.listing_id)
         .eq('status', HIDDEN_STATUS)
         .select('id')
+      if (upErr && isSellingPlanError(upErr.message)) { blocked++; continue }
       if (Array.isArray(back) && back.length) released++
       await supabase.from('subscription_listing_holds').update({ released_at: new Date().toISOString() }).eq('id', h.id)
     }
-    return { ok: true, released }
+    return { ok: true, released, blocked }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'release failed' }
   }

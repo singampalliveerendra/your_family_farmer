@@ -1047,3 +1047,52 @@ ALTER TABLE public.platform_settings
 ALTER TABLE public.platform_settings DROP CONSTRAINT IF EXISTS platform_settings_bulk_fee_check;
 ALTER TABLE public.platform_settings ADD CONSTRAINT platform_settings_bulk_fee_check
   CHECK (bulk_fee_percent >= 0 AND bulk_fee_percent <= 100);
+
+-- ── Selling lock (scripts/selling-lock-migration.sql, 2026-11-04) ──
+CREATE OR REPLACE FUNCTION public.aggregator_can_sell(p_farmer uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.aggregator_subscriptions s
+    WHERE s.aggregator_id = p_farmer
+      AND s.status = 'active'
+      AND s.kind IN ('selling', 'combined')
+      AND s.starts_at <= now()
+      AND (s.ends_at IS NULL OR s.ends_at > now())
+  )
+$$;
+REVOKE ALL ON FUNCTION public.aggregator_can_sell(uuid) FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.enforce_aggregator_selling_plan()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Not going on sale: drafts, paused, suspended, rejected… always allowed.
+  IF NEW.status IS NULL OR NEW.status NOT IN ('available', 'coming_soon', 'sold_out') THEN
+    RETURN NEW;
+  END IF;
+  -- Already on sale before this change: stock / price / sold-out edits.
+  IF TG_OP = 'UPDATE' AND OLD.status IN ('available', 'coming_soon', 'sold_out') THEN
+    RETURN NEW;
+  END IF;
+  -- Farmers are free, always.
+  IF NOT EXISTS (SELECT 1 FROM public.farmers f WHERE f.id = NEW.farmer_id AND f.account_type = 'aggregator') THEN
+    RETURN NEW;
+  END IF;
+  IF public.aggregator_can_sell(NEW.farmer_id) THEN
+    RETURN NEW;
+  END IF;
+  RAISE EXCEPTION 'SELLING_PLAN_REQUIRED: a Selling plan is needed to put produce on sale.'
+    USING ERRCODE = 'P0001';
+END
+$$;
+REVOKE ALL ON FUNCTION public.enforce_aggregator_selling_plan() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS produce_listings_selling_plan ON public.produce_listings;
+CREATE TRIGGER produce_listings_selling_plan
+  BEFORE INSERT OR UPDATE OF status ON public.produce_listings
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_aggregator_selling_plan();

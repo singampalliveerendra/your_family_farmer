@@ -32,7 +32,10 @@ export async function POST(req: NextRequest) {
   if (action === 'restore') {
     const r = await releaseHolds(supabase, aggregatorId)
     if (!r.ok) return NextResponse.json({ error: 'Could not restore. Run scripts/subscription-payments-migration.sql first.' }, { status: 500 })
-    return NextResponse.json({ ok: true, restored: r.released })
+    if (r.blocked > 0 && r.released === 0) {
+      return NextResponse.json({ error: 'These listings cannot go back on sale: the aggregator has no Selling plan. Activate a plan for them first — the listings come back by themselves when they pay.' }, { status: 409 })
+    }
+    return NextResponse.json({ ok: true, restored: r.released, blocked: r.blocked })
   }
 
   const { data: subs } = await supabase

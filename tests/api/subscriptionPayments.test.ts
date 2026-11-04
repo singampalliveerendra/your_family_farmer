@@ -14,7 +14,7 @@ const PLAN_ID = '33333333-3333-4333-8333-333333333333'
 const MOD = '99999999-9999-4999-8999-999999999999'
 const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString()
 
-const db = { tables: {} as Record<string, Row[]>, seq: 0 }
+const db = { tables: {} as Record<string, Row[]>, seq: 0, sellingLock: false }
 
 function query(table: string) {
   const filters: Array<(r: Row) => boolean> = []
@@ -35,6 +35,11 @@ function query(table: string) {
     }
     const hit = rows.filter((r) => filters.every((f) => f(r)))
     if (updateSet) {
+      // The Phase 7 trigger: putting an aggregator's produce back on sale
+      // without a Selling plan is refused by the database.
+      if (db.sellingLock && table === 'produce_listings' && ['available', 'sold_out', 'coming_soon'].includes(String(updateSet.status))) {
+        return { data: null, error: { message: 'SELLING_PLAN_REQUIRED: a Selling plan is needed to put produce on sale.' } }
+      }
       for (const r of hit) Object.assign(r, updateSet)
       const out = hit.map((r) => ({ ...r }))
       return { data: single ? out[0] ?? null : selected ? out : null, error: null }
@@ -116,6 +121,7 @@ beforeEach(() => {
   queueAndSend.mockClear()
   delete process.env.SUBSCRIPTION_REMINDER_WHATSAPP
   db.seq = 0
+  db.sellingLock = false
   db.tables = {
     farmers: [
       { id: AGG, name: 'GoDhan', phone: '9000000001', account_type: 'aggregator' },
@@ -317,9 +323,23 @@ describe('moderator: hide / restore listings after 10 days', () => {
     subs().push({ id: 's', aggregator_id: AGG, kind: 'selling', source: 'payment', status: 'active', starts_at: day(-40), ends_at: day(-10) })
     await act('hide')
     db.tables.produce_listings[1].status = 'paused' // the aggregator paused l2 meanwhile
-    expect(await (await act('restore')).json()).toEqual({ ok: true, restored: 1 })
+    expect(await (await act('restore')).json()).toEqual({ ok: true, restored: 1, blocked: 0 })
     expect(db.tables.produce_listings.map((l) => l.status)).toEqual(['available', 'paused', 'paused', 'available'])
     expect(db.tables.subscription_listing_holds.every((h) => h.released_at)).toBe(true)
+  })
+
+  it('restore without a Selling plan: refused with the reason, and the listings stay held', async () => {
+    subs().push({ id: 's', aggregator_id: AGG, kind: 'selling', source: 'payment', status: 'active', starts_at: day(-40), ends_at: day(-10) })
+    await act('hide')
+    db.sellingLock = true
+    const res = await act('restore')
+    expect(res.status).toBe(409)
+    expect((await res.json()).error).toMatch(/no Selling plan/)
+    expect(db.tables.produce_listings.slice(0, 2).map((l) => l.status)).toEqual(['suspended', 'suspended'])
+    expect(db.tables.subscription_listing_holds.every((h) => !h.released_at)).toBe(true)
+    // …and paying later still brings them back.
+    db.sellingLock = false
+    expect(await (await act('restore')).json()).toEqual({ ok: true, restored: 2, blocked: 0 })
   })
 
   it('paying for selling again brings the listings back by itself', async () => {
