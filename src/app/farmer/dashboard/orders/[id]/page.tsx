@@ -270,6 +270,14 @@ export default function FarmerOrderDetailPage() {
         {order?.order_code && (
           <p className="text-green-300 text-sm mt-1 font-mono">{order.order_code}</p>
         )}
+        {order && (
+          <Link
+            href={`/farmer/dashboard/orders/${order.id}/receipt`}
+            className="inline-flex items-center gap-1.5 mt-3 min-h-[40px] px-3 rounded-xl bg-white/10 border border-white/30 text-white text-sm font-bold active:bg-white/20"
+          >
+            🧾 {L('Download receipt', 'రసీదు డౌన్‌లోడ్')}
+          </Link>
+        )}
       </div>
 
       <div className="px-4 -mt-5 space-y-4 max-w-lg mx-auto">
