@@ -415,9 +415,19 @@ export default function OrderCard({
             </p>
           )}
 
-          <p className="text-[11px] font-semibold text-green-700 pt-0.5">
-            {L('View full details', 'పూర్తి వివరాలు చూడండి')} →
-          </p>
+          <div className="flex items-center justify-between gap-2 pt-0.5">
+            <p className="text-[11px] font-semibold text-green-700">
+              {L('View full details', 'పూర్తి వివరాలు చూడండి')} →
+            </p>
+            {/* Its own tap: the card around it opens the details. */}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); router.push(`/farmer/dashboard/orders/${order.id}/receipt`) }}
+              className="min-h-[32px] px-2.5 rounded-lg border border-green-200 bg-green-50 text-[11px] font-bold text-green-800 active:bg-green-100"
+            >
+              🧾 {L('Receipt', 'రసీదు')}
+            </button>
+          </div>
         </div>
 
         {order.delivery_type === 'home_delivery' && (
