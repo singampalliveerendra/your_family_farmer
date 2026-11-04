@@ -21,9 +21,11 @@ export async function GET() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
+  // No exact lat / lng in this public answer (security fix, 2026-11-04): the
+  // distance falls back to the village, which is all a buyer needs.
   const { data: farmers, error } = await supabase
     .from('farmers')
-    .select('id, slug, name, village, district, photo_url, account_type, rating_avg, lat, lng, location_name, story_quote, how_we_aggregate')
+    .select('id, slug, name, village, district, photo_url, account_type, rating_avg, location_name, story_quote, how_we_aggregate')
     .eq('active', true)
     .not('slug', 'is', null)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

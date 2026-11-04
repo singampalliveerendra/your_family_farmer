@@ -36,12 +36,12 @@ export async function GET(req: NextRequest) {
   if (farmerIds.length > 0) {
     const { data: farmers } = await supabase
       .from('farmers')
-      .select('id, name, slug, village, phone, upi_id')
+      .select('id, name, slug, village, phone')
       .in('id', farmerIds)
     farmerMap = Object.fromEntries(
       (farmers ?? []).map((f) => [
         f.id,
-        { name: f.name, slug: f.slug, village: f.village, phone: f.phone ?? null, upi_id: (f.upi_id as string | null) ?? null },
+        { name: f.name, slug: f.slug, village: f.village, phone: f.phone ?? null, upi_id: null /* UPI pay-the-farmer removed 2026-11-04 (Cashfree only) */ },
       ]),
     )
   }

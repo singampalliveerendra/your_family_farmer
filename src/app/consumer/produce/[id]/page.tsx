@@ -12,7 +12,7 @@ import { useCart, CartFab, EditableQty } from '@/components/consumer/Cart'
 import { BOTTOM_NAV_OFFSET } from '@/lib/bottomNav'
 import { supabase } from '@/lib/supabase'
 import { isRetailVisible } from '@/lib/wholesaleVisibility'
-import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
+import { normalizePickupSchedule } from '@/lib/pickup-slots'
 import { isSoldOutWithHarvests } from '@/lib/produceStatus'
 import { formatHarvestDate, nextHarvestDate } from '@/lib/harvestSchedule'
 import PreorderConfirm from '@/components/consumer/PreorderConfirm'
@@ -32,10 +32,10 @@ type Farmer = {
   name: string
   village: string
   slug: string
-  phone: string
+  /** Not public since the security fix (2026-11-04) — never read here. */
+  phone?: string | null
   method: string
   pickup_locations?: string[] | null
-  pickup_location_phones?: unknown
   pickup_slots?: unknown
   account_type?: string | null
 }
@@ -151,7 +151,7 @@ export default function ProduceDetailPage() {
     const [{ data: lf }, harvestsRes] = await Promise.all([
       supabase
         .from('produce_listings')
-        .select('*, farmer:farmers!farmer_id(id, name, village, slug, phone, method, pickup_locations, pickup_location_phones, pickup_slots, account_type)')
+        .select('*, farmer:farmers!farmer_id(id, name, village, slug, method, pickup_locations, pickup_slots, account_type)')
         .eq('id', id)
         .maybeSingle(),
       // Every unpaused pick, newest first: the first row drives the clock, the
@@ -243,7 +243,9 @@ export default function ProduceDetailPage() {
     .filter(Boolean) as string[]
   const grower = growerLine(farmer?.account_type, sourceFarmer)
   const farmerHref = farmer ? `/farmer/${farmer.slug}` : '#'
-  const canAdd = !!farmer && !!farmer.phone
+  // A real, active seller is enough to buy from — their phone is no longer
+  // public (security fix, 2026-11-04), so it can't be the test any more.
+  const canAdd = !!farmer
   const inCart = cart[item.id]
   // Status counts alongside the number: this page can be reached for a produce
   // whose stock_qty is null but that the auto-flip already marked 'sold_out'.
@@ -302,12 +304,11 @@ export default function ProduceDetailPage() {
       priceTier3Price: item.price_tier_3_price ?? undefined,
       farmerId: farmer.id,
       farmerName: farmer.name,
-      farmerPhone: farmer.phone,
+      farmerPhone: '',
       farmerVillage: farmer.village,
       farmerSlug: farmer.slug,
       farmerPickupLocations: farmer.pickup_locations ?? [],
       farmerPickupSlots: normalizePickupSchedule(farmer.pickup_slots, farmer.pickup_locations ?? []),
-      farmerPickupPhones: normalizePickupPhones(farmer.pickup_location_phones, farmer.pickup_locations ?? []),
     })
   }
 

@@ -116,9 +116,11 @@ export default function ProduceTab({
 
   const handleDelete = async (id: string) => {
     if (!confirm(L('Are you sure?', 'మీరు నిశ్చితంగా ఉన్నారా?'))) return
-    const { error } = await supabase.from('produce_listings').delete().eq('id', id)
-    if (error) {
-      alert(`Could not delete: ${error.message}`)
+    // Through the owner-checked route (security fix, 2026-11-04).
+    const r = await fetch(`/api/farmer/listings/${id}`, { method: 'DELETE', credentials: 'same-origin' }).catch(() => null)
+    if (!r || !r.ok) {
+      const j = r ? await r.json().catch(() => null) : null
+      alert(j?.error ?? L('Could not delete. Please try again.', 'తొలగించలేకపోయాం. మళ్లీ ప్రయత్నించండి.'))
       return
     }
     setListings((prev) => prev.filter((p) => p.id !== id))
@@ -251,8 +253,8 @@ function AddProduceForm({ farmerId, onAdded }: { farmerId: string; onAdded: (ite
     setLoading(true)
     setError('')
 
+    // The owner comes from the login on the server, never this payload.
     const payload: Record<string, unknown> = {
-      farmer_id: farmerId,
       name: name.trim(),
       emoji,
       status,
@@ -262,7 +264,15 @@ function AddProduceForm({ farmerId, onAdded }: { farmerId: string; onAdded: (ite
     if (price) payload.price_tier_1_price = Number(price)
     if (stock) payload.stock_qty = Number(stock)
 
-    const { data, error: insertError } = await supabase.from('produce_listings').insert(payload).select().single()
+    const r = await fetch('/api/farmer/listings', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payload }),
+    }).catch(() => null)
+    const j = r ? await r.json().catch(() => null) : null
+    const data = r?.ok ? j?.listing : null
+    const insertError = data ? null : { message: j?.error as string | undefined }
     setLoading(false)
     if (!insertError && data) {
       onAdded(data as Produce)

@@ -12,7 +12,7 @@ import { useCart, CartFab, EditableQty } from '@/components/consumer/Cart'
 import { BOTTOM_NAV_OFFSET } from '@/lib/bottomNav'
 import { supabase } from '@/lib/supabase'
 import { isRetailVisible } from '@/lib/wholesaleVisibility'
-import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
+import { normalizePickupSchedule } from '@/lib/pickup-slots'
 import { formatHarvestDate, nextHarvestDate } from '@/lib/harvestSchedule'
 import PreorderConfirm from '@/components/consumer/PreorderConfirm'
 import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
@@ -38,10 +38,10 @@ type Farmer = {
   name: string
   village: string
   slug: string
-  phone: string
+  /** Not public since the security fix (2026-11-04) — never read here. */
+  phone?: string | null
   method: string
   pickup_locations?: string[] | null
-  pickup_location_phones?: unknown
   pickup_slots?: unknown
   account_type?: string | null
 }
@@ -50,8 +50,6 @@ type Farmer = {
 type SourceFarmer = {
   name: string
   village?: string | null
-  address?: string | null
-  phone?: string | null
 }
 
 type Listing = {
@@ -137,7 +135,7 @@ export default function HarvestDetailPage() {
     setLoading(true)
     const { data: h } = await supabase
       .from('harvests')
-      .select('id, produce_listing_id, harvested_at, shelf_life_days, stock_qty, unit, paused, source_farmer:source_farmers(name, village, address, phone)')
+      .select('id, produce_listing_id, harvested_at, shelf_life_days, stock_qty, unit, paused, source_farmer:source_farmers(name, village)')
       .eq('id', harvestId)
       .maybeSingle()
     // A paused harvest is off the market — treat a direct link to it (a shared
@@ -167,7 +165,7 @@ export default function HarvestDetailPage() {
     // world-readable.
     const { data: f } = await supabase
       .from('farmers')
-      .select('id, name, village, slug, phone, method, pickup_locations, pickup_location_phones, pickup_slots, account_type')
+      .select('id, name, village, slug, method, pickup_locations, pickup_slots, account_type')
       .eq('id', (l as Listing).farmer_id)
       .maybeSingle()
     setFarmer((f as Farmer) ?? null)
@@ -207,7 +205,9 @@ export default function HarvestDetailPage() {
   const farmerHref = farmer ? `/farmer/${farmer.slug}` : '#'
   const isAggregator = farmer?.account_type === 'aggregator'
   const sourceFarmer = harvest.source_farmer ?? null
-  const canAdd = !!farmer && !!farmer.phone
+  // A real, active seller is enough to buy from — their phone is no longer
+  // public (security fix, 2026-11-04), so it can't be the test any more.
+  const canAdd = !!farmer
   const inCart = cart[harvest.id]
   // This PICK is spent. The produce is not: the farmer harvests it again, so the
   // page offers to wait for that instead of dead-ending on "Out of stock".
@@ -270,12 +270,11 @@ export default function HarvestDetailPage() {
       priceTier3Price: item.price_tier_3_price ?? undefined,
       farmerId: farmer.id,
       farmerName: farmer.name,
-      farmerPhone: farmer.phone,
+      farmerPhone: '',
       farmerVillage: farmer.village,
       farmerSlug: farmer.slug,
       farmerPickupLocations: farmer.pickup_locations ?? [],
       farmerPickupSlots: normalizePickupSchedule(farmer.pickup_slots, farmer.pickup_locations ?? []),
-      farmerPickupPhones: normalizePickupPhones(farmer.pickup_location_phones, farmer.pickup_locations ?? []),
     })
   }
 
@@ -454,15 +453,8 @@ export default function HarvestDetailPage() {
               {L('Grown by', 'పండించినవారు')}
             </p>
             <p className="text-sm font-bold text-gray-900">👨‍🌾 {sourceFarmer.name}</p>
-            {(sourceFarmer.address || sourceFarmer.village) && (
-              <p className="text-xs text-gray-600 leading-snug">
-                📍 {[sourceFarmer.address, sourceFarmer.village].filter(Boolean).join(', ')}
-              </p>
-            )}
-            {sourceFarmer.phone && (
-              <a href={`tel:${sourceFarmer.phone}`} className="inline-block text-xs font-bold text-green-700 underline">
-                📞 {sourceFarmer.phone}
-              </a>
+            {sourceFarmer.village && (
+              <p className="text-xs text-gray-600 leading-snug">📍 {sourceFarmer.village}</p>
             )}
             <p className="text-[11px] text-gray-500 leading-snug pt-0.5">
               {L(

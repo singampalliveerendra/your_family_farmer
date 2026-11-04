@@ -720,30 +720,21 @@ ALTER TABLE public.farmer_follows ENABLE ROW LEVEL SECURITY;
 -- `reviews` is readable by anon for APPROVED rows only, via column-level GRANT
 -- (reviewer_phone is excluded as PII). Writes go through /api/reviews, which
 -- enforces the rate limits a direct insert would skip.
-CREATE POLICY "public insert demand_intents" ON public.demand_intents FOR INSERT TO public WITH CHECK (true);
-CREATE POLICY "public read demand_intents" ON public.demand_intents FOR SELECT TO public USING (true);
-CREATE POLICY "public update demand_intents" ON public.demand_intents FOR UPDATE TO public USING (true) WITH CHECK (true);
-CREATE POLICY "public delete demand_intents" ON public.demand_intents FOR DELETE TO public USING (true);
 CREATE POLICY "farmer_follows public read" ON public.farmer_follows FOR SELECT TO public USING (true);
--- NOTE: these two farmers policies are row-unrestricted, but the columns anon
--- can touch are narrowed by the GRANTs at the foot of this file. See
+-- NOTE: the farmers read policy is row-unrestricted, but the columns anon
+-- can read are narrowed by the GRANTs further down. See
 -- scripts/farmers-column-lockdown.sql for the reasoning.
-CREATE POLICY "Allow update farmers" ON public.farmers FOR UPDATE TO anon USING (true) WITH CHECK (true);
+--
+-- No public INSERT/UPDATE/DELETE policy on farmers, produce_listings,
+-- harvests, media or demand_intents since scripts/seller-writes-lockdown.sql
+-- (2026-11-05): those writes go through login-checked server routes using the
+-- service role. demand_intents has no public READ either (buyers' phones).
 CREATE POLICY "Public read farmers" ON public.farmers FOR SELECT TO public USING (true);
-CREATE POLICY "harvests public delete" ON public.harvests FOR DELETE TO public USING (true);
-CREATE POLICY "harvests public insert" ON public.harvests FOR INSERT TO public WITH CHECK (true);
 CREATE POLICY "harvests public read" ON public.harvests FOR SELECT TO public USING (true);
-CREATE POLICY "harvests public update" ON public.harvests FOR UPDATE TO public USING (true) WITH CHECK (true);
-CREATE POLICY "Allow insert media" ON public.media FOR INSERT TO anon WITH CHECK (true);
 CREATE POLICY "Public read media" ON public.media FOR SELECT TO public USING (true);
-CREATE POLICY "media public delete" ON public.media FOR DELETE TO public USING (true);
-CREATE POLICY "media public update" ON public.media FOR UPDATE TO public USING (true) WITH CHECK (true);
 CREATE POLICY "Public insert notify" ON public.notify_requests FOR INSERT TO public WITH CHECK (true);
 CREATE POLICY "Public read platform settings" ON public.platform_settings FOR SELECT TO public USING (true);
-CREATE POLICY "Allow insert produce" ON public.produce_listings FOR INSERT TO anon WITH CHECK (true);
 CREATE POLICY "Public read produce" ON public.produce_listings FOR SELECT TO public USING (true);
-CREATE POLICY "produce_listings public delete" ON public.produce_listings FOR DELETE TO public USING (true);
-CREATE POLICY "produce_listings public update" ON public.produce_listings FOR UPDATE TO public USING (true) WITH CHECK (true);
 CREATE POLICY "produce_reviews public read" ON public.produce_reviews FOR SELECT TO public USING ((approved = true));
 CREATE POLICY "Public read regions" ON public.regions FOR SELECT TO public USING (true);
 CREATE POLICY "Public read reviews" ON public.reviews FOR SELECT TO public USING ((approved = true));
@@ -765,28 +756,23 @@ CREATE POLICY "anyone can read wa_clicks" ON public.wa_clicks FOR SELECT TO publ
 REVOKE ALL ON public.farmers FROM anon, authenticated;
 
 GRANT SELECT (
-  id, slug, name, village, district, state, phone, method,
+  id, slug, name, village, district, state, method,
   farm_size_acres, farming_since_year, story_quote, soil_organic_carbon,
   soil_ph, brix_reading, water_source, delivery_available,
   pickup_available, farm_visit_day, rating_avg, rating_count,
   buyer_count, region_slug, active, created_at, pickup_locations,
   cover_photo_url, photo_url, pesticide_cert_url, pickup_slots,
-  lat, lng, location_name, upi_id, upi_qr_code_url, cod_enabled,
-  farm_address, registered_by_moderator, facebook_url, instagram_url,
-  youtube_url, pickup_location_phones, account_type, contact_person,
+  location_name, cod_enabled,
+  registered_by_moderator, facebook_url, instagram_url,
+  youtube_url, account_type, contact_person,
   how_we_aggregate, business_cert_url, organic_certificate_url,
   terms_accepted_at, approval_status
 ) ON public.farmers TO anon, authenticated;
+-- NOT granted since scripts/seller-writes-lockdown.sql (2026-11-05): phone,
+-- farm_address, lat, lng, pickup_location_phones, upi_id, upi_qr_code_url
+-- (FARMER_HIDDEN_COLUMNS in src/lib/farmerColumns.ts). And no UPDATE grant
+-- at all — sellers edit their profile through /api/farmer/profile.
 
-GRANT UPDATE (
-  name, village, district, method, slug, pickup_locations, farm_address,
-  cover_photo_url, photo_url, pesticide_cert_url, upi_id, upi_qr_code_url,
-  cod_enabled, contact_person, how_we_aggregate, business_cert_url,
-  organic_certificate_url, pickup_slots, pickup_location_phones,
-  lat, lng, location_name, phone, farm_size_acres, soil_organic_carbon,
-  water_source, story_quote, farming_since_year, soil_ph,
-  facebook_url, instagram_url, youtube_url
-) ON public.farmers TO anon, authenticated;
 
 
 -- ============================================================================
@@ -1096,3 +1082,41 @@ DROP TRIGGER IF EXISTS produce_listings_selling_plan ON public.produce_listings;
 CREATE TRIGGER produce_listings_selling_plan
   BEFORE INSERT OR UPDATE OF status ON public.produce_listings
   FOR EACH ROW EXECUTE FUNCTION public.enforce_aggregator_selling_plan();
+
+
+-- ============================================================================
+-- Seller writes lockdown (scripts/seller-writes-lockdown.sql, 2026-11-05)
+-- The anon key ships in the website's JavaScript: it may READ public data
+-- only. Every write to these tables goes through a login-checked server route.
+-- ============================================================================
+
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, TRIGGER, REFERENCES
+  ON public.produce_listings, public.harvests, public.media, public.farmers
+  FROM anon, authenticated;
+REVOKE ALL ON public.demand_intents FROM anon, authenticated;
+REVOKE SELECT, UPDATE, DELETE, TRUNCATE, TRIGGER, REFERENCES
+  ON public.notify_requests FROM anon, authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.decrement_stock(uuid, numeric),
+                           public.increment_stock(uuid, numeric),
+                           public.decrement_harvest_stock(uuid, numeric),
+                           public.increment_harvest_stock(uuid, numeric)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.decrement_stock(uuid, numeric),
+                          public.increment_stock(uuid, numeric),
+                          public.decrement_harvest_stock(uuid, numeric),
+                          public.increment_harvest_stock(uuid, numeric)
+  TO service_role;
+
+-- Aggregators' growers (20260811_aggregator.sql): name + village only.
+DO $$
+BEGIN
+  IF to_regclass('public.source_farmers') IS NOT NULL THEN
+    REVOKE ALL ON public.source_farmers FROM anon, authenticated;
+    GRANT SELECT (id, aggregator_id, name, village, created_at, updated_at)
+      ON public.source_farmers TO anon, authenticated;
+  END IF;
+END $$;
+
+-- farm-images storage: see scripts/storage-buckets-all.sql (no public write
+-- or list policy; 8 MB; photos only).

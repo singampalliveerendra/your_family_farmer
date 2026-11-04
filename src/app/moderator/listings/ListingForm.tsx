@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { uploadFarmImage } from '@/lib/farmImageUpload'
 import HarvestManager from '@/components/HarvestManager'
 import { useSourceFarmers, sourceFarmerLabel } from '@/components/SourceFarmerPicker'
 import { STEP_CHOICES } from '@/lib/saleStep'
@@ -32,7 +32,7 @@ const EN = (en: string) => en
 //
 // Harvest date/time differs by mode, exactly as it does for the farmer:
 //   create — one "first harvest" date seeds the produce's initial harvest row.
-//   edit   — the shared <HarvestManager> panel owns harvests, so the moderator
+//   edit   — the shared <HarvestManager api="moderator"> panel owns harvests, so the moderator
 //            can log MANY picks per produce instead of editing a single date.
 
 export type ListingFormValues = {
@@ -177,17 +177,13 @@ export default function ListingForm({
       .finally(() => setLoadingFarmers(false))
   }, [mode])
 
-  // Upload one image to the shared farm-images bucket (same bucket + anon-write
-  // policy the farmer dashboard uses). Foldered by farmer so paths stay tidy.
+  // Upload one image through a one-time signed link (security fix,
+  // 2026-11-04): into the farmer's folder when they are in this moderator's
+  // zone, else the moderator's onboarding folder.
   const uploadImage = async (file: File): Promise<string | null> => {
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-    const path = `${farmerId || 'moderator'}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-    const { error: upErr } = await supabase.storage
-      .from('farm-images')
-      .upload(path, file, { contentType: file.type, upsert: false })
-    if (upErr) { setError(`Image upload failed: ${upErr.message}`); return null }
-    const { data } = supabase.storage.from('farm-images').getPublicUrl(path)
-    return data.publicUrl
+    const r = await uploadFarmImage(file, 'produce', farmerId || null)
+    if (r.err) { setError(`Image ${r.err.charAt(0).toLowerCase()}${r.err.slice(1)}`); return null }
+    return r.url
   }
 
   const submit = async (e: React.FormEvent) => {
@@ -255,12 +251,17 @@ export default function ListingForm({
     // farmer dashboard's qualityPatch exactly.
     const savedId = mode === 'edit' ? listingId : (json?.id as string | undefined)
     if (savedId) {
-      await supabase.from('produce_listings').update({
-        category: form.category || null,
-        soil_ph: form.soil_ph ? Number(form.soil_ph) : null,
-        pesticide_result: form.pesticide_result.trim() || null,
-        image_urls: allImages.length ? allImages : null,
-      }).eq('id', savedId)
+      await fetch(`/api/moderator/listings/${savedId}/quality`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: form.category || null,
+          soil_ph: form.soil_ph ? Number(form.soil_ph) : null,
+          pesticide_result: form.pesticide_result.trim() || null,
+          image_urls: allImages.length ? allImages : null,
+        }),
+      }).catch(() => null)
     }
 
     setSubmitting(false)
@@ -421,7 +422,7 @@ export default function ListingForm({
           Edit only: a harvest needs a saved produce row to attach to. */}
       {mode === 'edit' && listingId && farmerId && (
         <div className="border-t border-gray-100 pt-4 max-w-md">
-          <HarvestManager
+          <HarvestManager api="moderator"
             listingId={listingId}
             farmerId={farmerId}
             unit={form.unit}

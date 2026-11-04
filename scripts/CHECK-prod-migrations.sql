@@ -160,6 +160,26 @@ SELECT * FROM (
     CASE WHEN EXISTS (SELECT 1 FROM pg_trigger
       WHERE tgname='produce_listings_selling_plan' AND NOT tgisinternal)
       THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  -- seller-writes-lockdown.sql. Run it only AFTER the code that moves seller
+  -- writes to server routes is live on prod. MISSING here = anyone can still
+  -- edit any farmer's produce, or read farmers' phones / buyers' requests.
+  SELECT 25, 'seller-lockdown', 'anon cannot write produce_listings',
+    CASE WHEN NOT has_table_privilege('anon', 'public.produce_listings', 'INSERT,UPDATE,DELETE')
+      THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  SELECT 26, 'seller-lockdown', 'anon cannot read farmers.phone',
+    CASE WHEN NOT has_column_privilege('anon', 'public.farmers', 'phone', 'SELECT')
+      THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  SELECT 27, 'seller-lockdown', 'anon cannot read demand_intents',
+    CASE WHEN NOT has_table_privilege('anon', 'public.demand_intents', 'SELECT')
+      THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  SELECT 28, 'seller-lockdown', 'no public upload to farm-images',
+    CASE WHEN NOT EXISTS (SELECT 1 FROM pg_policy
+      WHERE polrelid = 'storage.objects'::regclass AND polname = 'farm-images public upload')
+      THEN 'PRESENT' ELSE 'MISSING' END
 
 ) checks ORDER BY ord;
 

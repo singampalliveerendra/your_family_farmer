@@ -767,26 +767,21 @@ export function CartSheet({
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [])
 
-  // Fetch latest UPI IDs and QR codes for all farmers in cart when sheet opens
+  // Fetch whether each farmer in the cart accepts cash, when the sheet opens.
+  // (UPI ID / QR are no longer read: buyers pay online through Cashfree, and
+  // since the security fix (2026-11-04) those columns are not public. Asking
+  // for them here would fail the WHOLE read and lose the cash setting too.)
   useEffect(() => {
     const farmerIds = [...new Set(items.map((i) => i.farmerId).filter(Boolean))]
     if (farmerIds.length === 0) return
     supabase
       .from('farmers')
-      .select('id, upi_id, upi_qr_code_url, cod_enabled')
+      .select('id, cod_enabled')
       .in('id', farmerIds)
       .then(({ data }) => {
         if (!data) return
-        const upiMap: Record<string, string> = {}
-        const qrMap: Record<string, string> = {}
         const codMap: Record<string, boolean> = {}
-        for (const f of data) {
-          if (f.upi_id) upiMap[f.id] = f.upi_id
-          if (f.upi_qr_code_url) qrMap[f.id] = f.upi_qr_code_url
-          codMap[f.id] = f.cod_enabled === true
-        }
-        setLiveUpiIds(upiMap)
-        setLiveQrUrls(qrMap)
+        for (const f of data) codMap[f.id] = f.cod_enabled === true
         setLiveCodEnabled(codMap)
       })
   }, [items])

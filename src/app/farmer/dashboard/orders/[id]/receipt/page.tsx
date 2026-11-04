@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
 import { requireFarmerSession } from '@/lib/farmer-auth-client'
 import { buildOrderReceipt, receiptDate, rowText, type OrderReceipt, type ReceiptOrder, type ReceiptRow, type ReceiptSeller } from '@/lib/orderReceipt'
@@ -31,10 +30,12 @@ export default function OrderReceiptPage() {
       if (!farmerId || cancelled) return
       const [orderRes, sellerRes] = await Promise.all([
         fetch(`/api/farmer/orders/${id}`, { credentials: 'same-origin' }).catch(() => null),
-        // Public profile columns only (the same ones buyers already see).
-        Promise.resolve(
-          supabase.from('farmers').select('name, village, phone, account_type').eq('id', farmerId).maybeSingle(),
-        ).catch(() => ({ data: null })),
+        // The seller's own profile, from the server: since the security fix
+        // (2026-11-04) the phone is not readable with the public key.
+        fetch('/api/farmer/profile', { credentials: 'same-origin', cache: 'no-store' })
+          .then((x) => (x.ok ? x.json() : null))
+          .then((j) => ({ data: j?.farmer ?? null }))
+          .catch(() => ({ data: null })),
       ])
       const json = orderRes && orderRes.ok ? await orderRes.json().catch(() => null) : null
       const order = (json?.order ?? null) as ReceiptOrder | null

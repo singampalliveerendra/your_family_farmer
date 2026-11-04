@@ -42,6 +42,7 @@ import WholesaleFields from '@/components/WholesaleFields'
 import WholesaleLowStockAlerts from '@/components/farmer/WholesaleLowStockAlerts'
 import SubscriptionStatusCard from '@/components/farmer/SubscriptionStatusCard'
 import { sellingLockText } from '@/lib/sellingLock'
+import { uploadFarmImage } from '@/lib/farmImageUpload'
 import {
   wholesaleFormFromRow, resolveWholesaleForm, needsRetailPrice, offersRetail,
   isWholesaleColumnMissing, missingColumnAction, withoutWholesale, wholesaleColumnsToSend, WHOLESALE_NOT_READY,
@@ -362,11 +363,11 @@ export default function FarmerDashboard() {
     const farmerId = await requireFarmerSession()
     if (!farmerId) return
 
-    const { data: farmerData } = await supabase
-      .from('farmers')
-      .select(FARMER_PUBLIC_COLUMNS)
-      .eq('id', farmerId)
-      .maybeSingle()
+    // The seller's OWN profile, from the server: since the security fix
+    // (2026-11-04) phone, farm address and location are no longer readable
+    // with the public key.
+    const profileRes = await farmerFetch('/api/farmer/profile').catch(() => null)
+    const farmerData = profileRes?.ok ? ((await profileRes.json().catch(() => null))?.farmer as Farmer | null) : null
 
     if (!farmerData) { setNotFound(true); setLoading(false); return }
     setFarmer(farmerData)
@@ -395,12 +396,9 @@ export default function FarmerDashboard() {
     }
 
     // The individual open requests behind those demand bars.
-    const { data: intents } = await supabase
-      .from('demand_intents')
-      .select('id, crop_name, quantity_kg, needed_by_date, delivery_location, requester_name, requester_phone, created_at')
-      .eq('region_slug', farmerData.region_slug)
-      .eq('fulfilled', false)
-      .order('created_at', { ascending: false })
+    // Through the server: buyers' phones are no longer public (security fix).
+    const intentsRes = await farmerFetch('/api/farmer/demand-requests').catch(() => null)
+    const intents = intentsRes?.ok ? (await intentsRes.json().catch(() => null))?.requests : null
     setDemandRequests((intents ?? []) as DemandRequest[])
 
     setLoading(false)
@@ -1175,8 +1173,6 @@ function ProfileEditModal({
   const [orgCertPreview, setOrgCertPreview] = useState('')
   const [existingOrgCertUrl, setExistingOrgCertUrl] = useState(farmer.organic_certificate_url ?? '')
 
-  // UPI ID + QR
-  const [upiId, setUpiId] = useState(farmer.upi_id ?? '')
 
   // Cash on Delivery acceptance — default off
 
@@ -1244,17 +1240,10 @@ function ProfileEditModal({
     setPreview(URL.createObjectURL(compressed))
   }
 
-  const uploadProfileImage = async (file: File, pathSuffix: string): Promise<{ url: string | null; err: string | null }> => {
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-    // Include timestamp in path so each upload gets a unique URL, busting browser cache
-    const path = `${farmer.id}/${pathSuffix}-${Date.now()}.${ext}`
-    const { error: upErr } = await supabase.storage
-      .from('farm-images')
-      .upload(path, file, { contentType: file.type, upsert: false })
-    if (upErr) return { url: null, err: `Upload failed: ${upErr.message}` }
-    const { data } = supabase.storage.from('farm-images').getPublicUrl(path)
-    return { url: data.publicUrl, err: null }
-  }
+  // Through a one-time signed link to the seller's own folder (security fix):
+  // the public key can no longer upload to, or overwrite, farm photos.
+  const uploadProfileImage = async (file: File, pathSuffix: string): Promise<{ url: string | null; err: string | null }> =>
+    uploadFarmImage(file, pathSuffix === 'cover' ? 'cover' : pathSuffix === 'avatar' ? 'profile' : 'certificate')
 
   const addPickup = () => {
     const v = newPickup.trim()
@@ -1302,10 +1291,6 @@ function ProfileEditModal({
   const handleSave = async () => {
     if (!name.trim()) { setError(tx.nameRequired); return }
     if (!village.trim()) { setError(tx.villageRequired); return }
-    if (upiId.trim() && !/^[a-zA-Z0-9._\-]{2,256}@[a-zA-Z]{2,64}$/.test(upiId.trim())) {
-      setError(L('Invalid UPI ID format. Example: yourname@ybl or 9876543210@paytm', 'UPI ఐడీ ఫార్మాట్ తప్పు. ఉదా: yourname@ybl లేదా 9876543210@paytm'))
-      return
-    }
     // Pickup location + timing is mandatory: a buyer choosing self-pickup must
     // always know WHERE and WHEN to collect, so every farmer needs at least one
     // pickup point and a timing window for each.
@@ -1368,7 +1353,6 @@ function ProfileEditModal({
       cover_photo_url:  (coverRes.url ?? existingCoverUrl) || null,
       photo_url:        (avatarRes.url ?? existingAvatarUrl) || null,
       pesticide_cert_url: (certRes.url ?? existingCertUrl) || null,
-      upi_id:           upiId.trim() || null,
       // Aggregator-only. Spread so an ordinary farmer's payload is byte-for-byte
       // what it was before this feature existed.
       ...(isAggregator ? {
@@ -1395,16 +1379,22 @@ function ProfileEditModal({
     }
     if (sinceYear) payload.farming_since_year = Number(sinceYear)
 
-    const { data, error: err } = await supabase
-      .from('farmers')
-      .update(payload)
-      .eq('id', farmer.id)
-      .select(FARMER_PUBLIC_COLUMNS)
-      .single()
-
-    if (err || !data) {
+    // Saved through the server, pinned to the logged-in seller (security fix,
+    // 2026-11-04): the public key can no longer write any farmer's profile.
+    const saveProfile = async (patch: Record<string, unknown>) => {
+      const r = await farmerFetch('/api/farmer/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      }).catch(() => null)
+      const j = r ? await r.json().catch(() => null) : null
+      return { ok: !!r?.ok, data: (j?.farmer ?? null) as Farmer | null, error: (j?.error as string | undefined) ?? null }
+    }
+    const saved = await saveProfile(payload)
+    const data = saved.data
+    if (!saved.ok || !data) {
       setLoading(false)
-      setError(err?.message ?? tx.couldNotSave)
+      setError(saved.error ?? tx.couldNotSave)
       return
     }
 
@@ -1413,7 +1403,7 @@ function ProfileEditModal({
     // never block the rest of the profile save.
     const phValue = soilPh ? Number(soilPh) : null
     if (soilPh) {
-      await supabase.from('farmers').update({ soil_ph: phValue }).eq('id', farmer.id)
+      await saveProfile({ soil_ph: phValue })
     }
 
     // Social links are best-effort for the same reason: their columns don't
@@ -1424,7 +1414,7 @@ function ProfileEditModal({
       instagram_url: normalizeUrl(instagramUrl),
       youtube_url:   normalizeUrl(youtubeUrl),
     }
-    await supabase.from('farmers').update(socialPatch).eq('id', farmer.id)
+    await saveProfile(socialPatch)
 
     setLoading(false)
     localStorage.setItem('yff_farmer_slug', data.slug)
@@ -2039,60 +2029,13 @@ function ProfileEditModal({
             </div>
           </div>
 
-          {/* ── Section 3: Payment Details ── */}
-          <div className="pt-3 border-t-2 border-green-100">
-            <h4 className="text-sm font-extrabold text-green-800">{L('Payment Details', 'చెల్లింపు వివరాలు')}</h4>
-            <p className="text-[11px] text-gray-500">
-              {L(
-                'Where the Go Grameen team sends your weekly payment',
-                'గో గ్రామీణ్ టీం మీ వారపు చెల్లింపు పంపే చోటు',
-              )}
-            </p>
-          </div>
-
-          {/* Payment Details */}
-          <div className="space-y-4 border border-gray-200 rounded-2xl p-4">
-            {/* UPI ID */}
-            <div>
-              <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide block mb-1">
-                {L('UPI ID', 'UPI ఐడీ')}
-              </label>
-              <p className="text-[11px] text-gray-500 mb-2">
-                {L(
-                  'The Go Grameen team sends your payment to this UPI ID every week. Example: yourname@ybl, 9876543210@paytm',
-                  'గో గ్రామీణ్ టీం ప్రతి వారం ఈ UPI ఐడీకి మీ చెల్లింపు పంపుతుంది. ఉదా: yourname@ybl, 9876543210@paytm',
-                )}
-              </p>
-              <input
-                type="text"
-                inputMode="email"
-                placeholder="yourname@ybl"
-                value={upiId}
-                onChange={(e) => setUpiId(e.target.value.trim())}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:border-green-500 focus:outline-none"
-              />
-              {upiId.trim() && (
-                <p className="text-[11px] text-green-700 mt-1 font-medium">
-                  {L(
-                    '✓ Your weekly payment from the Go Grameen team will come to this UPI ID',
-                    '✓ గో గ్రామీణ్ టీం నుండి మీ వారపు చెల్లింపు ఈ UPI ఐడీకి వస్తుంది',
-                  )}
-                </p>
-              )}
-            </div>
-
-            {/* The UPI QR upload and the Accept Cash on Delivery toggle were
-                removed from here on the client's request (2026-09-25): buyers
-                pay online through the gateway, so the QR promised buyers
-                something they no longer see. The columns stay, and this form
-                no longer writes them, so saving a profile leaves what is
-                stored untouched — COD per farmer is now the moderator's call. */}
-          </div>
-
-          {/* ── Section 4: Payout Details ──
-              Saves through its own session-gated API route rather than the
-              profile payload below: `farmers` is world-readable and
-              anon-writable, so bank details must not live there. */}
+          {/* The UPI ID field that sat here is gone (2026-11-04): buyers pay
+              through Cashfree, and the weekly payout goes to the bank account
+              in Payout details below. It lived on the public farmer record,
+              where anyone could read — and change — it. */}
+          {/* ── Payout Details ── where the weekly payment goes. Saves through
+              its own session-gated API route; bank details never live on the
+              farmer record. */}
           <PayoutDetailsForm />
 
           {/* Change Password */}
@@ -2412,18 +2355,11 @@ function ProduceListingForm({
     return () => { cancelled = true; clearTimeout(t) }
   }, [name, farmerRegion])
 
+  // One-time signed link to the seller's own folder (security fix).
   const uploadImage = async (file: File): Promise<string | null> => {
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-    const path = `${farmerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-    const { error: upErr } = await supabase.storage
-      .from('farm-images')
-      .upload(path, file, { contentType: file.type, upsert: false })
-    if (upErr) {
-      setError(`Image upload failed: ${upErr.message}`)
-      return null
-    }
-    const { data } = supabase.storage.from('farm-images').getPublicUrl(path)
-    return data.publicUrl
+    const r = await uploadFarmImage(file, 'produce')
+    if (r.err) { setError(`Image ${r.err.charAt(0).toLowerCase()}${r.err.slice(1)}`); return null }
+    return r.url
   }
 
   const previewData: PreviewData = {
@@ -2587,7 +2523,12 @@ function ProduceListingForm({
         image_urls: allImages.length ? allImages : null,
         video_url: normalizeUrl(videoUrl),
       }
-      await supabase.from('produce_listings').update(qualityPatch).eq('id', editData.id)
+      // Best-effort, through the owner-checked route (security fix).
+      await farmerFetch('/api/farmer/update-listing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listingId: editData.id, payload: qualityPatch }),
+      }).catch(() => null)
       setLoading(false)
       // The server may have refreshed the sold-out flag based on the new
       // quantity (e.g. raising stock above 0 clears a stuck "Sold out").
@@ -2639,40 +2580,40 @@ function ProduceListingForm({
     // New produce: retail needs nothing (the column defaults to 'retail').
     Object.assign(payload, wholesaleColumnsToSend(wholesaleResult.columns, false))
 
-    const insertPayload: Record<string, unknown> = { ...payload, farmer_id: farmerId, status: 'available' }
-    const doInsert = (body: Record<string, unknown>) =>
-      supabase.from('produce_listings').insert(body).select('id').single()
-
-    let { data: inserted, error: err } = await doInsert(insertPayload)
-    // Same pre-migration fallback as the edit path: publish the harvest without
-    // the step rather than refuse the whole listing.
-    if (err && isMissingColumnError(err.message, 'sale_step')) {
-      delete insertPayload.sale_step
-      ;({ data: inserted, error: err } = await doInsert(insertPayload))
-      if (!err) setStepNotSaved(true)
-    }
-    // Wholesale columns missing on this server: refuse rather than publish a
-    // retail listing the farmer did not ask for.
-    if (err && isWholesaleColumnMissing(err.message)) {
+    // Added through the server (security fix, 2026-11-04): the owner comes
+    // from the login, and the same rules as an edit apply — wholesale, grower,
+    // selling lock. The route also keeps the old "publish without the sale
+    // step on an un-migrated database" fallback.
+    const insertPayload: Record<string, unknown> = { ...payload, status: 'available' }
+    const createRes = await farmerFetch('/api/farmer/listings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payload: insertPayload }),
+    }).catch(() => null)
+    const created = createRes ? await createRes.json().catch(() => null) : null
+    if (!createRes || !createRes.ok || !created?.listing) {
       setLoading(false)
-      setError(L(WHOLESALE_NOT_READY.en, WHOLESALE_NOT_READY.te))
+      setError(sellingLockText(created?.error ?? L('Could not add the produce. Please try again.', 'ఉత్పత్తి చేర్చలేకపోయాం. మళ్లీ ప్రయత్నించండి.'), L))
       return
     }
-
-    // The selling lock (Phase 7) in plain words, not the database's.
-    if (err) { setLoading(false); setError(sellingLockText(err.message, L)); return }
+    if (created.stepNotSaved) setStepNotSaved(true)
+    const inserted = created.listing as { id: string }
 
     // Quality fields are best-effort (columns may not exist until the migration
     // scripts/produce-quality-fields-migration.sql runs) — never block the listing.
     if (inserted?.id) {
-      await supabase.from('produce_listings').update({
-        soil_ph: soilPh ? Number(soilPh) : null,
-        pesticide_result: pesticide.trim() || null,
-        how_we_grow: howWeGrow.trim() || null,
-        category: category || null,
-        image_urls: allImages.length ? allImages : null,
-        video_url: normalizeUrl(videoUrl),
-      }).eq('id', inserted.id)
+      await farmerFetch('/api/farmer/update-listing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listingId: inserted.id, payload: {
+          soil_ph: soilPh ? Number(soilPh) : null,
+          pesticide_result: pesticide.trim() || null,
+          how_we_grow: howWeGrow.trim() || null,
+          category: category || null,
+          image_urls: allImages.length ? allImages : null,
+          video_url: normalizeUrl(videoUrl),
+        } }),
+      }).catch(() => null)
     }
     setLoading(false)
 
@@ -3835,13 +3776,16 @@ function ManageListingsModal({
   const setListingStatus = async (row: ListingRow, next: string) => {
     setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: next } : r)))
     setError('')
-    const { data, error: err } = await supabase
-      .from('produce_listings')
-      .update({ status: next })
-      .eq('id', row.id)
-      .select('id')
-    if (err) { setError(sellingLockText(err.message, L)); load() }
-    else if (!data?.length) { setError(L('Could not update — please try again.', 'నవీకరించలేకపోయాం — మళ్ళీ ప్రయత్నించండి.')); load() }
+    // Through the owner-checked route (security fix): the public key can no
+    // longer change any listing's status.
+    const r = await farmerFetch('/api/farmer/update-listing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ listingId: row.id, payload: { status: next } }),
+    }).catch(() => null)
+    const j = r ? await r.json().catch(() => null) : null
+    if (!r) { setError(L('Could not update — please try again.', 'నవీకరించలేకపోయాం — మళ్ళీ ప్రయత్నించండి.')); load() }
+    else if (!r.ok) { setError(sellingLockText(j?.error ?? '', L) || L('Could not update — please try again.', 'నవీకరించలేకపోయాం — మళ్ళీ ప్రయత్నించండి.')); load() }
     else { onChanged() }
   }
 
@@ -3863,19 +3807,12 @@ function ManageListingsModal({
 
     setDeletingId(row.id)
     setError('')
-    const { data, error: err } = await supabase
-      .from('produce_listings')
-      .delete()
-      .eq('id', row.id)
-      .select('id')
+    const r = await farmerFetch(`/api/farmer/listings/${row.id}`, { method: 'DELETE' }).catch(() => null)
     setDeletingId(null)
-
-    if (err) {
-      setError(err.message)
-      return
-    }
-    if (!data || data.length === 0) {
-      setError(tx.deleteBlocked)
+    if (!r || !r.ok) {
+      // 409 = it has orders: say what to do instead.
+      const j = r ? await r.json().catch(() => null) : null
+      setError(r?.status === 409 ? tx.deleteBlocked : (j?.error ?? tx.deleteBlocked))
       return
     }
     setRows((prev) => prev.filter((r) => r.id !== row.id))
@@ -4221,24 +4158,19 @@ function FarmPhotosSection({ farmerId }: { farmerId: string }) {
     setUploading(true)
 
     const compressed = await compressImage(file)
-    const path = `${farmerId}/gallery/${Date.now()}-${Math.random().toString(36).slice(2, 6)}.jpg`
-    const { error: upErr } = await supabase.storage
-      .from('farm-images')
-      .upload(path, compressed, { contentType: 'image/jpeg', upsert: false })
-
-    if (upErr) { setError(`Upload failed: ${upErr.message}`); setUploading(false); return }
-
-    const { data: urlData } = supabase.storage.from('farm-images').getPublicUrl(path)
-    const { data: inserted, error: insErr } = await supabase
-      .from('media')
-      .insert({ farmer_id: farmerId, type: 'photo', url: urlData.publicUrl, sort_order: photos.length })
-      .select('id, url, caption')
-      .single()
-
-    // Surface a failed insert instead of swallowing it — a silent RLS rejection
-    // here is exactly what made "Add Photo" appear to do nothing before.
-    if (insErr || !inserted) {
-      setError(`Could not save photo: ${insErr?.message ?? 'unknown error'}`)
+    // Signed upload to the seller's own folder, then the gallery row — both
+    // through the server (security fix).
+    const up = await uploadFarmImage(compressed, 'gallery')
+    if (up.err || !up.url) { setError(up.err ?? 'Upload failed'); setUploading(false); return }
+    const r = await farmerFetch('/api/farmer/media', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: up.url }),
+    }).catch(() => null)
+    const j = r ? await r.json().catch(() => null) : null
+    const inserted = j?.photo
+    if (!r || !r.ok || !inserted) {
+      setError(`Could not save photo: ${j?.error ?? 'unknown error'}`)
       setUploading(false)
       return
     }
@@ -4249,9 +4181,10 @@ function FarmPhotosSection({ farmerId }: { farmerId: string }) {
   const handleDelete = async (photo: MediaRow) => {
     if (!confirm(L('Remove this photo?', 'ఈ ఫోటో తీసివేయాలా?'))) return
     setDeletingId(photo.id)
-    await supabase.from('media').delete().eq('id', photo.id)
-    setPhotos((prev) => prev.filter((p) => p.id !== photo.id))
+    const r = await farmerFetch(`/api/farmer/media/${photo.id}`, { method: 'DELETE' }).catch(() => null)
     setDeletingId(null)
+    if (!r || !r.ok) { setError(L('Could not remove the photo.', 'ఫోటో తీసివేయలేకపోయాం.')); return }
+    setPhotos((prev) => prev.filter((p) => p.id !== photo.id))
   }
 
   return (

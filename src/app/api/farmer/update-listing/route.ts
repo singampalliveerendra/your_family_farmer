@@ -4,17 +4,18 @@ import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
 import { resolveWholesaleColumns, withoutWholesale } from '@/lib/wholesale'
 import { SELLING_PLAN_REQUIRED, isSellingPlanError } from '@/lib/sellingLock'
 import { reqLang, tr } from '@/lib/serverLang'
+import { checkSellerStatusChange, sellerListingPayload } from '@/lib/sellerWriteRules'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-// Disallowed payload keys — never let the client mutate ownership, status
-// flags, or audit columns through this generic update endpoint.
-const FORBIDDEN_KEYS = new Set([
-  'id', 'farmer_id', 'created_at', 'updated_at',
-])
+// Keys a seller may never set (ownership, audit, ratings) and the statuses
+// they may set live in src/lib/sellerWriteRules.ts. Since the security fix
+// (2026-11-04) this route is the ONLY way a seller edits a listing — the
+// browser can no longer write produce_listings directly — so pause / resume
+// and the quality fields come through here too.
 
 export async function POST(request: NextRequest) {
   // farmerId now comes from the signed cookie, not the request body.
@@ -39,11 +40,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
   }
 
-  // Strip any forbidden keys before forwarding to the DB.
-  const cleanPayload: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(payload as Record<string, unknown>)) {
-    if (!FORBIDDEN_KEYS.has(k)) cleanPayload[k] = v
-  }
+  // Strip the keys a seller may never set before forwarding to the DB.
+  const cleanPayload: Record<string, unknown> = sellerListingPayload(payload as Record<string, unknown>)
 
   // Verify the listing belongs to the logged-in farmer. We also pull the
   // current status + stock so we can keep the sold-out flag in sync below.
@@ -56,6 +54,12 @@ export async function POST(request: NextRequest) {
 
   if (!existing) {
     return NextResponse.json({ error: 'Listing not found or access denied' }, { status: 403 })
+  }
+
+  // Only seller statuses, and never out of a moderator takedown / plan hold.
+  const statusCheck = checkSellerStatusChange(existing.status as string | null, cleanPayload.status)
+  if (!statusCheck.ok) {
+    return NextResponse.json({ error: tr(reqLang(request), statusCheck.error.en, statusCheck.error.te) }, { status: 403 })
   }
 
   // Wholesale fields get the same rules as the form (src/lib/wholesale.ts),

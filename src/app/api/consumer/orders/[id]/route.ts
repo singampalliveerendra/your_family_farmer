@@ -40,7 +40,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (order.farmer_id) {
     const { data: f } = await supabase
       .from('farmers')
-      .select('id, name, slug, village, phone, upi_id')
+      .select('id, name, slug, village, phone')
       .eq('id', order.farmer_id)
       .maybeSingle()
     if (f) {
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         slug: f.slug,
         village: f.village,
         phone: f.phone ?? null,
-        upi_id: (f.upi_id as string | null) ?? null,
+        upi_id: null /* UPI pay-the-farmer removed 2026-11-04 (Cashfree only) */,
       }
     }
   }
