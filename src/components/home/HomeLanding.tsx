@@ -11,6 +11,7 @@ import RoleSelect from '@/components/home/RoleSelect'
 import HomeSettings from '@/components/home/HomeSettings'
 import { useHomeTheme } from '@/lib/homeTheme'
 import { activeSocialLinks } from '@/lib/social'
+import type { PlanRow } from '@/lib/subscriptionPlans'
 
 /* The body of /home.
  *
@@ -29,13 +30,15 @@ type Shot = { id: string; name: string; image_url: string }
 // [English, తెలుగు] throughout, matching RoleSelect.
 type Pair = [string, string]
 
-/* The header's section nav. Every target is a section further down this same
- * page — there is no separate About or Contact route to send people to, and a
- * landing page should not bounce a visitor off itself. */
+/* The header's section nav. Mostly sections further down this same page; the
+ * two role explainers (2026-11-04) are the exception, since they ARE what a
+ * farmer or aggregator came to read. */
 // Resolved once: the list is a constant, not state.
 const SOCIALS = activeSocialLinks()
 
 const NAV: { href: string; label: Pair }[] = [
+  { href: '/home/farmer', label: ['For farmers', 'రైతుల కోసం'] },
+  { href: '/home/aggregator#plans', label: ['Aggregator plans', 'అగ్రిగేటర్ ప్లాన్లు'] },
   { href: '#android', label: ['Android app', 'ఆండ్రాయిడ్ యాప్'] },
   { href: '#how', label: ['How it works', 'ఎలా పనిచేస్తుంది'] },
   { href: '#about', label: ['About', 'మా గురించి'] },
@@ -123,10 +126,13 @@ const STEPS: { n: string; title: Pair; body: Pair }[] = [
 export default function HomeLanding({
   shots,
   installs,
+  plans = [],
 }: {
   shots: Shot[]
   /** Devices that have installed the app — the badge beside Download. */
   installs: number | null
+  /** Active aggregator plans — only the Aggregator card's badge uses them. */
+  plans?: PlanRow[]
 }) {
   const { L } = useLang()
   // The language pill is a white-on-translucent-white lockup built for the
@@ -301,6 +307,18 @@ export default function HomeLanding({
         </div>
       </section>
 
+      {/* ── Who are you — right under the hero (2026-11-04): the three roles
+          are the first thing a new visitor chooses between. ─────────── */}
+      <section className="relative z-10 mx-auto max-w-4xl px-4 py-16">
+        <h2 className="brand-wordmark text-center text-2xl font-bold sm:text-3xl">
+          {L('Where would you like to start?', 'మీరు ఎక్కడ మొదలుపెడతారు?')}
+        </h2>
+        <p className="mx-auto mt-2 mb-8 max-w-md text-center text-sm text-green-900/65 dark:text-lime-100/60">
+          {L('One app, three ways in. You can switch any time.', 'ఒకే యాప్, మూడు దారులు. ఎప్పుడైనా మారవచ్చు.')}
+        </p>
+        <RoleSelect plans={plans} />
+      </section>
+
       {/* ── Pull quote ─────────────────────────────────────────────── */}
       <section className="relative z-10 border-y border-green-900/10 bg-lime-50/70 py-14 backdrop-blur-sm dark:border-white/10 dark:bg-black/20">
         <div className="mx-auto max-w-4xl px-4 text-center">
@@ -312,17 +330,6 @@ export default function HomeLanding({
             </span>
           </p>
         </div>
-      </section>
-
-      {/* ── Who are you ────────────────────────────────────────────── */}
-      <section className="relative z-10 mx-auto max-w-4xl px-4 py-16">
-        <h2 className="brand-wordmark text-center text-2xl font-bold sm:text-3xl">
-          {L('Where would you like to start?', 'మీరు ఎక్కడ మొదలుపెడతారు?')}
-        </h2>
-        <p className="mx-auto mt-2 mb-8 max-w-md text-center text-sm text-green-900/65 dark:text-lime-100/60">
-          {L('One app, three ways in. You can switch any time.', 'ఒకే యాప్, మూడు దారులు. ఎప్పుడైనా మారవచ్చు.')}
-        </p>
-        <RoleSelect />
       </section>
 
       {/* ── Android app (direct APK) ───────────────────────────────── */}

@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { readWithSaleMode } from '@/lib/wholesaleVisibility'
 import { installCount } from '@/lib/installCount'
 import HomeLanding from '@/components/home/HomeLanding'
+import { activePlans } from '@/lib/publicPlans'
 
 /* /home — the public landing page.
  *
@@ -58,7 +59,7 @@ export default async function HomePage() {
   // above — so the download count is at most ten minutes behind, which is
   // the right trade for a marketing number that must not cost a query on
   // every visit.
-  const [shots, installs] = await Promise.all([farmShots(6), installCount()])
+  const [shots, installs, plans] = await Promise.all([farmShots(6), installCount(), activePlans()])
   return (
     <>
       {/* Restores a saved dark-mode choice BEFORE the first paint.
@@ -75,7 +76,7 @@ export default async function HomePage() {
             "document.documentElement.classList.add('gg-dark')}catch(e){}",
         }}
       />
-      <HomeLanding shots={shots} installs={installs} />
+      <HomeLanding shots={shots} installs={installs} plans={plans} />
     </>
   )
 }

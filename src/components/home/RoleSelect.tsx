@@ -1,78 +1,116 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
+import { inr, plansTeaser, type PlanRow } from '@/lib/subscriptionPlans'
 
-/* "Who are you?" — the landing page's way into the public selling surfaces.
+/* "Where would you like to start?" — the landing page's three ways in
+ * (business model agreed 2026-11-04):
+ *   Buyer      → straight into the retail shop (no explainer needed)
+ *   Farmer     → /home/farmer, what farmers get — free, always
+ *   Aggregator → /home/aggregator, how buying + selling plans work, live plans
  *
- * Mirrors RoleGateModal's buyer/farmer split, plus the aggregator entry that
- * already exists in GlobalNav's switch menu.
+ * Plan prices appear ONLY on the Aggregator card, as a small badge: most
+ * visitors are household buyers, and a subscription price at the top of the
+ * page would read as "do I have to pay?". The badge is worked out in the
+ * browser (plansTeaser) so an offer that ended since the page was cached never
+ * shows its old price.
  *
- * Two roles are deliberately absent. Moderator is staff-only and has no
- * business on a public marketing page. Delivery rider was removed at the
- * client's request — riders are recruited, not signed up off a landing page.
- * Both still reach their own logins directly (/moderator/login, /rider). */
+ * Moderator (staff-only) and delivery rider (recruited, at the client's
+ * request) are deliberately absent; both keep their own logins. */
 
 type Role = {
+  key: 'buyer' | 'farmer' | 'aggregator'
   href: string
   emoji: string
   title: [string, string]
   blurb: [string, string]
+  cta: [string, string]
 }
 
 const ROLES: Role[] = [
   {
+    key: 'buyer',
     href: '/consumer',
     emoji: '🛒',
-    title: ["I'm a Buyer", 'నేను కొనుగోలుదారుని'],
-    blurb: ['Browse today’s harvests and order direct.', 'నేటి కోతలు చూసి నేరుగా ఆర్డర్ చేయండి.'],
+    title: ['Shop as a Consumer', 'వినియోగదారుగా కొనండి'],
+    blurb: ['Fresh retail produce, straight from farmers.', 'రైతుల నుండి నేరుగా తాజా చిల్లర ఉత్పత్తులు.'],
+    cta: ['Start shopping', 'కొనడం మొదలుపెట్టండి'],
   },
   {
-    href: '/farmer/login',
+    key: 'farmer',
+    href: '/home/farmer',
     emoji: '🧑‍🌾',
     title: ["I'm a Farmer", 'నేను రైతుని'],
-    blurb: ['List your harvest. Keep the whole price.', 'మీ కోత నమోదు చేయండి. పూర్తి ధర మీదే.'],
+    blurb: ['Sell retail to families and in bulk to aggregators.', 'కుటుంబాలకు చిల్లరగా, అగ్రిగేటర్లకు బల్క్‌గా అమ్మండి.'],
+    cta: ['See how it works', 'ఎలా పనిచేస్తుందో చూడండి'],
   },
   {
-    href: '/aggregator/login',
+    key: 'aggregator',
+    href: '/home/aggregator',
     emoji: '📦',
     title: ["I'm an Aggregator", 'నేను అగ్రిగేటర్‌ని'],
-    blurb: ['Sell for many farmers — each one named.', 'రైతుల తరఫున అమ్మండి — ప్రతి పేరు కనిపిస్తుంది.'],
+    blurb: ['Buy in bulk from farmers and resell on Go Grameen.', 'రైతుల నుండి బల్క్‌గా కొని గో గ్రామీణ్‌లో అమ్మండి.'],
+    cta: ['See plans & offers', 'ప్లాన్లు & ఆఫర్లు చూడండి'],
   },
 ]
 
-export default function RoleSelect() {
+export default function RoleSelect({ plans = [] }: { plans?: PlanRow[] }) {
   const { L } = useLang()
+  // null until mounted: the server's clock and cache must not decide whether an
+  // offer is still running.
+  const [teaser, setTeaser] = useState<ReturnType<typeof plansTeaser> | undefined>(undefined)
+  useEffect(() => { setTeaser(plansTeaser(plans)) }, [plans])
+
+  const badge = (key: Role['key']) => {
+    if (key === 'farmer') return { text: L('Free, always', 'ఎప్పటికీ ఉచితం'), tone: 'bg-green-600 text-white' }
+    if (key !== 'aggregator' || teaser === undefined) return null
+    if (!teaser) return { text: L('Plans coming soon', 'ప్లాన్లు త్వరలో'), tone: 'bg-gray-200 text-gray-700' }
+    if (teaser.bestSavingPct > 0) {
+      return {
+        text: L(`🔥 Save up to ${teaser.bestSavingPct}%`, `🔥 ${teaser.bestSavingPct}% వరకు ఆదా`),
+        tone: 'bg-gradient-to-r from-amber-500 to-orange-500 text-white',
+      }
+    }
+    return teaser.fromPrice === 0
+      ? { text: L('Free plan available', 'ఉచిత ప్లాన్ ఉంది'), tone: 'bg-green-600 text-white' }
+      : { text: L(`Plans from ${inr(teaser.fromPrice)}${teaser.fromPer.en}`, `${inr(teaser.fromPrice)}${teaser.fromPer.te} నుండి`), tone: 'bg-sky-600 text-white' }
+  }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      {ROLES.map((r, i) => (
-        <Link
-          key={r.href}
-          href={r.href}
-          /* Three cards in a two-column grid leaves an odd one out, so the last
-             one spans the full width rather than sitting in a lopsided gap. */
-          className="gghome-card gghome-rise group flex items-center gap-3.5 rounded-2xl border border-green-900/10 bg-white p-4 text-left shadow-sm backdrop-blur-sm transition hover:border-lime-600/50 hover:bg-lime-50 dark:border-white/10 dark:bg-white/5 dark:shadow-none dark:hover:border-lime-300/50 dark:hover:bg-white/10 sm:last:col-span-2"
-          style={{ animationDelay: `${0.05 * i}s` }}
-        >
-          <span
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-lime-100 text-2xl ring-1 ring-lime-600/20 dark:bg-lime-300/15 dark:ring-lime-300/25"
-            aria-hidden
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      {ROLES.map((r, i) => {
+        const b = badge(r.key)
+        return (
+          <Link
+            key={r.key}
+            href={r.href}
+            className="gghome-card gghome-rise group relative flex flex-col gap-2 rounded-2xl border border-green-900/10 bg-white p-4 text-left shadow-sm backdrop-blur-sm transition hover:border-lime-600/50 hover:bg-lime-50 dark:border-white/10 dark:bg-white/5 dark:shadow-none dark:hover:border-lime-300/50 dark:hover:bg-white/10"
+            style={{ animationDelay: `${0.05 * i}s` }}
           >
-            {r.emoji}
-          </span>
-          <span className="min-w-0">
-            <span className="block font-extrabold text-green-950 dark:text-white">{L(r.title[0], r.title[1])}</span>
-            <span className="block text-sm text-green-900/65 leading-snug dark:text-lime-100/60">{L(r.blurb[0], r.blurb[1])}</span>
-          </span>
-          <span
-            className="ml-auto shrink-0 text-lime-600/60 transition group-hover:translate-x-1 group-hover:text-lime-700 dark:text-lime-300/50 dark:group-hover:text-lime-300"
-            aria-hidden
-          >
-            →
-          </span>
-        </Link>
-      ))}
+            {b && (
+              <span className={`absolute -top-2.5 right-3 rounded-full px-2.5 py-0.5 text-[11px] font-black shadow ${b.tone}`}>{b.text}</span>
+            )}
+            <span className="flex items-center gap-3">
+              <span
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-lime-100 text-2xl ring-1 ring-lime-600/20 dark:bg-lime-300/15 dark:ring-lime-300/25"
+                aria-hidden
+              >
+                {r.emoji}
+              </span>
+              <span className="min-w-0">
+                <span className="block font-extrabold leading-tight text-green-950 dark:text-white">{L(r.title[0], r.title[1])}</span>
+                <span className="block text-sm leading-snug text-green-900/65 dark:text-lime-100/60">{L(r.blurb[0], r.blurb[1])}</span>
+              </span>
+            </span>
+            <span className="mt-auto inline-flex items-center gap-1 text-sm font-bold text-green-800 dark:text-lime-300">
+              {L(r.cta[0], r.cta[1])}
+              <span aria-hidden className="transition group-hover:translate-x-1">→</span>
+            </span>
+          </Link>
+        )
+      })}
     </div>
   )
 }
