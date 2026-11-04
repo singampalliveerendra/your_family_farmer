@@ -124,6 +124,9 @@ export default function AggregatorSubscriptionPage() {
                 {standing.state === 'active' && L(`Active until ${fmt(standing.endsAt)} · ${standing.daysLeft} days left`, `${fmt(standing.endsAt)} వరకు · ${standing.daysLeft} రోజులు మిగిలాయి`)}
                 {standing.state === 'none' && L('You have no plan yet. Choose one below.', 'మీకు ఇంకా ప్లాన్ లేదు. కింద ఒకటి ఎంచుకోండి.')}
               </p>
+              <Link href="/aggregator/market" className="mt-3 inline-flex items-center gap-1.5 text-sm font-bold" style={{ color: SLATE }}>
+                <Icon name="box" className="h-4 w-4" /> {L('Open the bulk market', 'బల్క్ మార్కెట్ తెరవండి')} <Icon name="arrow" className="h-4 w-4" />
+              </Link>
               {standing.state === 'ending' && (
                 <p className="mt-3 border-l-4 border-[#d99a1e] bg-[#fdf4df] px-3 py-2 text-sm font-bold text-[#6b4a07]">
                   {L(`Your plan ends on ${fmt(standing.endsAt)} (${standing.daysLeft} days). Renew below to keep going.`, `మీ ప్లాన్ ${fmt(standing.endsAt)}న ముగుస్తుంది (${standing.daysLeft} రోజులు). కొనసాగించడానికి కింద రీన్యూ చేయండి.`)}

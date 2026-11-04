@@ -75,10 +75,8 @@ describe('the promises match the decisions', () => {
     expect(t).toMatch(/refunded automatically/)
   })
   it('what is not built yet says so', () => {
-    // Paying for a plan is live (Phase 4); the bulk market is not yet.
-    expect(AGGREGATOR_CONTENT.steps.filter((s) => s.soon).map((s) => s.title[0])).toEqual([
-      'Look around the bulk market', 'Buy direct from farmers',
-    ])
+    // Plans (Phase 4) and the bulk market (Phase 5) are live; ordering is not yet.
+    expect(AGGREGATOR_CONTENT.steps.filter((s) => s.soon).map((s) => s.title[0])).toEqual(['Order and pay in the app'])
     expect(AGGREGATOR_CONTENT.stepsNote?.[0]).toMatch(/opening soon/)
     expect(CONSUMER_CONTENT.steps.some((s) => s.soon)).toBe(false)
   })

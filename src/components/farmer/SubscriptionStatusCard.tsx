@@ -7,7 +7,8 @@ import Icon from '@/components/home/Icon'
 import { accessOf, type SubscriptionRow } from '@/lib/subscriptionPlans'
 import { standingOf, type Standing } from '@/lib/subscriptionLifecycle'
 
-/* The aggregator dashboard's plan strip (Phase 4): what they can do now and
+/* The aggregator dashboard's plan strip (Phase 4) and the way into the bulk
+ * market (Phase 5): what they can do now and
  * the one thing to do next — renew when ending or ended, choose a plan when
  * they have none. Stays out of the way when all is fine (one quiet line), and
  * shows nothing at all for farmers (they are free) or before the subscription
@@ -52,6 +53,7 @@ export default function SubscriptionStatusCard() {
     : L('Manage', 'నిర్వహించు')
 
   return (
+    <div className="space-y-2">
     <Link
       href="/aggregator/subscription"
       className="flex items-center gap-3 rounded-2xl border-l-4 p-4 shadow-sm"
@@ -66,5 +68,16 @@ export default function SubscriptionStatusCard() {
       </span>
       <span className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-extrabold text-white" style={{ background: tone.bar }}>{cta}</span>
     </Link>
+    {/* The bulk market (Phase 5) — open to every aggregator; a Buying plan
+        unlocks seller contacts and ordering. */}
+    <Link href="/aggregator/market" className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/10">
+      <Icon name="box" className="h-6 w-6 shrink-0 text-[#27486a]" />
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-extrabold text-[#27486a]">{L('Bulk market', 'బల్క్ మార్కెట్')}</span>
+        <span className="block text-[11px] text-black/55">{L('Buy bulk lots from farmers and other aggregators', 'రైతులు, ఇతర అగ్రిగేటర్ల నుండి బల్క్ లాట్‌లు కొనండి')}</span>
+      </span>
+      <Icon name="arrow" className="h-5 w-5 shrink-0 text-black/35" />
+    </Link>
+    </div>
   )
 }
