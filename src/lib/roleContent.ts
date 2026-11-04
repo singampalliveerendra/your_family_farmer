@@ -6,7 +6,8 @@ import type { IconName } from '@/components/home/Icon'
  * Every line must be TRUE of the app today, or say plainly that it is coming:
  * a page that promises a button that does not exist costs more trust than it
  * wins. Steps that are not built yet carry `soon: true`. When the bulk market
- * ordering goes live (Phase 6), drop those flags and the note.
+ * Nothing for aggregators is "soon" any more since Phase 6 (in-app bulk
+ * ordering); keep the flag for whatever comes next.
  * tests/lib/roleContent.test.ts checks every line has Telugu, every icon
  * exists and every link goes to a real page. */
 
@@ -174,12 +175,8 @@ export const AGGREGATOR_CONTENT: RoleContent = {
     { title: ['Pick a plan and pay online', 'ప్లాన్ ఎంచుకుని ఆన్‌లైన్‌లో చెల్లించండి'], body: ['Buying, Selling or Combined. It starts as soon as it is paid — a ₹0 plan needs no payment. You get a receipt.', 'కొనుగోలు, అమ్మకం లేదా కలిపినది. చెల్లించగానే మొదలవుతుంది — ₹0 ప్లాన్‌కు చెల్లింపు అవసరం లేదు. మీకు రసీదు వస్తుంది.'] },
     { title: ['Browse the bulk market', 'బల్క్ మార్కెట్ చూడండి'], body: ['See every bulk lot with the seller’s name, village and district — even before you subscribe.', 'అమ్మకందారు పేరు, గ్రామం, జిల్లాతో ప్రతి బల్క్ లాట్ చూడండి — సబ్‌స్క్రైబ్ చేయకముందే.'] },
     { title: ['Contact sellers directly', 'అమ్మకందారులను నేరుగా సంప్రదించండి'], body: ['With a Buying plan, phone numbers, WhatsApp and addresses unlock.', 'బయింగ్ ప్లాన్‌తో ఫోన్ నంబర్లు, వాట్సాప్, చిరునామాలు కనిపిస్తాయి.'] },
-    { title: ['Order and pay in the app', 'యాప్‌లోనే ఆర్డర్ చేసి చెల్లించండి'], body: ['Pay online through Cashfree; the transport charge shows at checkout.', 'క్యాష్‌ఫ్రీ ద్వారా ఆన్‌లైన్‌లో చెల్లించండి; రవాణా ఛార్జ్ చెక్‌అవుట్‌లో కనిపిస్తుంది.'], soon: true },
+    { title: ['Order and pay in the app', 'యాప్‌లోనే ఆర్డర్ చేసి చెల్లించండి'], body: ['Choose pickup or the seller’s delivery — the transport charge shows before you pay. Pay online through Cashfree; if the seller declines, your money comes back automatically.', 'పికప్ లేదా అమ్మకందారు డెలివరీ ఎంచుకోండి — చెల్లించే ముందే రవాణా ఛార్జ్ కనిపిస్తుంది. క్యాష్‌ఫ్రీ ద్వారా ఆన్‌లైన్‌లో చెల్లించండి; అమ్మకందారు తిరస్కరిస్తే మీ డబ్బు ఆటోమేటిక్‌గా తిరిగి వస్తుంది.'] },
     { title: ['Resell on Go Grameen', 'గో గ్రామీణ్‌లో మళ్లీ అమ్మండి'], body: ['List as retail, wholesale or both, naming the farmer who grew it.', 'పండించిన రైతు పేరుతో చిల్లర, హోల్‌సేల్ లేదా రెండుగా అమ్మండి.'] },
-  ],
-  stepsNote: [
-    'In-app bulk ordering is opening soon. Until then, call or WhatsApp the seller from the bulk market.',
-    'యాప్‌లో బల్క్ ఆర్డర్ త్వరలో మొదలవుతుంది. అప్పటివరకు బల్క్ మార్కెట్ నుండే అమ్మకందారుకు కాల్ లేదా వాట్సాప్ చేయండి.',
   ],
   terms: [
     ['Buying and Selling are separate plans; the Combined plan covers both.', 'కొనుగోలు, అమ్మకం వేర్వేరు ప్లాన్లు; కలిపిన ప్లాన్ రెండింటికీ వర్తిస్తుంది.'],

@@ -74,10 +74,10 @@ describe('the promises match the decisions', () => {
     expect(t).toMatch(/Bulk \(wholesale\) lots are for aggregators/)
     expect(t).toMatch(/refunded automatically/)
   })
-  it('what is not built yet says so', () => {
-    // Plans (Phase 4) and the bulk market (Phase 5) are live; ordering is not yet.
-    expect(AGGREGATOR_CONTENT.steps.filter((s) => s.soon).map((s) => s.title[0])).toEqual(['Order and pay in the app'])
-    expect(AGGREGATOR_CONTENT.stepsNote?.[0]).toMatch(/opening soon/)
+  it('nothing claims to be live that is not (and nothing live says soon)', () => {
+    // Plans (Phase 4), the bulk market (Phase 5) and in-app ordering (Phase 6) are all live.
+    expect(AGGREGATOR_CONTENT.steps.some((s) => s.soon)).toBe(false)
+    expect(AGGREGATOR_CONTENT.stepsNote).toBeUndefined()
     expect(CONSUMER_CONTENT.steps.some((s) => s.soon)).toBe(false)
   })
 })

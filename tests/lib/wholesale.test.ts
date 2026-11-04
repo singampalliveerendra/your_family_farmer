@@ -19,6 +19,7 @@ import {
   parseSaleMode,
   parseTransport,
   resolveWholesale,
+  normalizeRates,
   resolveWholesaleBody,
   resolveWholesaleColumns,
   wholesaleColumnsToSend,
@@ -157,6 +158,7 @@ describe('resolveWholesale — valid wholesale', () => {
       wholesale_min_qty: 100,
       wholesale_pack_size: 25,
       wholesale_transport_states: ['AP'],
+      wholesale_transport_rates: {}, // no charge entered → AP is pickup-only in the app
     })
   })
   it('"both" keeps its mode', () => {
@@ -321,9 +323,9 @@ describe('labels', () => {
 
 describe('resolveWholesaleForm', () => {
   it('passes the form and unit through', () => {
-    const form: WholesaleForm = { saleMode: 'both', price: '40', minQty: '', packSize: '10', transport: false, states: [] }
+    const form: WholesaleForm = { saleMode: 'both', price: '40', minQty: '', packSize: '10', transport: false, states: [], rates: {} }
     expect(columnsOf(resolveWholesaleForm(form, 'kg'))).toEqual({
-      sale_mode: 'both', wholesale_price: 40, wholesale_min_qty: 10, wholesale_pack_size: 10, wholesale_transport_states: [],
+      sale_mode: 'both', wholesale_price: 40, wholesale_min_qty: 10, wholesale_pack_size: 10, wholesale_transport_states: [], wholesale_transport_rates: {},
     })
     expect(resolveWholesaleForm({ ...form, packSize: '1.5' }, 'piece').ok).toBe(false)
   })
@@ -338,7 +340,7 @@ describe('resolveWholesaleBody (moderator API)', () => {
       sale_mode: 'wholesale', wholesale_price: '25', wholesale_min_qty: '50', wholesale_pack_size: '',
       wholesale_transport: 'yes', wholesale_transport_states: ['TG'],
     }, 'kg'))).toEqual({
-      sale_mode: 'wholesale', wholesale_price: 25, wholesale_min_qty: 50, wholesale_pack_size: null, wholesale_transport_states: ['TG'],
+      sale_mode: 'wholesale', wholesale_price: 25, wholesale_min_qty: 50, wholesale_pack_size: null, wholesale_transport_states: ['TG'], wholesale_transport_rates: {},
     })
   })
   it('an old caller that sends nothing is retail', () => {
@@ -361,13 +363,17 @@ describe('wholesaleFormFromRow', () => {
     expect(wholesaleFormFromRow({
       sale_mode: 'both', wholesale_price: 30, wholesale_min_qty: 100, wholesale_pack_size: 25,
       wholesale_transport_states: ['TG', 'AP'],
-    })).toEqual({ saleMode: 'both', price: '30', minQty: '100', packSize: '25', transport: true, states: ['AP', 'TG'] })
+    })).toEqual({
+      saleMode: 'both', price: '30', minQty: '100', packSize: '25', transport: true, states: ['AP', 'TG'],
+      // No charges saved yet → empty boxes for each state, per order by default.
+      rates: { AP: { mode: 'per_order', amount: '', freeAbove: '' }, TG: { mode: 'per_order', amount: '', freeAbove: '' } },
+    })
   })
   it('a wholesale row without transport → No', () => {
     expect(wholesaleFormFromRow({
       sale_mode: 'wholesale', wholesale_price: 30, wholesale_min_qty: 100, wholesale_pack_size: null,
       wholesale_transport_states: [],
-    })).toEqual({ saleMode: 'wholesale', price: '30', minQty: '100', packSize: '', transport: false, states: [] })
+    })).toEqual({ saleMode: 'wholesale', price: '30', minQty: '100', packSize: '', transport: false, states: [], rates: {} })
   })
   it('a retail row keeps saved wholesale values for a later switch', () => {
     const f = wholesaleFormFromRow({ sale_mode: 'retail', wholesale_price: 30, wholesale_min_qty: 50, wholesale_transport_states: [] })
@@ -428,7 +434,7 @@ describe('resolveWholesaleColumns (farmer edit route)', () => {
       wholesale_transport_states: ['TG', 'AP', 'AP'],
     }, 'kg')).toEqual({ ok: true, columns: {
       sale_mode: 'both', wholesale_price: 30, wholesale_min_qty: 100, wholesale_pack_size: 25,
-      wholesale_transport_states: ['AP', 'TG'],
+      wholesale_transport_states: ['AP', 'TG'], wholesale_transport_rates: {},
     } })
   })
   it('empty or missing states mean transport No', () => {
@@ -481,7 +487,7 @@ describe('wholesaleColumnsToSend', () => {
 })
 
 describe('wholesaleRequestBody (moderator form → API)', () => {
-  const form: WholesaleForm = { saleMode: 'both', price: '30', minQty: '100', packSize: '25', transport: true, states: ['AP'] }
+  const form: WholesaleForm = { saleMode: 'both', price: '30', minQty: '100', packSize: '25', transport: true, states: ['AP'], rates: { AP: { mode: 'per_unit', amount: '2', freeAbove: '1000' } } }
   it('retail on an un-migrated server sends nothing', () => {
     expect(wholesaleRequestBody({ ...form, saleMode: 'retail' }, false)).toEqual({})
   })
@@ -495,5 +501,61 @@ describe('wholesaleRequestBody (moderator form → API)', () => {
   })
   it('an unanswered transport stays unanswered on the server', () => {
     expect(resolveWholesaleBody(wholesaleRequestBody({ ...form, transport: null }, true), 'kg').ok).toBe(false)
+  })
+})
+
+describe('transport charges per state (Phase 6)', () => {
+  const base = { saleMode: 'wholesale', price: '30', minQty: '100', packSize: '25', transport: true, states: ['AP', 'TG'], unit: 'kg' }
+  const cols = (rates: unknown) => {
+    const r = resolveWholesale({ ...base, rates })
+    if (!r.ok) throw new Error(r.error.en)
+    return (r.columns as { wholesale_transport_rates: unknown }).wholesale_transport_rates
+  }
+  it('per order, per kg, free above — from the form', () => {
+    expect(cols({ AP: { mode: 'per_order', amount: '500', freeAbove: '' }, TG: { mode: 'per_unit', amount: '1.5', freeAbove: '2000' } })).toEqual({
+      AP: { mode: 'per_order', amount: 500, free_above: null },
+      TG: { mode: 'per_unit', amount: 1.5, free_above: 2000 },
+    })
+  })
+  it('the column shape (a saved row) reads the same', () => {
+    expect(cols({ AP: { mode: 'per_unit', amount: 2, free_above: 1000 } })).toEqual({ AP: { mode: 'per_unit', amount: 2, free_above: 1000 } })
+  })
+  it('₹0 is free delivery, kept as 0', () => {
+    expect(cols({ AP: { mode: 'per_order', amount: '0', freeAbove: '' } })).toEqual({ AP: { mode: 'per_order', amount: 0, free_above: null } })
+  })
+  it('a blank charge leaves that state without a rate (pickup-only in the app), never free', () => {
+    expect(cols({ AP: { mode: 'per_order', amount: '', freeAbove: '' } })).toEqual({})
+    expect(cols(undefined)).toEqual({})
+  })
+  it('rates for a state they do not deliver to are dropped', () => {
+    const r = resolveWholesale({ ...base, states: ['AP'], rates: { TG: { mode: 'per_order', amount: '500' } } })
+    expect(r.ok && (r.columns as { wholesale_transport_rates: unknown }).wholesale_transport_rates).toEqual({})
+  })
+  it('transport No → no rates at all', () => {
+    const r = resolveWholesale({ ...base, transport: false, rates: { AP: { mode: 'per_order', amount: '500' } } })
+    expect(r.ok && (r.columns as { wholesale_transport_rates: unknown }).wholesale_transport_rates).toEqual({})
+  })
+  it('an unknown mode reads as per order', () => {
+    expect(cols({ AP: { mode: 'weird', amount: '100' } })).toEqual({ AP: { mode: 'per_order', amount: 100, free_above: null } })
+  })
+  it.each([
+    [{ AP: { amount: '-5' } }, /0 or more/],
+    [{ AP: { amount: 'abc' } }, /0 or more/],
+    [{ AP: { amount: '5', freeAbove: '0' } }, /Free above/],
+    [{ AP: { amount: '5', freeAbove: 'x' } }, /Free above/],
+  ])('refuses %o', (rates, msg) => {
+    const r = resolveWholesale({ ...base, rates })
+    expect(r.ok).toBe(false)
+    if (!r.ok) { expect(r.error.en).toMatch(msg); expect(r.error.te).toMatch(/[ఀ-౿]/) }
+  })
+  it('round-trips through a saved row', () => {
+    const r = resolveWholesale({ ...base, rates: { AP: { mode: 'per_unit', amount: '2', freeAbove: '1000' }, TG: { mode: 'per_order', amount: '800', freeAbove: '' } } })
+    if (!r.ok) throw new Error('bad')
+    const back = resolveWholesaleForm(wholesaleFormFromRow(r.columns as unknown as Record<string, unknown>), 'kg')
+    expect(back).toEqual(r)
+  })
+  it('normalizeRates: lenient reading of junk', () => {
+    expect(normalizeRates(null)).toEqual({})
+    expect(normalizeRates({ AP: { amount: 'x' }, TG: { amount: 10, free_above: -1 }, KA: { amount: 1 } })).toEqual({ TG: { mode: 'per_order', amount: 10, free_above: null } })
   })
 })

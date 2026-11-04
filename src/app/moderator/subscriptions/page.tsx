@@ -122,6 +122,29 @@ export default function ModeratorSubscriptionsPage() {
   const [form, setForm] = useState<Form | null>(null)
   const [grantFor, setGrantFor] = useState<Aggregator | null>(null)
   const [busy, setBusy] = useState(false)
+  const [bulkFee, setBulkFee] = useState<string>('')
+
+  useEffect(() => {
+    if (!checked) return
+    fetch('/api/moderator/bulk-fee', { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((j) => setBulkFee(String(j?.feePercent ?? 0)))
+      .catch(() => setBulkFee('0'))
+  }, [checked])
+
+  const saveBulkFee = async () => {
+    setBusy(true); setError('')
+    const r = await fetch('/api/moderator/bulk-fee', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ feePercent: bulkFee }),
+    }).catch(() => null)
+    setBusy(false)
+    const j = r ? await r.json().catch(() => ({})) : {}
+    if (!r || !r.ok) { setError(j?.error ?? 'Could not save the bulk fee.'); return }
+    setBulkFee(String(j.feePercent))
+  }
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -222,6 +245,21 @@ export default function ModeratorSubscriptionsPage() {
         <p className="text-sm text-gray-400 py-10 text-center">Loading…</p>
       ) : tab === 'plans' ? (
         <>
+          {/* Platform fee on bulk orders (Phase 6) — 0% for now; on the produce only. */}
+          <div className="mb-4 flex flex-wrap items-end gap-2 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+            <label className="min-w-0 flex-1">
+              <span className="block text-xs font-bold text-gray-600 mb-1">Platform fee on bulk orders (%)</span>
+              <input
+                className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+                inputMode="decimal"
+                value={bulkFee}
+                onChange={(e) => setBulkFee(e.target.value.replace(/[^\d.]/g, ''))}
+              />
+              <span className="mt-1 block text-[11px] text-gray-500">Charged to the aggregator on the produce price only — never on transport. 0 = no fee.</span>
+            </label>
+            <button disabled={busy} onClick={() => void saveBulkFee()} className="min-h-[44px] rounded-xl bg-green-800 px-4 text-sm font-bold text-white disabled:opacity-50">Save</button>
+          </div>
+
           <div className="flex items-center justify-between mb-3">
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">
               {plans.filter((p) => p.active !== false).length} shown on the homepage

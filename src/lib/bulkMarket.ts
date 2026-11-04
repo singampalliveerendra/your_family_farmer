@@ -20,6 +20,8 @@
 
 import { parseSaleMode, normalizeStates, type TransportState } from '@/lib/wholesale'
 import { wholesaleQtyRules } from '@/lib/wholesaleOrder'
+import { deliveryOptions, type Delivery } from '@/lib/bulkOrder'
+import type { TransportRate } from '@/lib/wholesale'
 import { isWholesaleLowStock, wholesaleStock, type StockHarvest } from '@/lib/wholesaleVisibility'
 
 export type MarketListingRow = {
@@ -40,6 +42,8 @@ export type MarketListingRow = {
   wholesale_min_qty?: number | string | null
   wholesale_pack_size?: number | string | null
   wholesale_transport_states?: unknown
+  /** Per-state delivery charges (scripts/bulk-orders-migration.sql); absent before it runs. */
+  wholesale_transport_rates?: unknown
   source_farmer_id?: string | null
   method?: string | null
   description?: string | null
@@ -80,6 +84,8 @@ export type MarketItem = {
   step: number
   packSize: number | null
   transportStates: TransportState[]
+  /** Where the lot can go in the app and what delivery costs (Phase 6). */
+  delivery: Array<{ delivery: Delivery; rate: TransportRate | null }>
   /** What can go in one bulk order now (best single harvest); null = not tracked. */
   stock: number | null
   harvestedAt: string | null
@@ -163,6 +169,7 @@ export function toMarketItem(
     step: rules.step,
     packSize: pack !== null && pack > 0 ? pack : null,
     transportStates: normalizeStates(l.wholesale_transport_states),
+    delivery: deliveryOptions(l),
     stock: wholesaleStock(l, live),
     harvestedAt: latest,
     seller: {

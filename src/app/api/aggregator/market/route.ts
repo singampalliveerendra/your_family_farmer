@@ -3,6 +3,7 @@ import { requireAggregator, svc } from '@/lib/aggregator-auth'
 import { buildMarket, type MarketGrowerRow, type MarketHarvestRow, type MarketListingRow, type MarketSellerRow } from '@/lib/bulkMarket'
 import { accessOf, type SubscriptionRow } from '@/lib/subscriptionPlans'
 import { standingOf } from '@/lib/subscriptionLifecycle'
+import { getBulkFeePercent } from '@/lib/bulkOrderServer'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -34,18 +35,21 @@ export async function GET(req: NextRequest) {
   const held = (subs ?? []) as SubscriptionRow[]
   const access = accessOf(held)
 
-  let q = supabase
-    .from('produce_listings')
-    .select(LISTING_COLUMNS)
-    .in('sale_mode', ['wholesale', 'both'])
-    .eq('status', 'available')
-  if (id) q = q.eq('id', id)
-  const { data: listings, error } = await q.limit(500)
+  // Delivery charges (scripts/bulk-orders-migration.sql) are asked for first
+  // and dropped if that migration has not run — the market still opens, with
+  // every lot as pickup only.
+  const read = (cols: string) => {
+    let q = supabase.from('produce_listings').select(cols).in('sale_mode', ['wholesale', 'both']).eq('status', 'available')
+    if (id) q = q.eq('id', id)
+    return q.limit(500)
+  }
+  let { data: listings, error } = await read(`${LISTING_COLUMNS}, wholesale_transport_rates`)
+  if (error) ({ data: listings, error } = await read(LISTING_COLUMNS))
   if (error) {
     // Before scripts/wholesale-migration.sql there is no bulk produce at all.
     return NextResponse.json({ items: [], access: { buying: access.buying, standing: standingOf(held).state }, configured: false })
   }
-  const rows = (listings ?? []) as MarketListingRow[]
+  const rows = (listings ?? []) as unknown as MarketListingRow[]
   const listingIds = rows.map((l) => l.id)
   const sellerIds = [...new Set(rows.map((l) => l.farmer_id))]
   const growerIds = [...new Set(rows.map((l) => l.source_farmer_id).filter(Boolean))] as string[]
@@ -70,7 +74,8 @@ export async function GET(req: NextRequest) {
     viewerId: agg.id,
     canContact: access.buying,
   })
-  const accessOut = { buying: access.buying, standing: standingOf(held).state }
+  // The fee the checkout will show is the fee the place route will charge.
+  const accessOut = { buying: access.buying, standing: standingOf(held).state, bulkFeePercent: await getBulkFeePercent(supabase) }
   if (id) {
     const item = items[0]
     if (!item) return NextResponse.json({ error: 'This bulk listing is not available any more.' }, { status: 404 })
