@@ -141,6 +141,18 @@ SELECT * FROM (
     CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables
       WHERE table_name='subscription_listing_holds')
       THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  -- bulk-orders-migration.sql. Without it Wholesale/Both produce cannot be
+  -- saved (transport rates column) and aggregators cannot order in bulk.
+  SELECT 22, 'bulk-orders', 'produce_listings.wholesale_transport_rates',
+    CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_name='produce_listings' AND column_name='wholesale_transport_rates')
+      THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  SELECT 23, 'bulk-orders', 'orders.buyer_aggregator_id',
+    CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_name='orders' AND column_name='buyer_aggregator_id')
+      THEN 'PRESENT' ELSE 'MISSING' END
 
 ) checks ORDER BY ord;
 

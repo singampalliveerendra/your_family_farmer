@@ -34,3 +34,33 @@ export async function attachOrderType<T extends { id: string }>(
 export function isWholesaleOrder(o: { order_type?: unknown } | null | undefined): boolean {
   return o?.order_type === 'wholesale'
 }
+
+/**
+ * A bulk order's transport charge and destination (orders.transport_charge /
+ * transport_state, scripts/bulk-orders-migration.sql). Read tolerantly like
+ * attachOrderType: before that migration the orders go out unchanged.
+ * transport_charge is INCLUDED in total_price — this only lets screens and
+ * receipts show it as its own line.
+ */
+export async function attachTransport<T extends { id: string }>(
+  supabase: SupabaseClient,
+  orders: T[],
+): Promise<Array<T & { transport_charge?: number; transport_state?: string | null }>> {
+  if (orders.length === 0) return orders
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('id, transport_charge, transport_state')
+      .in('id', orders.map((o) => o.id))
+    if (error || !data) return orders
+    const by = new Map((data as Array<{ id: string; transport_charge?: unknown; transport_state?: string | null }>).map((r) => [r.id, r]))
+    return orders.map((o) => {
+      const r = by.get(o.id)
+      if (!r) return o
+      const t = Number(r.transport_charge)
+      return { ...o, transport_charge: Number.isFinite(t) && t > 0 ? t : 0, transport_state: r.transport_state ?? null }
+    })
+  } catch {
+    return orders
+  }
+}

@@ -1016,3 +1016,34 @@ CREATE INDEX IF NOT EXISTS subscription_listing_holds_agg_idx
 ALTER TABLE public.subscription_listing_holds ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.subscription_listing_holds FROM anon, authenticated;
 -- (no policies: service role only)
+
+-- ── Bulk orders (scripts/bulk-orders-migration.sql, 2026-11-04) ──
+ALTER TABLE public.produce_listings
+  ADD COLUMN IF NOT EXISTS wholesale_transport_rates jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_transport_rates_check;
+ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_transport_rates_check
+  CHECK (jsonb_typeof(wholesale_transport_rates) = 'object');
+
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS buyer_aggregator_id uuid REFERENCES public.farmers(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS transport_charge    numeric(10,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS transport_state     text;
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_transport_charge_check;
+ALTER TABLE public.orders ADD CONSTRAINT orders_transport_charge_check
+  CHECK (transport_charge >= 0);
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_transport_state_check;
+ALTER TABLE public.orders ADD CONSTRAINT orders_transport_state_check
+  CHECK (transport_state IS NULL OR transport_state IN ('AP', 'TG'));
+-- A bulk purchase is wholesale, online-paid, and not also a household order.
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_bulk_purchase_check;
+ALTER TABLE public.orders ADD CONSTRAINT orders_bulk_purchase_check
+  CHECK (buyer_aggregator_id IS NULL OR (order_type = 'wholesale' AND payment_method = 'cashfree' AND consumer_id IS NULL));
+
+CREATE INDEX IF NOT EXISTS orders_buyer_aggregator_idx
+  ON public.orders (buyer_aggregator_id, created_at DESC) WHERE buyer_aggregator_id IS NOT NULL;
+
+ALTER TABLE public.platform_settings
+  ADD COLUMN IF NOT EXISTS bulk_fee_percent numeric(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.platform_settings DROP CONSTRAINT IF EXISTS platform_settings_bulk_fee_check;
+ALTER TABLE public.platform_settings ADD CONSTRAINT platform_settings_bulk_fee_check
+  CHECK (bulk_fee_percent >= 0 AND bulk_fee_percent <= 100);

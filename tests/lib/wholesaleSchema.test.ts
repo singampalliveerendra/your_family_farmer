@@ -15,7 +15,9 @@ describe.each(files)('%s', (file) => {
   const s = sql(file)
 
   it('adds every column the code writes', () => {
-    for (const c of WHOLESALE_COLUMNS) expect(s).toMatch(new RegExp(`ADD COLUMN IF NOT EXISTS ${c}\\b`))
+    // The transport-rates column comes with the bulk-orders part (Phase 6).
+    const all = file === 'staging-schema.sql' ? s : s + sql('bulk-orders-migration.sql')
+    for (const c of WHOLESALE_COLUMNS) expect(all).toMatch(new RegExp(`ADD COLUMN IF NOT EXISTS ${c}\\b`))
     expect(s).toMatch(/ADD COLUMN IF NOT EXISTS order_type text NOT NULL DEFAULT 'retail'/)
   })
 

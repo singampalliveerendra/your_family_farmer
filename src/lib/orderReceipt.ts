@@ -47,6 +47,9 @@ export type ReceiptOrder = {
   collected_at?: string | null
   order_type?: string | null
   is_self_order?: boolean | null
+  /** Bulk orders: the seller's delivery charge, INCLUDED in total_price. */
+  transport_charge?: number | string | null
+  transport_state?: string | null
 }
 
 export type ReceiptSeller = {
@@ -176,10 +179,19 @@ export function buildOrderReceipt(o: ReceiptOrder, seller: ReceiptSeller | null)
   if (o.order_type === 'wholesale') tags.push({ en: 'Wholesale order', te: 'హోల్‌సేల్ ఆర్డర్' })
   if (o.is_self_order) tags.push({ en: 'Own order', te: 'సొంత ఆర్డర్' })
 
-  const money: ReceiptRow[] = [
-    { label: { en: 'Seller price', te: 'అమ్మకందారు ధర' }, value: rupees(price) },
-    { label: { en: 'Platform fee', te: 'ప్లాట్‌ఫామ్ ఫీజు' }, value: rupees(fee) },
-  ]
+  // A bulk order's transport is part of the seller's price; shown as its own
+  // line so the produce price and the delivery charge are both clear.
+  const transport = Math.min(price, Math.max(0, num(o.transport_charge)))
+  const money: ReceiptRow[] = transport > 0
+    ? [
+        { label: { en: 'Produce price', te: 'ఉత్పత్తి ధర' }, value: rupees(price - transport) },
+        { label: { en: 'Transport', te: 'రవాణా' }, value: rupees(transport) },
+        { label: { en: 'Platform fee', te: 'ప్లాట్‌ఫామ్ ఫీజు' }, value: rupees(fee) },
+      ]
+    : [
+        { label: { en: 'Seller price', te: 'అమ్మకందారు ధర' }, value: rupees(price) },
+        { label: { en: 'Platform fee', te: 'ప్లాట్‌ఫామ్ ఫీజు' }, value: rupees(fee) },
+      ]
 
   const payment: ReceiptRow[] = [
     { label: { en: 'Method', te: 'విధానం' }, value: methodOf(o) },
@@ -220,9 +232,10 @@ export function buildOrderReceipt(o: ReceiptOrder, seller: ReceiptSeller | null)
       name: (o.produce_name ?? '').trim() || '—',
       qty: `${formatQty(qty)} ${unit}`,
       // What one unit came to. Tier pricing can make this a fraction, so it is
-      // derived from the stored line total rather than re-priced.
-      rate: qty > 0 ? `${rupees(price / qty)}/${unit}` : '—',
-      amount: rupees(price),
+      // derived from the stored line total rather than re-priced — produce
+      // only, never including a bulk order's transport.
+      rate: qty > 0 ? `${rupees((price - transport) / qty)}/${unit}` : '—',
+      amount: rupees(price - transport),
     },
     money,
     total: rupees(price + fee),

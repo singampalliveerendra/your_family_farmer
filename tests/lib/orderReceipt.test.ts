@@ -115,6 +115,23 @@ describe('buildOrderReceipt — money', () => {
   })
 })
 
+describe('buildOrderReceipt — bulk order with transport', () => {
+  it('produce and transport on their own lines; the total is unchanged', () => {
+    const r = buildOrderReceipt(ORDER({ total_price: 6500, transport_charge: 500, quantity: 200, platform_fee: 0, order_type: 'wholesale' }), FARMER)
+    expect(r.money.map((m) => [m.label.en, rowText(m.value, 'en')])).toEqual([['Produce price', '₹6,000'], ['Transport', '₹500'], ['Platform fee', '₹0']])
+    expect(r.total).toBe('₹6,500')
+    expect(r.item).toMatchObject({ rate: '₹30/kg', amount: '₹6,000' })
+    expect(r.tags.map((t) => t.en)).toContain('Wholesale order')
+  })
+  it('no transport → the usual single seller-price line', () => {
+    expect(buildOrderReceipt(ORDER({ transport_charge: 0 }), FARMER).money.map((m) => m.label.en)).toEqual(['Seller price', 'Platform fee'])
+  })
+  it('a transport figure larger than the price is capped (never a negative produce price)', () => {
+    const r = buildOrderReceipt(ORDER({ total_price: 100, transport_charge: 900 }), FARMER)
+    expect(rowText(r.money[0].value, 'en')).toBe('₹0')
+  })
+})
+
 describe('buildOrderReceipt — item, people, unit', () => {
   it('item line', () => {
     expect(buildOrderReceipt(ORDER(), FARMER).item).toEqual({ name: 'Tomato', qty: '3 kg', rate: '₹40/kg', amount: '₹120' })

@@ -72,7 +72,7 @@ describe('who may open the bulk market', () => {
   it('an aggregator without a plan may LOOK', async () => {
     const j = await (await get()).json()
     expect(j.items.map((i: Row) => i.name)).toEqual(['Tomato', 'Onion'])
-    expect(j.access).toEqual({ buying: false, standing: 'none' })
+    expect(j.access).toEqual({ buying: false, standing: 'none', bulkFeePercent: 0 })
   })
 })
 
@@ -101,7 +101,7 @@ describe('contacts unlock only with a Buying plan', () => {
   it('an expired plan locks them again', async () => {
     db.tables.aggregator_subscriptions = [{ id: 's', aggregator_id: ME, kind: 'buying', source: 'payment', status: 'active', starts_at: day(-40), ends_at: day(-1) }]
     const j = await (await get()).json()
-    expect(j.access).toEqual({ buying: false, standing: 'expired' })
+    expect(j.access).toEqual({ buying: false, standing: 'expired', bulkFeePercent: 0 })
     expect(j.items.every((i: Row) => i.contact === null)).toBe(true)
   })
   it('another aggregator’s plan is not mine', async () => {

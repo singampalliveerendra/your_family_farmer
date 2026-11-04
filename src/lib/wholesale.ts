@@ -49,7 +49,22 @@ export const WHOLESALE_COLUMNS = [
   'wholesale_min_qty',
   'wholesale_pack_size',
   'wholesale_transport_states',
+  'wholesale_transport_rates',
 ] as const
+
+/* What the seller charges to deliver a bulk order, per state (Phase 6,
+ * scripts/bulk-orders-migration.sql):
+ *   per_order — one fixed charge for the order
+ *   per_unit  — amount × quantity (₹ per kg / dozen …)
+ *   free_above — optional: no charge once the order is at least this quantity
+ * ₹0 is allowed (free delivery). A state the seller delivers to but has no
+ * rate for is offered as pickup only — an unset rate is never "free". */
+export const TRANSPORT_RATE_MODES = ['per_order', 'per_unit'] as const
+export type TransportRateMode = (typeof TRANSPORT_RATE_MODES)[number]
+export type TransportRate = { mode: TransportRateMode; amount: number; free_above: number | null }
+export type TransportRates = Partial<Record<TransportState, TransportRate>>
+/** One state's rate as the form holds it (strings from the inputs). */
+export type RateForm = { mode: TransportRateMode; amount: string; freeAbove: string }
 
 export type Msg = { en: string; te: string }
 
@@ -70,6 +85,8 @@ export type WholesaleForm = {
   /** Transport Yes/No. null = not answered yet. */
   transport: boolean | null
   states: TransportState[]
+  /** The charge for each state in `states`. */
+  rates: Partial<Record<TransportState, RateForm>>
 }
 
 export const EMPTY_WHOLESALE_FORM: WholesaleForm = {
@@ -79,6 +96,7 @@ export const EMPTY_WHOLESALE_FORM: WholesaleForm = {
   packSize: '',
   transport: null,
   states: [],
+  rates: {},
 }
 
 /** The columns a save writes. Retail writes only sale_mode, so saved wholesale values survive a switch back. */
@@ -90,6 +108,7 @@ export type WholesaleColumns =
       wholesale_min_qty: number
       wholesale_pack_size: number | null
       wholesale_transport_states: TransportState[]
+      wholesale_transport_rates: TransportRates
     }
 
 export type WholesaleResult = { ok: true; columns: WholesaleColumns } | { ok: false; error: Msg }
@@ -157,6 +176,8 @@ export function resolveWholesale(input: {
   packSize: unknown
   transport: unknown
   states: unknown
+  /** Per-state charges, in the form's or the column's shape. */
+  rates?: unknown
   unit?: string | null
 }): WholesaleResult {
   const mode = parseSaleMode(input.saleMode)
@@ -206,6 +227,28 @@ export function resolveWholesale(input: {
     return fail('Choose where you can transport: Andhra Pradesh, Telangana or both.', 'ఎక్కడికి రవాణా చేయగలరో ఎంచుకోండి: ఆంధ్రప్రదేశ్, తెలంగాణ లేదా రెండూ.')
   }
 
+  // The charge for each state they deliver to (₹0 = free). Left blank, that
+  // state is pickup-only in the app until a charge is set — it is never read
+  // as free, and a listing saved before charges existed still saves as it was.
+  const rawRates = (input.rates && typeof input.rates === 'object' ? input.rates : {}) as Record<string, unknown>
+  const rates: TransportRates = {}
+  for (const st of states) {
+    const r = (rawRates[st] && typeof rawRates[st] === 'object' ? rawRates[st] : {}) as Record<string, unknown>
+    const name = TRANSPORT_STATE_LABELS[st]
+    const amount = toNumber(typeof r.amount === 'number' ? r.amount : r.amount ?? '')
+    if (amount === null) continue
+    if (Number.isNaN(amount) || amount < 0 || amount > MAX_WHOLESALE_PRICE) {
+      return fail(`Transport charge for ${name.en} must be a number, 0 or more.`, `${name.te} రవాణా ఛార్జ్ 0 లేదా అంతకంటే ఎక్కువ సంఖ్య ఉండాలి.`)
+    }
+    const mode: TransportRateMode = r.mode === 'per_unit' ? 'per_unit' : 'per_order'
+    const freeRaw = r.free_above ?? r.freeAbove ?? ''
+    const free = toNumber(typeof freeRaw === 'number' ? freeRaw : String(freeRaw))
+    if (free !== null && (Number.isNaN(free) || free <= 0 || free > MAX_WHOLESALE_QTY)) {
+      return fail(`"Free above" for ${name.en} must be a quantity above 0, or left blank.`, `${name.te}కు "ఉచితం ఎప్పుడు" పరిమాణం 0 కంటే ఎక్కువ ఉండాలి, లేదా ఖాళీగా వదలండి.`)
+    }
+    rates[st] = { mode, amount: round2(amount), free_above: free === null ? null : roundQty(free) }
+  }
+
   return {
     ok: true,
     columns: {
@@ -214,6 +257,7 @@ export function resolveWholesale(input: {
       wholesale_min_qty: minQty,
       wholesale_pack_size: packSize,
       wholesale_transport_states: states,
+      wholesale_transport_rates: rates,
     },
   }
 }
@@ -236,6 +280,7 @@ export function resolveWholesaleBody(b: Record<string, unknown>, unit?: string |
     packSize: b.wholesale_pack_size,
     transport: b.wholesale_transport,
     states: b.wholesale_transport_states,
+    rates: b.wholesale_transport_rates,
     unit,
   })
 }
@@ -267,8 +312,29 @@ export function resolveWholesaleColumns(
     packSize: payload.wholesale_pack_size,
     transport: Array.isArray(states) ? states.length > 0 : states == null ? false : null,
     states,
+    rates: payload.wholesale_transport_rates,
     unit,
   })
+}
+
+/** A stored rates column (or junk) → clean rates. Lenient: bad entries drop out. */
+export function normalizeRates(raw: unknown): TransportRates {
+  const out: TransportRates = {}
+  if (!raw || typeof raw !== 'object') return out
+  for (const st of TRANSPORT_STATES) {
+    const r = (raw as Record<string, unknown>)[st]
+    if (!r || typeof r !== 'object') continue
+    const x = r as Record<string, unknown>
+    const amount = Number(x.amount)
+    if (!Number.isFinite(amount) || amount < 0) continue
+    const free = x.free_above == null || x.free_above === '' ? null : Number(x.free_above)
+    out[st] = {
+      mode: x.mode === 'per_unit' ? 'per_unit' : 'per_order',
+      amount: round2(amount),
+      free_above: free !== null && Number.isFinite(free) && free > 0 ? roundQty(free) : null,
+    }
+  }
+  return out
 }
 
 const numStr = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? String(v) : typeof v === 'string' ? v : '')
@@ -282,6 +348,14 @@ export function wholesaleFormFromRow(row: Record<string, unknown> | null | undef
   if (!row) return { ...EMPTY_WHOLESALE_FORM }
   const saleMode = parseSaleMode(row.sale_mode)
   const states = normalizeStates(row.wholesale_transport_states)
+  const saved = normalizeRates(row.wholesale_transport_rates)
+  const rates: WholesaleForm['rates'] = {}
+  for (const st of states) {
+    const r = saved[st]
+    rates[st] = r
+      ? { mode: r.mode, amount: String(r.amount), freeAbove: r.free_above == null ? '' : String(r.free_above) }
+      : { mode: 'per_order', amount: '', freeAbove: '' }
+  }
   return {
     saleMode,
     price: numStr(row.wholesale_price),
@@ -289,6 +363,7 @@ export function wholesaleFormFromRow(row: Record<string, unknown> | null | undef
     packSize: numStr(row.wholesale_pack_size),
     transport: states.length > 0 ? true : saleMode === 'retail' ? null : false,
     states,
+    rates,
   }
 }
 
@@ -346,5 +421,6 @@ export function wholesaleRequestBody(form: WholesaleForm, serverReady: boolean):
     wholesale_pack_size: form.packSize,
     wholesale_transport: form.transport,
     wholesale_transport_states: form.states,
+    wholesale_transport_rates: form.rates,
   }
 }
