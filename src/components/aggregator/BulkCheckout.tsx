@@ -137,12 +137,26 @@ export default function BulkCheckout({ it, feePercent, unitLabel, L }: { it: Mar
       {quote.ok ? (
         <dl className="mt-5 space-y-1.5 border-t border-black/10 pt-4 text-sm">
           <Row label={L(`Produce (${formatQty(quote.qty)} ${unitLabel} × ${inr(quote.unitPrice)})`, `ఉత్పత్తి (${formatQty(quote.qty)} ${unitLabel} × ${inr(quote.unitPrice)})`)} value={inr(quote.goods)} />
-          <Row label={L('Transport', 'రవాణా')} value={delivery === 'pickup' ? L('Pickup', 'పికప్') : quote.transport === 0 ? L('Free', 'ఉచితం') : inr(quote.transport)} />
+          <Row
+            label={L('Transport', 'రవాణా')}
+            value={delivery === 'pickup' ? L('Pickup', 'పికప్')
+              : quote.transportMode === 'per_km' ? L(`₹${formatQty(quote.transportRate ?? 0)}/km · after delivery`, `కి.మీ.కు ₹${formatQty(quote.transportRate ?? 0)} · డెలివరీ తర్వాత`)
+              : quote.transportMode === 'cargo_bill' ? L('Cargo bill · after delivery', 'కార్గో బిల్లు · డెలివరీ తర్వాత')
+              : quote.transport === 0 ? L('Free', 'ఉచితం') : inr(quote.transport)}
+          />
           <Row label={L(`Platform fee (${feePercent}%)`, `ప్లాట్‌ఫామ్ ఫీజు (${feePercent}%)`)} value={inr(quote.fee)} />
           <div className="flex items-baseline justify-between gap-3 border-t-2 border-black pt-2">
             <dt className="font-bold">{L('You pay', 'మీరు చెల్లించేది')}</dt>
             <dd className="brand-wordmark text-2xl font-bold" style={{ color: SLATE }}>{inr(quote.total)}</dd>
           </div>
+          {/* Per km / cargo bill (2026-11-05): not in this payment. */}
+          {quote.transportMode === 'per_km' || quote.transportMode === 'cargo_bill' ? (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-900">
+              {quote.transportMode === 'per_km'
+                ? L('Transport is billed after delivery (km × the rate above) and paid to the seller directly — it is not part of this payment.', 'రవాణా ఛార్జ్ డెలివరీ తర్వాత (కి.మీ. × పై ధర) బిల్లు చేయబడుతుంది, నేరుగా అమ్మకందారుకు చెల్లించాలి — ఈ చెల్లింపులో లేదు.')
+                : L('Transport is billed after delivery as per the actual cargo bill and paid to the seller directly — it is not part of this payment.', 'రవాణా ఛార్జ్ డెలివరీ తర్వాత అసలు కార్గో బిల్లు ప్రకారం, నేరుగా అమ్మకందారుకు చెల్లించాలి — ఈ చెల్లింపులో లేదు.')}
+            </p>
+          ) : null}
         </dl>
       ) : (
         <p className="mt-4 text-sm font-semibold text-[#6e2c12]">{quote.error}</p>

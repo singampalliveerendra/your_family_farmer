@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import SubscribeHighlight from '@/components/aggregator/SubscribeHighlight'
 import RoleExplainer from '@/components/home/RoleExplainer'
 import AggregatorPlans from '@/components/home/AggregatorPlans'
 import { AGGREGATOR_CONTENT } from '@/lib/roleContent'
@@ -24,7 +25,7 @@ export const revalidate = 300
 export default async function AggregatorHomePage() {
   const [plans, photos] = await Promise.all([activePlans(), farmShots(4)])
   return (
-    <RoleExplainer content={AGGREGATOR_CONTENT} photos={photos}>
+    <RoleExplainer content={AGGREGATOR_CONTENT} photos={photos} banner={<SubscribeHighlight plans={plans} where="intro" href="#plans" />}>
       <AggregatorPlans plans={plans} />
     </RoleExplainer>
   )

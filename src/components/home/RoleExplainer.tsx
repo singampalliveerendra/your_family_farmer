@@ -26,10 +26,14 @@ export default function RoleExplainer({
   content,
   photos = [],
   children,
+  banner,
 }: {
   content: RoleContent
   photos?: Shot[]
+  /** Plans, or anything else the page adds — shown before the benefits. */
   children?: ReactNode
+  /** A highlight right under the heading (the aggregator's subscription, 2026-11-05). */
+  banner?: ReactNode
 }) {
   const { L } = useLang()
   const t = (p: Pair) => L(p[0], p[1])
@@ -85,6 +89,8 @@ export default function RoleExplainer({
         </p>
       </header>
 
+      {banner && <div className="mx-auto -mt-2 max-w-5xl px-4 pb-4">{banner}</div>}
+
       {/* ── At a glance ──────────────────────────────────────── */}
       <section aria-label={L('At a glance', 'ఒక్క చూపులో')} className="border-b border-black/10 bg-white">
         <dl className="mx-auto grid max-w-5xl grid-cols-3 divide-x divide-black/10">
@@ -101,6 +107,10 @@ export default function RoleExplainer({
       </section>
 
       <div className="mx-auto max-w-5xl space-y-12 px-4 pt-10">
+        {/* Plans, or anything else the page adds — moved above the benefits
+            (client, 2026-11-05: the subscription must be seen first). */}
+        {children}
+
         {/* ── Benefits ─────────────────────────────────────── */}
         <section aria-labelledby="benefits">
           <SectionTitle id="benefits" kicker={L('Why join', 'ఎందుకు చేరాలి')}>{L('What you get', 'మీకు లభించేవి')}</SectionTitle>
@@ -119,8 +129,6 @@ export default function RoleExplainer({
           </ul>
         </section>
 
-        {/* Plans, or anything else the page adds */}
-        {children}
 
         {/* ── How it works ─────────────────────────────────── */}
         <section aria-labelledby="how">

@@ -256,17 +256,23 @@ export default function WholesaleFields({
                 return (
                   <div key={s} className="rounded-xl border border-amber-200 bg-white p-2.5 space-y-2">
                     <p className="text-xs font-extrabold text-gray-800">{L(lbl.en, lbl.te)}</p>
-                    <div className="grid grid-cols-2 gap-2" role="group" aria-label={L(`How you charge for ${lbl.en}`, `${lbl.te}కు ఎలా ఛార్జ్ చేస్తారు`)}>
+                    {/* Pick ONE (client, 2026-11-05): per order is paid online
+                        with the produce; per km and cargo bill are billed after
+                        delivery and paid to the seller directly. "Per kg" is no
+                        longer offered — shown only on a lot still saved with it. */}
+                    <div className="grid grid-cols-3 gap-1.5" role="group" aria-label={L(`How you charge for ${lbl.en}`, `${lbl.te}కు ఎలా ఛార్జ్ చేస్తారు`)}>
                       {([
                         ['per_order', 'Per order', 'ఒక్కో ఆర్డర్‌కు'],
-                        ['per_unit', `Per ${unit}`, `ఒక్కో ${unit}కు`],
+                        ['per_km', 'Per km', 'కి.మీ.కు'],
+                        ['cargo_bill', 'Cargo bill', 'కార్గో బిల్లు'],
+                        ...(r.mode === 'per_unit' ? [['per_unit', `Per ${unit} (old)`, `ఒక్కో ${unit}కు (పాతది)`] as const] : []),
                       ] as const).map(([m, en, te]) => (
                         <button
                           key={m}
                           type="button"
                           aria-pressed={r.mode === m}
                           onClick={() => setRate(s, { mode: m })}
-                          className={`rounded-lg px-2 py-2 text-xs font-bold border-2 min-h-[40px] ${
+                          className={`rounded-lg px-1.5 py-2 text-[11px] font-bold border-2 min-h-[40px] leading-tight ${
                             r.mode === m ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 bg-white text-gray-600'
                           }`}
                         >
@@ -274,6 +280,40 @@ export default function WholesaleFields({
                         </button>
                       ))}
                     </div>
+
+                    {r.mode === 'cargo_bill' ? (
+                      <p className="rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-snug text-amber-900">
+                        {L(
+                          'After you deliver, upload the cargo bill on the order with its amount. The buyer pays you the transport directly.',
+                          'డెలివరీ తర్వాత, ఆర్డర్‌పై కార్గో బిల్లును దాని మొత్తంతో అప్‌లోడ్ చేయండి. కొనుగోలుదారు రవాణా ఛార్జ్‌ను నేరుగా మీకు చెల్లిస్తారు.',
+                        )}
+                      </p>
+                    ) : r.mode === 'per_km' ? (
+                      <div>
+                        <label htmlFor={`${id}-rate-${s}`} className="text-[11px] font-semibold text-gray-600 block mb-1">
+                          {L('₹ per km', 'కి.మీ.కు ₹')}
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
+                          <input
+                            id={`${id}-rate-${s}`}
+                            type="text"
+                            inputMode="decimal"
+                            placeholder={L('e.g. 5', 'ఉదా. 5')}
+                            value={r.amount}
+                            onChange={(e) => setRate(s, { amount: e.target.value })}
+                            className={`${inputCls} pl-7 pr-12`}
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">/km</span>
+                        </div>
+                        <p className="mt-1 text-[11px] leading-snug text-amber-900">
+                          {L(
+                            'After delivery you enter the km; the app works out the bill (e.g. 20 km × ₹5 = ₹100). The buyer pays you directly.',
+                            'డెలివరీ తర్వాత మీరు కి.మీ. నమోదు చేస్తారు; యాప్ బిల్లు లెక్కిస్తుంది (ఉదా. 20 కి.మీ. × ₹5 = ₹100). కొనుగోలుదారు నేరుగా మీకు చెల్లిస్తారు.',
+                          )}
+                        </p>
+                      </div>
+                    ) : (
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label htmlFor={`${id}-rate-${s}`} className="text-[11px] font-semibold text-gray-600 block mb-1">
@@ -310,7 +350,8 @@ export default function WholesaleFields({
                         </div>
                       </div>
                     </div>
-                    {r.amount.trim() === '' && (
+                    )}
+                    {r.mode !== 'cargo_bill' && r.amount.trim() === '' && (
                       <p className="text-[11px] text-amber-800 leading-snug">
                         {L(`Without a charge, buyers in ${lbl.en} can only collect from you.`, `ఛార్జ్ లేకపోతే, ${lbl.te}లోని కొనుగోలుదారులు మీ దగ్గర మాత్రమే తీసుకోగలరు.`)}
                       </p>

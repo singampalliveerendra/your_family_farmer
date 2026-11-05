@@ -1,5 +1,7 @@
 'use client'
 
+import TransportBillCard from '@/components/orders/TransportBillCard'
+import type { BillView } from '@/lib/transportBill'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
@@ -36,6 +38,7 @@ type Order = BulkOrderRow & {
   created_at: string
   refund_amount?: number | null
   seller?: { name?: string | null; village?: string | null; district?: string | null; phone?: string | null } | null
+  transport_bill?: BillView
 }
 
 const TONE: Record<string, string> = {
@@ -133,6 +136,11 @@ export default function BulkPurchasesPage() {
                     <span className="font-semibold text-[#27486a]">{L('Pickup code — tell the seller', 'పికప్ కోడ్ — అమ్మకందారుకు చెప్పండి')}</span>
                     <span className="font-mono text-xl font-bold tracking-[0.3em] text-[#27486a]">{o.handover_otp}</span>
                   </p>
+                )}
+                {/* Per km / cargo bill (2026-11-05): the seller's transport
+                    bill, paid to them directly. Nothing for other orders. */}
+                {st.key !== 'declined' && (
+                  <div className="mt-3"><TransportBillCard orderId={o.id} bill={o.transport_bill} role="buyer" /></div>
                 )}
                 {st.key === 'declined' && o.decline_reason && <p className="mt-3 text-xs text-[#6e2c12]">{L('Reason', 'కారణం')}: {o.decline_reason}</p>}
                 {st.key === 'declined' && Number(o.refund_amount) > 0 && <p className="mt-1 text-xs text-black/60">{L(`Refund ${inr(Number(o.refund_amount))} — reaches your account in 3–5 working days.`, `రీఫండ్ ${inr(Number(o.refund_amount))} — 3–5 పని రోజుల్లో మీ ఖాతాకు.`)}</p>}

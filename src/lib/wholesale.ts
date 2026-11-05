@@ -53,13 +53,31 @@ export const WHOLESALE_COLUMNS = [
 ] as const
 
 /* What the seller charges to deliver a bulk order, per state (Phase 6,
- * scripts/bulk-orders-migration.sql):
- *   per_order — one fixed charge for the order
- *   per_unit  — amount × quantity (₹ per kg / dozen …)
- *   free_above — optional: no charge once the order is at least this quantity
- * ₹0 is allowed (free delivery). A state the seller delivers to but has no
- * rate for is offered as pickup only — an unset rate is never "free". */
-export const TRANSPORT_RATE_MODES = ['per_order', 'per_unit'] as const
+ * scripts/bulk-orders-migration.sql; per km + cargo bill 2026-11-05,
+ * scripts/transport-bill-migration.sql). The seller picks ONE per state:
+ *   per_order  — one fixed charge, paid online with the produce
+ *   per_km     — ₹ per km (amount); after delivery the seller enters the km,
+ *                the app works out km × rate and the buyer pays the seller
+ *                directly (not through the app)
+ *   cargo_bill — the actual transport cost: after delivery the seller uploads
+ *                the cargo bill with its amount; the buyer pays the seller
+ *                directly
+ *   per_unit   — OLD (₹ per kg × quantity). No longer offered in the form
+ *                (client, 2026-11-05) but a listing saved with it keeps
+ *                working until the seller edits it.
+ *   free_above — optional, per_order / per_unit only: no charge once the order
+ *                is at least this quantity
+ * ₹0 per order is allowed (free delivery). A state the seller delivers to but
+ * has no rate for is offered as pickup only — an unset rate is never "free". */
+export const TRANSPORT_RATE_MODES = ['per_order', 'per_km', 'cargo_bill', 'per_unit'] as const
+/** What the form offers now. */
+export const OFFERED_TRANSPORT_MODES = ['per_order', 'per_km', 'cargo_bill'] as const
+/** Billed after delivery and paid to the seller directly — not part of the online payment. */
+export const isBilledAfterDelivery = (mode: TransportRateMode | string | null | undefined): boolean =>
+  mode === 'per_km' || mode === 'cargo_bill'
+export const MAX_TRANSPORT_KM = 5000
+const rateMode = (v: unknown): TransportRateMode =>
+  v === 'per_unit' || v === 'per_km' || v === 'cargo_bill' ? v : 'per_order'
 export type TransportRateMode = (typeof TRANSPORT_RATE_MODES)[number]
 export type TransportRate = { mode: TransportRateMode; amount: number; free_above: number | null }
 export type TransportRates = Partial<Record<TransportState, TransportRate>>
@@ -235,12 +253,21 @@ export function resolveWholesale(input: {
   for (const st of states) {
     const r = (rawRates[st] && typeof rawRates[st] === 'object' ? rawRates[st] : {}) as Record<string, unknown>
     const name = TRANSPORT_STATE_LABELS[st]
+    const mode = rateMode(r.mode)
+    // Cargo bill: nothing to set now — the amount is the bill, after delivery.
+    if (mode === 'cargo_bill') { rates[st] = { mode, amount: 0, free_above: null }; continue }
     const amount = toNumber(typeof r.amount === 'number' ? r.amount : r.amount ?? '')
     if (amount === null) continue
+    if (mode === 'per_km') {
+      if (Number.isNaN(amount) || amount <= 0 || amount > MAX_WHOLESALE_PRICE) {
+        return fail(`Transport charge per km for ${name.en} must be more than 0.`, `${name.te}కు కిలోమీటరుకు రవాణా ఛార్జ్ 0 కంటే ఎక్కువ ఉండాలి.`)
+      }
+      rates[st] = { mode, amount: round2(amount), free_above: null }
+      continue
+    }
     if (Number.isNaN(amount) || amount < 0 || amount > MAX_WHOLESALE_PRICE) {
       return fail(`Transport charge for ${name.en} must be a number, 0 or more.`, `${name.te} రవాణా ఛార్జ్ 0 లేదా అంతకంటే ఎక్కువ సంఖ్య ఉండాలి.`)
     }
-    const mode: TransportRateMode = r.mode === 'per_unit' ? 'per_unit' : 'per_order'
     const freeRaw = r.free_above ?? r.freeAbove ?? ''
     const free = toNumber(typeof freeRaw === 'number' ? freeRaw : String(freeRaw))
     if (free !== null && (Number.isNaN(free) || free <= 0 || free > MAX_WHOLESALE_QTY)) {
@@ -325,13 +352,15 @@ export function normalizeRates(raw: unknown): TransportRates {
     const r = (raw as Record<string, unknown>)[st]
     if (!r || typeof r !== 'object') continue
     const x = r as Record<string, unknown>
+    const mode = rateMode(x.mode)
+    if (mode === 'cargo_bill') { out[st] = { mode, amount: 0, free_above: null }; continue }
     const amount = Number(x.amount)
-    if (!Number.isFinite(amount) || amount < 0) continue
+    if (!Number.isFinite(amount) || amount < 0 || (mode === 'per_km' && amount <= 0)) continue
     const free = x.free_above == null || x.free_above === '' ? null : Number(x.free_above)
     out[st] = {
-      mode: x.mode === 'per_unit' ? 'per_unit' : 'per_order',
+      mode,
       amount: round2(amount),
-      free_above: free !== null && Number.isFinite(free) && free > 0 ? roundQty(free) : null,
+      free_above: mode !== 'per_km' && free !== null && Number.isFinite(free) && free > 0 ? roundQty(free) : null,
     }
   }
   return out
@@ -353,7 +382,7 @@ export function wholesaleFormFromRow(row: Record<string, unknown> | null | undef
   for (const st of states) {
     const r = saved[st]
     rates[st] = r
-      ? { mode: r.mode, amount: String(r.amount), freeAbove: r.free_above == null ? '' : String(r.free_above) }
+      ? { mode: r.mode, amount: r.mode === 'cargo_bill' ? '' : String(r.amount), freeAbove: r.free_above == null ? '' : String(r.free_above) }
       : { mode: 'per_order', amount: '', freeAbove: '' }
   }
   return {

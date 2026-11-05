@@ -37,3 +37,15 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('rider-id-proofs', 'rider-id-proofs', false)
 ON CONFLICT (id) DO NOTHING;
+
+-- 4. cargo-bills — PRIVATE. Transport / cargo bills on bulk orders
+--    (scripts/transport-bill-migration.sql, 2026-11-05). No policies: the
+--    server uploads through signed links and hands short-lived download links
+--    to the order's buyer, seller and moderators only.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('cargo-bills', 'cargo-bills', false, 8388608,
+        ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'])
+ON CONFLICT (id) DO UPDATE SET public = false,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
