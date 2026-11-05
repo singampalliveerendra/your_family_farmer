@@ -44,6 +44,7 @@ import SubscriptionStatusCard from '@/components/farmer/SubscriptionStatusCard'
 import { sellingLockText } from '@/lib/sellingLock'
 import { uploadFarmImage } from '@/lib/farmImageUpload'
 import { useBackToClose } from '@/lib/useBackToClose'
+import { clearDraft, draftHasContent, draftKey, draftPhotos, readDraft, writeDraft } from '@/lib/formDraft'
 import {
   wholesaleFormFromRow, resolveWholesaleForm, needsRetailPrice, offersRetail, bothPricesError,
   isWholesaleColumnMissing, missingColumnAction, withoutWholesale, wholesaleColumnsToSend, WHOLESALE_NOT_READY,
@@ -264,6 +265,17 @@ export default function FarmerDashboard() {
   const [showSettings, setShowSettings] = useState(false)
   // Phone Back closes the Settings sheet, not the dashboard.
   useBackToClose(showSettings, () => setShowSettings(false))
+  // A new produce left half-filled when the page reloaded (Android closes the
+  // tab while the camera app is open): open the form again, filled in.
+  useEffect(() => {
+    if (!farmer?.id || !isProfileComplete(farmer)) return
+    if (!readDraft(draftKey('produce', farmer.id, null))) return
+    setFormSaleMode(null)
+    setShowForm(true)
+    setTimeout(() => document.getElementById('yff-produce-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300)
+    // Once per seller, when the dashboard has loaded them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [farmer?.id])
   const [showListings, setShowListings] = useState(false)
   // "Add more stock" on a wholesale low-stock alert opens that produce's edit
   // form inside Manage Listings; the key reloads the alerts after a save.
@@ -2245,7 +2257,7 @@ function ProduceListingForm({
 }) {
   const { tx, L } = useLang()
   // Phone Back closes this sheet, not the dashboard (2026-11-05).
-  useBackToClose(true, onClose)
+  useBackToClose(true, () => close())
   const isEdit = !!editData
   const [name, setName] = useState(editData?.name ?? '')
   const [variety, setVariety] = useState(editData?.variety ?? '')
@@ -2356,6 +2368,51 @@ function ProduceListingForm({
   const [saved, setSaved] = useState(false)
   // Suggested price range the zone moderator set for this crop (MOD-8.4).
   const [priceHint, setPriceHint] = useState<{ min_price: number | null; max_price: number | null; unit: string } | null>(null)
+
+  // ── Draft: the form survives the page reloading (2026-11-05). Android often
+  // closes the browser tab while the camera app is open; on the ✓ the page
+  // reloaded to the dashboard and everything typed was lost. The form saves
+  // itself on the phone as it is filled in (src/lib/formDraft.ts) and is
+  // restored, filled in, when it opens again. Cleared on save or on purpose.
+  const draftK = draftKey('produce', farmerId, editData?.id ?? null)
+  const [restored, setRestored] = useState(false)
+  const draftNow = {
+    name, variety, emoji, qty, availFrom, availTo, harvestFreq, harvestFreqCount, shelfLifeDays, farmingMethod,
+    price1, price1Qty, price2, price2Qty, price3, description, brix, soc, soilPh, pesticide, howWeGrow, videoUrl,
+    category, unit, saleStep, sourceFarmerId, deliveryMode: deliveryMode ?? '', deliveryCharge, deliveryRadius,
+    wholesale, photos: draftPhotos(photos),
+  }
+  type ProduceDraft = typeof draftNow
+  useEffect(() => {
+    const d = readDraft<Partial<ProduceDraft>>(draftK)
+    if (!d) return
+    const str = (v: unknown, keep: string) => (typeof v === 'string' ? v : keep)
+    setName((x) => str(d.name, x)); setVariety((x) => str(d.variety, x)); setEmoji((x) => str(d.emoji, x)); setQty((x) => str(d.qty, x))
+    setAvailFrom((x) => str(d.availFrom, x)); setAvailTo((x) => str(d.availTo, x)); setHarvestFreq((x) => str(d.harvestFreq, x))
+    setHarvestFreqCount((x) => str(d.harvestFreqCount, x)); setShelfLifeDays((x) => str(d.shelfLifeDays, x)); setFarmingMethod((x) => str(d.farmingMethod, x))
+    setPrice1((x) => str(d.price1, x)); setPrice1Qty((x) => str(d.price1Qty, x)); setPrice2((x) => str(d.price2, x)); setPrice2Qty((x) => str(d.price2Qty, x)); setPrice3((x) => str(d.price3, x))
+    setDescription((x) => str(d.description, x)); setBrix((x) => str(d.brix, x)); setSoc((x) => str(d.soc, x)); setSoilPh((x) => str(d.soilPh, x))
+    setPesticide((x) => str(d.pesticide, x)); setHowWeGrow((x) => str(d.howWeGrow, x)); setVideoUrl((x) => str(d.videoUrl, x)); setCategory((x) => str(d.category, x))
+    setUnit((x) => str(d.unit, x)); setSaleStep((x) => str(d.saleStep, x)); setSourceFarmerId((x) => str(d.sourceFarmerId, x))
+    if (typeof d.deliveryMode === 'string' && d.deliveryMode) setDeliveryMode(d.deliveryMode as DeliveryMode)
+    setDeliveryCharge((x) => str(d.deliveryCharge, x)); setDeliveryRadius((x) => str(d.deliveryRadius, x))
+    if (d.wholesale && typeof d.wholesale === 'object') setWholesale((w) => ({ ...w, ...(d.wholesale as WholesaleForm) }))
+    if (Array.isArray(d.photos) && d.photos.length) setPhotos((cur) => (cur.some((p) => p.file) ? cur : (d.photos as PhotoItem[])))
+    setRestored(true)
+    // Once, when the form opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const draftJson = JSON.stringify(draftNow)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const d = JSON.parse(draftJson) as ProduceDraft
+      // A new form untouched beyond its defaults is not worth keeping.
+      if (editData || draftHasContent(d, ['emoji', 'unit', 'price1Qty', 'price2Qty', 'farmingMethod', 'shelfLifeDays', 'saleStep', 'harvestFreqCount', 'wholesale'])) writeDraft(draftK, d)
+    }, 400)
+    return () => clearTimeout(t)
+  }, [draftJson, draftK, editData])
+  // Closed or saved on purpose: forget the draft.
+  const close = () => { clearDraft(draftK); onClose() }
 
   // When the produce name settles, ask the moderator's price guideline for the
   // zone. Debounced so typing "Tomato" doesn't fire seven requests. Guidance
@@ -2568,6 +2625,7 @@ function ProduceListingForm({
         ...(json.status ? { status: json.status } : {}),
       }
       setSaved(true)
+      clearDraft(draftK)
       setTimeout(() => onPublished(resolved), 1200)
       return
     }
@@ -2648,6 +2706,7 @@ function ProduceListingForm({
 
     setPublished(true)
     setPublishedSlug(farmerSlug)
+    clearDraft(draftK)
     setTimeout(() => onPublished(), 2500)
   }
 
@@ -2711,7 +2770,7 @@ function ProduceListingForm({
           {isEdit ? tx.editProduceListing : tx.newProduceListing}
         </h3>
         <button
-          onClick={onClose}
+          onClick={close}
           aria-label={tx.cancel}
           className="flex-shrink-0 text-gray-400 text-2xl leading-none p-1"
         >
@@ -2720,6 +2779,11 @@ function ProduceListingForm({
       </div>
 
       <div className="p-4 space-y-5">
+        {restored && (
+          <p role="status" className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-800">
+            {L('We kept what you had typed — the page had reloaded. Check it and carry on.', 'మీరు నింపినది భద్రంగా ఉంది — పేజీ మళ్లీ తెరుచుకుంది. చూసి కొనసాగించండి.')}
+          </p>
+        )}
         {/* Emoji picker */}
         <div>
           <p className="text-xs font-semibold text-gray-600 mb-2">{tx.pickIcon}</p>
@@ -3165,7 +3229,12 @@ function ProduceListingForm({
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
             {L('Photos (optional)', 'ఫోటోలు (ఐచ్ఛికం)')}
           </label>
-          <PhotoPicker photos={photos} onChange={setPhotos} onError={setError} />
+          <PhotoPicker
+            photos={photos}
+            onChange={setPhotos}
+            onError={setError}
+            upload={(f) => uploadFarmImage(f, 'produce').then((r) => r.url)}
+          />
         </div>
 
         {/* Quality params */}
@@ -3248,7 +3317,7 @@ function ProduceListingForm({
             mistaken for Save. Disabled mid-save so a tap can't close the sheet
             while the write is in flight. */}
         <button
-          onClick={onClose}
+          onClick={close}
           disabled={loading}
           className="w-full text-gray-500 font-semibold py-3 rounded-xl text-sm active:bg-gray-50 disabled:opacity-50"
         >

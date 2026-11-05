@@ -51,7 +51,8 @@ describe('Back closes the overlay on top', () => {
   })
   it('the produce form, its Preview, profile edit and My produce all use it', () => {
     const dash = src('src/app/farmer/dashboard/page.tsx')
-    expect(dash.match(/useBackToClose\(true, onClose\)/g)?.length).toBe(4)
+    expect(dash.match(/useBackToClose\(true, onClose\)/g)?.length).toBe(3)
+    expect(dash).toMatch(/useBackToClose\(true, \(\) => close\(\)\)/)
     expect(dash).toMatch(/Back to edit/)
   })
 })

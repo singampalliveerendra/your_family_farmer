@@ -16,11 +16,17 @@ export default function PhotoPicker({
   onChange,
   onError,
   hint,
+  upload,
 }: {
   photos: PhotoItem[]
   onChange: (next: PhotoItem[]) => void
   onError: (msg: string) => void
   hint?: string
+  /** Upload each photo as soon as it is picked (returns its link). Then the
+   *  photo survives the page reloading — Android often closes the browser tab
+   *  while the camera app is open (2026-11-05). On a failed upload the photo
+   *  stays local and goes up with the save, as before. */
+  upload?: (file: File) => Promise<string | null>
 }) {
   const { tx, L } = useLang()
   const [adding, setAdding] = useState(false)
@@ -44,7 +50,8 @@ export default function PhotoPicker({
     const added: PhotoItem[] = []
     for (const f of ok) {
       const c = await compressImage(f)
-      added.push(newPhoto(c, URL.createObjectURL(c)))
+      const url = upload ? await upload(c).catch(() => null) : null
+      added.push(url ? { key: url, url } : newPhoto(c, URL.createObjectURL(c)))
     }
     setBusy(false)
     setAdding(false)
