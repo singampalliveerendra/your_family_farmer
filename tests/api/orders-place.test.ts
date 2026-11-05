@@ -428,10 +428,12 @@ describe('wholesale — bulk is for aggregators only (decision 2026-11-04)', () 
     expect(scheduleWholesaleLowStockCheck.mock.calls[0][1]).toEqual([{ listingId: LISTING_ID, harvestId: null, qty: 4 }])
   })
 
-  it('"courier" on a retail line is not honoured per line (falls back as before)', async () => {
-    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 2, deliveryType: 'courier' }] }))
+  it('"courier" on a retail line is honoured per line since 2026-11-05 (transportable produce) — and needs an address', async () => {
+    const noAddress = await place(order({ items: [{ listingId: LISTING_ID, qty: 2, deliveryType: 'courier' }] }))
+    expect(noAddress.status).toBe(400)
+    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 2, deliveryType: 'courier' }], deliveryAddress: '12 Main Road', deliveryCity: 'Eluru', deliveryPincode: '534001' }))
     expect(res.status).toBe(200)
-    expect(db.orders[0].delivery_type).toBe('self_pickup') // request-level fallback
+    expect(db.orders[0].delivery_type).toBe('courier')
   })
 })
 
@@ -446,5 +448,47 @@ describe('two lines on one produce (regression)', () => {
     const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 1 }, { listingId: '99999999-9999-4999-8999-999999999999', qty: 1 }] }))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toMatch(/no longer available/)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Transportable retail produce (2026-11-05): a courier line of a produce the
+// farmer transports across AP / TG carries that state's charge (from the
+// delivery pincode), once per farmer order, inside total_price.
+describe('transportable produce by courier', () => {
+  const courier = (pincode: string, extra: Record<string, unknown> = {}) => order({
+    paymentMethod: 'cod',
+    deliveryType: 'courier',
+    items: [{ listingId: LISTING_ID, qty: 2, deliveryType: 'courier' }],
+    deliveryAddress: '12 Main Road', deliveryCity: 'Gajuwaka', deliveryPincode: pincode,
+    ...extra,
+  })
+  const transportable = () => Object.assign(db.listings[0], { retail_reach: 'transport', retail_transport_rates: { AP: 80, TG: 120 } })
+
+  it('adds the AP charge for an AP pincode, once, inside total_price', async () => {
+    transportable()
+    const r = await place(courier('530026'))
+    const j = await r.json()
+    expect(r.status).toBe(200)
+    expect(j.transportCharge).toBe(80)
+    expect(j.total).toBe(80 + 80) // 2 kg × ₹40 + ₹80 transport
+    expect(db.orders[0]).toMatchObject({ transport_charge: 80, transport_state: 'AP', total_price: 160, delivery_type: 'courier' })
+  })
+  it('uses the Telangana charge for a Telangana pincode', async () => {
+    transportable()
+    const j = await (await place(courier('500072'))).json()
+    expect(j.transportCharge).toBe(120)
+  })
+  it('refuses a state the farmer does not send to', async () => {
+    Object.assign(db.listings[0], { retail_reach: 'transport', retail_transport_rates: { AP: 80 } })
+    const r = await place(courier('500072'))
+    expect(r.status).toBe(400)
+    expect((await r.json()).error).toMatch(/not delivered to Telangana/)
+    expect(db.orders).toHaveLength(0)
+  })
+  it('a plain local courier line has no transport charge (as before)', async () => {
+    const j = await (await place(courier('534101'))).json()
+    expect(j.transportCharge).toBe(0)
+    expect(db.orders[0]).not.toHaveProperty('transport_charge')
   })
 })

@@ -1,5 +1,8 @@
 'use client'
 
+import { reachFor } from '@/lib/retailReach'
+import { readSavedBuyer } from '@/lib/savedBuyer'
+import { farmerCoords } from '@/lib/location'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -208,6 +211,11 @@ export default function HarvestDetailPage() {
   // A real, active seller is enough to buy from — their phone is no longer
   // public (security fix, 2026-11-04), so it can't be the test any more.
   const canAdd = !!farmer
+  // Local only / Transportable across AP & TG (2026-11-05): from beyond the
+  // farmer's radius, transportable produce comes by their courier for the
+  // state's charge — the same rule as the home grid (src/lib/retailReach.ts).
+  const reach = item ? reachFor(item as { retail_reach?: unknown; retail_transport_rates?: unknown; delivery_radius_km?: unknown }, farmer ? farmerCoords(farmer) : null, readSavedBuyer()) : null
+  const transport = reach?.kind === 'transport' ? { charge: reach.charge } : null
   const inCart = cart[harvest.id]
   // This PICK is spent. The produce is not: the farmer harvests it again, so the
   // page offers to wait for that instead of dead-ending on "Out of stock".
@@ -275,6 +283,7 @@ export default function HarvestDetailPage() {
       farmerSlug: farmer.slug,
       farmerPickupLocations: farmer.pickup_locations ?? [],
       farmerPickupSlots: normalizePickupSchedule(farmer.pickup_slots, farmer.pickup_locations ?? []),
+      ...(transport && readSavedBuyer()?.state ? { transportCharge: transport.charge, transportState: readSavedBuyer()!.state! } : {}),
     })
   }
 
@@ -366,6 +375,16 @@ export default function HarvestDetailPage() {
           {item.variety && <p className="text-sm text-gray-500 mt-0.5">{localizeName(item.variety, lang)}</p>}
 
           {/* Farmer doesn't deliver this one — said here, not first in the cart. */}
+          {transport && (
+            <p className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-[#27486a] bg-[#e5ecf3] rounded-full px-2.5 py-1">
+              🚚 {transport.charge > 0 ? L(`Delivers to you by courier · ₹${transport.charge} transport`, `కొరియర్ ద్వారా మీకు డెలివరీ · రవాణా ₹${transport.charge}`) : L('Delivers to you by courier · free transport', 'కొరియర్ ద్వారా మీకు డెలివరీ · రవాణా ఉచితం')}
+            </p>
+          )}
+          {reach?.kind === 'out_of_range' && (
+            <p className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-amber-800 bg-amber-50 rounded-full px-2.5 py-1">
+              📍 {L('This farmer does not deliver to your area — pickup only', 'ఈ రైతు మీ ప్రాంతానికి డెలివరీ చేయరు — పికప్ మాత్రమే')}
+            </p>
+          )}
           {!canDeliver(normalizeDeliveryMode(item.delivery_mode)) && (
             <p className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-gray-700 bg-gray-100 rounded-full px-2.5 py-1">
               🚶 {L('Pickup only — the farmer doesn’t deliver this', 'పికప్ మాత్రమే — రైతు దీన్ని డెలివరీ చేయరు')}

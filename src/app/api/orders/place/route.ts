@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
+import { stateOfPincode } from '@/lib/location'
+import { orderTransportCharge } from '@/lib/retailReach'
 import { randomInt } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
@@ -33,7 +35,7 @@ type IncomingItem = {
   listingId: string
   harvestId?: string
   qty: number
-  deliveryType?: 'self_pickup' | 'home_delivery'
+  deliveryType?: 'self_pickup' | 'home_delivery' | 'courier'
   // A bulk (wholesale) line. Never accepted here: this is the household
   // checkout, and bulk is only for subscribed aggregators (decision 2026-11-04).
   wholesale?: boolean
@@ -193,6 +195,8 @@ export async function POST(req: NextRequest) {
   const rowDeliveryTypeOf = (it: IncomingItem): 'self_pickup' | 'home_delivery' | 'courier' =>
     it.deliveryType === 'home_delivery' ? 'home_delivery'
     : it.deliveryType === 'self_pickup' ? 'self_pickup'
+    // Transportable produce sent by the farmer's courier (2026-11-05).
+    : it.deliveryType === 'courier' ? 'courier'
     : bodyDeliveryType
   // The address form is required as soon as ANY item ships (home delivery or
   // courier). We validate it once here for the whole batch.
@@ -540,6 +544,47 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Transportable produce (2026-11-05, scripts/retail-reach-migration.sql): a
+  // courier line of a produce the farmer transports across AP / TG carries
+  // the farmer's charge for the delivery state — one parcel per farmer order,
+  // so the highest charge among its lines. Recomputed here from the listing
+  // and the pincode's state, never taken from the cart. Added AFTER the
+  // platform fee (no fee on transport) and before the COD split; it sits in
+  // total_price like a bulk order's transport, so a decline refunds it and the
+  // receipt shows it as its own line (orders.transport_charge).
+  let transportCharge = 0
+  const courierIdx = items.map((it, i) => (rowDeliveryTypeOf(it) === 'courier' ? i : -1)).filter((i) => i >= 0)
+  if (courierIdx.length) {
+    const ids = [...new Set(courierIdx.map((i) => items[i].listingId))]
+    const { data: reachRows, error: reachErr } = await supabase
+      .from('produce_listings')
+      .select('id, name, retail_reach, retail_transport_rates')
+      .in('id', ids)
+    // No columns yet (migration not run): plain courier lines, as before.
+    const transported = reachErr ? [] : ((reachRows ?? []) as Array<{ id: string; name: string; retail_reach?: string | null; retail_transport_rates?: unknown }>)
+      .filter((r) => r.retail_reach === 'transport')
+    if (transported.length) {
+      const state = stateOfPincode(deliveryPincode)
+      const charge = orderTransportCharge(transported, state)
+      if (charge === null) {
+        return bad(state
+          ? `${transported[0].name} is not delivered to ${state === 'AP' ? 'Andhra Pradesh' : 'Telangana'} by this farmer.`
+          : 'Enter an Andhra Pradesh or Telangana pincode for transported produce.')
+      }
+      transportCharge = charge
+      if (charge > 0) {
+        const tIds = new Set(transported.map((r) => r.id))
+        const row = rows.find((r, i) => rowDeliveryTypeOf(items[i]) === 'courier' && tIds.has(String(r.produce_listing_id)))
+        if (row) {
+          row.total_price = (Number(row.total_price) || 0) + charge
+          row.transport_charge = charge
+          row.transport_state = state
+          total += charge
+        }
+      }
+    }
+  }
+
   // Part-paid COD — the buyer prepays a deposit online and owes the rest in
   // cash at handover. Stamped per row for the same reason as platform_fee: a
   // single-line cancel then forfeits (or a decline refunds) exactly that
@@ -692,6 +737,8 @@ export async function POST(req: NextRequest) {
     total,
     deliveryFee,
     platformFee,
+    // Included in total (transportable produce); shown as its own line.
+    transportCharge,
     grandTotal: total + deliveryFee + platformFee,
     // Part-paid COD. codDeposit is what Cashfree will charge now; the rest is
     // cash at handover. Both 0 on a fully-prepaid order.

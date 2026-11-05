@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { retailRows } from '@/lib/wholesaleVisibility'
 import { NextRequest, NextResponse } from 'next/server'
+import { farmAreas } from '@/lib/farmArea'
 import { purchaseCountsFor } from '@/lib/purchaseCounts'
 import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
 import { matchesProduceQuery, matchesCategoryKeywords } from '@/lib/produceSearch'
@@ -86,7 +87,10 @@ export async function GET(request: NextRequest) {
     .in('id', farmerIds)
     .eq('active', true)
 
-  const farmerMap = Object.fromEntries((farmers ?? []).map((f) => [f.id, f]))
+  // A rough farm point (~5 km grid, never the exact farm) for the buyer's
+  // distance and "delivers here?" — src/lib/farmArea.ts (2026-11-05).
+  const areas = await farmAreas((farmers ?? []).map((f) => f.id as string))
+  const farmerMap = Object.fromEntries((farmers ?? []).map((f) => [f.id, { ...f, area: areas[f.id as string] ?? null }]))
 
   const result = filtered
     .map((p) => ({ ...p, farmer: farmerMap[p.farmer_id] ?? null }))

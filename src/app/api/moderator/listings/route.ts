@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { applyRetailReach } from '@/lib/retailReach'
 import { NextRequest, NextResponse } from 'next/server'
 import { unitAllowsFractions } from '@/lib/saleStep'
 import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
@@ -197,6 +198,9 @@ export async function POST(req: NextRequest) {
   if (!wholesale.ok) return NextResponse.json({ error: wholesale.error.en }, { status: 400 })
   if (wholesale.columns.sale_mode !== 'retail') Object.assign(insert, wholesale.columns)
   // Both: wholesale must be cheaper than every retail price (2026-11-05).
+  // Local only / Transportable across AP & TG (2026-11-05).
+  const reachErr = applyRetailReach(insert, b, deliveryMode)
+  if (reachErr) return NextResponse.json({ error: reachErr.en }, { status: 400 })
   const priceErr = bothPricesError(insert)
   if (priceErr) return NextResponse.json({ error: priceErr.en }, { status: 400 })
 

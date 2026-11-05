@@ -1,5 +1,6 @@
 'use client'
 
+import { reachFormFromRow } from '@/components/RetailReachFields'
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import ModeratorShell, { useModeratorAuth } from '../../../ModeratorShell'
@@ -16,6 +17,7 @@ type Loaded = {
   farmerName: string
   images: string[]
   wholesale: WholesaleForm
+  reach: ReturnType<typeof reachFormFromRow>
   wholesaleReady: boolean
   /** Set when the wholesale side is hidden for low stock (same rule as the farmer's alert). */
   lowStock: { left: number; min: number } | null
@@ -90,6 +92,7 @@ export default function EditListingPage() {
       farmerName: (json.farmer_name as string) ?? '—',
       images,
       wholesale: wholesaleFormFromRow(l),
+      reach: reachFormFromRow(l as { retail_reach?: unknown; retail_transport_rates?: unknown }),
       wholesaleReady: 'sale_mode' in l,
       lowStock: low ? { left: wholesaleStock(l, harvests) ?? 0, min: Number(l.wholesale_min_qty) } : null,
     })
@@ -122,6 +125,7 @@ export default function EditListingPage() {
           initialImages={loaded.images}
           fixedFarmerName={loaded.farmerName}
           initialWholesale={loaded.wholesale}
+          initialReach={loaded.reach}
           wholesaleReady={loaded.wholesaleReady}
           lowStock={loaded.lowStock}
         />
