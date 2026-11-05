@@ -12,7 +12,8 @@ import { coverImageUrl } from '@/lib/productShare'
 import FreshHarvestsTable, { UpcomingHarvestsTable } from '@/components/consumer/FreshHarvestsTable'
 import { supabase } from '@/lib/supabase'
 import { METHOD_SHORT, CATEGORY_LABEL } from '@/lib/produceLabels'
-import { haversineKm, nearestTown, formatDistance, farmerCoords, townByName } from '@/lib/location'
+import { haversineKm, nearestTown, nearestPlace, formatDistance, farmerCoords, townByName } from '@/lib/location'
+import { reachFor, type Buyer, type Reachability } from '@/lib/retailReach'
 import { todayInIndia, isPastDate } from '@/lib/date'
 import LocationSearch from '@/components/LocationSearch'
 import { matchesProduceQuery, matchesCategoryKeywords } from '@/lib/produceSearch'
@@ -57,6 +58,8 @@ type Farmer = {
   pickup_slots?: unknown
   lat?: number | null
   lng?: number | null
+  /** Rough farm point from the server (~5 km grid; never the exact farm). */
+  area?: { lat: number; lng: number; approximate: boolean } | null
   // 'aggregator' → this seller resells other farmers' produce. Absent on rows
   // fetched before the column existed, so treat anything else as a farmer.
   account_type?: string | null
@@ -79,6 +82,10 @@ type ProduceListing = {
   sale_step?: number | null
   /** Farmer-set fulfillment: 'pickup' | 'courier' | 'both' (src/lib/fulfillment.ts). */
   delivery_mode?: string | null
+  // Local only / Transportable across AP & TG (2026-11-05).
+  retail_reach?: string | null
+  retail_transport_rates?: unknown
+  delivery_radius_km?: number | null
   price_tier_2_price?: number
   price_tier_2_qty?: number
   price_tier_3_price?: number
@@ -130,7 +137,7 @@ type GridHarvest = {
 }
 
 // A produce listing with its computed distance from the consumer.
-type WithDist = ProduceListing & { distKm: number | null; distApprox: boolean }
+type WithDist = ProduceListing & { distKm: number | null; distApprox: boolean; reach: Reachability }
 
 // One grid tile. `harvest` present → a specific harvest of the produce (own
 // date/shelf/stock, links to the harvest page); absent → the produce template
@@ -208,7 +215,9 @@ export default function ConsumerPage() {
   // without one the filter can't run at all, so a new visitor still sees
   // everything. "All" stays one tap away, and the empty state offers to clear
   // it when nothing is in range.
-  const [distanceFilter, setDistanceFilter]             = useState<number | null>(25)
+  // 'reach' (default): what delivers to the buyer — local produce within each
+  // farmer's radius + transportable produce for the buyer's state (2026-11-05).
+  const [distanceFilter, setDistanceFilter]             = useState<number | null | 'reach'>('reach')
 
   // When the feed was last fetched, so tab-focus refetches can be skipped if
   // the data is still fresh (flicking between apps used to refetch every time).
@@ -351,24 +360,30 @@ export default function ConsumerPage() {
     return Array.from(m, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
   }, [available])
 
+  // The buyer for "delivers to me": their point and state (AP / TG) from the
+  // nearest place in the AP + TG list (src/lib/location.ts).
+  const buyer = useMemo<Buyer>(() => (consumerLat && consumerLng
+    ? { lat: consumerLat, lng: consumerLng, state: nearestPlace(consumerLat, consumerLng).state }
+    : null), [consumerLat, consumerLng])
+
   // Filter (farmer + distance), expand each produce into one card PER harvest,
   // then sort (harvest date / rating / purchases).
   const displayItems = useMemo<DisplayCard[]>(() => {
     let items: WithDist[] = filtered.map((item) => {
       let distKm: number | null = null
       let distApprox = false
-      if (consumerLat && consumerLng && item.farmer) {
-        const coords = farmerCoords(item.farmer)
-        if (coords) {
-          distKm = haversineKm(consumerLat, consumerLng, coords.lat, coords.lng)
-          distApprox = coords.approximate
-        }
+      const coords = item.farmer ? (item.farmer.area ?? farmerCoords(item.farmer)) : null
+      if (consumerLat && consumerLng && coords) {
+        distKm = haversineKm(consumerLat, consumerLng, coords.lat, coords.lng)
+        distApprox = coords.approximate
       }
+      const reach = reachFor(item, coords, buyer)
       const latest = (harvestsByListing[item.id] ?? [])[0]
       return {
         ...item,
         distKm,
         distApprox,
+        reach,
         // Fallback clock (used only when this produce has NO logged harvest, so
         // it shows a single template card): the newest logged harvest, else the
         // harvest date/time set on the listing's Edit form.
@@ -380,7 +395,9 @@ export default function ConsumerPage() {
     // Filter by farmer.
     if (farmerFilter !== 'all') items = items.filter((i) => i.farmer_id === farmerFilter)
     // Filter by distance (only meaningful once a location is set).
-    if (consumerLat && consumerLng && distanceFilter) {
+    if (consumerLat && consumerLng && distanceFilter === 'reach') {
+      items = items.filter((i) => i.reach.show)
+    } else if (consumerLat && consumerLng && typeof distanceFilter === 'number') {
       items = items.filter((i) => i.distKm !== null && i.distKm <= distanceFilter)
     }
 
@@ -446,7 +463,7 @@ export default function ConsumerPage() {
       return b.sortAt - a.sortAt
     })
     return cards
-  }, [filtered, consumerLat, consumerLng, distanceFilter, harvestsByListing, farmerFilter, sortBy])
+  }, [filtered, consumerLat, consumerLng, buyer, distanceFilter, harvestsByListing, farmerFilter, sortBy])
 
   // Draw the grid FEED_PAGE_SIZE cards at a time (see src/lib/feedPaging.ts).
   // Back to the first page only when the buyer changes what they're looking
@@ -587,7 +604,7 @@ export default function ConsumerPage() {
       {consumerLat && consumerLng && (
         <div className="max-w-3xl mx-auto mt-3 px-4">
           <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-            {([null, 5, 10, 25] as const).map((d) => (
+            {(['reach', 5, 10, 25, null] as const).map((d) => (
               <button
                 key={d ?? 'all'}
                 onClick={() => setDistanceFilter(d)}
@@ -597,7 +614,7 @@ export default function ConsumerPage() {
                     : 'bg-white text-gray-700 border-gray-200'
                 }`}
               >
-                {d === null ? L('All', 'అన్నీ') : `< ${d} km`}
+                {d === 'reach' ? L('🚚 Delivers to me', '🚚 నాకు డెలివరీ') : d === null ? L('All', 'అన్నీ') : `< ${d} km`}
               </button>
             ))}
           </div>
@@ -627,7 +644,7 @@ export default function ConsumerPage() {
           // to 25 km, but with no location set nothing was filtered out, so an
           // empty grid there means "no produce", not "none nearby".
           distanceFilter && consumerLat && consumerLng ? (
-            <DistanceEmptyState km={distanceFilter} onClear={() => setDistanceFilter(null)} />
+            <DistanceEmptyState km={distanceFilter === 'reach' ? null : distanceFilter} area={buyer ? nearestPlace(buyer.lat, buyer.lng).name : null} onClear={() => setDistanceFilter(null)} />
           ) : (
             <EmptyState />
           )
@@ -641,6 +658,7 @@ export default function ConsumerPage() {
                 soldOut={card.soldOut}
                 distanceKm={card.item.distKm}
                 distanceApprox={card.item.distApprox}
+                transport={card.item.reach.kind === 'transport' && buyer?.state ? { charge: card.item.reach.charge, state: buyer.state } : null}
                 priority={i < 4}
               />
             ))}
@@ -703,7 +721,7 @@ export default function ConsumerPage() {
 // come from there for the collapsed tile: nothing decrements the template's
 // stock_qty when a harvest sells out, so the listing's own number would still
 // claim kilos that are gone.
-function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, priority }: { item: ProduceListing; harvest?: GridHarvest; soldOut?: boolean; distanceKm?: number | null; distanceApprox?: boolean; priority?: boolean }) {
+function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, transport, priority }: { item: ProduceListing; harvest?: GridHarvest; soldOut?: boolean; distanceKm?: number | null; distanceApprox?: boolean; transport?: { charge: number; state: 'AP' | 'TG' } | null; priority?: boolean }) {
   const emoji       = item.emoji ?? '🌿'
   const method      = item.method?.toLowerCase() ?? 'natural'
   const methodPill  = METHOD_PILL[method]  ?? 'bg-green-600 text-white'
@@ -860,6 +878,8 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, prior
       farmerSlug: farmer.slug,
       farmerPickupLocations: farmer.pickup_locations ?? [],
       farmerPickupSlots: normalizePickupSchedule(farmer.pickup_slots, farmer.pickup_locations ?? []),
+      // Transportable from further away: the cart sends it by courier with this charge.
+      ...(transport ? { transportCharge: transport.charge, transportState: transport.state } : {}),
     })
   }
 
@@ -877,6 +897,8 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, prior
   if (isAggregator) chips.push({ key: 'agg', icon: '🤝', text: L('Aggregator', 'సమీకరణదారు'), tone: 'amber' })
   // Told up front, so it isn't a surprise in the cart.
   if (pickupOnly) chips.push({ key: 'pickup', icon: '🚶', text: L('Pickup only', 'పికప్ మాత్రమే'), tone: 'gray' })
+  // From further away, sent by the farmer's courier (2026-11-05).
+  if (transport) chips.push({ key: 'transport', icon: '🚚', text: transport.charge > 0 ? L(`Delivers to you · ₹${transport.charge} transport`, `మీకు డెలివరీ · రవాణా ₹${transport.charge}`) : L('Delivers to you · free transport', 'మీకు డెలివరీ · రవాణా ఉచితం'), tone: 'blue' })
 
   return (
     <ProduceTile
@@ -1091,12 +1113,16 @@ function LoadingSkeleton() {
 }
 
 /* ─── Distance empty state ──────────────────────────────── */
-function DistanceEmptyState({ km, onClear }: { km: number; onClear: () => void }) {
+function DistanceEmptyState({ km, area, onClear }: { km: number | null; area?: string | null; onClear: () => void }) {
   const { L } = useLang()
   return (
     <div className="text-center py-14">
       <div className="text-6xl mb-4">📍</div>
-      <p className="text-gray-800 font-bold text-lg">{L(`No farmers within ${km} km`, `${km} కి.మీ లోపల రైతులు లేరు`)}</p>
+      <p className="text-gray-800 font-bold text-lg">
+        {km === null
+          ? L(`No farmer delivers to ${area ?? 'your area'} yet`, `${area ?? 'మీ ప్రాంతానికి'} ఇంకా ఏ రైతూ డెలివరీ చేయడం లేదు`)
+          : L(`No farmers within ${km} km`, `${km} కి.మీ లోపల రైతులు లేరు`)}
+      </p>
       <p className="text-gray-400 text-xs mt-2 leading-snug px-8">
         {L('Farmers nearby may not have set their location yet.', 'దగ్గరలోని రైతులు ఇంకా లొకేషన్ పెట్టలేదు.')}
       </p>

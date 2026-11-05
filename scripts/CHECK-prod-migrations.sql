@@ -191,6 +191,12 @@ SELECT * FROM (
   SELECT 30, 'transport-bill', 'cargo-bills bucket (private)',
     CASE WHEN EXISTS (SELECT 1 FROM storage.buckets WHERE id='cargo-bills' AND public = false)
       THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  -- retail-reach-migration.sql (needs bulk-orders first: orders.transport_charge).
+  SELECT 31, 'retail-reach', 'produce_listings.retail_reach',
+    CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_name='produce_listings' AND column_name='retail_reach')
+      THEN 'PRESENT' ELSE 'MISSING' END
 
 ) checks ORDER BY ord;
 

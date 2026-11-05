@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { uploadFarmImage } from '@/lib/farmImageUpload'
+import RetailReachFields, { EMPTY_REACH, reachPayload, type ReachForm } from '@/components/RetailReachFields'
 import { clearDraft, draftHasContent, draftKey, draftPhotos, readDraft, writeDraft } from '@/lib/formDraft'
 import HarvestManager from '@/components/HarvestManager'
 import { useSourceFarmers, sourceFarmerLabel } from '@/components/SourceFarmerPicker'
@@ -119,6 +120,7 @@ export default function ListingForm({
   initialWholesale = EMPTY_WHOLESALE_FORM,
   wholesaleReady = false,
   lowStock = null,
+  initialReach = EMPTY_REACH,
 }: {
   mode: 'create' | 'edit'
   zone: string
@@ -134,6 +136,8 @@ export default function ListingForm({
   wholesaleReady?: boolean
   /** Wholesale hidden because stock is below the minimum (edit only). */
   lowStock?: { left: number; min: number } | null
+  /** Local only / Transportable (2026-11-05), for Edit. */
+  initialReach?: ReachForm
 }) {
   const router = useRouter()
 
@@ -150,6 +154,7 @@ export default function ListingForm({
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
   const [wholesale, setWholesale] = useState<WholesaleForm>(initialWholesale)
+  const [reach, setReach] = useState<ReachForm>(initialReach)
 
   // Only fires for an aggregator seller; a plain farmer gets no extra field.
   // Keyed on the chosen farmer, so switching sellers in create mode reloads
@@ -174,18 +179,19 @@ export default function ListingForm({
   const draftK = draftKey('moderator-produce', zone || 'zone', mode === 'edit' ? listingId ?? null : null)
   const [restored, setRestored] = useState(false)
   useEffect(() => {
-    const d = readDraft<{ farmerId?: string; emoji?: string; form?: ListingFormValues; wholesale?: WholesaleForm; photos?: PhotoItem[] }>(draftK)
+    const d = readDraft<{ farmerId?: string; emoji?: string; form?: ListingFormValues; wholesale?: WholesaleForm; reach?: ReachForm; photos?: PhotoItem[] }>(draftK)
     if (!d) return
     if (mode === 'create' && typeof d.farmerId === 'string') { setFarmerId(d.farmerId); setLastFarmerId(d.farmerId) }
     if (typeof d.emoji === 'string') setEmoji(d.emoji)
     if (d.form && typeof d.form === 'object') setForm((f) => ({ ...f, ...d.form }))
     if (d.wholesale && typeof d.wholesale === 'object') setWholesale((w) => ({ ...w, ...d.wholesale }))
+    if (d.reach && typeof d.reach === 'object') setReach(d.reach)
     if (Array.isArray(d.photos) && d.photos.length) setPhotos(d.photos)
     setRestored(true)
     // Once, when the form opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const draftJson = JSON.stringify({ farmerId, emoji, form, wholesale, photos: draftPhotos(photos) })
+  const draftJson = JSON.stringify({ farmerId, emoji, form, wholesale, reach, photos: draftPhotos(photos) })
   useEffect(() => {
     const t = setTimeout(() => {
       const d = JSON.parse(draftJson) as { farmerId: string; form: Record<string, unknown>; photos: PhotoItem[] }
@@ -275,6 +281,7 @@ export default function ListingForm({
       body: JSON.stringify({
         ...payload,
         ...wholesaleBody,
+        ...reachPayload(form.delivery_mode && form.delivery_mode !== 'pickup' ? reach : { ...reach, reach: 'local' }, initialReach.reach === 'transport'),
         farmer_id: farmerId,
         emoji,
         image_url: allImages[0] ?? null,
@@ -506,6 +513,11 @@ export default function ListingForm({
             <Field label="Delivery radius (km)">
               <input value={form.delivery_radius_km} onChange={set('delivery_radius_km')} type="number" min="0" className={inputCls} placeholder="e.g. 10" />
             </Field>
+          </div>
+        )}
+        {form.delivery_mode && form.delivery_mode !== 'pickup' && offersRetail(wholesale.saleMode) && (
+          <div className="mt-3 max-w-md">
+            <RetailReachFields value={reach} onChange={setReach} radiusKm={form.delivery_radius_km} L={EN} />
           </div>
         )}
       </div>

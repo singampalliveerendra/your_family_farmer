@@ -1149,3 +1149,22 @@ ALTER TABLE public.orders ADD CONSTRAINT orders_transport_bill_check CHECK (
   AND (transport_paid_at IS NULL OR transport_billed_at IS NOT NULL)
 );
 
+
+-- ============================================================================
+-- Retail produce: Local only / Transportable across AP & TG
+-- (scripts/retail-reach-migration.sql, 2026-11-05). Public product info like
+-- the price; writes stay server-only.
+-- ============================================================================
+
+ALTER TABLE public.produce_listings
+  ADD COLUMN IF NOT EXISTS retail_reach text NOT NULL DEFAULT 'local',
+  ADD COLUMN IF NOT EXISTS retail_transport_rates jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_retail_reach_check;
+ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_retail_reach_check
+  CHECK (retail_reach IN ('local', 'transport'));
+
+ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_retail_rates_check;
+ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_retail_rates_check
+  CHECK (jsonb_typeof(retail_transport_rates) = 'object');
+

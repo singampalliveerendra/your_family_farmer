@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { applyRetailReach } from '@/lib/retailReach'
 import { requireSeller, svc } from '@/lib/sellerAuth'
 import { checkSellerStatusChange, sellerListingPayload } from '@/lib/sellerWriteRules'
 import { bothPricesError, isWholesaleColumnMissing, resolveWholesaleColumns, withoutWholesale, WHOLESALE_NOT_READY } from '@/lib/wholesale'
@@ -40,6 +41,9 @@ export async function POST(req: NextRequest) {
   if (!wholesale.ok) return NextResponse.json({ error: t(wholesale.error.en, wholesale.error.te) }, { status: 400 })
   let row: Record<string, unknown> = { ...(wholesale.columns ? { ...withoutWholesale(payload), ...wholesale.columns } : payload), farmer_id: me.id }
   // Both: wholesale must be cheaper than every retail price (2026-11-05).
+  // Local only / Transportable across AP & TG (2026-11-05).
+  const reachErr = applyRetailReach(row, payload, typeof payload.delivery_mode === 'string' ? payload.delivery_mode : null)
+  if (reachErr) return NextResponse.json({ error: t(reachErr.en, reachErr.te) }, { status: 400 })
   const priceErr = bothPricesError(row)
   if (priceErr) return NextResponse.json({ error: t(priceErr.en, priceErr.te) }, { status: 400 })
 

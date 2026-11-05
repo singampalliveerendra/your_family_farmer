@@ -44,6 +44,7 @@ import SubscriptionStatusCard from '@/components/farmer/SubscriptionStatusCard'
 import { sellingLockText } from '@/lib/sellingLock'
 import { uploadFarmImage } from '@/lib/farmImageUpload'
 import { useBackToClose } from '@/lib/useBackToClose'
+import RetailReachFields, { reachFormFromRow, reachPayload, type ReachForm } from '@/components/RetailReachFields'
 import { clearDraft, draftHasContent, draftKey, draftPhotos, readDraft, writeDraft } from '@/lib/formDraft'
 import {
   wholesaleFormFromRow, resolveWholesaleForm, needsRetailPrice, offersRetail, bothPricesError,
@@ -2346,6 +2347,9 @@ function ProduceListingForm({
   )
   const [deliveryCharge, setDeliveryCharge] = useState(editData?.delivery_charge != null ? String(editData.delivery_charge) : '')
   const [deliveryRadius, setDeliveryRadius] = useState(editData?.delivery_radius_km != null ? String(editData.delivery_radius_km) : '')
+  // Local only / Transportable across AP & TG (2026-11-05).
+  const [reach, setReach] = useState<ReachForm>(() => reachFormFromRow(editData as { retail_reach?: unknown; retail_transport_rates?: unknown } | null | undefined))
+  const wasTransport = (editData as { retail_reach?: unknown } | null | undefined)?.retail_reach === 'transport'
   // Retail / Wholesale / Both, and the wholesale details (src/lib/wholesale.ts).
   const [wholesale, setWholesale] = useState<WholesaleForm>(() => {
     const f = wholesaleFormFromRow(editData as Record<string, unknown> | null | undefined)
@@ -2380,7 +2384,7 @@ function ProduceListingForm({
     name, variety, emoji, qty, availFrom, availTo, harvestFreq, harvestFreqCount, shelfLifeDays, farmingMethod,
     price1, price1Qty, price2, price2Qty, price3, description, brix, soc, soilPh, pesticide, howWeGrow, videoUrl,
     category, unit, saleStep, sourceFarmerId, deliveryMode: deliveryMode ?? '', deliveryCharge, deliveryRadius,
-    wholesale, photos: draftPhotos(photos),
+    wholesale, reach, photos: draftPhotos(photos),
   }
   type ProduceDraft = typeof draftNow
   useEffect(() => {
@@ -2397,6 +2401,7 @@ function ProduceListingForm({
     if (typeof d.deliveryMode === 'string' && d.deliveryMode) setDeliveryMode(d.deliveryMode as DeliveryMode)
     setDeliveryCharge((x) => str(d.deliveryCharge, x)); setDeliveryRadius((x) => str(d.deliveryRadius, x))
     if (d.wholesale && typeof d.wholesale === 'object') setWholesale((w) => ({ ...w, ...(d.wholesale as WholesaleForm) }))
+    if (d.reach && typeof d.reach === 'object') setReach(d.reach as ReachForm)
     if (Array.isArray(d.photos) && d.photos.length) setPhotos((cur) => (cur.some((p) => p.file) ? cur : (d.photos as PhotoItem[])))
     setRestored(true)
     // Once, when the form opens.
@@ -2407,7 +2412,7 @@ function ProduceListingForm({
     const t = setTimeout(() => {
       const d = JSON.parse(draftJson) as ProduceDraft
       // A new form untouched beyond its defaults is not worth keeping.
-      if (editData || draftHasContent(d, ['emoji', 'unit', 'price1Qty', 'price2Qty', 'farmingMethod', 'shelfLifeDays', 'saleStep', 'harvestFreqCount', 'wholesale'])) writeDraft(draftK, d)
+      if (editData || draftHasContent(d, ['emoji', 'unit', 'price1Qty', 'price2Qty', 'farmingMethod', 'shelfLifeDays', 'saleStep', 'harvestFreqCount', 'wholesale', 'reach'])) writeDraft(draftK, d)
     }, 400)
     return () => clearTimeout(t)
   }, [draftJson, draftK, editData])
@@ -2554,6 +2559,7 @@ function ProduceListingForm({
         delivery_mode: deliveryMode,
         delivery_charge: deliveryMode === 'pickup' ? null : (deliveryCharge ? Number(deliveryCharge) : null),
         delivery_radius_km: deliveryMode === 'pickup' ? null : (deliveryRadius ? Number(deliveryRadius) : null),
+        ...reachPayload(deliveryMode === 'pickup' ? { ...reach, reach: 'local' } : reach, wasTransport),
         // Sent only by an aggregator: a plain farmer's payload is unchanged, and
         // sending null would trip the trigger on an environment where the
         // column doesn't exist yet.
@@ -2663,6 +2669,7 @@ function ProduceListingForm({
     if (deliveryMode !== 'pickup') {
       if (deliveryCharge) payload.delivery_charge = Number(deliveryCharge)
       if (deliveryRadius) payload.delivery_radius_km = Number(deliveryRadius)
+      Object.assign(payload, reachPayload(reach, false))
     }
     // New produce: retail needs nothing (the column defaults to 'retail').
     Object.assign(payload, wholesaleColumnsToSend(wholesaleResult.columns, false))
@@ -3102,6 +3109,9 @@ function ProduceListingForm({
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">km</span>
               </div>
             </div>
+          )}
+          {deliveryMode && deliveryMode !== 'pickup' && offersRetail(wholesale.saleMode) && (
+            <RetailReachFields value={reach} onChange={setReach} radiusKm={deliveryRadius} L={L} />
           )}
         </div>
 

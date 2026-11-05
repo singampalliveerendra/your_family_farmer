@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { applyRetailReach } from '@/lib/retailReach'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
 import { RETAIL_PRICE_KEYS, bothPricesError, resolveWholesaleColumns, touchesBothPriceRule, withoutWholesale } from '@/lib/wholesale'
@@ -74,6 +75,10 @@ export async function POST(request: NextRequest) {
     for (const k of Object.keys(cleanPayload)) delete cleanPayload[k]
     Object.assign(cleanPayload, rest, wholesale.columns)
   }
+
+  // Local only / Transportable across AP & TG (2026-11-05).
+  const reachErr = applyRetailReach(cleanPayload, cleanPayload, typeof cleanPayload.delivery_mode === 'string' ? cleanPayload.delivery_mode : null)
+  if (reachErr) return NextResponse.json({ error: tr(reqLang(request), reachErr.en, reachErr.te) }, { status: 400 })
 
   // Both: wholesale must be cheaper than every retail price (2026-11-05).
   // Checked on the row as it WILL be — saved values plus this change — and only

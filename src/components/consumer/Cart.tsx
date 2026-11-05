@@ -108,6 +108,12 @@ export type CartItem = {
   // and a 0 there would have snapToStep quietly clamp the line to nothing.
   preorder?: boolean
   preorderExpectedDate?: string
+  // Transportable produce from beyond the farmer's local radius (2026-11-05):
+  // delivered by the farmer's courier for this charge (per farmer order, the
+  // highest of its lines). The server recomputes it from the listing and the
+  // delivery pincode's state.
+  transportCharge?: number
+  transportState?: 'AP' | 'TG'
 }
 
 export type CartState = Record<string, CartItem>
@@ -852,6 +858,9 @@ export function CartSheet({
 
   // Address form is needed as soon as any line is home delivery.
   const anyDelivery = items.some((it) => deliveryOf(it) === 'home_delivery')
+  // A delivered transportable line goes by the farmer's courier, not our rider.
+  const isTransported = (it: CartItem) => it.transportCharge != null && deliveryOf(it) === 'home_delivery'
+  const anyRiderDelivery = items.some((it) => deliveryOf(it) === 'home_delivery' && !isTransported(it))
   const needsAddress = anyDelivery
 
   // The address actually being sent — the saved one copied in, or what the
@@ -974,7 +983,7 @@ export function CartSheet({
           listingId: it.listingId,
           harvestId: it.harvestId,
           qty: it.qty,
-          deliveryType: deliveryOf(it),
+          deliveryType: isTransported(it) ? 'courier' : deliveryOf(it),
           // Consent to wait for the next harvest. The server still tries to
           // claim stock for the line and only makes it a pre-order if there is
           // genuinely none, so this can never turn an in-stock buy into a wait.
@@ -988,7 +997,7 @@ export function CartSheet({
         deliveryAltPhone: groupHasDelivery ? deliveryAltPhone.replace(/\D/g, '').slice(-10) : null,
         idempotencyKey: getIdempotencyKey(f.farmerId),
         checkoutId: getCheckoutId(),
-        deliveryChargeApplies: anyDelivery,
+        deliveryChargeApplies: anyRiderDelivery,
         deliveryFarmerIndex: farmerIndex < 0 ? 0 : farmerIndex,
       }),
     }).catch(() => null)
@@ -2282,13 +2291,16 @@ export function CartSheet({
                         // This farmer's share of the one checkout delivery charge:
                         // base for the first farmer, extra for each additional one.
                         // Charged whenever ANY line in the checkout is home delivery.
-                        const dFee = anyDelivery ? (gi === 0 ? deliveryBase : deliveryExtra) : 0
+                        const dFee = anyRiderDelivery ? (gi === 0 ? deliveryBase : deliveryExtra) : 0
+                        // Transportable lines: one courier charge for this farmer (the highest).
+                        const tFee = group.filter(isTransported).reduce((m, it) => Math.max(m, it.transportCharge ?? 0), 0)
+                        const transported = group.some(isTransported)
                         const isExtraFarmer = gi > 0
                         // Sum the per-item fees so the line matches the per-item
                         // breakdown shown above (and what the server charges).
                         const pFee = group.reduce((s, it) => s + computePlatformFee((it.pricePerKg ?? 0) * it.qty, platformFeePercent), 0)
                         // No extra fees → keep the simple "estimated total" line.
-                        if (dFee <= 0 && pFee <= 0) {
+                        if (dFee <= 0 && pFee <= 0 && !transported) {
                           return (
                             <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-2">
                               <span className="text-xs text-gray-500">{L('Estimated total', 'మొత్తం')}</span>
@@ -2317,6 +2329,15 @@ export function CartSheet({
                                 <span className="font-semibold text-gray-800">₹{dFee}</span>
                               </div>
                             )}
+                            {transported && (
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-gray-500">
+                                  🚚 {L('Transport (farmer’s courier)', 'రవాణా (రైతు కొరియర్)')}
+                                  <span className="block text-[10px] text-gray-400">{L('needs an AP / Telangana address', 'ఏపీ / తెలంగాణ చిరునామా అవసరం')}</span>
+                                </span>
+                                <span className="font-semibold text-gray-800">{tFee > 0 ? `₹${tFee}` : L('Free', 'ఉచితం')}</span>
+                              </div>
+                            )}
                             {pFee > 0 && (
                               <div className="flex items-center justify-between text-xs">
                                 <span className="text-gray-500">{L('Platform fee', 'ప్లాట్‌ఫామ్ ఫీజు')} ({platformFeePercent}%)</span>
@@ -2325,7 +2346,7 @@ export function CartSheet({
                             )}
                             <div className="flex items-center justify-between pt-1 border-t border-gray-50">
                               <span className="text-xs font-bold text-gray-700">{L('Total', 'మొత్తం')}</span>
-                              <span className="font-extrabold text-gray-900">₹{total + dFee + pFee}</span>
+                              <span className="font-extrabold text-gray-900">₹{total + dFee + pFee + tFee}</span>
                             </div>
                           </div>
                         )
