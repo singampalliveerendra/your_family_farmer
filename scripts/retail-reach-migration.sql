@@ -4,7 +4,7 @@
 -- Safe to run twice. Needs scripts/transport-bill-migration.sql? No — the
 -- order side reuses orders.transport_charge / transport_state from
 -- scripts/bulk-orders-migration.sql.
--- STATUS: written 2026-11-05. NOT applied anywhere yet.
+-- STATUS: applied to STAGING 2026-11-05 (migration `retail_reach`; 13 existing listings → local; bad values refused, rolled back). NOT on prod — run bulk-orders-migration.sql there first.
 -- ================================================================
 --
 -- Client decision 2026-11-05: on each retail produce the farmer picks
