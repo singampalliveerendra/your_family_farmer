@@ -81,3 +81,18 @@ describe('cart buttons never wait for the hidden farmer phone', () => {
     expect(s).not.toMatch(/if \(!\w+\??\.phone[^\n]*\) return/)
   })
 })
+
+describe('dashboard header has no duplicate Settings / Logout / Edit profile', () => {
+  // 2026-11-05: all of it lives in the bottom bar's Settings sheet.
+  const dash = src('src/app/farmer/dashboard/page.tsx')
+  it('the header links are gone', () => {
+    expect(dash).not.toMatch(/\{tx\.editProfile\}/)
+    expect(dash).not.toMatch(/\{tx\.logout\}/)
+    expect(dash).not.toMatch(/⚙️ \{L\('Settings', 'సెట్టింగ్‌లు'\)\}\n\s*<\/button>/)
+  })
+  it('the Settings sheet still has Account (edit profile) and Log out', () => {
+    expect(dash).toMatch(/setShowSettings\(false\); setShowProfileEdit\(true\)/)
+    expect(dash).toMatch(/setShowSettings\(false\); void handleLogout\(\)/)
+    expect(dash).toMatch(/useBackToClose\(showSettings/)
+  })
+})

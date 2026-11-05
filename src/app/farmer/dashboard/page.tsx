@@ -262,6 +262,8 @@ export default function FarmerDashboard() {
   const [formSaleMode, setFormSaleMode] = useState<SaleMode | null>(null)
   const [showProfileEdit, setShowProfileEdit] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  // Phone Back closes the Settings sheet, not the dashboard.
+  useBackToClose(showSettings, () => setShowSettings(false))
   const [showListings, setShowListings] = useState(false)
   // "Add more stock" on a wholesale low-stock alert opens that produce's edit
   // form inside Manage Listings; the key reloads the alerts after a save.
@@ -609,18 +611,9 @@ export default function FarmerDashboard() {
             {/* Catalogue images of everything in stock, for WhatsApp. Links to
                 the public page, so only once the profile is complete. */}
             {profileComplete && <ShareProduceButton farmer={farmer!} />}
-            <button
-              onClick={() => setShowProfileEdit(true)}
-              className="text-white text-xs underline"
-            >
-              {tx.editProfile}
-            </button>
-            <button onClick={() => setShowSettings(true)} className="text-white text-xs underline">
-              ⚙️ {L('Settings', 'సెట్టింగ్‌లు')}
-            </button>
-            <button onClick={handleLogout} className="text-green-500 text-xs underline">
-              {tx.logout}
-            </button>
+            {/* Edit profile, Settings and Logout lived here too — duplicates of
+                the bottom bar's Settings sheet (Account, Log out …). Removed
+                2026-11-05 on the client's word: one place for all of it. */}
           </div>
         </div>
         <h2 className="text-white text-lg sm:text-xl font-extrabold leading-snug mt-4">
