@@ -5,7 +5,7 @@ import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
 import { purchaseCountsFor } from '@/lib/purchaseCounts'
 import { normalizeUrl } from '@/lib/links'
 import { parseDeliveryMode } from '@/lib/fulfillment'
-import { resolveWholesaleBody, isWholesaleColumnMissing, WHOLESALE_NOT_READY } from '@/lib/wholesale'
+import { bothPricesError, resolveWholesaleBody, isWholesaleColumnMissing, WHOLESALE_NOT_READY } from '@/lib/wholesale'
 import { SELLING_PLAN_REQUIRED_MODERATOR, isSellingPlanError } from '@/lib/sellingLock'
 
 export const runtime = 'nodejs'
@@ -196,6 +196,9 @@ export async function POST(req: NextRequest) {
   const wholesale = resolveWholesaleBody(b, unit)
   if (!wholesale.ok) return NextResponse.json({ error: wholesale.error.en }, { status: 400 })
   if (wholesale.columns.sale_mode !== 'retail') Object.assign(insert, wholesale.columns)
+  // Both: wholesale must be cheaper than every retail price (2026-11-05).
+  const priceErr = bothPricesError(insert)
+  if (priceErr) return NextResponse.json({ error: priceErr.en }, { status: 400 })
 
   const { data: created, error } = await supabase
     .from('produce_listings')

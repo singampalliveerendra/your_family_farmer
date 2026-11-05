@@ -389,3 +389,59 @@ describe('the selling lock (Phase 7) is explained, not dumped', () => {
     expect((await res.json()).code).toBe('SELLING_PLAN_REQUIRED')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Decision 2026-11-05: with Both, the wholesale price must be LOWER than every
+// retail price — the save is blocked otherwise, on every route.
+describe('Both: wholesale must be cheaper than retail', () => {
+  const edit = (payload: Row) =>
+    updateListing(req('/api/farmer/update-listing', { listingId: LISTING_ID, payload }, 'POST', 'en'))
+  const both = (extra: Row = {}) => ({
+    sale_mode: 'both', wholesale_price: 30, wholesale_min_qty: 100, wholesale_pack_size: null,
+    wholesale_transport_states: [], ...extra,
+  })
+
+  it('farmer edit: wholesale equal to retail is refused, nothing saved', async () => {
+    const res = await edit({ ...both({ wholesale_price: 40 }), price_tier_1_price: 40 })
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/lower than your retail price \(₹40\)/)
+    expect(listing().sale_mode).toBe('retail')
+  })
+  it('farmer edit: compared with the LOWEST retail tier', async () => {
+    const res = await edit({ ...both({ wholesale_price: 35 }), price_tier_1_price: 40, price_tier_3_price: 32 })
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/₹32/)
+  })
+  it('farmer edit: cheaper wholesale saves', async () => {
+    expect((await edit({ ...both(), price_tier_1_price: 40 })).status).toBe(200)
+    expect(listing()).toMatchObject({ sale_mode: 'both', wholesale_price: 30 })
+  })
+  it('farmer edit: raising only the retail-side gap is checked against the saved wholesale price', async () => {
+    Object.assign(listing(), { sale_mode: 'both', wholesale_price: 30, price_tier_1_price: 40 })
+    const res = await edit({ price_tier_1_price: 25 })
+    expect(res.status).toBe(400)
+    expect(listing().price_tier_1_price).toBe(40)
+  })
+  it('farmer edit: a status-only change never trips over an older listing', async () => {
+    Object.assign(listing(), { sale_mode: 'both', wholesale_price: 50, price_tier_1_price: 40 })
+    expect((await edit({ status: 'paused' })).status).toBe(200)
+  })
+  it('moderator create: refused when wholesale is not cheaper', async () => {
+    const res = await moderatorCreate(req('/api/moderator/listings', createBody(wholesaleBody({ wholesale_price: '45' }))))
+    expect(res.status).toBe(400)
+    expect(db.writes.filter((w) => w.table === 'produce_listings')).toEqual([])
+  })
+  it('moderator edit: refused using the saved Both mode when sale_mode is not sent', async () => {
+    Object.assign(listing(), { sale_mode: 'both', wholesale_price: 30, price_tier_1_price: 40 })
+    const res = await moderatorEdit(
+      req(`/api/moderator/listings/${LISTING_ID}`, { name: 'Tomato', unit: 'kg', shelf_life_days: '5', delivery_mode: 'pickup', price_tier_1_price: '28', stock_qty: '50' }, 'PUT'),
+      { params: Promise.resolve({ id: LISTING_ID }) },
+    )
+    expect(res.status).toBe(400)
+    expect(listing().price_tier_1_price).toBe(40)
+  })
+  it('retail-only and wholesale-only are never checked', async () => {
+    expect((await edit({ sale_mode: 'retail', price_tier_1_price: 10 })).status).toBe(200)
+    expect((await edit({ sale_mode: 'wholesale', wholesale_price: 90, wholesale_min_qty: 100, wholesale_pack_size: null, wholesale_transport_states: [], price_tier_1_price: 10 })).status).toBe(200)
+  })
+})

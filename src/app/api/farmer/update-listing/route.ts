@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
-import { resolveWholesaleColumns, withoutWholesale } from '@/lib/wholesale'
+import { RETAIL_PRICE_KEYS, bothPricesError, resolveWholesaleColumns, touchesBothPriceRule, withoutWholesale } from '@/lib/wholesale'
 import { SELLING_PLAN_REQUIRED, isSellingPlanError } from '@/lib/sellingLock'
 import { reqLang, tr } from '@/lib/serverLang'
 import { checkSellerStatusChange, sellerListingPayload } from '@/lib/sellerWriteRules'
@@ -73,6 +73,24 @@ export async function POST(request: NextRequest) {
     const rest = withoutWholesale(cleanPayload)
     for (const k of Object.keys(cleanPayload)) delete cleanPayload[k]
     Object.assign(cleanPayload, rest, wholesale.columns)
+  }
+
+  // Both: wholesale must be cheaper than every retail price (2026-11-05).
+  // Checked on the row as it WILL be — saved values plus this change — and only
+  // when the change touches a price or the sale mode, so a status flip or a
+  // quality edit never trips over an older listing. Best-effort read: a
+  // database without the wholesale columns simply skips the check.
+  if (touchesBothPriceRule(cleanPayload)) {
+    const BOTH_PRICE_COLUMNS = ['sale_mode', 'wholesale_price', ...RETAIL_PRICE_KEYS].join(', ')
+    const { data: saved } = await supabaseAdmin
+      .from('produce_listings')
+      .select(BOTH_PRICE_COLUMNS)
+      .eq('id', listingId)
+      .maybeSingle()
+    if (saved) {
+      const priceErr = bothPricesError({ ...(saved as unknown as Record<string, unknown>), ...cleanPayload })
+      if (priceErr) return NextResponse.json({ error: tr(reqLang(request), priceErr.en, priceErr.te) }, { status: 400 })
+    }
   }
 
   // Stock ↔ status sync. Whenever a farmer edits the quantity we refresh the

@@ -400,6 +400,52 @@ export function needsRetailPrice(mode: SaleMode): boolean {
   return offersRetail(mode)
 }
 
+// ── Both (Retail + Wholesale): wholesale must be cheaper ────────────
+//
+// Decision 2026-11-05: when a produce is sold both ways, the wholesale price
+// must be LOWER than every retail price the seller entered (tier 1, and tiers 2
+// / 3 when filled) — otherwise saving is blocked. A household buying more at a
+// tier price never pays less than an aggregator buying in bulk.
+
+export const RETAIL_PRICE_KEYS = ['price_tier_1_price', 'price_tier_2_price', 'price_tier_3_price'] as const
+
+/** Keys that can change the outcome of the rule — the server checks only when one is sent. */
+export const BOTH_PRICE_RULE_KEYS = ['sale_mode', 'wholesale_price', ...RETAIL_PRICE_KEYS] as const
+
+export function touchesBothPriceRule(payload: Record<string, unknown>): boolean {
+  return BOTH_PRICE_RULE_KEYS.some((k) => k in payload)
+}
+
+const positive = (v: unknown): number | null => {
+  if (v === null || v === undefined || v === '') return null
+  const n = typeof v === 'number' ? v : Number(String(v).trim())
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+/** The lowest retail price entered, or null when none is. */
+export function lowestRetailPrice(row: Record<string, unknown>): number | null {
+  const prices = RETAIL_PRICE_KEYS.map((k) => positive(row[k])).filter((n): n is number => n !== null)
+  return prices.length ? Math.min(...prices) : null
+}
+
+/**
+ * The block for a Both listing whose wholesale price is not below retail.
+ * Works on column names (server rows / payloads) — the forms map their fields
+ * onto them. Anything else (not Both, a price missing) is left to the other
+ * checks and returns null.
+ */
+export function bothPricesError(row: Record<string, unknown>): Msg | null {
+  if (parseSaleMode(row.sale_mode) !== 'both') return null
+  const wholesale = positive(row.wholesale_price)
+  const retail = lowestRetailPrice(row)
+  if (wholesale === null || retail === null || wholesale < retail) return null
+  const r = `₹${retail}`
+  return {
+    en: `Wholesale price must be lower than your retail price (${r}).`,
+    te: `హోల్‌సేల్ ధర మీ చిల్లర ధర (${r}) కంటే తక్కువగా ఉండాలి.`,
+  }
+}
+
 /**
  * Which wholesale columns a save should include. Retail on a server that has
  * no wholesale columns yet (`serverReady` false) sends nothing, so an

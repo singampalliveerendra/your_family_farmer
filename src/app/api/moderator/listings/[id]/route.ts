@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { unitAllowsFractions } from '@/lib/saleStep'
 import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
 import { normalizeUrl } from '@/lib/links'
-import { resolveWholesaleBody, isWholesaleColumnMissing, withoutWholesale, WHOLESALE_NOT_READY } from '@/lib/wholesale'
+import { bothPricesError, resolveWholesaleBody, isWholesaleColumnMissing, withoutWholesale, WHOLESALE_NOT_READY } from '@/lib/wholesale'
 import { SELLING_PLAN_REQUIRED_MODERATOR, isSellingPlanError } from '@/lib/sellingLock'
 
 export const runtime = 'nodejs'
@@ -244,6 +244,20 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const wholesale = resolveWholesaleBody(b, unit)
     if (!wholesale.ok) return NextResponse.json({ error: wholesale.error.en }, { status: 400 })
     Object.assign(update, wholesale.columns)
+  }
+
+  // Both: wholesale must be cheaper than every retail price (2026-11-05). This
+  // edit always rewrites the retail tiers; the sale mode and wholesale price
+  // come from the saved row when the caller did not send them. Best-effort read
+  // — a database without the wholesale columns skips the check.
+  {
+    const { data: saved } = 'sale_mode' in update
+      ? { data: {} as Record<string, unknown> }
+      : await supabase.from('produce_listings').select('sale_mode, wholesale_price').eq('id', id).maybeSingle()
+    if (saved) {
+      const priceErr = bothPricesError({ ...(saved as Record<string, unknown>), ...update })
+      if (priceErr) return NextResponse.json({ error: priceErr.en }, { status: 400 })
+    }
   }
 
   const save = (row: Record<string, unknown>) =>
