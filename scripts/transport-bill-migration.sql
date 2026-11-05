@@ -2,7 +2,7 @@
 -- YFF Transport billed after delivery: per km + cargo bill (2026-11-05)
 -- Run in: Supabase Dashboard → SQL Editor → New Query → Run
 -- Needs scripts/bulk-orders-migration.sql first. Safe to run twice.
--- STATUS: written 2026-11-05. NOT applied anywhere yet.
+-- STATUS: applied to STAGING 2026-11-05 (migration `transport_bill`; 4 probes incl. bad mode / paid-without-bill / km 0, all rolled back; bucket private, no policies). NOT on prod.
 -- ================================================================
 --
 -- Client decision 2026-11-05 — the seller picks ONE way to charge transport
