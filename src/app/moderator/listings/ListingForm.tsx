@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { uploadFarmImage } from '@/lib/farmImageUpload'
+import { clearDraft, draftHasContent, draftKey, draftPhotos, readDraft, writeDraft } from '@/lib/formDraft'
 import HarvestManager from '@/components/HarvestManager'
 import { useSourceFarmers, sourceFarmerLabel } from '@/components/SourceFarmerPicker'
 import { STEP_CHOICES } from '@/lib/saleStep'
@@ -167,6 +168,32 @@ export default function ListingForm({
   const set = (k: keyof ListingFormValues) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
+  // ── Draft: survives the page reloading (2026-11-05) — Android often closes
+  // the browser tab while the camera app is open, and the form came back empty.
+  // Same helper as the farmer form (src/lib/formDraft.ts). Cleared on save.
+  const draftK = draftKey('moderator-produce', zone || 'zone', mode === 'edit' ? listingId ?? null : null)
+  const [restored, setRestored] = useState(false)
+  useEffect(() => {
+    const d = readDraft<{ farmerId?: string; emoji?: string; form?: ListingFormValues; wholesale?: WholesaleForm; photos?: PhotoItem[] }>(draftK)
+    if (!d) return
+    if (mode === 'create' && typeof d.farmerId === 'string') { setFarmerId(d.farmerId); setLastFarmerId(d.farmerId) }
+    if (typeof d.emoji === 'string') setEmoji(d.emoji)
+    if (d.form && typeof d.form === 'object') setForm((f) => ({ ...f, ...d.form }))
+    if (d.wholesale && typeof d.wholesale === 'object') setWholesale((w) => ({ ...w, ...d.wholesale }))
+    if (Array.isArray(d.photos) && d.photos.length) setPhotos(d.photos)
+    setRestored(true)
+    // Once, when the form opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const draftJson = JSON.stringify({ farmerId, emoji, form, wholesale, photos: draftPhotos(photos) })
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const d = JSON.parse(draftJson) as { farmerId: string; form: Record<string, unknown>; photos: PhotoItem[] }
+      if (mode === 'edit' || d.farmerId || d.photos.length || draftHasContent(d.form, ['price_tier_1_qty', 'unit', 'delivery_mode', 'shelf_life_days', 'method'])) writeDraft(draftK, JSON.parse(draftJson))
+    }, 400)
+    return () => clearTimeout(t)
+  }, [draftJson, draftK, mode])
+
   // Both: wholesale must be cheaper than every retail price (same rule as the
   // farmer form; the API checks it again). Tier 2 counts only with its qty,
   // because the API saves it only then.
@@ -277,6 +304,7 @@ export default function ListingForm({
     }
 
     setSubmitting(false)
+    clearDraft(draftK)
     if (mode === 'edit') { router.push('/moderator/listings'); return }
     setDone(true)
   }
@@ -303,6 +331,11 @@ export default function ListingForm({
 
   return (
     <form onSubmit={submit} className="bg-white rounded-2xl border border-gray-100 p-5 max-w-2xl space-y-4">
+      {restored && (
+        <p role="status" className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-800">
+          We kept what you had typed — the page had reloaded. Check it and carry on.
+        </p>
+      )}
       <Field label="Farmer *">
         {mode === 'edit' ? (
           <input value={fixedFarmerName ?? '—'} disabled className={`${inputCls} bg-gray-50 text-gray-500`} />
@@ -538,7 +571,12 @@ export default function ListingForm({
       {/* Photos */}
       <div className="border-t border-gray-100 pt-4">
         <p className="text-sm font-extrabold text-green-800 mb-3">Photos</p>
-        <PhotoPicker photos={photos} onChange={setPhotos} onError={setError} />
+        <PhotoPicker
+          photos={photos}
+          onChange={setPhotos}
+          onError={setError}
+          upload={(f) => uploadFarmImage(f, 'produce', farmerId || null).then((r) => r.url)}
+        />
       </div>
 
       <Field label="Description">
@@ -557,7 +595,7 @@ export default function ListingForm({
         <button type="submit" disabled={submitting} className="bg-green-800 text-white text-sm font-bold px-5 py-3 rounded-xl active:bg-green-900 disabled:opacity-50">
           {submitting ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Add harvest'}
         </button>
-        <button type="button" onClick={() => router.push('/moderator/listings')} className="bg-white border border-gray-200 text-gray-700 text-sm font-bold px-5 py-3 rounded-xl active:bg-gray-50">
+        <button type="button" onClick={() => { clearDraft(draftK); router.push('/moderator/listings') }} className="bg-white border border-gray-200 text-gray-700 text-sm font-bold px-5 py-3 rounded-xl active:bg-gray-50">
           Cancel
         </button>
       </div>
