@@ -1,5 +1,8 @@
 'use client'
 
+import { reachFor, type Reachability } from '@/lib/retailReach'
+import { useSavedBuyer } from '@/lib/savedBuyer'
+import { farmerCoords } from '@/lib/location'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -12,6 +15,9 @@ import { normalizePickupSchedule } from '@/lib/pickup-slots'
 import { isSoldOutWithHarvests } from '@/lib/produceStatus'
 
 type Produce = {
+  // Local only / Transportable across AP & TG (2026-11-05).
+  retail_reach?: string | null
+  retail_transport_rates?: unknown
   id: string
   name: string
   variety?: string
@@ -70,6 +76,12 @@ export default function ProduceTab({
   const f = farmer as Farmer
   const { addItem } = useCart()
   const { requireAuth } = useConsumerAuth()
+  // The buyer's saved location → transportable produce shows its charge and
+  // goes into the cart by the farmer's courier (same rule as the home grid).
+  const buyer = useSavedBuyer()
+  const farmPoint = (farmer.area as { lat: number; lng: number } | null | undefined) ?? farmerCoords(f as Parameters<typeof farmerCoords>[0])
+  const reachOf = (item: Produce) => reachFor(item, farmPoint, buyer)
+  const transportOf = (item: Produce) => { const r = reachOf(item); return r.kind === 'transport' && buyer?.state ? { transportCharge: r.charge, transportState: buyer.state } : {} }
   const [listings, setListings] = useState<Produce[]>(produce as Produce[])
 
   // Stock of every unpaused pick, per listing. A produce that has harvests is
@@ -153,6 +165,7 @@ export default function ProduceTab({
                 item={item}
                 review={produceReviews?.[item.id]}
                 farmerInfo={farmerCartInfo}
+                reach={reachOf(item)}
                 onAddToCart={(qty) => requireAuth(() => addItem({
                   listingId: item.id,
                   name: item.name,
@@ -167,6 +180,7 @@ export default function ProduceTab({
                   unit: undefined,
                   stockQty: item.stock_qty,
                   ...farmerCartInfo,
+                  ...transportOf(item),
                 }, qty))}
                 onDelete={isEditMode ? () => handleDelete(item.id) : undefined}
               />
@@ -408,10 +422,13 @@ function ProduceCard({
   onAddToCart,
   onDelete,
   soldOut = false,
+  reach,
 }: {
   item: Produce
   review?: ReviewSummary
   farmerInfo: FarmerCartInfo
+  /** How this produce reaches the buyer (transport charge / pickup only). */
+  reach?: Reachability
   onAddToCart?: (qty: number) => void
   onDelete?: () => void
   soldOut?: boolean
@@ -510,6 +527,16 @@ function ProduceCard({
               <span className="bg-blue-100 text-blue-800 text-[10px] font-semibold px-2 py-0.5 rounded-full">
                 🛵 {(item.delivery_charge ?? 0) > 0 ? `Delivery ₹${item.delivery_charge}` : L('Free delivery', 'ఉచిత డెలివరీ')}
                 {item.delivery_radius_km ? ` · ${item.delivery_radius_km}km` : ''}
+              </span>
+            )}
+            {reach?.kind === 'transport' && (
+              <span className="bg-[#e5ecf3] text-[#27486a] text-[10px] font-bold px-2 py-0.5 rounded-full">
+                🚚 {reach.charge > 0 ? L(`₹${reach.charge} transport to you`, `మీకు రవాణా ₹${reach.charge}`) : L('Free transport to you', 'మీకు రవాణా ఉచితం')}
+              </span>
+            )}
+            {reach?.kind === 'out_of_range' && (
+              <span className="bg-gray-100 text-gray-600 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                📍 {L('Pickup only for you', 'మీకు పికప్ మాత్రమే')}
               </span>
             )}
           </div>

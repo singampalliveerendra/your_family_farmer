@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { farmAreas } from '@/lib/farmArea'
 import { retailRows } from '@/lib/wholesaleVisibility'
 import { FARMER_PUBLIC_COLUMNS } from '@/lib/farmerColumns'
 import { notFound } from 'next/navigation'
@@ -76,6 +77,10 @@ export default async function FarmerPage({ params }: { params: Promise<{ slug: s
     .single()
 
   if (!farmer) notFound()
+
+  // A rough farm point (~5 km grid, never the exact farm) for the buyer's
+  // "transport to you" on each produce (src/lib/farmArea.ts, 2026-11-05).
+  const farmArea = (await farmAreas([(farmer as { id: string }).id]))[(farmer as { id: string }).id] ?? null
 
   const { data: allProduce } = await supabase
     .from('produce_listings')
@@ -195,7 +200,7 @@ export default async function FarmerPage({ params }: { params: Promise<{ slug: s
       />
       <Suspense fallback={null}>
         <TabSection
-          farmer={farmer}
+          farmer={{ ...farmer, area: farmArea }}
           produce={produce ?? []}
           reviews={allReviews}
           produceReviews={produceReviewSummary}

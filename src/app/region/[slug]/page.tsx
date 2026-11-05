@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { farmAreas } from '@/lib/farmArea'
 import { retailRows } from '@/lib/wholesaleVisibility'
 import { FARMER_PUBLIC_COLUMNS } from '@/lib/farmerColumns'
 import { notFound } from 'next/navigation'
@@ -77,7 +78,11 @@ export default async function RegionPage({ params }: { params: Promise<{ slug: s
       followerCounts.set(row.farmer_id, (followerCounts.get(row.farmer_id) ?? 0) + 1)
     }
   }
+  // A rough farm point (~5 km grid, never the exact farm) for the buyer's
+  // "transport to you" on each card (src/lib/farmArea.ts, 2026-11-05).
+  const areas = await farmAreas(farmerIds as string[])
   const farmersWithFollowers = (farmers ?? []).map((f) => ({
+    area: areas[f.id as string] ?? null,
     ...f,
     follower_count: followerCounts.get(f.id) ?? 0,
   }))
