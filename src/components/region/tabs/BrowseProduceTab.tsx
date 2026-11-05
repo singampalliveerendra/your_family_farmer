@@ -66,12 +66,13 @@ export default function BrowseProduceTab({
 
   const handleAddToCart = (item: ProduceItem) => {
     const farmer = getFarmer(item.farmer_id)
-    if (!farmer?.phone) return
-    const farmerWithPhone = farmer as Farmer & { phone: string }
-    requireAuth(() => doAddToCart(item, farmerWithPhone))
+    // The farmer's phone is not public since the security fix (2026-11-04);
+    // a real seller is enough to add to the cart.
+    if (!farmer) return
+    requireAuth(() => doAddToCart(item, farmer))
   }
 
-  const doAddToCart = (item: ProduceItem, farmer: Farmer & { phone: string }) => {
+  const doAddToCart = (item: ProduceItem, farmer: Farmer) => {
     addItem({
       listingId: item.id,
       name: item.name,
@@ -87,7 +88,7 @@ export default function BrowseProduceTab({
       stockQty: item.stock_qty,
       farmerId: farmer.id,
       farmerName: farmer.name,
-      farmerPhone: farmer.phone,
+      farmerPhone: '',
       farmerVillage: farmer.village ?? '',
       farmerSlug: farmer.slug,
       farmerPickupLocations: farmer.pickup_locations,
@@ -129,7 +130,7 @@ export default function BrowseProduceTab({
             if (!farmer) return null
             const added = addedIds.has(item.id)
             const inCart = !!cart[item.id]
-            const canCart = !!item.price_tier_1_price && !!farmer.phone
+            const canCart = !!item.price_tier_1_price
 
             return (
               <div key={item.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">

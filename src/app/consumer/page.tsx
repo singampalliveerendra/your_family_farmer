@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, startTransition } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import GlobalNav from '@/components/consumer/GlobalNav'
 import { CartFab, useCart, EditableQty } from '@/components/consumer/Cart'
 import { canDeliver, normalizeDeliveryMode } from '@/lib/fulfillment'
@@ -25,7 +24,8 @@ import { harvestClock } from '@/lib/harvest'
 import { isSoldOutListing, splitFeed } from '@/lib/produceStatus'
 import { formatHarvestDate, nextHarvestDate } from '@/lib/harvestSchedule'
 import PreorderConfirm from '@/components/consumer/PreorderConfirm'
-import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
+import { normalizePickupSchedule } from '@/lib/pickup-slots'
+import ProduceTile, { METHOD_PILL, PRODUCE_BG, DEFAULT_PRODUCE_BG, PRODUCE_GRID_CLASS, ProduceSearchBox, ProduceChipRow, type TileChip } from '@/components/produce/ProduceTile'
 import { FEED_PAGE_SIZE, FEED_PREFETCH_MARGIN, nextVisibleCount, nextBatchCoverUrls } from '@/lib/feedPaging'
 
 const DEFAULT_REGION = 'tadepalligudem'
@@ -50,10 +50,10 @@ type Farmer = {
   name: string
   village: string
   slug: string
-  phone: string
+  /** Not in the public feed since the security fix (2026-11-04) — never relied on. */
+  phone?: string | null
   method: string
   pickup_locations?: string[] | null
-  pickup_location_phones?: unknown
   pickup_slots?: unknown
   lat?: number | null
   lng?: number | null
@@ -177,23 +177,8 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
 const CATEGORIES = (['all', 'vegetables', 'fruits', 'grains', 'leafy', 'spices', 'other'] as const)
   .map((key) => ({ key, ...CATEGORY_LABEL[key] }))
 
-// Solid pill colour for the method badge over the image (spec: natural=green,
-// organic=blue). White text sits on a solid colour so it reads over any photo.
-const METHOD_PILL: Record<string, string> = {
-  natural:      'bg-green-600 text-white',
-  organic:      'bg-blue-600 text-white',
-  low_chemical: 'bg-amber-500 text-white',
-  chemical:     'bg-red-500 text-white',
-}
-
-// Image-area background tint by produce type, used only for the emoji
-// fallback (no photo). Fruits=yellow, vegetables=pink, leafy greens=green.
-const PRODUCE_BG: Record<string, string> = {
-  '🍌': '#fff8e1', '🥭': '#fff8e1', '🍓': '#fff8e1', '🥥': '#fff8e1', '🍇': '#fff8e1', '🍋': '#fff8e1', // fruits
-  '🍅': '#fce4ec', '🍆': '#fce4ec', '🫑': '#fce4ec', '🥕': '#fce4ec', '🌽': '#fce4ec', '🧅': '#fce4ec', '🧄': '#fce4ec', // vegetables
-  '🥬': '#e8f5e9', '🥦': '#e8f5e9', '🌿': '#e8f5e9', '🫒': '#e8f5e9', // leafy greens
-}
-const DEFAULT_PRODUCE_BG = '#f5f5f5'
+// Method pill colours, emoji tints and the grid live in the shared tile
+// (src/components/produce/ProduceTile.tsx), also used by the bulk market.
 
 export default function ConsumerPage() {
   const { L } = useLang()
@@ -555,18 +540,7 @@ export default function ConsumerPage() {
           <UpcomingHarvestsTable />
         </div>
         <div className="bg-white rounded-2xl shadow-xl p-4 space-y-3">
-          <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35" strokeLinecap="round"/>
-            </svg>
-            <input
-              type="search"
-              placeholder={L('Search harvests...', 'కోతలు వెతకండి...')}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-base focus:border-green-500 focus:outline-none"
-            />
-          </div>
+          <ProduceSearchBox value={search} onChange={setSearch} placeholder={L('Search harvests...', 'కోతలు వెతకండి...')} />
           <select
             value={method}
             onChange={(e) => setMethod(e.target.value)}
@@ -606,21 +580,7 @@ export default function ConsumerPage() {
 
       {/* ── Category chips ───────────────────── */}
       <div className="max-w-3xl mx-auto mt-4 px-4">
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-          {CATEGORIES.map((chip) => (
-            <button
-              key={chip.key}
-              onClick={() => setCategory(chip.key)}
-              className={`flex-shrink-0 px-4 py-2.5 rounded-full text-sm font-semibold border transition-all ${
-                category === chip.key
-                  ? 'bg-green-700 text-white border-green-700'
-                  : 'bg-white text-gray-700 border-gray-200'
-              }`}
-            >
-              {L(chip.en, chip.te)}
-            </button>
-          ))}
-        </div>
+        <ProduceChipRow chips={CATEGORIES.map((chip) => ({ key: chip.key, label: L(chip.en, chip.te), on: category === chip.key, onClick: () => setCategory(chip.key) }))} />
       </div>
 
       {/* ── Distance filter chips (only when location set) ── */}
@@ -672,7 +632,7 @@ export default function ConsumerPage() {
             <EmptyState />
           )
         ) : (
-          <div className="grid grid-cols-2 gap-2 auto-rows-fr">
+          <div className={PRODUCE_GRID_CLASS}>
             {displayItems.slice(0, visibleCount).map((card, i) => (
               <ProduceCard
                 key={card.key}
@@ -703,7 +663,7 @@ export default function ConsumerPage() {
               {L('Reserve early', 'ముందుగానే రిజర్వ్')}
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-2 auto-rows-fr">
+          <div className={PRODUCE_GRID_CLASS}>
             {comingSoon.map((item) => (
               <ComingSoonCard key={item.id} item={item} />
             ))}
@@ -745,7 +705,6 @@ export default function ConsumerPage() {
 // claim kilos that are gone.
 function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, priority }: { item: ProduceListing; harvest?: GridHarvest; soldOut?: boolean; distanceKm?: number | null; distanceApprox?: boolean; priority?: boolean }) {
   const emoji       = item.emoji ?? '🌿'
-  const produceBg   = PRODUCE_BG[emoji] ?? DEFAULT_PRODUCE_BG
   const method      = item.method?.toLowerCase() ?? 'natural'
   const methodPill  = METHOD_PILL[method]  ?? 'bg-green-600 text-white'
   const methodShort = METHOD_SHORT[method] ?? METHOD_SHORT.natural
@@ -780,7 +739,10 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, prior
   const { requireAuth } = useConsumerAuth()
   const inCart = cart[cartKey]
 
-  const canAdd = !!farmer && !!farmer.phone
+  // A real seller is enough to buy from. The farmer's phone is not public
+  // since the security fix (2026-11-04), so it can't be the test — it was, and
+  // every card fell back to "View" (fixed 2026-11-05).
+  const canAdd = !!farmer
 
   const [liveStock, setLiveStock] = useState<number | null>(baseStock)
   const [stockMsg, setStockMsg]   = useState('')
@@ -792,13 +754,6 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, prior
   // gallery on the card. activeImg tracks which slide is centred, for the dots.
   const gallery = (item.image_urls && item.image_urls.length ? item.image_urls : (item.image_url ? [item.image_url] : []))
     .filter(Boolean) as string[]
-  const [activeImg, setActiveImg] = useState(0)
-  const galleryRef = useRef<HTMLDivElement>(null)
-  const onGalleryScroll = () => {
-    const el = galleryRef.current
-    if (!el) return
-    setActiveImg(Math.round(el.scrollLeft / el.clientWidth))
-  }
   const [showReviews, setShowReviews] = useState(false)
 
   useEffect(() => { setLiveStock(baseStock) }, [baseStock])
@@ -900,12 +855,11 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, prior
       priceTier3Price: item.price_tier_3_price,
       farmerId: farmer.id,
       farmerName: farmer.name,
-      farmerPhone: farmer.phone,
+      farmerPhone: '',
       farmerVillage: farmer.village,
       farmerSlug: farmer.slug,
       farmerPickupLocations: farmer.pickup_locations ?? [],
       farmerPickupSlots: normalizePickupSchedule(farmer.pickup_slots, farmer.pickup_locations ?? []),
-      farmerPickupPhones: normalizePickupPhones(farmer.pickup_location_phones, farmer.pickup_locations ?? []),
     })
   }
 
@@ -918,259 +872,135 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, prior
     setQty(cartKey, stepUp(inCart.qty, saleStep, stockCap))
   }
 
+  const chips: TileChip[] = []
+  if (clockAt) chips.push({ key: 'clock', icon: '⏱', text: harvestClock(clockAt, L), tone: 'green' })
+  if (isAggregator) chips.push({ key: 'agg', icon: '🤝', text: L('Aggregator', 'సమీకరణదారు'), tone: 'amber' })
+  // Told up front, so it isn't a surprise in the cart.
+  if (pickupOnly) chips.push({ key: 'pickup', icon: '🚶', text: L('Pickup only', 'పికప్ మాత్రమే'), tone: 'gray' })
+
   return (
-    <div className="bg-white rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.08)] flex flex-col h-full">
-      {/* Image — fixed 160px. Multiple photos become a swipe gallery (swipe
-          right-to-left for the rest); method pill top-right, dots bottom-centre.
-          Out of stock no longer dims the tile or stamps SOLD OUT across it: the
-          produce is still buyable as a pre-order against the farmer's next pick,
-          and a grey photo under a live "+ Add" button would contradict itself.
-          The stock badge below carries the news instead. */}
-      <div className="relative h-40 w-full flex-shrink-0">
-        {gallery.length ? (
-          <div
-            ref={galleryRef}
-            onScroll={onGalleryScroll}
-            className="flex h-full w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide"
-          >
-            {gallery.map((url, gi) => (
-              <Link
-                key={url}
-                href={produceHref}
-                className="relative snap-center shrink-0 w-full h-40 block"
-              >
-                {/* The first row's covers load eagerly (above the fold); every
-                    other photo stays lazy. */}
-                <Image src={url} alt={localizeName(item.name, lang)} fill sizes="(max-width: 640px) 100vw, 400px" className="object-cover" priority={priority && gi === 0} />
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <Link
-            href={produceHref}
-            className="w-full h-full flex items-center justify-center"
-            style={{ backgroundColor: produceBg }}
-          >
-            <span className="text-5xl">{emoji}</span>
-          </Link>
-        )}
-        <span
-          className={`absolute top-2 right-2 ${methodPill} text-[10px] font-bold rounded-full px-1.5 py-0.5 shadow-sm`}
-        >
-          {L(methodShort.en, methodShort.te)}
-        </span>
-        <div className="absolute top-2 left-2">
-          <ShareButton
-            info={{
-              id: item.id,
-              name: item.name,
-              variety: item.variety,
-              emoji: item.emoji,
-              method: item.method,
-              pricePerUnit: item.price_tier_1_price,
-              unit,
-              farmerName: farmer?.name,
-              farmerVillage: farmer?.village,
-              imageUrl: coverImageUrl(item),
-            }}
-          />
-        </div>
-        {gallery.length > 1 && (
-          <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 pointer-events-none">
-            {gallery.map((_, i) => (
-              <span
-                key={i}
-                className={`h-1.5 rounded-full transition-all ${
-                  i === activeImg ? 'w-4 bg-white' : 'w-1.5 bg-white/60'
-                }`}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="p-3 flex flex-col flex-1 min-w-0">
-        {/* Name + variety — single line each, ellipsis on overflow */}
-        <Link href={produceHref} className="block min-w-0">
-          <h3 className="font-bold text-[15px] leading-[1.2] text-gray-900 truncate">
-            {localizeName(item.name, lang)}
-          </h3>
-          {item.variety && (
-            <p className="text-[12px] text-[#666] truncate mt-0.5">{localizeName(item.variety, lang)}</p>
-          )}
-          {/* The grower, on its own line directly under the crop name. Three
-              aggregator tiles of the same crop are three different farmers'
-              produce, and without this they read as duplicate tiles. Kept off
-              the <h3> itself because "Tomatoes — from Ramesh, Kovvur" truncates
-              to "Tomatoes — from…" in a 390px grid column, which loses exactly
-              the part that distinguishes them. */}
-          {isAggregator && sourceName && (
-            <p className="text-[12px] font-semibold text-green-800 truncate mt-0.5">
-              {L('from', 'నుండి')} {sourceName}{sourceVillage ? `, ${sourceVillage}` : ''}
+    <ProduceTile
+      href={produceHref}
+      name={localizeName(item.name, lang)}
+      variety={item.variety ? localizeName(item.variety, lang) : null}
+      // The grower, on its own line directly under the crop name: three
+      // aggregator tiles of the same crop are three different farmers' produce.
+      growerLine={isAggregator && sourceName ? `${L('from', 'నుండి')} ${sourceName}${sourceVillage ? `, ${sourceVillage}` : ''}` : null}
+      images={gallery}
+      emoji={emoji}
+      method={{ className: methodPill, label: L(methodShort.en, methodShort.te) }}
+      priority={priority}
+      topLeft={
+        <ShareButton
+          info={{
+            id: item.id,
+            name: item.name,
+            variety: item.variety,
+            emoji: item.emoji,
+            method: item.method,
+            pricePerUnit: item.price_tier_1_price,
+            unit,
+            farmerName: farmer?.name,
+            farmerVillage: farmer?.village,
+            imageUrl: coverImageUrl(item),
+          }}
+        />
+      }
+      // Harvest clock only — the freshness countdown is gone from every
+      // consumer surface (it read as an expiry warning on good produce).
+      chips={chips}
+      seller={farmer ? { icon: isAggregator ? '🤝' : '👨‍🌾', text: `${farmer.name} · ${farmer.village}`, href: farmerHref, linkText: tx.viewProfile } : null}
+      meta={
+        <>
+          {/* Distance (only when location set) */}
+          {distanceKm != null && (
+            <p className="text-[11px] font-semibold text-blue-700 truncate mt-0.5">
+              📍 {distanceApprox ? '~' : ''}{formatDistance(distanceKm, L)} {L('away', 'దూరంలో')}
             </p>
           )}
-        </Link>
-
-        {/* Harvest clock — "Harvested 2 hours ago", from THIS harvest (or the
-            produce's latest as a fallback). Only shows once a harvest date exists.
-
-            Just the clock: the "51 days fresh left" / "Past best" countdown that
-            used to sit beside it is gone from every consumer surface. It read as
-            an expiry warning on produce that was perfectly good, and "Past best"
-            on a long-shelf-life crop actively put buyers off. Shelf life still
-            decides which harvests the Fresh shelf shows, and the farmer still
-            sees the countdown in HarvestManager. */}
-        {(clockAt || isAggregator || pickupOnly) && (
-          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            {clockAt && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-green-700 bg-green-50 rounded-full px-2 py-0.5">
-                ⏱ {harvestClock(clockAt, L)}
-              </span>
-            )}
-            {isAggregator && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 rounded-full px-2 py-0.5">
-                🤝 {L('Aggregator', 'సమీకరణదారు')}
-              </span>
-            )}
-            {/* Told up front, so it isn't a surprise in the cart. */}
-            {pickupOnly && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-gray-700 bg-gray-100 rounded-full px-2 py-0.5">
-                🚶 {L('Pickup only', 'పికప్ మాత్రమే')}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Farmer + location, with a small tappable "View profile" link */}
-        {farmer && (
-          <div className="flex items-center justify-between gap-1.5 mt-1">
-            <p className="text-[11px] text-[#666] truncate min-w-0">
-              {isAggregator ? '🤝' : '👨‍🌾'} {farmer.name} · {farmer.village}
-            </p>
-            <Link
-              href={farmerHref}
-              className="flex-shrink-0 text-[11px] font-semibold text-[#1a5c2a] whitespace-nowrap active:opacity-70"
-            >
-              {tx.viewProfile} ›
-            </Link>
-          </div>
-        )}
-
-        {/* Distance (only when location set) */}
-        {distanceKm != null && (
-          <p className="text-[11px] font-semibold text-blue-700 truncate mt-0.5">
-            📍 {distanceApprox ? '~' : ''}{formatDistance(distanceKm, L)} {L('away', 'దూరంలో')}
-          </p>
-        )}
-
-        {/* Buyer rating — tap to read reviews. Only when at least one exists. */}
-        {(item.review_count ?? 0) > 0 && item.rating_avg != null && (
-          <button
-            type="button"
-            onClick={() => setShowReviews(true)}
-            className="flex items-center gap-1 mt-1 active:opacity-70"
-          >
-            <span className="inline-flex items-center gap-0.5 bg-green-700 text-white text-[11px] font-bold rounded px-1.5 py-0.5">
-              {item.rating_avg.toFixed(1)} ★
-            </span>
-            <span className="text-[11px] text-[#666] underline">
-              {item.review_count} {item.review_count === 1 ? L('review', 'సమీక్ష') : L('reviews', 'సమీక్షలు')}
-            </span>
-          </button>
-        )}
-
-        {/* Price */}
-        <div className="mt-1.5">
-          <span className="font-extrabold text-[18px] text-[#1a5c2a]">
-            {item.price_tier_1_price ? `₹${item.price_tier_1_price}` : '—'}
-            <span className="text-[12px] font-medium text-[#666]">/{localizeUnit(unit, lang)}</span>
-          </span>
-        </div>
-
-        {/* Stock badge. With nothing left it names the next harvest instead of
-            declaring the produce dead — amber (waiting), never red (gone). */}
-        {(liveStock != null || isOutOfStock) && (
-          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-            <span
-              className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${
-                isOutOfStock ? 'bg-amber-50 text-amber-800' : 'bg-[#f5f5f5] text-[#666]'
-              }`}
-            >
-              {isOutOfStock
-                ? (nextHarvestLabel
-                    ? L(`Next harvest ~${nextHarvestLabel}`, `తదుపరి కోత ~${nextHarvestLabel}`)
-                    : L('Next harvest soon', 'తదుపరి కోత త్వరలో'))
-                : `${formatQty(liveStock)} ${localizeUnit(unit, lang)} ${L('left', 'మిగిలింది')}`}
-            </span>
-          </div>
-        )}
-
-        {/* Stock warning */}
-        {stockMsg && (
-          <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 leading-snug text-center mt-1.5">
-            {stockMsg}
-          </p>
-        )}
-
-        {/* CTA — pinned to bottom of card, fixed 40px height */}
-        <div className="mt-auto pt-2.5">
-          {!canAdd ? (
-            <Link
-              href={farmerHref}
-              className="flex items-center justify-center w-full h-10 bg-[#1a5c2a] text-white font-bold rounded-xl text-sm"
-            >
-              {L('View', 'చూడండి')}
-            </Link>
-          ) : !inCart ? (
+          {/* Buyer rating — tap to read reviews. Only when at least one exists. */}
+          {(item.review_count ?? 0) > 0 && item.rating_avg != null && (
             <button
-              onClick={handleAdd}
-              disabled={adding}
-              className={`w-full h-10 active:opacity-90 text-white font-bold rounded-xl text-sm disabled:opacity-60 whitespace-nowrap ${
-                isOutOfStock ? 'bg-amber-700' : 'bg-[#1a5c2a]'
-              }`}
+              type="button"
+              onClick={() => setShowReviews(true)}
+              className="flex items-center gap-1 mt-1 active:opacity-70"
             >
-              {adding
-                ? L('Checking...', 'తనిఖీ')
-                : isOutOfStock
-                  ? L('Pre-order', 'ముందస్తు ఆర్డర్')
-                  : L('+ Add', 'చేర్చు')}
+              <span className="inline-flex items-center gap-0.5 bg-green-700 text-white text-[11px] font-bold rounded px-1.5 py-0.5">
+                {item.rating_avg.toFixed(1)} ★
+              </span>
+              <span className="text-[11px] text-[#666] underline">
+                {item.review_count} {item.review_count === 1 ? L('review', 'సమీక్ష') : L('reviews', 'సమీక్షలు')}
+              </span>
             </button>
-          ) : (
-            <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl h-10 px-2">
-              <button
-                onClick={() => { setQty(cartKey, stepDown(inCart.qty, saleStep)); setStockMsg('') }}
-                className="w-7 h-7 rounded-lg bg-white border border-green-300 text-green-800 text-lg font-bold leading-none"
-                aria-label={L('Decrease', 'తగ్గించు')}
-              >
-                −
-              </button>
-              <EditableQty
-                qty={inCart.qty}
-                unit={localizeUnit(unit, lang)}
-                max={stockCap}
-                step={saleStep}
-                onChange={(n) => { setQty(cartKey, n); setStockMsg('') }}
-                inputClassName="font-extrabold text-green-900 text-sm"
-                unitClassName="font-extrabold text-green-900 text-sm"
-              />
-              <button
-                onClick={handleInc}
-                disabled={atMax}
-                className={`w-7 h-7 rounded-lg text-lg font-bold leading-none transition-colors ${
-                  atMax
-                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                    : 'bg-green-700 text-white'
-                }`}
-                aria-label={L('Increase', 'పెంచు')}
-              >
-                +
-              </button>
-            </div>
           )}
+        </>
+      }
+      price={{ main: item.price_tier_1_price ? `₹${item.price_tier_1_price}` : '—', unit: localizeUnit(unit, lang) }}
+      // With nothing left it names the next harvest instead of declaring the
+      // produce dead — amber (waiting), never red (gone).
+      badge={(liveStock != null || isOutOfStock) ? {
+        tone: isOutOfStock ? 'amber' : 'gray',
+        text: isOutOfStock
+          ? (nextHarvestLabel
+              ? L(`Next harvest ~${nextHarvestLabel}`, `తదుపరి కోత ~${nextHarvestLabel}`)
+              : L('Next harvest soon', 'తదుపరి కోత త్వరలో'))
+          : `${formatQty(liveStock)} ${localizeUnit(unit, lang)} ${L('left', 'మిగిలింది')}`,
+      } : null}
+      message={stockMsg || null}
+      cta={!canAdd ? (
+        <Link
+          href={farmerHref}
+          className="flex items-center justify-center w-full h-10 bg-[#1a5c2a] text-white font-bold rounded-xl text-sm"
+        >
+          {L('View', 'చూడండి')}
+        </Link>
+      ) : !inCart ? (
+        <button
+          onClick={handleAdd}
+          disabled={adding}
+          className={`w-full h-10 active:opacity-90 text-white font-bold rounded-xl text-sm disabled:opacity-60 whitespace-nowrap ${
+            isOutOfStock ? 'bg-amber-700' : 'bg-[#1a5c2a]'
+          }`}
+        >
+          {adding
+            ? L('Checking...', 'తనిఖీ')
+            : isOutOfStock
+              ? L('Pre-order', 'ముందస్తు ఆర్డర్')
+              : L('+ Add', 'చేర్చు')}
+        </button>
+      ) : (
+        <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl h-10 px-2">
+          <button
+            onClick={() => { setQty(cartKey, stepDown(inCart.qty, saleStep)); setStockMsg('') }}
+            className="w-7 h-7 rounded-lg bg-white border border-green-300 text-green-800 text-lg font-bold leading-none"
+            aria-label={L('Decrease', 'తగ్గించు')}
+          >
+            −
+          </button>
+          <EditableQty
+            qty={inCart.qty}
+            unit={localizeUnit(unit, lang)}
+            max={stockCap}
+            step={saleStep}
+            onChange={(n) => { setQty(cartKey, n); setStockMsg('') }}
+            inputClassName="font-extrabold text-green-900 text-sm"
+            unitClassName="font-extrabold text-green-900 text-sm"
+          />
+          <button
+            onClick={handleInc}
+            disabled={atMax}
+            className={`w-7 h-7 rounded-lg text-lg font-bold leading-none transition-colors ${
+              atMax
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-green-700 text-white'
+            }`}
+            aria-label={L('Increase', 'పెంచు')}
+          >
+            +
+          </button>
         </div>
-      </div>
-
+      )}
+    >
       {showReviews && (
         <ProduceReviewsModal
           listingId={item.id}
@@ -1187,7 +1017,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, prior
           onCancel={() => setAskPreorder(false)}
         />
       )}
-    </div>
+    </ProduceTile>
   )
 }
 
@@ -1244,7 +1074,7 @@ function ComingSoonCard({ item }: { item: ProduceListing }) {
 /* ─── Loading skeleton ──────────────────────────────────── */
 function LoadingSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-2 auto-rows-fr">
+    <div className={PRODUCE_GRID_CLASS}>
       {[1, 2, 3, 4].map((i) => (
         <div key={i} className="bg-white rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.08)] animate-pulse">
           <div className="h-40 bg-gray-100" />
