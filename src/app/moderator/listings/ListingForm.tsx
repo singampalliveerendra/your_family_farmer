@@ -177,7 +177,6 @@ export default function ListingForm({
   // the browser tab while the camera app is open, and the form came back empty.
   // Same helper as the farmer form (src/lib/formDraft.ts). Cleared on save.
   const draftK = draftKey('moderator-produce', zone || 'zone', mode === 'edit' ? listingId ?? null : null)
-  const [restored, setRestored] = useState(false)
   useEffect(() => {
     const d = readDraft<{ farmerId?: string; emoji?: string; form?: ListingFormValues; wholesale?: WholesaleForm; reach?: ReachForm; photos?: PhotoItem[] }>(draftK)
     if (!d) return
@@ -187,7 +186,6 @@ export default function ListingForm({
     if (d.wholesale && typeof d.wholesale === 'object') setWholesale((w) => ({ ...w, ...d.wholesale }))
     if (d.reach && typeof d.reach === 'object') setReach(d.reach)
     if (Array.isArray(d.photos) && d.photos.length) setPhotos(d.photos)
-    setRestored(true)
     // Once, when the form opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -338,11 +336,6 @@ export default function ListingForm({
 
   return (
     <form onSubmit={submit} className="bg-white rounded-2xl border border-gray-100 p-5 max-w-2xl space-y-4">
-      {restored && (
-        <p role="status" className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-800">
-          We kept what you had typed — the page had reloaded. Check it and carry on.
-        </p>
-      )}
       <Field label="Farmer *">
         {mode === 'edit' ? (
           <input value={fixedFarmerName ?? '—'} disabled className={`${inputCls} bg-gray-50 text-gray-500`} />

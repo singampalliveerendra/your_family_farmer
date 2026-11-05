@@ -2379,7 +2379,6 @@ function ProduceListingForm({
   // itself on the phone as it is filled in (src/lib/formDraft.ts) and is
   // restored, filled in, when it opens again. Cleared on save or on purpose.
   const draftK = draftKey('produce', farmerId, editData?.id ?? null)
-  const [restored, setRestored] = useState(false)
   const draftNow = {
     name, variety, emoji, qty, availFrom, availTo, harvestFreq, harvestFreqCount, shelfLifeDays, farmingMethod,
     price1, price1Qty, price2, price2Qty, price3, description, brix, soc, soilPh, pesticide, howWeGrow, videoUrl,
@@ -2403,7 +2402,6 @@ function ProduceListingForm({
     if (d.wholesale && typeof d.wholesale === 'object') setWholesale((w) => ({ ...w, ...(d.wholesale as WholesaleForm) }))
     if (d.reach && typeof d.reach === 'object') setReach(d.reach as ReachForm)
     if (Array.isArray(d.photos) && d.photos.length) setPhotos((cur) => (cur.some((p) => p.file) ? cur : (d.photos as PhotoItem[])))
-    setRestored(true)
     // Once, when the form opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -2786,11 +2784,6 @@ function ProduceListingForm({
       </div>
 
       <div className="p-4 space-y-5">
-        {restored && (
-          <p role="status" className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-800">
-            {L('We kept what you had typed — the page had reloaded. Check it and carry on.', 'మీరు నింపినది భద్రంగా ఉంది — పేజీ మళ్లీ తెరుచుకుంది. చూసి కొనసాగించండి.')}
-          </p>
-        )}
         {/* Emoji picker */}
         <div>
           <p className="text-xs font-semibold text-gray-600 mb-2">{tx.pickIcon}</p>

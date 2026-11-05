@@ -60,7 +60,8 @@ describe('the forms use it', () => {
     expect(s).toMatch(/readDraft</)
     expect(s).toMatch(/writeDraft\(draftK/)
     expect(s).toMatch(/clearDraft\(draftK\)/)
-    expect(s).toMatch(/We kept what you had typed/)
+    // Restored quietly — no notice (client, 2026-11-05: it showed on every edit).
+    expect(s).not.toMatch(/We kept what you had typed/)
     expect(s).toMatch(/<PhotoPicker[\s\S]{0,200}upload=\{\(f\) => uploadFarmImage\(f, 'produce'/)
   })
   it('the dashboard reopens a half-filled new produce after a reload', () => {
