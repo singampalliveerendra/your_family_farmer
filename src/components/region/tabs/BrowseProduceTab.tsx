@@ -1,5 +1,8 @@
 'use client'
 
+import { reachFor } from '@/lib/retailReach'
+import { useSavedBuyer } from '@/lib/savedBuyer'
+import { farmerCoords } from '@/lib/location'
 import { useState } from 'react'
 import Link from 'next/link'
 import { useLang } from '@/lib/LanguageContext'
@@ -25,6 +28,10 @@ type ProduceItem = {
   method?: string
   delivery_mode?: string | null
   delivery_charge?: number | null
+  // Local only / Transportable across AP & TG (2026-11-05).
+  retail_reach?: string | null
+  retail_transport_rates?: unknown
+  delivery_radius_km?: number | null
 }
 
 type Farmer = {
@@ -36,6 +43,8 @@ type Farmer = {
   pickup_locations?: string[]
   pickup_slots?: unknown
   rating_avg?: number
+  /** Rough farm point from the server (~5 km grid; never the exact farm). */
+  area?: { lat: number; lng: number } | null
 }
 
 export default function BrowseProduceTab({
@@ -48,6 +57,10 @@ export default function BrowseProduceTab({
   const { tx, lang, L } = useLang()
   const { addItem, cart } = useCart()
   const { requireAuth } = useConsumerAuth()
+  // The buyer's saved location → transportable produce shows its charge and
+  // goes into the cart by the farmer's courier (same rule as the home grid).
+  const buyer = useSavedBuyer()
+  const reachOf = (item: ProduceItem, farmer: Farmer) => reachFor(item, farmer.area ?? farmerCoords(farmer), buyer)
   const [search, setSearch] = useState('')
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
 
@@ -93,6 +106,10 @@ export default function BrowseProduceTab({
       farmerSlug: farmer.slug,
       farmerPickupLocations: farmer.pickup_locations,
       farmerPickupSlots: normalizePickupSchedule(farmer.pickup_slots, farmer.pickup_locations ?? []),
+      ...(() => {
+        const r = reachOf(item, farmer)
+        return r.kind === 'transport' && buyer?.state ? { transportCharge: r.charge, transportState: buyer.state } : {}
+      })(),
     })
 
     setAddedIds((prev) => new Set(prev).add(item.id))
@@ -170,6 +187,20 @@ export default function BrowseProduceTab({
                       </span>
                     )}
                   </div>
+                  {(() => {
+                    const r = reachOf(item, farmer)
+                    if (r.kind === 'transport') {
+                      return (
+                        <p className="mt-1.5 inline-flex rounded-full bg-[#e5ecf3] px-1.5 py-0.5 text-[10px] font-bold text-[#27486a]">
+                          🚚 {r.charge > 0 ? L(`₹${r.charge} transport to you`, `మీకు రవాణా ₹${r.charge}`) : L('Free transport to you', 'మీకు రవాణా ఉచితం')}
+                        </p>
+                      )
+                    }
+                    if (r.kind === 'out_of_range') {
+                      return <p className="mt-1.5 text-[10px] font-semibold text-gray-500">📍 {L('Pickup only for you', 'మీకు పికప్ మాత్రమే')}</p>
+                    }
+                    return null
+                  })()}
                   {item.stock_qty !== undefined && item.stock_qty > 0 && (
                     <p className="text-[10px] text-gray-400 mt-1">
                       {item.stock_qty} {item.unit ?? 'kg'} left

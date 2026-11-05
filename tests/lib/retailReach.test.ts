@@ -111,3 +111,19 @@ describe('privacy and wiring', () => {
     expect(src('src/components/consumer/Cart.tsx')).toMatch(/deliveryType: isTransported\(it\) \? 'courier'/)
   })
 })
+
+describe('region page and farmer profile (2026-11-05)', () => {
+  const src = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
+  it('the server pages attach the rough farm point, never lat / lng', () => {
+    expect(src('src/app/region/[slug]/page.tsx')).toMatch(/area: areas\[f\.id as string\] \?\? null/)
+    expect(src('src/app/farmer/[slug]/page.tsx')).toMatch(/area: farmArea/)
+  })
+  it.each(['src/components/region/tabs/BrowseProduceTab.tsx', 'src/components/farmer/tabs/ProduceTab.tsx'])('%s shows the charge and puts it in the cart', (p) => {
+    const s = src(p)
+    expect(s).toMatch(/useSavedBuyer\(\)/)
+    expect(s).toMatch(/reachFor\(/)
+    expect(s).toMatch(/transportCharge: r\.charge, transportState: buyer\.state/)
+    expect(s).toMatch(/transport to you/)
+    expect(s).toMatch(/Pickup only for you/)
+  })
+})
