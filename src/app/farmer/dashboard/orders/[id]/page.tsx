@@ -2,6 +2,8 @@
 
 import WholesaleOrderBadge from '@/components/WholesaleOrderBadge'
 import { useCallback, useEffect, useState } from 'react'
+import TransportBillCard from '@/components/orders/TransportBillCard'
+import type { BillView } from '@/lib/transportBill'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
@@ -298,6 +300,16 @@ export default function FarmerOrderDetailPage() {
           </div>
         ) : (
           <>
+            {/* Transport bill (per km / cargo bill bulk orders, 2026-11-05):
+                after shipping, the seller sends it here; the buyer pays them
+                directly. Renders nothing for any other order. */}
+            <TransportBillCard
+              orderId={order.id}
+              bill={(order as { transport_bill?: BillView }).transport_bill}
+              role="seller"
+              canSend={order.status === 'approved' && !!order.shipped_at}
+              onChanged={() => void reload()}
+            />
             {/* Summary */}
             <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
               <div className="flex items-start justify-between gap-2">

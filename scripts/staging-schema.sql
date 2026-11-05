@@ -1120,3 +1120,32 @@ END $$;
 
 -- farm-images storage: see scripts/storage-buckets-all.sql (no public write
 -- or list policy; 8 MB; photos only).
+
+
+-- ============================================================================
+-- Transport billed after delivery: per km + cargo bill
+-- (scripts/transport-bill-migration.sql, 2026-11-05). orders stays server-only.
+-- The cargo-bills bucket is in scripts/storage-buckets-all.sql (private).
+-- ============================================================================
+
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS transport_mode text,
+  ADD COLUMN IF NOT EXISTS transport_rate numeric(12,2),
+  ADD COLUMN IF NOT EXISTS transport_km numeric(10,2),
+  ADD COLUMN IF NOT EXISTS transport_bill_amount numeric(12,2),
+  ADD COLUMN IF NOT EXISTS transport_bill_path text,
+  ADD COLUMN IF NOT EXISTS transport_billed_at timestamptz,
+  ADD COLUMN IF NOT EXISTS transport_paid_at timestamptz;
+
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_transport_mode_check;
+ALTER TABLE public.orders ADD CONSTRAINT orders_transport_mode_check
+  CHECK (transport_mode IS NULL OR transport_mode IN ('per_km', 'cargo_bill'));
+
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_transport_bill_check;
+ALTER TABLE public.orders ADD CONSTRAINT orders_transport_bill_check CHECK (
+  (transport_rate IS NULL OR transport_rate > 0)
+  AND (transport_km IS NULL OR (transport_km > 0 AND transport_km <= 5000))
+  AND (transport_bill_amount IS NULL OR (transport_bill_amount >= 0 AND transport_bill_amount <= 9999999.99))
+  AND (transport_paid_at IS NULL OR transport_billed_at IS NOT NULL)
+);
+

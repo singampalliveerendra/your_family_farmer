@@ -180,6 +180,17 @@ SELECT * FROM (
     CASE WHEN NOT EXISTS (SELECT 1 FROM pg_policy
       WHERE polrelid = 'storage.objects'::regclass AND polname = 'farm-images public upload')
       THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  -- transport-bill-migration.sql. Without it per-km / cargo-bill lots cannot
+  -- be ordered (checkout answers "not switched on yet").
+  SELECT 29, 'transport-bill', 'orders.transport_mode',
+    CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_name='orders' AND column_name='transport_mode')
+      THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  SELECT 30, 'transport-bill', 'cargo-bills bucket (private)',
+    CASE WHEN EXISTS (SELECT 1 FROM storage.buckets WHERE id='cargo-bills' AND public = false)
+      THEN 'PRESENT' ELSE 'MISSING' END
 
 ) checks ORDER BY ord;
 

@@ -7,6 +7,9 @@ import Icon from '@/components/home/Icon'
 import { accessOf, type SubscriptionRow } from '@/lib/subscriptionPlans'
 import { standingOf, type Standing } from '@/lib/subscriptionLifecycle'
 import { planBadge } from '@/lib/planBadge'
+import { needsSubscribeNudge } from '@/lib/planHighlight'
+import SubscribeHighlight from '@/components/aggregator/SubscribeHighlight'
+import type { PlanRow } from '@/lib/subscriptionPlans'
 
 /* The aggregator dashboard's plan strip (Phase 4) and its two main actions —
  * the bulk market (Phase 5) and Sell bulk — plus the selling-lock notice
@@ -23,12 +26,13 @@ const fmt = (iso: string) =>
 export default function SubscriptionStatusCard({ onSellBulk }: { onSellBulk?: () => void }) {
   const { L } = useLang()
   const [subs, setSubs] = useState<SubscriptionRow[] | null>(null)
+  const [plans, setPlans] = useState<PlanRow[]>([])
 
   useEffect(() => {
     let cancelled = false
     fetch('/api/aggregator/subscription', { credentials: 'same-origin', cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (!cancelled && j?.configured) setSubs((j.subscriptions ?? []) as SubscriptionRow[]) })
+      .then((j) => { if (!cancelled && j?.configured) { setSubs((j.subscriptions ?? []) as SubscriptionRow[]); setPlans((j.plans ?? []) as PlanRow[]) } })
       .catch(() => {})
     return () => { cancelled = true }
   }, [])
@@ -43,6 +47,12 @@ export default function SubscriptionStatusCard({ onSellBulk }: { onSellBulk?: ()
 
   return (
     <div className="space-y-2.5">
+      {/* No plan, or one ending / ended: the big subscribe box comes first, so
+          it can't be missed (client, 2026-11-05). Live and free-forever plans
+          keep only the slim line below. */}
+      {needsSubscribeNudge(s.state) && (
+        <SubscribeHighlight plans={plans} where="dashboard" state={s.state as 'none' | 'expired' | 'ending'} href="/aggregator/subscription" />
+      )}
       <Link
         href="/aggregator/subscription"
         className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 shadow-sm ring-1 ring-black/10"

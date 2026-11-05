@@ -54,7 +54,7 @@ describe('checkBulkOrder', () => {
   it('pickup: goods only, 0% fee', () => {
     expect(checkBulkOrder(L(), 150, 'pickup', 0)).toEqual({
       ok: true, unitPrice: 30, qty: 150, goods: 4500, transport: 0, fee: 0, total: 4500, linePrice: 4500,
-      deliveryType: 'self_pickup', transportState: null,
+      deliveryType: 'self_pickup', transportState: null, transportMode: null, transportRate: null,
     })
   })
   it('delivery to AP per order; total_price includes transport (the seller’s)', () => {

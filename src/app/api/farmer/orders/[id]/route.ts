@@ -1,3 +1,4 @@
+import { attachTransportBill } from '@/lib/transportBillServer'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
@@ -52,6 +53,6 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   }
   if (!data) return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
 
-  const [order] = await attachTransport(supabase, await attachOrderType(supabase, await attachFarmerResolved(supabase, [data as unknown as { id: string }])))
+  const [order] = await attachTransportBill(supabase, await attachTransport(supabase, await attachOrderType(supabase, await attachFarmerResolved(supabase, [data as unknown as { id: string }]))))
   return NextResponse.json({ order })
 }

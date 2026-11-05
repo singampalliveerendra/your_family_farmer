@@ -1,3 +1,4 @@
+import { attachTransportBill } from '@/lib/transportBillServer'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAggregator, svc } from '@/lib/aggregator-auth'
 
@@ -23,7 +24,8 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: false })
     .limit(200)
   if (error) return NextResponse.json({ orders: [], configured: false })
-  const orders = (data ?? []) as Array<Record<string, unknown>>
+  // + the transport bill for per km / cargo bill lots (2026-11-05).
+  const orders = await attachTransportBill(supabase, (data ?? []) as Array<Record<string, unknown> & { id: string }>)
   const sellerIds = [...new Set(orders.map((o) => o.farmer_id as string))]
   const { data: sellers } = sellerIds.length
     ? await supabase.from('farmers').select('id, name, village, district, phone').in('id', sellerIds)

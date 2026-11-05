@@ -17,7 +17,7 @@
 
 import { computePlatformFee } from '@/lib/platform-fee'
 import { roundQty, unitAllowsFractions, formatQty } from '@/lib/saleStep'
-import { normalizeRates, normalizeStates, parseSaleMode, TRANSPORT_STATE_LABELS, type TransportRate, type TransportRates, type TransportState } from '@/lib/wholesale'
+import { isBilledAfterDelivery, normalizeRates, normalizeStates, parseSaleMode, TRANSPORT_STATE_LABELS, type TransportRate, type TransportRateMode, type TransportRates, type TransportState } from '@/lib/wholesale'
 import { wholesaleQtyRules } from '@/lib/wholesaleOrder'
 
 export type BulkListing = {
@@ -45,6 +45,9 @@ const num = (v: unknown): number | null => {
  * rupees. Free once the order reaches `free_above`.
  */
 export function transportCharge(rate: TransportRate, qty: number): number {
+  // Per km and cargo bill are billed after delivery and paid to the seller
+  // directly — nothing for transport goes into the online payment.
+  if (isBilledAfterDelivery(rate.mode)) return 0
   if (rate.free_above !== null && qty + 1e-9 >= rate.free_above) return 0
   const raw = rate.mode === 'per_unit' ? rate.amount * qty : rate.amount
   return Math.max(0, Math.round(raw))
@@ -66,6 +69,8 @@ export function deliveryOptions(l: BulkListing): Array<{ delivery: Delivery; rat
 
 /** "₹500 per order", "₹2/kg · free above 1000 kg", "Free delivery". */
 export function rateText(rate: TransportRate, unit: string, L: (en: string, te: string) => string): string {
+  if (rate.mode === 'per_km') return L(`₹${formatQty(rate.amount)} per km · billed after delivery`, `కి.మీ.కు ₹${formatQty(rate.amount)} · డెలివరీ తర్వాత బిల్లు`)
+  if (rate.mode === 'cargo_bill') return L('As per the actual cargo bill · after delivery', 'అసలు కార్గో బిల్లు ప్రకారం · డెలివరీ తర్వాత')
   const free = rate.free_above !== null
     ? L(` · free above ${formatQty(rate.free_above)} ${unit}`, ` · ${formatQty(rate.free_above)} ${unit} పైన ఉచితం`)
     : ''
@@ -90,6 +95,10 @@ export type BulkCheck =
       linePrice: number
       deliveryType: 'self_pickup' | 'courier'
       transportState: TransportState | null
+      /** How delivery is charged; per_km / cargo_bill = billed after delivery, paid to the seller. */
+      transportMode: TransportRateMode | null
+      /** ₹ per km for per_km, else null. */
+      transportRate: number | null
     }
   | { ok: false; error: string }
 
@@ -116,6 +125,8 @@ export function checkBulkOrder(l: BulkListing, qty: number, delivery: Delivery, 
 
   let transport = 0
   let transportState: TransportState | null = null
+  let transportMode: TransportRateMode | null = null
+  let transportRate: number | null = null
   if (delivery !== 'pickup') {
     const opt = deliveryOptions(l).find((o) => o.delivery === delivery)
     if (!opt?.rate) {
@@ -123,6 +134,8 @@ export function checkBulkOrder(l: BulkListing, qty: number, delivery: Delivery, 
     }
     transport = transportCharge(opt.rate, roundQty(qty))
     transportState = delivery
+    transportMode = opt.rate.mode
+    transportRate = opt.rate.mode === 'per_km' ? opt.rate.amount : null
   }
   const goods = Math.round(price * roundQty(qty))
   if (!(goods > 0)) return { ok: false, error: `Price not set for ${l.name}.` }
@@ -139,6 +152,8 @@ export function checkBulkOrder(l: BulkListing, qty: number, delivery: Delivery, 
     linePrice: goods + transport,
     deliveryType: delivery === 'pickup' ? 'self_pickup' : 'courier',
     transportState,
+    transportMode,
+    transportRate,
   }
 }
 

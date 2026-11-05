@@ -1,4 +1,5 @@
 import { randomInt } from 'crypto'
+import { isBilledAfterDelivery } from '@/lib/wholesale'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAggregator, svc } from '@/lib/aggregator-auth'
 import { cashfreeMode, createCashfreeOrder, makeCashfreeOrderId } from '@/lib/cashfree'
@@ -114,6 +115,10 @@ export async function POST(req: NextRequest) {
     platform_fee: check.fee,
     transport_charge: check.transport,
     transport_state: check.transportState,
+    // Per km / cargo bill: billed after delivery, paid to the seller directly
+    // (scripts/transport-bill-migration.sql). Sent only then, so per-order
+    // checkout works on a database without those columns.
+    ...(isBilledAfterDelivery(check.transportMode) ? { transport_mode: check.transportMode, transport_rate: check.transportRate } : {}),
     order_type: 'wholesale',
     buyer_aggregator_id: agg.id,
     consumer_id: null,
@@ -138,9 +143,9 @@ export async function POST(req: NextRequest) {
   if (insErr || !inserted) {
     console.error('[YFF bulk place] insert failed:', insErr?.message)
     await giveBack()
-    return bad(/transport_charge|buyer_aggregator_id|transport_state/.test(insErr?.message ?? '')
+    return bad(/transport_charge|buyer_aggregator_id|transport_state|transport_mode|transport_rate/.test(insErr?.message ?? '')
       ? 'Bulk ordering is not switched on yet. Please try again later.'
-      : 'Could not place the order. Please try again.', /transport_charge|buyer_aggregator_id|transport_state/.test(insErr?.message ?? '') ? 503 : 500)
+      : 'Could not place the order. Please try again.', /transport_charge|buyer_aggregator_id|transport_state|transport_mode|transport_rate/.test(insErr?.message ?? '') ? 503 : 500)
   }
   const order = inserted as { id: string; order_code?: string | null }
 
