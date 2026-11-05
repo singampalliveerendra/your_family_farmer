@@ -1,17 +1,17 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
 import { requireFarmerSession } from '@/lib/farmer-auth-client'
 import LanguageToggle from '@/components/LanguageToggle'
 import BackButton from '@/components/BackButton'
 import Icon from '@/components/home/Icon'
-import { LockedNote, Price, SLATE, SellerLine, quantityText, transportText } from '@/components/aggregator/MarketParts'
+import { LockedNote, SLATE, quantityText, transportText } from '@/components/aggregator/MarketParts'
+import ProduceTile, { METHOD_PILL, PRODUCE_GRID_CLASS, ProduceChipRow, ProduceSearchBox, type TileChip } from '@/components/produce/ProduceTile'
 import { filterMarket, type MarketFilter, type MarketItem } from '@/lib/bulkMarket'
 import { localizeName, localizeUnit } from '@/lib/localizeName'
-import { categoryLabel } from '@/lib/produceLabels'
+import { METHOD_SHORT, categoryLabel } from '@/lib/produceLabels'
 import { formatQty } from '@/lib/saleStep'
 import { harvestClock } from '@/lib/harvest'
 
@@ -19,7 +19,9 @@ import { harvestClock } from '@/lib/harvest'
  * Wholesale or Both by farmers and other aggregators; household buyers never
  * reach it (the API answers aggregators only). Without a Buying plan the list
  * is fully browsable but seller contacts are not in the data at all; a banner
- * explains what a plan unlocks. Ordering in the app is Phase 6. */
+ * explains what a plan unlocks. Ordering happens on the lot page (Phase 6).
+ * Since 2026-11-05 the list is the consumer home's grid — same tile, search
+ * box and chip row (src/components/produce/ProduceTile.tsx). */
 
 type Access = { buying: boolean; standing: string }
 
@@ -43,8 +45,6 @@ export default function BulkMarketPage() {
 
   const categories = useMemo(() => [...new Set((items ?? []).map((i) => i.category).filter(Boolean))] as string[], [items])
   const shown = items ? filterMarket(items, f) : []
-  const chip = (on: boolean) =>
-    `shrink-0 min-h-[38px] rounded-full border px-3 text-xs font-bold ${on ? 'border-transparent text-white' : 'border-black/15 bg-white text-black/70'}`
 
   if (denied) {
     return (
@@ -58,9 +58,30 @@ export default function BulkMarketPage() {
     )
   }
 
+  const chips = [
+    ...(['all', 'farmer', 'aggregator'] as const).map((k) => ({
+      key: `seller-${k}`,
+      label: k === 'all' ? L('All sellers', 'అందరూ') : k === 'farmer' ? L('Farmers', 'రైతులు') : L('Aggregators', 'అగ్రిగేటర్లు'),
+      on: f.seller === k,
+      onClick: () => setF((x) => ({ ...x, seller: k })),
+    })),
+    ...(['AP', 'TG'] as const).map((st) => ({
+      key: `state-${st}`,
+      label: L(`Delivers in ${st}`, `${st}లో డెలివరీ`),
+      on: f.delivers === st,
+      onClick: () => setF((x) => ({ ...x, delivers: x.delivers === st ? null : st })),
+    })),
+    ...categories.map((c) => ({
+      key: `cat-${c}`,
+      label: categoryLabel(c, lang) ?? c,
+      on: f.category === c,
+      onClick: () => setF((x) => ({ ...x, category: x.category === c ? null : c })),
+    })),
+  ]
+
   return (
-    <main className="min-h-screen bg-[#f7f4ec] pb-28 text-[#1d2a20]">
-      <header className="px-4 pb-6 pt-4 text-white" style={{ background: SLATE }}>
+    <main className="min-h-screen bg-gray-50 pb-28 text-[#1d2a20]">
+      <header className="px-4 pb-12 pt-4 text-white" style={{ background: SLATE }}>
         <div className="mx-auto flex max-w-3xl items-center justify-between">
           <BackButton fallback="/aggregator/dashboard" className="!text-white/80" />
           <LanguageToggle size="sm" />
@@ -74,41 +95,26 @@ export default function BulkMarketPage() {
               <Icon name="receipt" className="h-4 w-4" /> {L('My bulk orders', 'నా బల్క్ ఆర్డర్లు')}
             </Link>
           )}
-          <label className="mt-4 flex items-center gap-2 rounded-xl bg-white px-3 text-[#1d2a20]">
-            <Icon name="search" className="h-5 w-5 text-black/45" />
-            <input
-              value={f.q}
-              onChange={(e) => setF((x) => ({ ...x, q: e.target.value }))}
-              placeholder={L('Search produce, seller or village', 'ఉత్పత్తి, అమ్మకందారు లేదా గ్రామం వెతకండి')}
-              className="min-h-[46px] w-full bg-transparent text-[15px] outline-none"
-            />
-          </label>
         </div>
       </header>
 
-      <div className="mx-auto max-w-3xl space-y-4 px-4 pt-4">
-        {!access.buying && items !== null && <LockedNote L={L} />}
-
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="group" aria-label={L('Filters', 'ఫిల్టర్లు')}>
-          {(['all', 'farmer', 'aggregator'] as const).map((k) => (
-            <button key={k} type="button" aria-pressed={f.seller === k} onClick={() => setF((x) => ({ ...x, seller: k }))} className={chip(f.seller === k)} style={f.seller === k ? { background: SLATE } : undefined}>
-              {k === 'all' ? L('All sellers', 'అందరూ') : k === 'farmer' ? L('Farmers', 'రైతులు') : L('Aggregators', 'అగ్రిగేటర్లు')}
-            </button>
-          ))}
-          {(['AP', 'TG'] as const).map((s) => (
-            <button key={s} type="button" aria-pressed={f.delivers === s} onClick={() => setF((x) => ({ ...x, delivers: x.delivers === s ? null : s }))} className={chip(f.delivers === s)} style={f.delivers === s ? { background: SLATE } : undefined}>
-              {L(`Delivers in ${s}`, `${s}లో డెలివరీ`)}
-            </button>
-          ))}
-          {categories.map((c) => (
-            <button key={c} type="button" aria-pressed={f.category === c} onClick={() => setF((x) => ({ ...x, category: x.category === c ? null : c }))} className={chip(f.category === c)} style={f.category === c ? { background: SLATE } : undefined}>
-              {categoryLabel(c, lang) ?? c}
-            </button>
-          ))}
+      {/* Search card floating over the header, then chips and the grid — the
+          same components as the consumer home (src/components/produce). */}
+      <div className="mx-auto -mt-7 max-w-3xl px-4">
+        <div className="space-y-3 rounded-2xl bg-white p-4 shadow-xl">
+          <ProduceSearchBox value={f.q ?? ''} onChange={(q) => setF((x) => ({ ...x, q }))} placeholder={L('Search produce, seller or village', 'ఉత్పత్తి, అమ్మకందారు లేదా గ్రామం వెతకండి')} />
         </div>
+      </div>
+
+      <div className="mx-auto mt-4 max-w-3xl px-4">
+        <ProduceChipRow chips={chips} />
+      </div>
+
+      <div className="mx-auto mt-4 max-w-3xl space-y-3 px-3">
+        {!access.buying && items !== null && <LockedNote L={L} compact />}
 
         {items === null ? (
-          <div className="space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-28 animate-pulse rounded-2xl bg-white" />)}</div>
+          <div className={PRODUCE_GRID_CLASS}>{[0, 1, 2, 3].map((i) => <div key={i} className="h-72 animate-pulse rounded-xl bg-white" />)}</div>
         ) : shown.length === 0 ? (
           <div className="rounded-2xl border-2 border-dashed border-black/15 bg-white px-5 py-10 text-center">
             <Icon name="box" className="mx-auto h-8 w-8 text-black/35" />
@@ -117,39 +123,62 @@ export default function BulkMarketPage() {
           </div>
         ) : (
           <>
-            <p className="text-xs font-semibold text-black/55">{L(`${shown.length} bulk listings`, `${shown.length} బల్క్ లిస్టింగ్‌లు`)}</p>
-            <ul className="space-y-3">
-              {shown.map((it) => {
-                const unitLabel = localizeUnit(it.unit, lang)
-                return (
-                  <li key={it.id}>
-                    <Link href={`/aggregator/market/${it.id}`} className="flex gap-3 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-black/10 active:bg-black/[0.02]">
-                      <span className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-[#e5ecf3]">
-                        {it.image ? (
-                          <Image src={it.image} alt="" fill sizes="96px" className="object-cover" />
-                        ) : (
-                          <span className="flex h-full items-center justify-center text-3xl" aria-hidden>{it.emoji ?? '🌾'}</span>
-                        )}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[15px] font-bold leading-tight">{localizeName(it.name, lang)}{it.variety ? <span className="font-normal text-black/55"> · {localizeName(it.variety, lang)}</span> : null}</span>
-                        <span className="mt-1 block"><Price it={it} unitLabel={unitLabel} L={L} /></span>
-                        <span className="mt-1 block text-[12px] font-semibold text-black/65">{quantityText(it, L, unitLabel)}</span>
-                        <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-black/55">
-                          <span className="inline-flex items-center gap-1"><Icon name="truck" className="h-3.5 w-3.5" />{transportText(it, L)}</span>
-                          {it.stock !== null && <span>{L(`${formatQty(it.stock)} ${unitLabel} ready`, `${formatQty(it.stock)} ${unitLabel} సిద్ధం`)}</span>}
-                          {it.harvestedAt && <span className="inline-flex items-center gap-1"><Icon name="clock" className="h-3.5 w-3.5" />{harvestClock(it.harvestedAt, L)}</span>}
-                        </span>
-                        <span className="mt-1.5 block"><SellerLine it={it} L={L} /></span>
-                      </span>
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
+            <p className="px-1 text-xs font-semibold text-black/55">{L(`${shown.length} bulk listings`, `${shown.length} బల్క్ లిస్టింగ్‌లు`)}</p>
+            <div className={PRODUCE_GRID_CLASS}>
+              {shown.map((it, i) => <BulkTile key={it.id} it={it} buying={access.buying} priority={i < 4} />)}
+            </div>
           </>
         )}
       </div>
     </main>
+  )
+}
+
+/** One bulk lot in the consumer-style grid: wholesale price, the minimum and
+ *  transport where the household card has its retail price and cart button.
+ *  Tapping anywhere opens the lot page, where ordering happens (Phase 6). */
+function BulkTile({ it, buying, priority }: { it: MarketItem; buying: boolean; priority: boolean }) {
+  const { lang, L } = useLang()
+  const unitLabel = localizeUnit(it.unit, lang)
+  const href = `/aggregator/market/${it.id}`
+  const method = it.method?.toLowerCase() ?? null
+  const methodShort = method ? METHOD_SHORT[method] : null
+  const chips: TileChip[] = []
+  if (it.harvestedAt) chips.push({ key: 'clock', icon: '⏱', text: harvestClock(it.harvestedAt, L), tone: 'green' })
+  chips.push(it.transportStates.length
+    ? { key: 'transport', icon: '🚚', text: transportText(it, L), tone: 'blue' }
+    : { key: 'transport', icon: '🚶', text: L('Pickup only', 'పికప్ మాత్రమే'), tone: 'gray' })
+  if (it.seller.type === 'aggregator') chips.push({ key: 'agg', icon: '🤝', text: L('Aggregator', 'అగ్రిగేటర్'), tone: 'amber' })
+  const place = it.seller.village || it.seller.district
+
+  return (
+    <ProduceTile
+      href={href}
+      name={localizeName(it.name, lang)}
+      variety={it.variety ? localizeName(it.variety, lang) : null}
+      growerLine={it.grower ? `${L('from', 'నుండి')} ${it.grower.name}${it.grower.village ? `, ${it.grower.village}` : ''}` : null}
+      images={it.images.length ? it.images : it.image ? [it.image] : []}
+      emoji={it.emoji ?? '🌾'}
+      method={method && methodShort ? { className: METHOD_PILL[method] ?? 'bg-green-600 text-white', label: L(methodShort.en, methodShort.te) } : null}
+      priority={priority}
+      chips={chips}
+      seller={{ icon: it.seller.type === 'aggregator' ? '🤝' : '👨‍🌾', text: place ? `${it.seller.name} · ${place}` : it.seller.name }}
+      price={{ main: `₹${it.price}`, unit: unitLabel }}
+      priceNote={
+        <p className="mt-0.5 text-[11px] font-semibold text-[#27486a]">
+          {L('Bulk price', 'బల్క్ ధర')} · {quantityText(it, L, unitLabel)}
+        </p>
+      }
+      badge={it.stock !== null ? { tone: 'gray', text: L(`${formatQty(it.stock)} ${unitLabel} ready`, `${formatQty(it.stock)} ${unitLabel} సిద్ధం`) } : null}
+      cta={
+        <Link
+          href={href}
+          className="flex items-center justify-center w-full h-10 text-white font-bold rounded-xl text-sm whitespace-nowrap"
+          style={{ background: SLATE }}
+        >
+          {buying ? L('Order bulk', 'బల్క్ ఆర్డర్') : L('View', 'చూడండి')}
+        </Link>
+      }
+    />
   )
 }

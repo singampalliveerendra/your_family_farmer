@@ -43,10 +43,11 @@ import WholesaleLowStockAlerts from '@/components/farmer/WholesaleLowStockAlerts
 import SubscriptionStatusCard from '@/components/farmer/SubscriptionStatusCard'
 import { sellingLockText } from '@/lib/sellingLock'
 import { uploadFarmImage } from '@/lib/farmImageUpload'
+import { useBackToClose } from '@/lib/useBackToClose'
 import {
   wholesaleFormFromRow, resolveWholesaleForm, needsRetailPrice, offersRetail, bothPricesError,
   isWholesaleColumnMissing, missingColumnAction, withoutWholesale, wholesaleColumnsToSend, WHOLESALE_NOT_READY,
-  type WholesaleForm,
+  type WholesaleForm, type SaleMode,
 } from '@/lib/wholesale'
 import {
   clearFarmerLocalSession,
@@ -257,6 +258,8 @@ export default function FarmerDashboard() {
   const [monthlyOrderCount, setMonthlyOrderCount] = useState(0)
   const [weeklyEarnings, setWeeklyEarnings] = useState<number[]>([0, 0, 0, 0])
   const [showForm, setShowForm] = useState(false)
+  // Which way of selling a NEW produce form starts on: 'wholesale' from Sell bulk.
+  const [formSaleMode, setFormSaleMode] = useState<SaleMode | null>(null)
   const [showProfileEdit, setShowProfileEdit] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showListings, setShowListings] = useState(false)
@@ -632,7 +635,16 @@ export default function FarmerDashboard() {
             answer it once per produce, not once per pick, so the registry is
             setup and does not deserve the top of the dashboard. */}
         {/* Aggregator plan status (Phase 4) — farmers are free and never see it. */}
-        {farmer?.account_type === 'aggregator' && <SubscriptionStatusCard />}
+        {farmer?.account_type === 'aggregator' && (
+          <SubscriptionStatusCard
+            onSellBulk={profileComplete ? () => {
+              // "Sell bulk" = Add produce with Wholesale already chosen (2026-11-05).
+              setFormSaleMode('wholesale')
+              setShowForm(true)
+              setTimeout(() => document.getElementById('yff-produce-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+            } : undefined}
+          />
+        )}
 
         {farmer?.account_type === 'aggregator' && (
           <Link
@@ -885,7 +897,7 @@ export default function FarmerDashboard() {
         {profileComplete ? (
           !showForm && (
             <button
-              onClick={() => setShowForm(true)}
+              onClick={() => { setFormSaleMode(null); setShowForm(true) }}
               className="w-full bg-white border-2 border-green-700 text-green-700 font-bold py-4 rounded-2xl text-base flex items-center justify-center gap-2 active:bg-green-50"
             >
               <span className="text-xl leading-none">+</span>
@@ -900,7 +912,9 @@ export default function FarmerDashboard() {
 
         {/* Listing form */}
         {showForm && profileComplete && (
+          <div id="yff-produce-form" className="scroll-mt-20">
           <ProduceListingForm
+            initialSaleMode={formSaleMode}
             farmerId={farmer!.id}
             farmerSlug={farmer!.slug}
             farmerRegion={farmer!.region_slug}
@@ -911,6 +925,7 @@ export default function FarmerDashboard() {
             onClose={() => setShowForm(false)}
             onPublished={() => { setShowForm(false); loadDashboard() }}
           />
+          </div>
         )}
 
         {/* Farm photos */}
@@ -1106,6 +1121,8 @@ function ProfileEditModal({
   onSaved: (updated: Farmer) => void
 }) {
   const { tx, L } = useLang()
+  // Phone Back closes this sheet, not the dashboard (2026-11-05).
+  useBackToClose(true, onClose)
   const [name, setName] = useState(farmer.name ?? '')
   const [village, setVillage] = useState(farmer.village ?? '')
   const [district, setDistrict] = useState(farmer.district ?? '')
@@ -2213,7 +2230,10 @@ function ProduceListingForm({
   onClose,
   onPublished,
   pinnedHeader = false,
+  initialSaleMode = null,
 }: {
+  /** A NEW form starts on this way of selling ('wholesale' from Sell bulk). Ignored when editing. */
+  initialSaleMode?: SaleMode | null
   farmerId: string
   farmerSlug?: string
   farmerRegion?: string
@@ -2231,6 +2251,8 @@ function ProduceListingForm({
   pinnedHeader?: boolean
 }) {
   const { tx, L } = useLang()
+  // Phone Back closes this sheet, not the dashboard (2026-11-05).
+  useBackToClose(true, onClose)
   const isEdit = !!editData
   const [name, setName] = useState(editData?.name ?? '')
   const [variety, setVariety] = useState(editData?.variety ?? '')
@@ -2320,7 +2342,10 @@ function ProduceListingForm({
   const [deliveryCharge, setDeliveryCharge] = useState(editData?.delivery_charge != null ? String(editData.delivery_charge) : '')
   const [deliveryRadius, setDeliveryRadius] = useState(editData?.delivery_radius_km != null ? String(editData.delivery_radius_km) : '')
   // Retail / Wholesale / Both, and the wholesale details (src/lib/wholesale.ts).
-  const [wholesale, setWholesale] = useState<WholesaleForm>(() => wholesaleFormFromRow(editData as Record<string, unknown> | null | undefined))
+  const [wholesale, setWholesale] = useState<WholesaleForm>(() => {
+    const f = wholesaleFormFromRow(editData as Record<string, unknown> | null | undefined)
+    return !editData && initialSaleMode ? { ...f, saleMode: initialSaleMode } : f
+  })
   // Whether this server has the wholesale columns. A listing loaded with
   // select('*') carries sale_mode once the migration has run.
   const rowHasWholesale = !!editData && 'sale_mode' in editData
@@ -3279,7 +3304,10 @@ const PREVIEW_CATEGORY_LABEL: Record<string, string> = {
 }
 
 function PreviewModal({ data, onClose }: { data: PreviewData; onClose: () => void }) {
-  const { tx } = useLang()
+  const { tx, L } = useLang()
+  // Phone Back returns to the form with everything still filled in — it used
+  // to leave the dashboard and lose the new produce (2026-11-05).
+  useBackToClose(true, onClose)
   const [tab, setTab] = useState<'card' | 'page'>('card')
 
   // The quantity is held here, not in either view, so switching tabs doesn't
@@ -3297,8 +3325,10 @@ function PreviewModal({ data, onClose }: { data: PreviewData; onClose: () => voi
             farmer can never mistake the mock for the live listing. */}
         <div className="bg-white border-b border-gray-200 shrink-0">
           <div className="flex items-center justify-between px-4 py-2.5">
+            <button type="button" onClick={onClose} className="min-h-[44px] -my-2 text-sm font-bold text-green-700">
+              ← {L('Back to edit', 'సవరణకు తిరిగి')}
+            </button>
             <p className="font-bold text-gray-800 text-sm">👁 {tx.previewHeading}</p>
-            <button onClick={onClose} className="text-gray-400 text-2xl leading-none" aria-label={tx.close}>×</button>
           </div>
           {/* Card ↔ Page. Two buttons abreast, thumb-sized, because this is the
               one control on the sheet a farmer is meant to tap twice. */}
@@ -3746,6 +3776,8 @@ function ManageListingsModal({
   onChanged: () => void
 }) {
   const { tx, L } = useLang()
+  // Phone Back closes this sheet, not the dashboard (2026-11-05).
+  useBackToClose(true, onClose)
   const [rows, setRows] = useState<ListingRow[]>([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)

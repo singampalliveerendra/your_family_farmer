@@ -89,6 +89,10 @@ export default function StoryTab({ farmer }: { farmer: Record<string, unknown> }
           </div>
           <span className="text-2xl">🌾</span>
         </div>
+        {/* Only with a number to message: the farmer's phone is not public
+            since the security fix (2026-11-04), and wa.me with no number
+            opens WhatsApp's contact picker instead of the farmer. */}
+        {f.phone && (
         <a
           href={whatsappVisitLink}
           target="_blank"
@@ -97,6 +101,7 @@ export default function StoryTab({ farmer }: { farmer: Record<string, unknown> }
         >
           {tx.scheduleVisit}
         </a>
+        )}
       </div>
     </div>
   )
