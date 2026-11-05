@@ -31,7 +31,13 @@ function isUnder(pathname: string, prefix: string): boolean {
  * admin areas, which have no bar of their own. */
 const BUYER_PREFIXES = ['/consumer', '/region', '/buyer-protection']
 
-const SELLER_PREFIXES = ['/farmer/dashboard', '/farmer/complaints', '/aggregator/dashboard', '/aggregator/farmers']
+// Every page an aggregator works in — the bulk market, its lot pages, bulk
+// orders and the plan pages (with their receipts) joined 2026-11-05: the bar
+// must be on every page, not only the dashboard.
+const SELLER_PREFIXES = [
+  '/farmer/dashboard', '/farmer/complaints',
+  '/aggregator/dashboard', '/aggregator/farmers', '/aggregator/market', '/aggregator/purchases', '/aggregator/subscription',
+]
 
 // The other /farmer/* pages; anything else under /farmer is a farmer's public
 // page (/farmer/[slug]), which buyers browse.

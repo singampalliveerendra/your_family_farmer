@@ -96,3 +96,11 @@ describe('dashboard header has no duplicate Settings / Logout / Edit profile', (
     expect(dash).toMatch(/useBackToClose\(showSettings/)
   })
 })
+
+describe('bulk lot page order', () => {
+  it('the seller block comes after Buy this lot', () => {
+    const lot = src('src/app/aggregator/market/[id]/page.tsx')
+    expect(lot.indexOf('<BulkCheckout')).toBeGreaterThan(0)
+    expect(lot.indexOf("'Sold by farmer'")).toBeGreaterThan(lot.indexOf('<BulkCheckout'))
+  })
+})
