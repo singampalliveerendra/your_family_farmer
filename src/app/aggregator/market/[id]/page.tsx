@@ -131,7 +131,18 @@ export default function BulkListingPage() {
             {it.description && <p className="mt-4 whitespace-pre-line border-t border-black/10 pt-4 text-sm leading-relaxed text-black/70">{it.description}</p>}
           </section>
 
-          {/* Seller */}
+          {/* Buying — Phase 6 */}
+          {buying ? (
+            <BulkCheckout it={it} feePercent={feePercent} unitLabel={unitLabel} L={L} />
+          ) : (
+            <section className="rounded-2xl border-l-4 border-[#27486a] bg-[#e5ecf3]/60 p-4 text-sm text-[#1d3651]">
+              <p className="font-bold">{L('Order and pay right here with a Buying plan', 'బయింగ్ ప్లాన్‌తో ఇక్కడే ఆర్డర్ చేసి చెల్లించండి')}</p>
+              <p className="mt-1">{L('See the transport charge before you pay. If the seller declines, you get your money back automatically.', 'చెల్లించే ముందే రవాణా ఛార్జ్ చూడండి. అమ్మకందారు తిరస్కరిస్తే, మీ డబ్బు ఆటోమేటిక్‌గా తిరిగి వస్తుంది.')}</p>
+            </section>
+          )}
+
+          {/* Seller — last, below Buy this lot (client, 2026-11-05): the lot and
+              ordering come first; contacts are there when needed. */}
           <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/10" aria-labelledby="seller">
             <p id="seller" className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: SLATE }}>
               {it.seller.type === 'aggregator' ? L('Sold by aggregator', 'అమ్మేది అగ్రిగేటర్') : L('Sold by farmer', 'అమ్మేది రైతు')}
@@ -164,16 +175,6 @@ export default function BulkListingPage() {
               <p className="mt-4 text-sm text-black/60">{L('This seller has no phone number on file yet.', 'ఈ అమ్మకందారు ఫోన్ నంబర్ ఇంకా లేదు.')}</p>
             )}
           </section>
-
-          {/* Buying — Phase 6 */}
-          {buying ? (
-            <BulkCheckout it={it} feePercent={feePercent} unitLabel={unitLabel} L={L} />
-          ) : (
-            <section className="rounded-2xl border-l-4 border-[#27486a] bg-[#e5ecf3]/60 p-4 text-sm text-[#1d3651]">
-              <p className="font-bold">{L('Order and pay right here with a Buying plan', 'బయింగ్ ప్లాన్‌తో ఇక్కడే ఆర్డర్ చేసి చెల్లించండి')}</p>
-              <p className="mt-1">{L('See the transport charge before you pay. If the seller declines, you get your money back automatically.', 'చెల్లించే ముందే రవాణా ఛార్జ్ చూడండి. అమ్మకందారు తిరస్కరిస్తే, మీ డబ్బు ఆటోమేటిక్‌గా తిరిగి వస్తుంది.')}</p>
-            </section>
-          )}
         </div>
       </div>
     </main>
