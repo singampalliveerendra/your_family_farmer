@@ -44,7 +44,7 @@ import SubscriptionStatusCard from '@/components/farmer/SubscriptionStatusCard'
 import { sellingLockText } from '@/lib/sellingLock'
 import { uploadFarmImage } from '@/lib/farmImageUpload'
 import {
-  wholesaleFormFromRow, resolveWholesaleForm, needsRetailPrice, offersRetail,
+  wholesaleFormFromRow, resolveWholesaleForm, needsRetailPrice, offersRetail, bothPricesError,
   isWholesaleColumnMissing, missingColumnAction, withoutWholesale, wholesaleColumnsToSend, WHOLESALE_NOT_READY,
   type WholesaleForm,
 } from '@/lib/wholesale'
@@ -2388,6 +2388,16 @@ function ProduceListingForm({
     isAggregator,
   }
 
+  // Both: wholesale must be cheaper than every retail price (decision 2026-11-05).
+  // Shown live under the two price boxes, and blocks the save.
+  const bothPriceErr = bothPricesError({
+    sale_mode: wholesale.saleMode,
+    wholesale_price: wholesale.price,
+    price_tier_1_price: price1,
+    price_tier_2_price: price2,
+    price_tier_3_price: price3,
+  })
+
   const handlePublish = async () => {
     if (!name.trim()) { setError(tx.produceNameRequired); return }
     // A retail price is needed unless the produce is sold wholesale only.
@@ -2401,6 +2411,7 @@ function ProduceListingForm({
       setError(L(wholesaleResult.error.en, wholesaleResult.error.te))
       return
     }
+    if (bothPriceErr) { setError(L(bothPriceErr.en, bothPriceErr.te)); return }
     // Retail on a server without the wholesale columns sends nothing extra, so
     // an un-migrated environment keeps saving exactly as before.
     const wholesaleCols = wholesaleColumnsToSend(wholesaleResult.columns, rowHasWholesale)
@@ -3013,17 +3024,26 @@ function ProduceListingForm({
         </div>
 
         {/* Retail / Wholesale / Both — the wholesale details open only when needed */}
-        <WholesaleFields value={wholesale} onChange={setWholesale} unit={unit} L={L} />
+        <WholesaleFields
+          value={wholesale}
+          onChange={setWholesale}
+          unit={unit}
+          L={L}
+          retailPrice={{ value: price1, onChange: setPrice1 }}
+          priceError={bothPriceErr ? L(bothPriceErr.en, bothPriceErr.te) : null}
+        />
 
-        {/* Pricing tiers — retail prices; not asked when sold wholesale only */}
+        {/* Household bulk prices — optional lower retail prices for bigger
+            household orders. The main retail price is in the Price box above
+            (2026-11-05). Not asked when sold wholesale only. */}
         {offersRetail(wholesale.saleMode) && (
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {tx.pricingTiers}
+            {L('Lower price when a household buys more (optional)', 'ఇంటివాళ్లు ఎక్కువ కొంటే తక్కువ ధర (ఐచ్ఛికం)')}
           </label>
           <div className="space-y-2">
-            <div className="flex gap-2 items-center">
-              <span className="text-xs text-gray-500 w-14 flex-shrink-0">{L('Tier 1', 'శ్రేణి 1')}</span>
+            <div className="flex gap-2 items-center flex-wrap">
+              <span className="text-xs text-gray-500">{L('Retail price above is for up to', 'పై చిల్లర ధర ఇంతవరకు')}</span>
               <input
                 type="number"
                 placeholder={`Up to ${price1Qty}`}
@@ -3031,17 +3051,7 @@ function ProduceListingForm({
                 onChange={(e) => setPrice1Qty(e.target.value)}
                 className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm"
               />
-              <span className="text-xs text-gray-400">{unit} →</span>
-              <div className="flex-1 relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
-                <input
-                  type="number"
-                  placeholder={`Price/${unit}`}
-                  value={price1}
-                  onChange={(e) => setPrice1(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-sm"
-                />
-              </div>
+              <span className="text-xs text-gray-400">{unit}</span>
             </div>
             <div className="flex gap-2 items-center">
               <span className="text-xs text-gray-500 w-14 flex-shrink-0">{L('Tier 2', 'శ్రేణి 2')}</span>

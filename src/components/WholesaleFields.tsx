@@ -6,6 +6,7 @@ import {
   SALE_MODE_LABELS,
   TRANSPORT_STATES,
   TRANSPORT_STATE_LABELS,
+  offersRetail,
   offersWholesale,
   type RateForm,
   type SaleMode,
@@ -13,7 +14,8 @@ import {
   type WholesaleForm,
 } from '@/lib/wholesale'
 
-// "Sell as" (Retail / Wholesale / Both) plus the wholesale details, which open
+// "Sell as" (Retail / Wholesale / Both), then the price box for each way of
+// selling (two side by side for Both), then the wholesale details, which open
 // only once Wholesale or Both is picked. Shared by the farmer/aggregator
 // dashboard and the moderator listing form, so all three look and behave the
 // same. The rules live in src/lib/wholesale.ts; this component only collects.
@@ -28,15 +30,24 @@ export default function WholesaleFields({
   onChange,
   unit,
   L,
+  retailPrice,
+  priceError,
 }: {
   value: WholesaleForm
   onChange: (next: WholesaleForm) => void
   unit: string
   L: Translate
+  /** The retail price per unit (tier 1) — owned by the parent form, shown here
+   *  next to the wholesale price so "Both" clearly asks for two prices. */
+  retailPrice: { value: string; onChange: (v: string) => void }
+  /** Set by the parent when the two prices break a rule (wholesale not below retail). */
+  priceError?: string | null
 }) {
   const id = useId()
   const set = (patch: Partial<WholesaleForm>) => onChange({ ...value, ...patch })
   const open = offersWholesale(value.saleMode)
+  const retail = offersRetail(value.saleMode)
+  const both = value.saleMode === 'both'
 
   const toggleState = (s: TransportState) =>
     set({ states: value.states.includes(s) ? value.states.filter((x) => x !== s) : [...value.states, s] })
@@ -74,6 +85,67 @@ export default function WholesaleFields({
             </button>
           )
         })}
+      </div>
+
+      {/* Price — one box per way of selling. With "Both" the two sit side by
+          side, each named for who pays it, so neither can be missed
+          (2026-11-05: farmers saw only the wholesale price before). */}
+      <div className="pt-1">
+        <span className={labelCls}>
+          {both ? L('Prices', 'ధరలు') : L('Price', 'ధర')} <span className="text-red-500">*</span>
+        </span>
+        <div className={`grid gap-2 ${both ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {retail && (
+            <div className="rounded-xl border-2 border-green-200 bg-green-50/60 p-2.5">
+              <label htmlFor={`${id}-retail`} className="block text-[12px] font-bold text-green-900 leading-tight">
+                🏠 {L('Retail price', 'చిల్లర ధర')}
+              </label>
+              <span className="block text-[10px] text-green-800/80 mb-1.5">{L('For households', 'ఇళ్లకు')}</span>
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
+                <input
+                  id={`${id}-retail`}
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={retailPrice.value}
+                  onChange={(e) => retailPrice.onChange(e.target.value)}
+                  className={`${inputCls} pl-6 pr-11`}
+                />
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">/{unit}</span>
+              </div>
+            </div>
+          )}
+          {open && (
+            <div className="rounded-xl border-2 border-amber-200 bg-amber-50/60 p-2.5">
+              <label htmlFor={`${id}-price`} className="block text-[12px] font-bold text-amber-900 leading-tight">
+                🚚 {L('Wholesale price', 'హోల్‌సేల్ ధర')}
+              </label>
+              <span className="block text-[10px] text-amber-900/80 mb-1.5">{L('For aggregators', 'అగ్రిగేటర్లకు')}</span>
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
+                <input
+                  id={`${id}-price`}
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={value.price}
+                  onChange={(e) => set({ price: e.target.value })}
+                  aria-invalid={!!priceError}
+                  className={`${inputCls} pl-6 pr-11 ${priceError ? '!border-red-400' : ''}`}
+                />
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">/{unit}</span>
+              </div>
+            </div>
+          )}
+        </div>
+        {priceError ? (
+          <p role="alert" className="mt-1.5 text-[12px] font-semibold text-red-700 leading-snug">{priceError}</p>
+        ) : both ? (
+          <p className="mt-1.5 text-[11px] text-gray-500 leading-snug">
+            {L('Wholesale must be lower than retail.', 'హోల్‌సేల్ ధర చిల్లర ధర కంటే తక్కువగా ఉండాలి.')}
+          </p>
+        ) : null}
       </div>
 
       {open && (
@@ -119,25 +191,6 @@ export default function WholesaleFields({
                 'ఒకటి లేదా రెండూ నింపండి. ప్యాక్ పరిమాణం ఇస్తే, కొనుగోలుదారులు పూర్తి ప్యాక్‌లలో ఆర్డర్ చేస్తారు.',
               )}
             </p>
-          </div>
-
-          <div>
-            <label htmlFor={`${id}-price`} className={labelCls}>
-              {L('Wholesale price', 'హోల్‌సేల్ ధర')} <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
-              <input
-                id={`${id}-price`}
-                type="text"
-                inputMode="decimal"
-                placeholder={L(`Price per ${unit}`, `ఒక ${unit} ధర`)}
-                value={value.price}
-                onChange={(e) => set({ price: e.target.value })}
-                className={`${inputCls} pl-7 pr-14`}
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">/{unit}</span>
-            </div>
           </div>
 
           <div>

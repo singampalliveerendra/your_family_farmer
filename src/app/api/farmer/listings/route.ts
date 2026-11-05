@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSeller, svc } from '@/lib/sellerAuth'
 import { checkSellerStatusChange, sellerListingPayload } from '@/lib/sellerWriteRules'
-import { isWholesaleColumnMissing, resolveWholesaleColumns, withoutWholesale, WHOLESALE_NOT_READY } from '@/lib/wholesale'
+import { bothPricesError, isWholesaleColumnMissing, resolveWholesaleColumns, withoutWholesale, WHOLESALE_NOT_READY } from '@/lib/wholesale'
 import { SELLING_PLAN_REQUIRED, isSellingPlanError } from '@/lib/sellingLock'
 import { isMissingColumnError } from '@/lib/missingColumn'
 import { reqLang, tr } from '@/lib/serverLang'
@@ -39,6 +39,9 @@ export async function POST(req: NextRequest) {
   const wholesale = resolveWholesaleColumns(payload, unit)
   if (!wholesale.ok) return NextResponse.json({ error: t(wholesale.error.en, wholesale.error.te) }, { status: 400 })
   let row: Record<string, unknown> = { ...(wholesale.columns ? { ...withoutWholesale(payload), ...wholesale.columns } : payload), farmer_id: me.id }
+  // Both: wholesale must be cheaper than every retail price (2026-11-05).
+  const priceErr = bothPricesError(row)
+  if (priceErr) return NextResponse.json({ error: t(priceErr.en, priceErr.te) }, { status: 400 })
 
   const insert = (r: Record<string, unknown>) => supabase.from('produce_listings').insert(r).select('*').single()
   let { data, error } = await insert(row)

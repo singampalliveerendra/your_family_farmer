@@ -11,7 +11,7 @@ import { photosFromSaved, resolvePhotoUrls, type PhotoItem } from '@/lib/photoLi
 import PhotoPicker from '@/components/PhotoPicker'
 import WholesaleFields from '@/components/WholesaleFields'
 import {
-  EMPTY_WHOLESALE_FORM, resolveWholesaleForm, offersRetail, wholesaleRequestBody, type WholesaleForm,
+  EMPTY_WHOLESALE_FORM, resolveWholesaleForm, offersRetail, wholesaleRequestBody, bothPricesError, type WholesaleForm,
 } from '@/lib/wholesale'
 
 // The moderator area is English-only (staff screens), so the shared wholesale
@@ -167,6 +167,17 @@ export default function ListingForm({
   const set = (k: keyof ListingFormValues) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
+  // Both: wholesale must be cheaper than every retail price (same rule as the
+  // farmer form; the API checks it again). Tier 2 counts only with its qty,
+  // because the API saves it only then.
+  const bothPriceErr = bothPricesError({
+    sale_mode: wholesale.saleMode,
+    wholesale_price: wholesale.price,
+    price_tier_1_price: form.price_tier_1_price,
+    price_tier_2_price: form.price_tier_2_qty ? form.price_tier_2_price : null,
+    price_tier_3_price: form.price_tier_3_price,
+  })
+
   // Farmer list is only needed when creating (edit keeps the listing's farmer).
   useEffect(() => {
     if (mode !== 'create') return
@@ -209,6 +220,7 @@ export default function ListingForm({
     // Same wholesale rules as the farmer form; the API checks them again.
     const wholesaleResult = resolveWholesaleForm(wholesale, form.unit)
     if (!wholesaleResult.ok) { setError(wholesaleResult.error.en); return }
+    if (bothPriceErr) { setError(bothPriceErr.en); return }
     setError(''); setSubmitting(true)
 
     // Upload any newly-picked photos first; abort on failure (error is set by
@@ -473,20 +485,27 @@ export default function ListingForm({
             Lower the minimum below, switch to Retail, or add stock under Harvest timings. The farmer sees the same alert.
           </p>
         )}
-        <WholesaleFields value={wholesale} onChange={setWholesale} unit={form.unit} L={EN} />
+        <WholesaleFields
+          value={wholesale}
+          onChange={setWholesale}
+          unit={form.unit}
+          L={EN}
+          retailPrice={{ value: form.price_tier_1_price, onChange: (v) => setForm((f) => ({ ...f, price_tier_1_price: v })) }}
+          priceError={bothPriceErr?.en ?? null}
+        />
       </div>
 
-      {/* Pricing — retail tiers; not asked when sold wholesale only */}
+      {/* Household bulk prices — optional lower retail prices for bigger
+          household orders. The main retail price is in the Price box above
+          (2026-11-05), next to the wholesale price. */}
       {offersRetail(wholesale.saleMode) && (
       <div className="border-t border-gray-100 pt-4">
-        <p className="text-sm font-extrabold text-green-800 mb-3">Retail pricing (per {form.unit})</p>
+        <p className="text-sm font-extrabold text-green-800 mb-3">Lower price when a household buys more (optional, per {form.unit})</p>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Tier 1 — min qty">
+          <Field label="Retail price is for up to (qty)">
             <input value={form.price_tier_1_qty} onChange={set('price_tier_1_qty')} type="number" min="1" className={inputCls} />
           </Field>
-          <Field label="Tier 1 — price ₹">
-            <input value={form.price_tier_1_price} onChange={set('price_tier_1_price')} type="number" min="0" className={inputCls} />
-          </Field>
+          <div />
           <Field label="Tier 2 — min qty (optional)">
             <input value={form.price_tier_2_qty} onChange={set('price_tier_2_qty')} type="number" min="1" className={inputCls} />
           </Field>
