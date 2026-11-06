@@ -2784,6 +2784,9 @@ function ProduceListingForm({
       </div>
 
       <div className="p-4 space-y-5">
+        {/* The form in 6 steps, each following from the last (client, 2026-11-05):
+            what → how much & when → who buys & price → delivery → photos & story → quality. */}
+        <FormStep n={1} title={L('What are you selling?', 'మీరు ఏమి అమ్ముతున్నారు?')}>
         {/* Emoji picker */}
         <div>
           <p className="text-xs font-semibold text-gray-600 mb-2">{tx.pickIcon}</p>
@@ -2804,50 +2807,6 @@ function ProduceListingForm({
             {L('📦 = Other — pick this for any harvest without its own icon', '📦 = ఇతర — ప్రత్యేక ఐకాన్ లేని ఏ కోతకైనా దీన్ని ఎంచుకోండి')}
           </p>
         </div>
-
-        {/* Unit selector */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {L('Unit', 'కొలత')}
-          </label>
-          <select
-            value={unit}
-            onChange={(e) => setUnit(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
-          >
-            {UNIT_OPTIONS(L).map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Sale step. Sits directly under Unit because it is read IN that unit
-            — "1/4" means a quarter kilo only once the unit says kg. Hidden for
-            piece/bunch, where a fraction cannot be sold. */}
-        {unitAllowsFractions(unit) && (
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-              {L('Sell in multiples of', 'ఎంత మోతాదులో అమ్మాలి')}
-            </label>
-            <select
-              value={saleStep}
-              onChange={(e) => setSaleStep(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
-            >
-              {STEP_CHOICES.map((o) => (
-                <option key={o.value} value={String(o.value)}>
-                  {L(o.en, o.te)} {unit}
-                </option>
-              ))}
-            </select>
-            <p className="text-[11px] text-gray-500">
-              {L(
-                `Buyers order in steps of this much. Pick 1/4 for mirchi and a buyer's "+" adds ${formatQty(0.25)} ${unit} at a time, not a whole ${unit}.`,
-                `కొనుగోలుదారులు ఈ మోతాదులో ఆర్డర్ చేస్తారు. మిరపకు 1/4 ఎంచుకుంటే "+" నొక్కినప్పుడు ${formatQty(0.25)} ${unit} చొప్పున కలుస్తుంది, పూర్తి ${unit} కాదు.`,
-              )}
-            </p>
-          </div>
-        )}
 
         {/* Name + variety */}
         <div className="space-y-2">
@@ -2883,6 +2842,62 @@ function ProduceListingForm({
           />
         )}
 
+        {/* Category (#9) — drives the consumer Vegetables/Fruits/Grains/Leafy filter */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            {L('Category', 'వర్గం')}
+          </label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+          >
+            <option value="">{L('Select a category…', 'వర్గాన్ని ఎంచుకోండి…')}</option>
+            <option value="vegetables">{L('Vegetables', 'కూరగాయలు')}</option>
+            <option value="fruits">{L('Fruits', 'పళ్ళు')}</option>
+            <option value="grains">{L('Grains & Pulses', 'ధాన్యాలు')}</option>
+            <option value="leafy">{L('Leafy Greens', 'ఆకు కూరలు')}</option>
+            <option value="spices">{L('Spices', 'మసాలాలు')}</option>
+            <option value="other">{L('Other', 'ఇతర')}</option>
+          </select>
+        </div>
+
+        {/* Farming method */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            {tx.farmingMethodLabel}
+          </label>
+          <select
+            value={farmingMethod}
+            onChange={(e) => setFarmingMethod(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+          >
+            <option value="natural">{tx.methodNatural}</option>
+            <option value="organic">{tx.methodOrganic}</option>
+            <option value="low_chemical">{tx.methodLowChemical}</option>
+            <option value="chemical">{tx.methodChemical}</option>
+          </select>
+        </div>
+
+        </FormStep>
+
+        <FormStep n={2} title={L('How much, and when?', 'ఎంత, ఎప్పుడు?')}>
+        {/* Unit selector */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            {L('Unit', 'కొలత')}
+          </label>
+          <select
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+          >
+            {UNIT_OPTIONS(L).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Quantity. The label used to read "Availability", which is what the
             availability block below actually answers — this box is stock. */}
         <div className="space-y-2">
@@ -2894,6 +2909,52 @@ function ProduceListingForm({
             placeholder={`Quantity (${unit})`}
             value={qty}
             onChange={(e) => setQty(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
+          />
+        </div>
+
+        {/* Sale step. Sits directly under Unit because it is read IN that unit
+            — "1/4" means a quarter kilo only once the unit says kg. Hidden for
+            piece/bunch, where a fraction cannot be sold. */}
+        {unitAllowsFractions(unit) && (
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+              {L('Sell in multiples of', 'ఎంత మోతాదులో అమ్మాలి')}
+            </label>
+            <select
+              value={saleStep}
+              onChange={(e) => setSaleStep(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
+            >
+              {STEP_CHOICES.map((o) => (
+                <option key={o.value} value={String(o.value)}>
+                  {L(o.en, o.te)} {unit}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-gray-500">
+              {L(
+                `Buyers order in steps of this much. Pick 1/4 for mirchi and a buyer's "+" adds ${formatQty(0.25)} ${unit} at a time, not a whole ${unit}.`,
+                `కొనుగోలుదారులు ఈ మోతాదులో ఆర్డర్ చేస్తారు. మిరపకు 1/4 ఎంచుకుంటే "+" నొక్కినప్పుడు ${formatQty(0.25)} ${unit} చొప్పున కలుస్తుంది, పూర్తి ${unit} కాదు.`,
+              )}
+            </p>
+          </div>
+        )}
+
+        {/* Shelf life (required) for this listing. Harvest date & time is set
+            per-pick in the harvests model (HarvestManager below), not here. */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            {L('Shelf life (days)', 'తాజా (రోజులు)')} <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            required
+            placeholder={L('e.g. 5', 'ఉదా. 5')}
+            value={shelfLifeDays}
+            onChange={(e) => setShelfLifeDays(e.target.value)}
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
           />
         </div>
@@ -2978,24 +3039,6 @@ function ProduceListingForm({
           )}
         </div>
 
-        {/* Shelf life (required) for this listing. Harvest date & time is set
-            per-pick in the harvests model (HarvestManager below), not here. */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {L('Shelf life (days)', 'తాజా (రోజులు)')} <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="number"
-            inputMode="numeric"
-            min={1}
-            required
-            placeholder={L('e.g. 5', 'ఉదా. 5')}
-            value={shelfLifeDays}
-            onChange={(e) => setShelfLifeDays(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
-          />
-        </div>
-
         {/* Harvest timings — log/edit individual harvests (each a sellable pick
             with its own date, shelf life and qty). Only when editing an existing
             produce, since a harvest needs a saved produce to attach to. */}
@@ -3009,107 +3052,12 @@ function ProduceListingForm({
           />
         )}
 
-        {/* Farming method */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {tx.farmingMethodLabel}
-          </label>
-          <select
-            value={farmingMethod}
-            onChange={(e) => setFarmingMethod(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
-          >
-            <option value="natural">{tx.methodNatural}</option>
-            <option value="organic">{tx.methodOrganic}</option>
-            <option value="low_chemical">{tx.methodLowChemical}</option>
-            <option value="chemical">{tx.methodChemical}</option>
-          </select>
-        </div>
+        </FormStep>
 
-        {/* Category (#9) — drives the consumer Vegetables/Fruits/Grains/Leafy filter */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {L('Category', 'వర్గం')}
-          </label>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
-          >
-            <option value="">{L('Select a category…', 'వర్గాన్ని ఎంచుకోండి…')}</option>
-            <option value="vegetables">{L('Vegetables', 'కూరగాయలు')}</option>
-            <option value="fruits">{L('Fruits', 'పళ్ళు')}</option>
-            <option value="grains">{L('Grains & Pulses', 'ధాన్యాలు')}</option>
-            <option value="leafy">{L('Leafy Greens', 'ఆకు కూరలు')}</option>
-            <option value="spices">{L('Spices', 'మసాలాలు')}</option>
-            <option value="other">{L('Other', 'ఇతర')}</option>
-          </select>
-        </div>
-
-        {/* Delivery method — pickup only, farmer courier, or both (#11) */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {tx.deliveryMethod} <span className="text-red-500">*</span>
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {([
-              { key: 'pickup', en: 'Pickup only', te: 'పికప్ మాత్రమే', icon: '🧺' },
-              { key: 'courier', en: 'I will courier', te: 'నేను డెలివరీ చేస్తా', icon: '🛵' },
-              { key: 'both', en: 'Both', te: 'రెండూ', icon: '🔁' },
-            ] as const).map((opt) => {
-              const active = deliveryMode === opt.key
-              return (
-                <button
-                  key={opt.key}
-                  type="button"
-                  onClick={() => setDeliveryMode(opt.key)}
-                  className={`rounded-xl px-2 py-3 text-center border-2 transition-colors ${
-                    active ? 'border-green-600 bg-green-50' : 'border-gray-200 bg-white'
-                  }`}
-                >
-                  <span className="block text-lg leading-none">{opt.icon}</span>
-                  <span className={`block text-[11px] font-bold mt-1 leading-tight ${active ? 'text-green-800' : 'text-gray-600'}`}>
-                    {L(opt.en, opt.te)}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Courier details — only when the farmer offers delivery. */}
-          {deliveryMode && deliveryMode !== 'pickup' && (
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  placeholder={L('Delivery charge', 'డెలివరీ ఛార్జ్')}
-                  value={deliveryCharge}
-                  onChange={(e) => setDeliveryCharge(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
-                />
-              </div>
-              <div className="relative">
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  placeholder={L('Radius', 'పరిధి')}
-                  value={deliveryRadius}
-                  onChange={(e) => setDeliveryRadius(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl pl-3 pr-9 py-2.5 text-sm focus:border-green-500 focus:outline-none"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">km</span>
-              </div>
-            </div>
-          )}
-          {deliveryMode && deliveryMode !== 'pickup' && offersRetail(wholesale.saleMode) && (
-            <RetailReachFields value={reach} onChange={setReach} radiusKm={deliveryRadius} L={L} />
-          )}
-        </div>
-
+        <FormStep n={3} title={L('Who buys it, and at what price?', 'ఎవరు కొంటారు, ఏ ధరకు?')}>
         {/* Retail / Wholesale / Both — the wholesale details open only when needed */}
         <WholesaleFields
+          part="sale"
           value={wholesale}
           onChange={setWholesale}
           unit={unit}
@@ -3189,6 +3137,96 @@ function ProduceListingForm({
         </div>
         )}
 
+        </FormStep>
+
+        <FormStep n={4} title={L('Delivery', 'డెలివరీ')}>
+        {/* Delivery method — pickup only, farmer courier, or both (#11) */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            {tx.deliveryMethod} <span className="text-red-500">*</span>
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { key: 'pickup', en: 'Pickup only', te: 'పికప్ మాత్రమే', icon: '🧺' },
+              { key: 'courier', en: 'I will courier', te: 'నేను డెలివరీ చేస్తా', icon: '🛵' },
+              { key: 'both', en: 'Both', te: 'రెండూ', icon: '🔁' },
+            ] as const).map((opt) => {
+              const active = deliveryMode === opt.key
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setDeliveryMode(opt.key)}
+                  className={`rounded-xl px-2 py-3 text-center border-2 transition-colors ${
+                    active ? 'border-green-600 bg-green-50' : 'border-gray-200 bg-white'
+                  }`}
+                >
+                  <span className="block text-lg leading-none">{opt.icon}</span>
+                  <span className={`block text-[11px] font-bold mt-1 leading-tight ${active ? 'text-green-800' : 'text-gray-600'}`}>
+                    {L(opt.en, opt.te)}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Courier details — only when the farmer offers delivery. */}
+          {deliveryMode && deliveryMode !== 'pickup' && (
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  placeholder={L('Delivery charge', 'డెలివరీ ఛార్జ్')}
+                  value={deliveryCharge}
+                  onChange={(e) => setDeliveryCharge(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+                />
+              </div>
+              <div className="relative">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  placeholder={L('Radius', 'పరిధి')}
+                  value={deliveryRadius}
+                  onChange={(e) => setDeliveryRadius(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl pl-3 pr-9 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">km</span>
+              </div>
+            </div>
+          )}
+          {deliveryMode && deliveryMode !== 'pickup' && offersRetail(wholesale.saleMode) && (
+            <RetailReachFields value={reach} onChange={setReach} radiusKm={deliveryRadius} L={L} />
+          )}
+        </div>
+
+        {/* Wholesale transport — part of Delivery, not of the price (2026-11-05). */}
+        <WholesaleFields
+          part="transport"
+          value={wholesale}
+          onChange={setWholesale}
+          unit={unit}
+          L={L}
+          retailPrice={{ value: price1, onChange: setPrice1 }}
+        />
+        </FormStep>
+
+        <FormStep n={5} title={L('Photos and story', 'ఫోటోలు, మీ కథ')}>
+        {/* Produce photos — cover + extras in one picker */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            {L('Photos (optional)', 'ఫోటోలు (ఐచ్ఛికం)')}
+          </label>
+          <PhotoPicker
+            photos={photos}
+            onChange={setPhotos}
+            onError={setError}
+            upload={(f) => uploadFarmImage(f, 'produce').then((r) => r.url)}
+          />
+        </div>
+
         {/* Description */}
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
@@ -3227,19 +3265,16 @@ function ProduceListingForm({
           )}
         </div>
 
-        {/* Produce photos — cover + extras in one picker */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {L('Photos (optional)', 'ఫోటోలు (ఐచ్ఛికం)')}
-          </label>
-          <PhotoPicker
-            photos={photos}
-            onChange={setPhotos}
-            onError={setError}
-            upload={(f) => uploadFarmImage(f, 'produce').then((r) => r.url)}
-          />
-        </div>
+        </FormStep>
 
+        {/* 6 — optional, closed until tapped. */}
+        <details className="group rounded-2xl border border-gray-200 bg-gray-50/60 p-3">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-extrabold text-gray-900">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-700 text-xs font-bold text-white">6</span>
+            {L('Quality details (optional)', 'నాణ్యత వివరాలు (ఐచ్ఛికం)')}
+            <span className="ml-auto text-gray-400 transition-transform group-open:rotate-90">›</span>
+          </summary>
+          <div className="mt-4">
         {/* Quality params */}
         <div className="space-y-2">
           <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
@@ -3295,6 +3330,9 @@ function ProduceListingForm({
         {error && (
           <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3">{error}</p>
         )}
+
+          </div>
+        </details>
 
         {/* Preview + Publish buttons */}
         <div className="flex gap-3 pt-2">
@@ -3366,6 +3404,19 @@ const PREVIEW_PRODUCE_BG: Record<string, string> = {
 const PREVIEW_CATEGORY_LABEL: Record<string, string> = {
   vegetables: 'Vegetables', fruits: 'Fruits', grains: 'Grains & Pulses', leafy: 'Leafy Greens',
   spices: 'Spices', other: 'Other',
+}
+
+/** One numbered step of the produce form (2026-11-05). */
+function FormStep({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-5 rounded-2xl border border-gray-200 p-3">
+      <h4 className="flex items-center gap-2 text-sm font-extrabold text-gray-900">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-700 text-xs font-bold text-white">{n}</span>
+        {title}
+      </h4>
+      {children}
+    </section>
+  )
 }
 
 function PreviewModal({ data, onClose }: { data: PreviewData; onClose: () => void }) {

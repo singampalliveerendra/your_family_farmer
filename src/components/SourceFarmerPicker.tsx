@@ -136,8 +136,8 @@ export default function SourceFarmerPicker({
       </select>
       <p className="text-[11px] text-gray-500 leading-snug">
         {L(
-          'Buyers see their name, village and phone on every harvest of this produce.',
-          'ఈ ఉత్పత్తి ప్రతి కోతపై కొనుగోలుదారులకు వారి పేరు, ఊరు, ఫోన్ కనిపిస్తాయి.',
+          'Buyers see their name and village on every harvest of this produce (never the phone).',
+          'ఈ ఉత్పత్తి ప్రతి కోతపై కొనుగోలుదారులకు వారి పేరు, ఊరు కనిపిస్తాయి (ఫోన్ కాదు).',
         )}
       </p>
     </div>

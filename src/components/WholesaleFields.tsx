@@ -31,6 +31,7 @@ export default function WholesaleFields({
   L,
   retailPrice,
   priceError,
+  part = 'all',
 }: {
   value: WholesaleForm
   onChange: (next: WholesaleForm) => void
@@ -41,6 +42,9 @@ export default function WholesaleFields({
   retailPrice: { value: string; onChange: (v: string) => void }
   /** Set by the parent when the two prices break a rule (wholesale not below retail). */
   priceError?: string | null
+  /** 'sale' = Sell as, prices and pack / minimum (no transport); 'transport' =
+   *  only the wholesale transport question, for a Delivery step; 'all' = both. */
+  part?: 'all' | 'sale' | 'transport'
 }) {
   const id = useId()
   const set = (patch: Partial<WholesaleForm>) => onChange({ ...value, ...patch })
@@ -62,6 +66,163 @@ export default function WholesaleFields({
   const inputCls =
     'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none min-h-[44px]'
   const labelCls = 'text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-1'
+
+  // The wholesale transport question + how it is charged. Shown inside the
+  // wholesale box, or on its own in a Delivery step (part="transport").
+  const transportBlock = (
+    <>
+            <div>
+              <span className={labelCls}>
+                {L('Can you transport to both Andhra Pradesh and Telangana?', 'ఆంధ్రప్రదేశ్, తెలంగాణ రెండింటికీ రవాణా చేయగలరా?')} <span className="text-red-500">*</span>
+              </span>
+              <div className="grid grid-cols-2 gap-2" role="group" aria-label={L('Can you transport to both Andhra Pradesh and Telangana?', 'ఆంధ్రప్రదేశ్, తెలంగాణ రెండింటికీ రవాణా చేయగలరా?')}>
+                {([
+                  [true, 'Yes', 'అవును'],
+                  [false, 'No — buyer collects', 'కాదు — కొనుగోలుదారు తీసుకెళ్తారు'],
+                ] as const).map(([v, en, te]) => {
+                  const active = value.transport === v
+                  return (
+                    <button
+                      key={String(v)}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => (v ? set({ transport: true, states: [...TRANSPORT_STATES], rates: bothRates(shared) }) : set({ transport: false }))}
+                      className={`rounded-xl px-2 py-2.5 text-xs font-bold border-2 leading-tight min-h-[44px] ${
+                        active ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 bg-white text-gray-600'
+                      }`}
+                    >
+                      {L(en, te)}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* How they charge for transport — one choice for both states.
+                Blank amount = pickup only in the app (never read as free). */}
+            {value.transport === true && (() => {
+              const r = shared
+              const s = 'AP' as TransportState
+              return (
+              <div className="space-y-2">
+                <span className={labelCls}>{L('How do you charge for transport?', 'రవాణాకు ఎలా ఛార్జ్ చేస్తారు?')}</span>
+                    <div className="rounded-xl border border-amber-200 bg-white p-2.5 space-y-2">
+                      {/* Pick ONE (client, 2026-11-05): per order is paid online
+                          with the produce; per km and cargo bill are billed after
+                          delivery and paid to the seller directly. "Per kg" is no
+                          longer offered — shown only on a lot still saved with it. */}
+                      <div className="grid grid-cols-3 gap-1.5" role="group" aria-label={L('How do you charge for transport?', 'రవాణాకు ఎలా ఛార్జ్ చేస్తారు?')}>
+                        {([
+                          ['per_order', 'Per order', 'ఒక్కో ఆర్డర్‌కు'],
+                          ['per_km', 'Per km', 'కి.మీ.కు'],
+                          ['cargo_bill', 'Cargo bill', 'కార్గో బిల్లు'],
+                          ...(r.mode === 'per_unit' ? [['per_unit', `Per ${unit} (old)`, `ఒక్కో ${unit}కు (పాతది)`] as const] : []),
+                        ] as const).map(([m, en, te]) => (
+                          <button
+                            key={m}
+                            type="button"
+                            aria-pressed={r.mode === m}
+                            onClick={() => setShared({ mode: m })}
+                            className={`rounded-lg px-1.5 py-2 text-[11px] font-bold border-2 min-h-[40px] leading-tight ${
+                              r.mode === m ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 bg-white text-gray-600'
+                            }`}
+                          >
+                            {L(en, te)}
+                          </button>
+                        ))}
+                      </div>
+
+                      {r.mode === 'cargo_bill' ? (
+                        <p className="rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-snug text-amber-900">
+                          {L(
+                            'After you deliver, upload the cargo bill on the order with its amount. The buyer pays you the transport directly.',
+                            'డెలివరీ తర్వాత, ఆర్డర్‌పై కార్గో బిల్లును దాని మొత్తంతో అప్‌లోడ్ చేయండి. కొనుగోలుదారు రవాణా ఛార్జ్‌ను నేరుగా మీకు చెల్లిస్తారు.',
+                          )}
+                        </p>
+                      ) : r.mode === 'per_km' ? (
+                        <div>
+                          <label htmlFor={`${id}-rate-${s}`} className="text-[11px] font-semibold text-gray-600 block mb-1">
+                            {L('₹ per km', 'కి.మీ.కు ₹')}
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
+                            <input
+                              id={`${id}-rate-${s}`}
+                              type="text"
+                              inputMode="decimal"
+                              placeholder={L('e.g. 5', 'ఉదా. 5')}
+                              value={r.amount}
+                              onChange={(e) => setShared({ amount: e.target.value })}
+                              className={`${inputCls} pl-7 pr-12`}
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">/km</span>
+                          </div>
+                          <p className="mt-1 text-[11px] leading-snug text-amber-900">
+                            {L(
+                              'After delivery you enter the km; the app works out the bill (e.g. 20 km × ₹5 = ₹100). The buyer pays you directly.',
+                              'డెలివరీ తర్వాత మీరు కి.మీ. నమోదు చేస్తారు; యాప్ బిల్లు లెక్కిస్తుంది (ఉదా. 20 కి.మీ. × ₹5 = ₹100). కొనుగోలుదారు నేరుగా మీకు చెల్లిస్తారు.',
+                            )}
+                          </p>
+                        </div>
+                      ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label htmlFor={`${id}-rate-${s}`} className="text-[11px] font-semibold text-gray-600 block mb-1">
+                            {r.mode === 'per_unit' ? L(`₹ per ${unit}`, `ఒక్కో ${unit}కు ₹`) : L('₹ per order', 'ఒక్కో ఆర్డర్‌కు ₹')}
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
+                            <input
+                              id={`${id}-rate-${s}`}
+                              type="text"
+                              inputMode="decimal"
+                              placeholder={L('0 = free', '0 = ఉచితం')}
+                              value={r.amount}
+                              onChange={(e) => setShared({ amount: e.target.value })}
+                              className={`${inputCls} pl-7`}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label htmlFor={`${id}-free-${s}`} className="text-[11px] font-semibold text-gray-600 block mb-1">
+                            {L('Free above (optional)', 'ఉచితం ఎప్పుడు (ఐచ్ఛికం)')}
+                          </label>
+                          <div className="relative">
+                            <input
+                              id={`${id}-free-${s}`}
+                              type="text"
+                              inputMode="decimal"
+                              placeholder={L('e.g. 1000', 'ఉదా. 1000')}
+                              value={r.freeAbove}
+                              onChange={(e) => setShared({ freeAbove: e.target.value })}
+                              className={`${inputCls} pr-12`}
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">{unit}</span>
+                          </div>
+                        </div>
+                      </div>
+                      )}
+                      {r.mode !== 'cargo_bill' && r.amount.trim() === '' && (
+                        <p className="text-[11px] text-amber-800 leading-snug">
+                          {L('Without a charge, buyers can only collect from you.', 'ఛార్జ్ లేకపోతే, కొనుగోలుదారులు మీ దగ్గర మాత్రమే తీసుకోగలరు.')}
+                        </p>
+                      )}
+                    </div>
+              </div>
+              )
+            })()}
+    </>
+  )
+
+  if (part === 'transport') {
+    if (!open) return null
+    return (
+      <div className="rounded-2xl border-2 border-amber-200 bg-amber-50/60 p-3 space-y-3">
+        <p className="text-sm font-extrabold text-amber-900">🚚 {L('Wholesale transport', 'హోల్‌సేల్ రవాణా')}</p>
+        {transportBlock}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-2">
@@ -197,146 +358,7 @@ export default function WholesaleFields({
             </p>
           </div>
 
-          <div>
-            <span className={labelCls}>
-              {L('Can you transport to both Andhra Pradesh and Telangana?', 'ఆంధ్రప్రదేశ్, తెలంగాణ రెండింటికీ రవాణా చేయగలరా?')} <span className="text-red-500">*</span>
-            </span>
-            <div className="grid grid-cols-2 gap-2" role="group" aria-label={L('Can you transport to both Andhra Pradesh and Telangana?', 'ఆంధ్రప్రదేశ్, తెలంగాణ రెండింటికీ రవాణా చేయగలరా?')}>
-              {([
-                [true, 'Yes', 'అవును'],
-                [false, 'No — buyer collects', 'కాదు — కొనుగోలుదారు తీసుకెళ్తారు'],
-              ] as const).map(([v, en, te]) => {
-                const active = value.transport === v
-                return (
-                  <button
-                    key={String(v)}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => (v ? set({ transport: true, states: [...TRANSPORT_STATES], rates: bothRates(shared) }) : set({ transport: false }))}
-                    className={`rounded-xl px-2 py-2.5 text-xs font-bold border-2 leading-tight min-h-[44px] ${
-                      active ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 bg-white text-gray-600'
-                    }`}
-                  >
-                    {L(en, te)}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* How they charge for transport — one choice for both states.
-              Blank amount = pickup only in the app (never read as free). */}
-          {value.transport === true && (() => {
-            const r = shared
-            const s = 'AP' as TransportState
-            return (
-            <div className="space-y-2">
-              <span className={labelCls}>{L('How do you charge for transport?', 'రవాణాకు ఎలా ఛార్జ్ చేస్తారు?')}</span>
-                  <div className="rounded-xl border border-amber-200 bg-white p-2.5 space-y-2">
-                    {/* Pick ONE (client, 2026-11-05): per order is paid online
-                        with the produce; per km and cargo bill are billed after
-                        delivery and paid to the seller directly. "Per kg" is no
-                        longer offered — shown only on a lot still saved with it. */}
-                    <div className="grid grid-cols-3 gap-1.5" role="group" aria-label={L('How do you charge for transport?', 'రవాణాకు ఎలా ఛార్జ్ చేస్తారు?')}>
-                      {([
-                        ['per_order', 'Per order', 'ఒక్కో ఆర్డర్‌కు'],
-                        ['per_km', 'Per km', 'కి.మీ.కు'],
-                        ['cargo_bill', 'Cargo bill', 'కార్గో బిల్లు'],
-                        ...(r.mode === 'per_unit' ? [['per_unit', `Per ${unit} (old)`, `ఒక్కో ${unit}కు (పాతది)`] as const] : []),
-                      ] as const).map(([m, en, te]) => (
-                        <button
-                          key={m}
-                          type="button"
-                          aria-pressed={r.mode === m}
-                          onClick={() => setShared({ mode: m })}
-                          className={`rounded-lg px-1.5 py-2 text-[11px] font-bold border-2 min-h-[40px] leading-tight ${
-                            r.mode === m ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 bg-white text-gray-600'
-                          }`}
-                        >
-                          {L(en, te)}
-                        </button>
-                      ))}
-                    </div>
-
-                    {r.mode === 'cargo_bill' ? (
-                      <p className="rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-snug text-amber-900">
-                        {L(
-                          'After you deliver, upload the cargo bill on the order with its amount. The buyer pays you the transport directly.',
-                          'డెలివరీ తర్వాత, ఆర్డర్‌పై కార్గో బిల్లును దాని మొత్తంతో అప్‌లోడ్ చేయండి. కొనుగోలుదారు రవాణా ఛార్జ్‌ను నేరుగా మీకు చెల్లిస్తారు.',
-                        )}
-                      </p>
-                    ) : r.mode === 'per_km' ? (
-                      <div>
-                        <label htmlFor={`${id}-rate-${s}`} className="text-[11px] font-semibold text-gray-600 block mb-1">
-                          {L('₹ per km', 'కి.మీ.కు ₹')}
-                        </label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
-                          <input
-                            id={`${id}-rate-${s}`}
-                            type="text"
-                            inputMode="decimal"
-                            placeholder={L('e.g. 5', 'ఉదా. 5')}
-                            value={r.amount}
-                            onChange={(e) => setShared({ amount: e.target.value })}
-                            className={`${inputCls} pl-7 pr-12`}
-                          />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">/km</span>
-                        </div>
-                        <p className="mt-1 text-[11px] leading-snug text-amber-900">
-                          {L(
-                            'After delivery you enter the km; the app works out the bill (e.g. 20 km × ₹5 = ₹100). The buyer pays you directly.',
-                            'డెలివరీ తర్వాత మీరు కి.మీ. నమోదు చేస్తారు; యాప్ బిల్లు లెక్కిస్తుంది (ఉదా. 20 కి.మీ. × ₹5 = ₹100). కొనుగోలుదారు నేరుగా మీకు చెల్లిస్తారు.',
-                          )}
-                        </p>
-                      </div>
-                    ) : (
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label htmlFor={`${id}-rate-${s}`} className="text-[11px] font-semibold text-gray-600 block mb-1">
-                          {r.mode === 'per_unit' ? L(`₹ per ${unit}`, `ఒక్కో ${unit}కు ₹`) : L('₹ per order', 'ఒక్కో ఆర్డర్‌కు ₹')}
-                        </label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
-                          <input
-                            id={`${id}-rate-${s}`}
-                            type="text"
-                            inputMode="decimal"
-                            placeholder={L('0 = free', '0 = ఉచితం')}
-                            value={r.amount}
-                            onChange={(e) => setShared({ amount: e.target.value })}
-                            className={`${inputCls} pl-7`}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label htmlFor={`${id}-free-${s}`} className="text-[11px] font-semibold text-gray-600 block mb-1">
-                          {L('Free above (optional)', 'ఉచితం ఎప్పుడు (ఐచ్ఛికం)')}
-                        </label>
-                        <div className="relative">
-                          <input
-                            id={`${id}-free-${s}`}
-                            type="text"
-                            inputMode="decimal"
-                            placeholder={L('e.g. 1000', 'ఉదా. 1000')}
-                            value={r.freeAbove}
-                            onChange={(e) => setShared({ freeAbove: e.target.value })}
-                            className={`${inputCls} pr-12`}
-                          />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">{unit}</span>
-                        </div>
-                      </div>
-                    </div>
-                    )}
-                    {r.mode !== 'cargo_bill' && r.amount.trim() === '' && (
-                      <p className="text-[11px] text-amber-800 leading-snug">
-                        {L('Without a charge, buyers can only collect from you.', 'ఛార్జ్ లేకపోతే, కొనుగోలుదారులు మీ దగ్గర మాత్రమే తీసుకోగలరు.')}
-                      </p>
-                    )}
-                  </div>
-            </div>
-            )
-          })()}
+          {part === 'all' && transportBlock}
 
           {value.saleMode === 'both' && (
             <p className="text-[11px] text-amber-900 leading-snug">
