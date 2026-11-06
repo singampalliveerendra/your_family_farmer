@@ -4,6 +4,13 @@ import {
   cartSignature, cartNeedsAttention, badgeText,
 } from '@/lib/bottomNav'
 
+describe('Orders tab covers My bulk orders (2026-11-06)', () => {
+  it('lights Orders on the aggregator purchases page', () => {
+    expect(activeSellerTab('/aggregator/purchases')).toBe('orders')
+    expect(activeSellerTab('/farmer/dashboard/orders')).toBe('orders')
+  })
+})
+
 describe('navKindFor', () => {
   it('gives the buyer bar on every buyer page, detail pages included', () => {
     for (const p of [

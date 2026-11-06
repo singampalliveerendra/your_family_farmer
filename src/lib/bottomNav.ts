@@ -77,7 +77,7 @@ export function activeBuyerTab(pathname: string | null | undefined): BuyerTab | 
  *  the dashboard's own sheets rather than pages of their own. */
 export function activeSellerTab(pathname: string | null | undefined, view?: string | null): SellerTab | null {
   if (!pathname) return null
-  if (pathname.endsWith('/dashboard/orders') || isUnder(pathname, '/farmer/dashboard/orders')) return 'orders'
+  if (pathname.endsWith('/dashboard/orders') || isUnder(pathname, '/farmer/dashboard/orders') || isUnder(pathname, '/aggregator/purchases')) return 'orders'
   if (pathname === '/farmer/dashboard' || pathname === '/aggregator/dashboard') {
     if (view === 'produce') return 'produce'
     if (view === 'settings') return 'settings'

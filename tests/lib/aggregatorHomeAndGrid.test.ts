@@ -106,3 +106,14 @@ describe('bulk lot page order', () => {
     expect(lot.indexOf("'Sold by farmer'")).toBeGreaterThan(lot.indexOf('<BulkCheckout'))
   })
 })
+
+describe('My bulk orders lives under the bottom menu Orders (2026-11-06)', () => {
+  it('the bulk market no longer has its own My bulk orders button', () => {
+    expect(src('src/app/aggregator/market/page.tsx')).not.toMatch(/href="\/aggregator\/purchases"/)
+  })
+  it('Orders received ↔ My bulk orders tabs on both pages; only aggregators see them on Orders', () => {
+    expect(src('src/app/farmer/dashboard/orders/page.tsx')).toMatch(/<AggregatorOrdersTabs active="received" \/>/)
+    expect(src('src/app/aggregator/purchases/page.tsx')).toMatch(/<AggregatorOrdersTabs active="bought" alwaysShow \/>/)
+    expect(src('src/components/aggregator/OrdersTabs.tsx')).toMatch(/account_type === 'aggregator'/)
+  })
+})

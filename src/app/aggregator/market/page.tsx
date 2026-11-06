@@ -90,11 +90,7 @@ export default function BulkMarketPage() {
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/70">{L('Aggregators only', 'అగ్రిగేటర్లకు మాత్రమే')}</p>
           <h1 className="brand-wordmark mt-1 text-3xl font-bold">{L('Bulk market', 'బల్క్ మార్కెట్')}</h1>
           <p className="mt-1 text-sm text-white/80">{L('Bulk produce straight from farmers and other aggregators.', 'రైతులు, ఇతర అగ్రిగేటర్ల నుండి నేరుగా బల్క్ ఉత్పత్తులు.')}</p>
-          {access.buying && (
-            <Link href="/aggregator/purchases" className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-sm font-bold ring-1 ring-white/30">
-              <Icon name="receipt" className="h-4 w-4" /> {L('My bulk orders', 'నా బల్క్ ఆర్డర్లు')}
-            </Link>
-          )}
+          {/* "My bulk orders" moved to the bottom menu's Orders (2026-11-06). */}
         </div>
       </header>
 
