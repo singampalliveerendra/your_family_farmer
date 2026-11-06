@@ -12,10 +12,11 @@ import SubscribeHighlight from '@/components/aggregator/SubscribeHighlight'
 import type { PlanRow } from '@/lib/subscriptionPlans'
 
 /* The aggregator dashboard's plan strip (Phase 4) and its two main actions —
- * the bulk market (Phase 5) and Sell bulk — plus the selling-lock notice
+ * the bulk market (Phase 5) and Sell your products — plus the selling-lock notice
  * (Phase 7). Redesigned 2026-11-05 on the client's word: the plan is one slim
  * line with a short badge on the right ("Free plan", "Till 12 Dec", "Renew"),
- * and Bulk market / Sell bulk are two filled buttons that stand out. The
+ * and Bulk market / Sell your products are two filled buttons that stand out
+ * (renamed from "Sell bulk" 2026-11-06: it opens the normal Add produce). The
  * "Shop as a consumer" card is gone — the bottom bar's "Shop as buyer" does
  * the same. Shows nothing for farmers (they are free) or before the
  * subscription migration (the API answers configured: false). */
@@ -75,12 +76,12 @@ export default function SubscriptionStatusCard({ onSellBulk }: { onSellBulk?: ()
         </Link>
         {a.selling && onSellBulk ? (
           <button type="button" onClick={onSellBulk} className={sellClass}>
-            <span className="flex items-center gap-1.5 text-[15px] font-extrabold">🚚 {L('Sell bulk', 'బల్క్ అమ్మండి')}</span>
-            <span className="text-[11px] font-semibold text-[#2b1d02]/75">{L('Add wholesale produce', 'హోల్‌సేల్ ఉత్పత్తి చేర్చండి')}</span>
+            <span className="flex items-center gap-1.5 text-[15px] font-extrabold">🧺 {L('Sell your products', 'మీ ఉత్పత్తులు అమ్మండి')}</span>
+            <span className="text-[11px] font-semibold text-[#2b1d02]/75">{L('Retail, wholesale or both', 'చిల్లర, హోల్‌సేల్ లేదా రెండూ')}</span>
           </button>
         ) : (
           <Link href="/aggregator/subscription" className={sellClass}>
-            <span className="flex items-center gap-1.5 text-[15px] font-extrabold">🚚 {L('Sell bulk', 'బల్క్ అమ్మండి')}</span>
+            <span className="flex items-center gap-1.5 text-[15px] font-extrabold">🧺 {L('Sell your products', 'మీ ఉత్పత్తులు అమ్మండి')}</span>
             <span className="text-[11px] font-semibold text-[#2b1d02]/75">{L('Needs a Selling plan', 'సెల్లింగ్ ప్లాన్ అవసరం')}</span>
           </Link>
         )}
