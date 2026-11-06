@@ -62,7 +62,7 @@ export default function BulkCheckout({ it, feePercent, unitLabel, L }: { it: Mar
         {phase.code && <p className="mt-1 font-mono text-sm">{phase.code}</p>}
         <p className="mt-2 text-sm">{L('The seller has been told on WhatsApp. If they decline, you get the full amount back automatically.', 'అమ్మకందారుకు వాట్సాప్‌లో తెలిపాం. వారు తిరస్కరిస్తే, పూర్తి మొత్తం ఆటోమేటిక్‌గా తిరిగి వస్తుంది.')}</p>
         <Link href="/aggregator/purchases" className="mt-4 inline-flex min-h-[46px] items-center gap-2 rounded-xl px-4 text-sm font-bold text-white" style={{ background: SLATE }}>
-          {L('My bulk orders', 'నా బల్క్ ఆర్డర్లు')} <Icon name="arrow" className="h-4 w-4" />
+          {L('Orders I placed', 'నేను పెట్టిన ఆర్డర్లు')} <Icon name="arrow" className="h-4 w-4" />
         </Link>
       </section>
     )
