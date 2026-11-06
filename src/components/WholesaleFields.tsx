@@ -5,7 +5,6 @@ import {
   SALE_MODES,
   SALE_MODE_LABELS,
   TRANSPORT_STATES,
-  TRANSPORT_STATE_LABELS,
   offersRetail,
   offersWholesale,
   type RateForm,
@@ -49,11 +48,16 @@ export default function WholesaleFields({
   const retail = offersRetail(value.saleMode)
   const both = value.saleMode === 'both'
 
-  const toggleState = (s: TransportState) =>
-    set({ states: value.states.includes(s) ? value.states.filter((x) => x !== s) : [...value.states, s] })
+  // Transport is one question since 2026-11-05 (client): "Can you transport
+  // to both Andhra Pradesh and Telangana?" Yes = both states, with ONE way of
+  // charging used for both. The saved data still holds a rate per state (the
+  // same one twice), so checkout and older lots work unchanged; a lot saved
+  // earlier with one state shows its charge here and becomes both on change.
   const rateOf = (s: TransportState): RateForm => value.rates?.[s] ?? { mode: 'per_order', amount: '', freeAbove: '' }
-  const setRate = (s: TransportState, patch: Partial<RateForm>) =>
-    set({ rates: { ...(value.rates ?? {}), [s]: { ...rateOf(s), ...patch } } })
+  const shared: RateForm = rateOf(value.states[0] ?? 'AP')
+  const bothRates = (r: RateForm) => Object.fromEntries(TRANSPORT_STATES.map((st) => [st, { ...r }])) as WholesaleForm['rates']
+  const setShared = (patch: Partial<RateForm>) =>
+    set({ states: [...TRANSPORT_STATES], rates: bothRates({ ...shared, ...patch }) })
 
   const inputCls =
     'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none min-h-[44px]'
@@ -195,9 +199,9 @@ export default function WholesaleFields({
 
           <div>
             <span className={labelCls}>
-              {L('Can you transport?', 'మీరు రవాణా చేయగలరా?')} <span className="text-red-500">*</span>
+              {L('Can you transport to both Andhra Pradesh and Telangana?', 'ఆంధ్రప్రదేశ్, తెలంగాణ రెండింటికీ రవాణా చేయగలరా?')} <span className="text-red-500">*</span>
             </span>
-            <div className="grid grid-cols-2 gap-2" role="group" aria-label={L('Can you transport?', 'మీరు రవాణా చేయగలరా?')}>
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label={L('Can you transport to both Andhra Pradesh and Telangana?', 'ఆంధ్రప్రదేశ్, తెలంగాణ రెండింటికీ రవాణా చేయగలరా?')}>
               {([
                 [true, 'Yes', 'అవును'],
                 [false, 'No — buyer collects', 'కాదు — కొనుగోలుదారు తీసుకెళ్తారు'],
@@ -208,7 +212,7 @@ export default function WholesaleFields({
                     key={String(v)}
                     type="button"
                     aria-pressed={active}
-                    onClick={() => set({ transport: v })}
+                    onClick={() => (v ? set({ transport: true, states: [...TRANSPORT_STATES], rates: bothRates(shared) }) : set({ transport: false }))}
                     className={`rounded-xl px-2 py-2.5 text-xs font-bold border-2 leading-tight min-h-[44px] ${
                       active ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 bg-white text-gray-600'
                     }`}
@@ -220,47 +224,20 @@ export default function WholesaleFields({
             </div>
           </div>
 
-          {value.transport === true && (
-            <div>
-              <span className={labelCls}>{L('Where can you transport?', 'ఎక్కడికి రవాణా చేయగలరు?')}</span>
-              <div className="grid grid-cols-2 gap-2">
-                {TRANSPORT_STATES.map((s) => {
-                  const active = value.states.includes(s)
-                  const lbl = TRANSPORT_STATE_LABELS[s]
-                  return (
-                    <button
-                      key={s}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => toggleState(s)}
-                      className={`rounded-xl px-2 py-2.5 text-xs font-bold border-2 leading-tight min-h-[44px] ${
-                        active ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 bg-white text-gray-600'
-                      }`}
-                    >
-                      {active ? '✓ ' : ''}{L(lbl.en, lbl.te)}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* The delivery charge per state (Phase 6) — what a bulk buyer pays
-              at checkout. Blank = that state is pickup-only in the app. */}
-          {value.transport === true && value.states.length > 0 && (
+          {/* How they charge for transport — one choice for both states.
+              Blank amount = pickup only in the app (never read as free). */}
+          {value.transport === true && (() => {
+            const r = shared
+            const s = 'AP' as TransportState
+            return (
             <div className="space-y-2">
-              <span className={labelCls}>{L('Transport charge', 'రవాణా ఛార్జ్')}</span>
-              {TRANSPORT_STATES.filter((s) => value.states.includes(s)).map((s) => {
-                const r = rateOf(s)
-                const lbl = TRANSPORT_STATE_LABELS[s]
-                return (
-                  <div key={s} className="rounded-xl border border-amber-200 bg-white p-2.5 space-y-2">
-                    <p className="text-xs font-extrabold text-gray-800">{L(lbl.en, lbl.te)}</p>
+              <span className={labelCls}>{L('How do you charge for transport?', 'రవాణాకు ఎలా ఛార్జ్ చేస్తారు?')}</span>
+                  <div className="rounded-xl border border-amber-200 bg-white p-2.5 space-y-2">
                     {/* Pick ONE (client, 2026-11-05): per order is paid online
                         with the produce; per km and cargo bill are billed after
                         delivery and paid to the seller directly. "Per kg" is no
                         longer offered — shown only on a lot still saved with it. */}
-                    <div className="grid grid-cols-3 gap-1.5" role="group" aria-label={L(`How you charge for ${lbl.en}`, `${lbl.te}కు ఎలా ఛార్జ్ చేస్తారు`)}>
+                    <div className="grid grid-cols-3 gap-1.5" role="group" aria-label={L('How do you charge for transport?', 'రవాణాకు ఎలా ఛార్జ్ చేస్తారు?')}>
                       {([
                         ['per_order', 'Per order', 'ఒక్కో ఆర్డర్‌కు'],
                         ['per_km', 'Per km', 'కి.మీ.కు'],
@@ -271,7 +248,7 @@ export default function WholesaleFields({
                           key={m}
                           type="button"
                           aria-pressed={r.mode === m}
-                          onClick={() => setRate(s, { mode: m })}
+                          onClick={() => setShared({ mode: m })}
                           className={`rounded-lg px-1.5 py-2 text-[11px] font-bold border-2 min-h-[40px] leading-tight ${
                             r.mode === m ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 bg-white text-gray-600'
                           }`}
@@ -301,7 +278,7 @@ export default function WholesaleFields({
                             inputMode="decimal"
                             placeholder={L('e.g. 5', 'ఉదా. 5')}
                             value={r.amount}
-                            onChange={(e) => setRate(s, { amount: e.target.value })}
+                            onChange={(e) => setShared({ amount: e.target.value })}
                             className={`${inputCls} pl-7 pr-12`}
                           />
                           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">/km</span>
@@ -327,7 +304,7 @@ export default function WholesaleFields({
                             inputMode="decimal"
                             placeholder={L('0 = free', '0 = ఉచితం')}
                             value={r.amount}
-                            onChange={(e) => setRate(s, { amount: e.target.value })}
+                            onChange={(e) => setShared({ amount: e.target.value })}
                             className={`${inputCls} pl-7`}
                           />
                         </div>
@@ -343,7 +320,7 @@ export default function WholesaleFields({
                             inputMode="decimal"
                             placeholder={L('e.g. 1000', 'ఉదా. 1000')}
                             value={r.freeAbove}
-                            onChange={(e) => setRate(s, { freeAbove: e.target.value })}
+                            onChange={(e) => setShared({ freeAbove: e.target.value })}
                             className={`${inputCls} pr-12`}
                           />
                           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">{unit}</span>
@@ -353,14 +330,13 @@ export default function WholesaleFields({
                     )}
                     {r.mode !== 'cargo_bill' && r.amount.trim() === '' && (
                       <p className="text-[11px] text-amber-800 leading-snug">
-                        {L(`Without a charge, buyers in ${lbl.en} can only collect from you.`, `ఛార్జ్ లేకపోతే, ${lbl.te}లోని కొనుగోలుదారులు మీ దగ్గర మాత్రమే తీసుకోగలరు.`)}
+                        {L('Without a charge, buyers can only collect from you.', 'ఛార్జ్ లేకపోతే, కొనుగోలుదారులు మీ దగ్గర మాత్రమే తీసుకోగలరు.')}
                       </p>
                     )}
                   </div>
-                )
-              })}
             </div>
-          )}
+            )
+          })()}
 
           {value.saleMode === 'both' && (
             <p className="text-[11px] text-amber-900 leading-snug">
