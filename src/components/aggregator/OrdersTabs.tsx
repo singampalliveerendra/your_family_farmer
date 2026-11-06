@@ -6,8 +6,9 @@ import { useLang } from '@/lib/LanguageContext'
 
 /* For aggregators, the bottom menu's Orders covers both sides (client,
  * 2026-11-06 — the "My bulk orders" button left the bulk market):
- *   Orders received  /farmer/dashboard/orders   what buyers ordered from them
- *   My bulk orders   /aggregator/purchases      bulk lots they bought
+ *   Orders I received  /farmer/dashboard/orders   what buyers ordered from them
+ *   Orders I placed    /aggregator/purchases      bulk lots they bought
+ * (named so on 2026-11-06 to make the difference plain).
  * Farmers never buy in bulk, so on the orders page the tabs show only once
  * the seller's own profile says aggregator; the purchases page always shows
  * them (only aggregators reach it). */
@@ -32,10 +33,10 @@ export default function AggregatorOrdersTabs({ active, alwaysShow = false }: { a
   return (
     <nav aria-label={L('Orders', 'ఆర్డర్లు')} className="mt-4 flex gap-1 rounded-2xl bg-black/20 p-1">
       <Link href="/farmer/dashboard/orders" aria-current={active === 'received' ? 'page' : undefined} className={tab(active === 'received')}>
-        {L('Orders received', 'వచ్చిన ఆర్డర్లు')}
+        {L('Orders I received', 'నాకు వచ్చిన ఆర్డర్లు')}
       </Link>
       <Link href="/aggregator/purchases" aria-current={active === 'bought' ? 'page' : undefined} className={tab(active === 'bought')}>
-        {L('My bulk orders', 'నా బల్క్ ఆర్డర్లు')}
+        {L('Orders I placed', 'నేను పెట్టిన ఆర్డర్లు')}
       </Link>
     </nav>
   )

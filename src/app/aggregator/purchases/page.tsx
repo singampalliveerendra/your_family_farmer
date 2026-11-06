@@ -85,7 +85,7 @@ export default function BulkPurchasesPage() {
           <LanguageToggle size="sm" />
         </div>
         <div className="mx-auto mt-4 max-w-3xl">
-          <h1 className="brand-wordmark text-3xl font-bold">{L('My bulk orders', 'నా బల్క్ ఆర్డర్లు')}</h1>
+          <h1 className="brand-wordmark text-3xl font-bold">{L('Orders I placed', 'నేను పెట్టిన ఆర్డర్లు')}</h1>
           <p className="mt-1 text-sm text-white/80">{L('Bulk lots you bought on Go Grameen.', 'గో గ్రామీణ్‌లో మీరు కొన్న బల్క్ లాట్‌లు.')}</p>
           <AggregatorOrdersTabs active="bought" alwaysShow />
         </div>

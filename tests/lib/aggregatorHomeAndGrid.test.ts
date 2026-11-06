@@ -117,3 +117,15 @@ describe('My bulk orders lives under the bottom menu Orders (2026-11-06)', () =>
     expect(src('src/components/aggregator/OrdersTabs.tsx')).toMatch(/account_type === 'aggregator'/)
   })
 })
+
+describe('tab names say which side you are on (2026-11-06)', () => {
+  it('"Orders I received" / "Orders I placed", and the placed page + checkout link match', () => {
+    const t = src('src/components/aggregator/OrdersTabs.tsx')
+    expect(t).toMatch(/L\('Orders I received', 'నాకు వచ్చిన ఆర్డర్లు'\)/)
+    expect(t).toMatch(/L\('Orders I placed', 'నేను పెట్టిన ఆర్డర్లు'\)/)
+    for (const p of ['src/app/aggregator/purchases/page.tsx', 'src/components/aggregator/BulkCheckout.tsx']) {
+      expect(src(p)).toMatch(/L\('Orders I placed'/)
+      expect(src(p)).not.toMatch(/L\('My bulk orders'/)
+    }
+  })
+})
