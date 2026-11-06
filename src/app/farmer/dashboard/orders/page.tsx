@@ -15,6 +15,7 @@ import { useOrderSearch } from '@/lib/useOrderSearch'
 import { farmerFetch, isFarmerSessionExpired, requireFarmerSession } from '@/lib/farmer-auth-client'
 import { formatQty } from '@/lib/saleStep'
 import BackButton from '@/components/BackButton'
+import AggregatorOrdersTabs from '@/components/aggregator/OrdersTabs'
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'shipped' | 'completed' | 'declined' | 'cancelled'
 type TimeFilter = 'today' | 'week' | 'month' | 'all'
@@ -441,6 +442,8 @@ function OrdersPageInner() {
         <p className="text-green-400 text-sm mt-1">
           {L('All your orders in one place', 'మీ అన్ని ఆర్డర్లు ఒకే చోట')}
         </p>
+        {/* Aggregators: received ↔ bought (2026-11-06). Nothing for farmers. */}
+        <AggregatorOrdersTabs active="received" />
       </div>
 
       <div className="px-4 -mt-5 space-y-4">
