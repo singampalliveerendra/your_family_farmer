@@ -141,8 +141,8 @@ export default function SourceFarmersManager({
         </h4>
         <p className="text-[11px] text-gray-500 mt-0.5">
           {L(
-            'Every produce you list must name one of these farmers. Buyers see their name, village and phone.',
-            'మీరు జాబితా చేసే ప్రతి ఉత్పత్తి ఈ రైతులలో ఒకరిని పేర్కొనాలి. కొనుగోలుదారులకు వారి పేరు, ఊరు, ఫోన్ కనిపిస్తాయి.',
+            'Every produce you list must name one of these farmers. Buyers see their name and village (never the phone).',
+            'మీరు జాబితా చేసే ప్రతి ఉత్పత్తి ఈ రైతులలో ఒకరిని పేర్కొనాలి. కొనుగోలుదారులకు వారి పేరు, ఊరు కనిపిస్తాయి (ఫోన్ కాదు).',
           )}
         </p>
       </div>

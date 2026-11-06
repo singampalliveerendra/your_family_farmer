@@ -336,6 +336,9 @@ export default function ListingForm({
 
   return (
     <form onSubmit={submit} className="bg-white rounded-2xl border border-gray-100 p-5 max-w-2xl space-y-4">
+      {/* The form in 6 steps, mirroring the farmer's (2026-11-05): what → how
+          much & when → who buys & price → delivery → photos & story → quality. */}
+      <ModStep n={1} title="What are you selling?">
       <Field label="Farmer *">
         {mode === 'edit' ? (
           <input value={fixedFarmerName ?? '—'} disabled className={`${inputCls} bg-gray-50 text-gray-500`} />
@@ -397,6 +400,12 @@ export default function ListingForm({
         <Field label="Variety">
           <input value={form.variety} onChange={set('variety')} className={inputCls} placeholder="Country / Hybrid" />
         </Field>
+        <Field label="Category">
+          <select value={form.category} onChange={set('category')} className={inputCls}>
+            <option value="">Select a category…</option>
+            {CATEGORIES.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}
+          </select>
+        </Field>
         <Field label="Method">
           <select value={form.method} onChange={set('method')} className={inputCls}>
             <option value="natural">Natural (no chemicals)</option>
@@ -405,16 +414,18 @@ export default function ListingForm({
             <option value="chemical">Chemical</option>
           </select>
         </Field>
-        <Field label="Category">
-          <select value={form.category} onChange={set('category')} className={inputCls}>
-            <option value="">Select a category…</option>
-            {CATEGORIES.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}
-          </select>
-        </Field>
+      </div>
+      </ModStep>
+
+      <ModStep n={2} title="How much, and when?">
+      <div className="grid md:grid-cols-2 gap-4">
         <Field label="Unit">
           <select value={form.unit} onChange={set('unit')} className={inputCls}>
             {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
+        </Field>
+        <Field label="Stock available">
+          <input value={form.stock_qty} onChange={set('stock_qty')} type="number" min="0" step="0.1" className={inputCls} placeholder="e.g. 50" />
         </Field>
         <Field label="Sell in multiples of">
           <select value={form.sale_step} onChange={set('sale_step')} className={inputCls}>
@@ -422,12 +433,6 @@ export default function ListingForm({
               <option key={o.value} value={String(o.value)}>{o.en} {form.unit}</option>
             ))}
           </select>
-        </Field>
-        <Field label="Stock available">
-          <input value={form.stock_qty} onChange={set('stock_qty')} type="number" min="0" step="0.1" className={inputCls} placeholder="e.g. 50" />
-        </Field>
-        <Field label="Brix (sweetness)">
-          <input value={form.brix} onChange={set('brix')} type="number" min="0" step="0.1" className={inputCls} />
         </Field>
         {mode === 'create' && (
           <Field label="First harvest date & time *">
@@ -461,7 +466,6 @@ export default function ListingForm({
           </Field>
         )}
       </div>
-
       {/* Harvest timings — the same panel the farmer gets inside their Edit
           Harvest form, so a moderator can log many picks against one produce.
           Edit only: a harvest needs a saved produce row to attach to. */}
@@ -477,6 +481,55 @@ export default function ListingForm({
         </div>
       )}
 
+      </ModStep>
+
+      <ModStep n={3} title="Who buys it, and at what price?">
+      {/* Retail / Wholesale / Both — wholesale details open only when needed */}
+      <div className="border-t border-gray-100 pt-4 max-w-md space-y-3">
+        {lowStock && (
+          <p role="alert" className="text-xs text-amber-900 bg-amber-50 border-2 border-amber-300 rounded-xl px-3 py-2 font-semibold leading-snug">
+            🚚 Wholesale is hidden: only {lowStock.left} {form.unit} left, below the minimum of {lowStock.min} {form.unit}.
+            Lower the minimum below, switch to Retail, or add stock under Harvest timings. The farmer sees the same alert.
+          </p>
+        )}
+        <WholesaleFields
+          part="sale"
+          value={wholesale}
+          onChange={setWholesale}
+          unit={form.unit}
+          L={EN}
+          retailPrice={{ value: form.price_tier_1_price, onChange: (v) => setForm((f) => ({ ...f, price_tier_1_price: v })) }}
+          priceError={bothPriceErr?.en ?? null}
+        />
+      </div>
+
+      {/* Household bulk prices — optional lower retail prices for bigger
+          household orders. The main retail price is in the Price box above
+          (2026-11-05), next to the wholesale price. */}
+      {offersRetail(wholesale.saleMode) && (
+      <div className="border-t border-gray-100 pt-4">
+        <p className="text-sm font-extrabold text-green-800 mb-3">Lower price when a household buys more (optional, per {form.unit})</p>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Retail price is for up to (qty)">
+            <input value={form.price_tier_1_qty} onChange={set('price_tier_1_qty')} type="number" min="1" className={inputCls} />
+          </Field>
+          <div />
+          <Field label="Tier 2 — min qty (optional)">
+            <input value={form.price_tier_2_qty} onChange={set('price_tier_2_qty')} type="number" min="1" className={inputCls} />
+          </Field>
+          <Field label="Tier 2 — price ₹ (optional)">
+            <input value={form.price_tier_2_price} onChange={set('price_tier_2_price')} type="number" min="0" className={inputCls} />
+          </Field>
+          <Field label="Tier 3 — price ₹ (optional)">
+            <input value={form.price_tier_3_price} onChange={set('price_tier_3_price')} type="number" min="0" className={inputCls} />
+          </Field>
+        </div>
+      </div>
+      )}
+
+      </ModStep>
+
+      <ModStep n={4} title="Delivery">
       {/* Delivery method — pickup only, farmer courier, or both. Mirrors the
           farmer's Edit Harvest form so a moderator can set it on their behalf. */}
       <div className="border-t border-gray-100 pt-4">
@@ -515,64 +568,18 @@ export default function ListingForm({
         )}
       </div>
 
-      {/* Retail / Wholesale / Both — wholesale details open only when needed */}
-      <div className="border-t border-gray-100 pt-4 max-w-md space-y-3">
-        {lowStock && (
-          <p role="alert" className="text-xs text-amber-900 bg-amber-50 border-2 border-amber-300 rounded-xl px-3 py-2 font-semibold leading-snug">
-            🚚 Wholesale is hidden: only {lowStock.left} {form.unit} left, below the minimum of {lowStock.min} {form.unit}.
-            Lower the minimum below, switch to Retail, or add stock under Harvest timings. The farmer sees the same alert.
-          </p>
-        )}
-        <WholesaleFields
-          value={wholesale}
-          onChange={setWholesale}
-          unit={form.unit}
-          L={EN}
-          retailPrice={{ value: form.price_tier_1_price, onChange: (v) => setForm((f) => ({ ...f, price_tier_1_price: v })) }}
-          priceError={bothPriceErr?.en ?? null}
-        />
-      </div>
+      {/* Wholesale transport — part of Delivery, not of the price (2026-11-05). */}
+      <WholesaleFields
+        part="transport"
+        value={wholesale}
+        onChange={setWholesale}
+        unit={form.unit}
+        L={EN}
+        retailPrice={{ value: form.price_tier_1_price, onChange: (v) => setForm((f) => ({ ...f, price_tier_1_price: v })) }}
+      />
+      </ModStep>
 
-      {/* Household bulk prices — optional lower retail prices for bigger
-          household orders. The main retail price is in the Price box above
-          (2026-11-05), next to the wholesale price. */}
-      {offersRetail(wholesale.saleMode) && (
-      <div className="border-t border-gray-100 pt-4">
-        <p className="text-sm font-extrabold text-green-800 mb-3">Lower price when a household buys more (optional, per {form.unit})</p>
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Retail price is for up to (qty)">
-            <input value={form.price_tier_1_qty} onChange={set('price_tier_1_qty')} type="number" min="1" className={inputCls} />
-          </Field>
-          <div />
-          <Field label="Tier 2 — min qty (optional)">
-            <input value={form.price_tier_2_qty} onChange={set('price_tier_2_qty')} type="number" min="1" className={inputCls} />
-          </Field>
-          <Field label="Tier 2 — price ₹ (optional)">
-            <input value={form.price_tier_2_price} onChange={set('price_tier_2_price')} type="number" min="0" className={inputCls} />
-          </Field>
-          <Field label="Tier 3 — price ₹ (optional)">
-            <input value={form.price_tier_3_price} onChange={set('price_tier_3_price')} type="number" min="0" className={inputCls} />
-          </Field>
-        </div>
-      </div>
-      )}
-
-      {/* Quality & soil — mirrors the farmer's quality fields. */}
-      <div className="border-t border-gray-100 pt-4">
-        <p className="text-sm font-extrabold text-green-800 mb-3">Quality &amp; soil</p>
-        <div className="grid md:grid-cols-2 gap-4">
-          <Field label="Soil Organic Carbon %">
-            <input value={form.soil_organic_carbon} onChange={set('soil_organic_carbon')} type="number" min="0" step="0.1" className={inputCls} />
-          </Field>
-          <Field label="Soil pH">
-            <input value={form.soil_ph} onChange={set('soil_ph')} type="number" min="0" step="0.1" className={inputCls} />
-          </Field>
-          <Field label="Chemicals / pesticide">
-            <input value={form.pesticide_result} onChange={set('pesticide_result')} className={inputCls} placeholder="e.g. None detected" />
-          </Field>
-        </div>
-      </div>
-
+      <ModStep n={5} title="Photos and story">
       {/* Photos */}
       <div className="border-t border-gray-100 pt-4">
         <p className="text-sm font-extrabold text-green-800 mb-3">Photos</p>
@@ -594,6 +601,36 @@ export default function ListingForm({
         <input type="url" inputMode="url" placeholder="https://youtube.com/..." value={form.video_url} onChange={set('video_url')} className={inputCls} />
       </Field>
 
+      </ModStep>
+
+      {/* 6 — optional, closed until tapped. */}
+      <details className="group rounded-2xl border border-gray-200 bg-gray-50/60 p-3">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-extrabold text-gray-900">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-700 text-xs font-bold text-white">6</span>
+          Quality details (optional)
+          <span className="ml-auto text-gray-400 transition-transform group-open:rotate-90">›</span>
+        </summary>
+      {/* Quality & soil — mirrors the farmer's quality fields. */}
+      <div className="border-t border-gray-100 pt-4">
+        <p className="text-sm font-extrabold text-green-800 mb-3">Quality &amp; soil</p>
+        <div className="grid md:grid-cols-2 gap-4">
+          <Field label="Brix (sweetness)">
+            <input value={form.brix} onChange={set('brix')} type="number" min="0" step="0.1" className={inputCls} />
+          </Field>
+          <Field label="Soil Organic Carbon %">
+            <input value={form.soil_organic_carbon} onChange={set('soil_organic_carbon')} type="number" min="0" step="0.1" className={inputCls} />
+          </Field>
+          <Field label="Soil pH">
+            <input value={form.soil_ph} onChange={set('soil_ph')} type="number" min="0" step="0.1" className={inputCls} />
+          </Field>
+          <Field label="Chemicals / pesticide">
+            <input value={form.pesticide_result} onChange={set('pesticide_result')} className={inputCls} placeholder="e.g. None detected" />
+          </Field>
+        </div>
+      </div>
+
+      </details>
+
       {error && <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 font-semibold">{error}</p>}
 
       <div className="flex gap-2 pt-1">
@@ -609,6 +646,19 @@ export default function ListingForm({
 }
 
 const inputCls = 'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none'
+
+/** One numbered step of the form (2026-11-05), like the farmer's. */
+function ModStep({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-4 rounded-2xl border border-gray-200 p-4">
+      <h3 className="flex items-center gap-2 text-sm font-extrabold text-gray-900">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-700 text-xs font-bold text-white">{n}</span>
+        {title}
+      </h3>
+      {children}
+    </section>
+  )
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
