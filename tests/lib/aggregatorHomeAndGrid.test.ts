@@ -27,15 +27,16 @@ describe('plan badge', () => {
 
 describe('aggregator dashboard card', () => {
   const card = src('src/components/farmer/SubscriptionStatusCard.tsx')
-  it('has Bulk market and Sell bulk buttons, and no Shop as a consumer card', () => {
+  it('has Bulk market and Sell your products buttons, and no Shop as a consumer card', () => {
     expect(card).toMatch(/'Bulk market'/)
-    expect(card).toMatch(/'Sell bulk'/)
+    expect(card).toMatch(/'Sell your products'/)
+    expect(card).not.toMatch(/L\('Sell bulk'/)
     expect(card).not.toMatch(/L\('Shop as a consumer'/)
     expect(card).not.toMatch(/href="\/consumer"/)
   })
-  it('Sell bulk opens Add produce on Wholesale', () => {
+  it('Sell your products opens the normal Add produce (no sale mode picked) — 2026-11-06', () => {
     const dash = src('src/app/farmer/dashboard/page.tsx')
-    expect(dash).toMatch(/setFormSaleMode\('wholesale'\)/)
+    expect(dash).not.toMatch(/setFormSaleMode\('wholesale'\)/)
     expect(dash).toMatch(/initialSaleMode=\{formSaleMode\}/)
     expect(dash).toMatch(/!editData && initialSaleMode \? \{ \.\.\.f, saleMode: initialSaleMode \}/)
   })

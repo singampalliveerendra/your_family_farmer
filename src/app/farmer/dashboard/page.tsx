@@ -644,8 +644,9 @@ export default function FarmerDashboard() {
         {farmer?.account_type === 'aggregator' && (
           <SubscriptionStatusCard
             onSellBulk={profileComplete ? () => {
-              // "Sell bulk" = Add produce with Wholesale already chosen (2026-11-05).
-              setFormSaleMode('wholesale')
+              // "Sell your products" = the normal Add produce (client, 2026-11-06:
+              // not bulk only — they pick Retail / Wholesale / Both in step 3).
+              setFormSaleMode(null)
               setShowForm(true)
               setTimeout(() => document.getElementById('yff-produce-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
             } : undefined}
