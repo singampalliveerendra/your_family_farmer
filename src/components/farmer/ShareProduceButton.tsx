@@ -11,14 +11,15 @@ import {
   chunkForShare,
   displayUrl,
   farmerShareUrl,
-  optimizedImageUrl,
   pickShareItems,
   shareBatchLabel,
   shareBatches,
   shareCaption,
   shareFileName,
+  sharePhotoUrls,
   shareTextWithFiles,
   sharePriceLabel,
+  shrinkSize,
   type ShareListing,
 } from '@/lib/produceShare'
 
@@ -299,17 +300,35 @@ export default function ShareProduceButton({
 
 // ── drawing ──────────────────────────────────────────────────────────────────
 
-type Tile = { name: string; price: string; emoji: string; photo: HTMLImageElement | null }
+type Tile = { name: string; price: string; emoji: string; photo: HTMLCanvasElement | null }
 
-// A produce photo, or null if it can't be loaded within a few seconds or can't
-// be drawn without tainting the canvas (no CORS) — the tile falls back to its
-// emoji rather than holding up or breaking the whole image.
-// Our own optimiser first (same-origin, small); the original file as a
-// fallback, cache-busted so a copy cached without CORS headers can't block it.
-async function loadPhoto(src: string): Promise<HTMLImageElement | null> {
-  const viaOptimizer = await loadImage(optimizedImageUrl(src), false)
-  if (viaOptimizer) return viaOptimizer
-  return loadImage(`${src}${src.includes('?') ? '&' : '?'}share=${Date.now()}`, true)
+// A produce photo shrunk for its tile, or null if it can't be loaded within a
+// few seconds or can't be drawn without tainting the canvas — the tile falls
+// back to its emoji rather than holding up or breaking the whole image.
+// Loaded straight from Supabase (see sharePhotoUrls: Next's image endpoint would bill a
+// Vercel image transformation per photo), then shrunk here on the phone.
+async function loadPhoto(src: string): Promise<HTMLCanvasElement | null> {
+  for (const url of sharePhotoUrls(src)) {
+    const img = await loadImage(url, true)
+    const small = img && shrinkPhoto(img)
+    if (small) return small
+  }
+  return null
+}
+
+// Copy the photo into a small canvas so the full camera file can be let go.
+// Returns null if the copy can't be read back (tainted), so the caller tries
+// the next URL instead of failing the whole page at toBlob time.
+function shrinkPhoto(img: HTMLImageElement): HTMLCanvasElement | null {
+  const { w, h } = shrinkSize(img.naturalWidth, img.naturalHeight)
+  const c = document.createElement('canvas')
+  c.width = w
+  c.height = h
+  const ctx = c.getContext('2d')
+  if (!ctx) return null
+  ctx.drawImage(img, 0, 0, w, h)
+  try { ctx.getImageData(0, 0, 1, 1) } catch { return null }
+  return c
 }
 
 function loadImage(src: string, cors: boolean, timeoutMs = 8000): Promise<HTMLImageElement | null> {
@@ -375,12 +394,12 @@ function fitText(
 }
 
 // Cover-crop an image into a box (like CSS object-fit: cover).
-function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number) {
-  const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight)
+function drawCover(ctx: CanvasRenderingContext2D, img: HTMLCanvasElement, x: number, y: number, w: number, h: number) {
+  const scale = Math.max(w / img.width, h / img.height)
   const sw = w / scale
   const sh = h / scale
-  const sx = (img.naturalWidth - sw) / 2
-  const sy = (img.naturalHeight - sh) / 2
+  const sx = (img.width - sw) / 2
+  const sy = (img.height - sh) / 2
   ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h)
 }
 

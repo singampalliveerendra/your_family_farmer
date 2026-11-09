@@ -4,7 +4,9 @@ import {
   chunkForShare,
   displayUrl,
   farmerShareUrl,
-  optimizedImageUrl,
+  sharePhotoUrls,
+  shrinkSize,
+  SHARE_PHOTO_MAX_PX,
   pickShareItems,
   SHARE_MAX_BYTES,
   SHARE_MAX_FILES,
@@ -156,15 +158,44 @@ describe('links and caption', () => {
   })
 })
 
-describe('optimizedImageUrl', () => {
-  // Same-origin, so the canvas can draw it without CORS. The width must be one
-  // Next allows (384 is a default) or the optimiser answers 400.
-  it('routes the photo through our own optimiser at 384px', () => {
-    const src = 'https://abc.supabase.co/storage/v1/object/public/produce/a b.jpg'
-    expect(optimizedImageUrl(src)).toBe(
-      `/_next/image?url=${encodeURIComponent(src)}&w=384&q=75`,
-    )
-    expect(optimizedImageUrl(src).startsWith('/')).toBe(true)
+describe('sharePhotoUrls', () => {
+  const src = 'https://abc.supabase.co/storage/v1/object/public/farm-images/f/a.jpg'
+
+  // /_next/image runs Vercel's billed optimiser even with images.unoptimized.
+  it('loads straight from Supabase, never through /_next/image', () => {
+    for (const u of sharePhotoUrls(src, 123)) {
+      expect(u.startsWith(src)).toBe(true)
+      expect(u).not.toContain('_next/image')
+    }
+  })
+
+  it('tries the plain URL first (browser cache), then a cache-busted one', () => {
+    expect(sharePhotoUrls(src, 123)).toEqual([src, `${src}?share=123`])
+  })
+
+  it('appends with & when the URL already has a query', () => {
+    expect(sharePhotoUrls(`${src}?v=2`, 9)[1]).toBe(`${src}?v=2&share=9`)
+  })
+})
+
+describe('shrinkSize', () => {
+  it('brings the longest side down to 640 and keeps the shape', () => {
+    expect(SHARE_PHOTO_MAX_PX).toBe(640)
+    expect(shrinkSize(4000, 3000)).toEqual({ w: 640, h: 480 })
+    expect(shrinkSize(3000, 4000)).toEqual({ w: 480, h: 640 })
+  })
+
+  it('never enlarges a small photo', () => {
+    expect(shrinkSize(300, 200)).toEqual({ w: 300, h: 200 })
+  })
+
+  it('survives a photo that reports no size', () => {
+    expect(shrinkSize(0, 0)).toEqual({ w: 1, h: 1 })
+    expect(shrinkSize(NaN, 100)).toEqual({ w: 1, h: 1 })
+  })
+
+  it('never rounds a very thin photo down to 0px', () => {
+    expect(shrinkSize(10000, 2)).toEqual({ w: 640, h: 1 })
   })
 })
 

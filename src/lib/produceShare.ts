@@ -113,14 +113,30 @@ export function shareFileName(slug: string, index: number, total: number): strin
 }
 
 /**
- * A produce photo through our own image optimiser (/_next/image). Same-origin,
- * so drawing it never trips CORS or taints the canvas — a photo straight from
- * Supabase Storage can, e.g. when the browser cached it earlier from a plain
- * <img> without CORS headers. It's also resized to the tile, which matters on
- * 4G. 384 is one of Next's default image widths; others are refused with 400.
+ * Where to fetch one produce photo for the share image, in the order to try.
+ *
+ * Straight from Supabase Storage, never through Next's image endpoint: it
+ * still runs Vercel's paid image optimiser even with `images.unoptimized`
+ * (checked on gogrameen.in 2026-11-09 — a 2 MB photo came back resized to
+ * 45 KB), and each new photo shared was one billed transformation.
+ * Supabase sends `Access-Control-Allow-Origin: *`, so the canvas can draw the
+ * file. The cache-busted second try covers a copy the browser cached without
+ * CORS, which would otherwise taint the canvas.
  */
-export function optimizedImageUrl(src: string, width = 384): string {
-  return `/_next/image?url=${encodeURIComponent(src)}&w=${width}&q=75`
+export function sharePhotoUrls(src: string, now: number = Date.now()): [string, string] {
+  return [src, `${src}${src.includes('?') ? '&' : '?'}share=${now}`]
+}
+
+/** Longest side of a photo once shrunk for a share tile — sharp at the ~330px
+ * tile after the cover crop, light enough that 90 photos fit in phone memory. */
+export const SHARE_PHOTO_MAX_PX = 640
+
+/** Size to shrink a w×h photo to so its longest side is at most maxPx (never
+ * enlarged, never below 1px). */
+export function shrinkSize(w: number, h: number, maxPx: number = SHARE_PHOTO_MAX_PX): { w: number; h: number } {
+  if (!(w > 0) || !(h > 0)) return { w: 1, h: 1 }
+  const scale = Math.min(1, maxPx / Math.max(w, h))
+  return { w: Math.max(1, Math.round(w * scale)), h: Math.max(1, Math.round(h * scale)) }
 }
 
 /**
