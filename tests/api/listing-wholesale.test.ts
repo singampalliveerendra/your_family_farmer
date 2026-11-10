@@ -493,3 +493,62 @@ describe('retail packs through the save routes', () => {
     expect(db.writes.find((w) => w.table === 'produce_listings' && w.kind === 'insert')).toBeUndefined()
   })
 })
+
+// ---------------------------------------------------------------------------
+// Delivery step (client card 2026-11-10): courier type, cargo services, who pays.
+describe('delivery choices through the save routes', () => {
+  const farmerEdit = (payload: Row, lang: 'en' | 'te' = 'en') =>
+    updateListing(req('/api/farmer/update-listing', { listingId: LISTING_ID, payload }, 'POST', lang))
+
+  it('cargo (ToPay): services saved, nothing charged online, offered across AP and TG', async () => {
+    const res = await farmerEdit({ delivery_mode: 'courier', courier_type: 'cargo', cargo_services: ['VRL Logistics', ' Sri Durga Parcels '], delivery_paid_by: 'buyer', delivery_charge: 400 })
+    expect(res.status).toBe(200)
+    expect(listing()).toMatchObject({
+      courier_type: 'cargo', cargo_services: ['VRL Logistics', 'Sri Durga Parcels'], delivery_paid_by: 'buyer',
+      delivery_charge: 0, retail_reach: 'transport', retail_transport_rates: { AP: 0, TG: 0 },
+    })
+  })
+  it('local, buyer pays: the charge is kept', async () => {
+    const res = await farmerEdit({ delivery_mode: 'both', courier_type: 'local', delivery_paid_by: 'buyer', delivery_charge: 40, delivery_radius_km: 12 })
+    expect(res.status).toBe(200)
+    expect(listing()).toMatchObject({ courier_type: 'local', delivery_paid_by: 'buyer', delivery_charge: 40, delivery_radius_km: 12, retail_reach: 'local' })
+  })
+  it('local, farmer pays: free for the buyer', async () => {
+    await farmerEdit({ delivery_mode: 'courier', courier_type: 'local', delivery_paid_by: 'farmer', delivery_charge: 40 })
+    expect(listing()).toMatchObject({ delivery_paid_by: 'farmer', delivery_charge: 0 })
+  })
+  it('pickup only clears the courier fields', async () => {
+    Object.assign(listing(), { courier_type: 'cargo', cargo_services: ['VRL Logistics'], delivery_paid_by: 'buyer' })
+    const res = await farmerEdit({ delivery_mode: 'pickup', courier_type: null, cargo_services: [], delivery_paid_by: null })
+    expect(res.status).toBe(200)
+    expect(listing()).toMatchObject({ courier_type: null, cargo_services: [], delivery_paid_by: null, retail_reach: 'local' })
+  })
+  it('cargo without a service is refused, nothing written', async () => {
+    const res = await farmerEdit({ delivery_mode: 'courier', courier_type: 'cargo', cargo_services: [], delivery_paid_by: 'buyer' })
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/at least one cargo service/)
+    expect(listing()).not.toHaveProperty('courier_type')
+  })
+  it('the error is in Telugu by default', async () => {
+    const res = await farmerEdit({ delivery_mode: 'courier', courier_type: 'local' }, 'te')
+    expect((await res.json()).error).toMatch(/[ఀ-౿]/)
+  })
+  it('an edit without delivery fields leaves them alone (regression)', async () => {
+    Object.assign(listing(), { courier_type: 'cargo', cargo_services: ['VRL Logistics'], delivery_paid_by: 'buyer' })
+    await farmerEdit({ stock_qty: 20 })
+    expect(listing()).toMatchObject({ courier_type: 'cargo', cargo_services: ['VRL Logistics'] })
+  })
+  it('moderator create: cargo saved the same way', async () => {
+    const res = await moderatorCreate(req('/api/moderator/listings', createBody({
+      delivery_mode: 'courier', courier_type: 'cargo', cargo_services: ['APSRTC Cargo'], delivery_paid_by: 'farmer', delivery_charge: '99',
+    })))
+    expect(res.status).toBe(200)
+    const row = db.writes.find((w) => w.table === 'produce_listings' && w.kind === 'insert')?.row
+    expect(row).toMatchObject({ courier_type: 'cargo', cargo_services: ['APSRTC Cargo'], delivery_paid_by: 'farmer', delivery_charge: 0, retail_reach: 'transport' })
+  })
+  it('moderator create: local without "who pays" is refused', async () => {
+    const res = await moderatorCreate(req('/api/moderator/listings', createBody({ delivery_mode: 'courier', courier_type: 'local' })))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/Who pays/)
+  })
+})

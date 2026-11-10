@@ -1,3 +1,4 @@
+import { COURIER_NOT_READY, COURIER_COLUMNS, applyCourierColumns, isCourierColumnMissing, withoutCourier } from '@/lib/courierOptions'
 import { PACKS_NOT_READY, RETAIL_PACK_COLUMNS, applyRetailPackColumns, isPackColumnMissing } from '@/lib/packPricing'
 import { createClient } from '@supabase/supabase-js'
 import { applyRetailReach } from '@/lib/retailReach'
@@ -201,6 +202,13 @@ export async function POST(req: NextRequest) {
   // Retail packs (2026-11-10): sent only by a form that knows packs, so an
   // older caller leaves them alone. Same rules as the farmer's; the per-unit
   // columns (sale step, tiers) are derived from the pack when one is set.
+  // Delivery step (2026-11-10): sent only by a form that knows it, so an
+  // older caller leaves the courier fields alone. The reach check below reads
+  // the body, so the normalised reach is copied back onto it.
+  for (const k of COURIER_COLUMNS) if (k in b) insert[k] = b[k]
+  const courierErr = applyCourierColumns(insert)
+  if (courierErr) return NextResponse.json({ error: courierErr.en }, { status: 400 })
+  if ('courier_type' in insert) Object.assign(b, { retail_reach: insert.retail_reach, retail_transport_rates: insert.retail_transport_rates })
   for (const k of RETAIL_PACK_COLUMNS) if (k in b) insert[k] = b[k]
   const packErr = applyRetailPackColumns(insert, unit)
   if (packErr) return NextResponse.json({ error: packErr.en }, { status: 400 })
@@ -212,19 +220,26 @@ export async function POST(req: NextRequest) {
   const priceErr = bothPricesError(insert)
   if (priceErr) return NextResponse.json({ error: priceErr.en }, { status: 400 })
 
-  const { data: created, error } = await supabase
+  const create = (row: Record<string, unknown>) => supabase
     .from('produce_listings')
-    .insert(insert)
+    .insert(row)
     .select('id')
     .single()
+  let { data: created, error } = await create(insert)
+  // No courier columns yet (scripts/courier-options-migration.sql): Local /
+  // Pickup save without them; Cargo is refused rather than silently lost.
+  if (error && isCourierColumnMissing(error.message)) {
+    if (insert.courier_type === 'cargo') return NextResponse.json({ error: COURIER_NOT_READY.en }, { status: 503 })
+    ;({ data: created, error } = await create(withoutCourier(insert)))
+  }
   if (error && isPackColumnMissing(error.message)) return NextResponse.json({ error: PACKS_NOT_READY.en }, { status: 503 })
   if (error && isWholesaleColumnMissing(error.message)) {
     return NextResponse.json({ error: WHOLESALE_NOT_READY.en }, { status: 503 })
   }
-  if (error) {
-    if (isSellingPlanError(error.message)) return NextResponse.json({ error: SELLING_PLAN_REQUIRED_MODERATOR, code: 'SELLING_PLAN_REQUIRED' }, { status: 403 })
-    console.error('[YFF moderator/listings POST] insert failed:', error.message)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error || !created) {
+    if (error && isSellingPlanError(error.message)) return NextResponse.json({ error: SELLING_PLAN_REQUIRED_MODERATOR, code: 'SELLING_PLAN_REQUIRED' }, { status: 403 })
+    console.error('[YFF moderator/listings POST] insert failed:', error?.message)
+    return NextResponse.json({ error: error?.message ?? 'Could not add the harvest.' }, { status: 500 })
   }
 
   // Parity with the farmer flow: log a matching harvest row so this produce

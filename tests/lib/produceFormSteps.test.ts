@@ -31,7 +31,7 @@ describe('farmer / aggregator produce form', () => {
       "<FormSubsection title={L('Quality details (optional)'", '{/* Quality params */}',
       "<FormStep n={2} title={L('How do you want to sell?'", '<SellHowFields',
       "<FormStep n={3} title={L('How much, and when?'", '{/* Quantity. The label', '<HarvestManager',
-      "<FormStep n={4} title={L('Delivery'", '{/* Delivery method', 'part="transport"',
+      "<FormStep n={4} title={L('Delivery'", '<DeliveryFields', '<PickupPointsEditor', 'part="transport"',
       '{/* Preview + Publish buttons */}',
     ])
     expect(form).not.toMatch(/<FormStep n=\{5\}|Photos and story|Who buys it, and at what price|part="sale"/)
@@ -59,7 +59,7 @@ describe('moderator produce form (parity)', () => {
       '<ModSubsection title="Quality details (optional)" collapsible>', '<Field label="Brix (sweetness)">', '<Field label="Soil pH">',
       '<ModStep n={2} title="How do you want to sell?">', '<SellHowFields',
       '<ModStep n={3} title="How much, and when?">', '<Field label="Stock available">',
-      '<ModStep n={4} title="Delivery">', '{/* Delivery method', 'part="transport"',
+      '<ModStep n={4} title="Delivery">', '<DeliveryFields', '<PickupPointsSummary', 'part="transport"',
     ])
     expect(m).not.toMatch(/<ModStep n=\{5\}|Photos and story|Who buys it, and at what price|part="sale"/)
   })

@@ -46,7 +46,9 @@ import SubscriptionStatusCard from '@/components/farmer/SubscriptionStatusCard'
 import { sellingLockText } from '@/lib/sellingLock'
 import { uploadFarmImage } from '@/lib/farmImageUpload'
 import { useBackToClose } from '@/lib/useBackToClose'
-import RetailReachFields, { reachFormFromRow, reachPayload, type ReachForm } from '@/components/RetailReachFields'
+import DeliveryFields from '@/components/DeliveryFields'
+import PickupPointsEditor from '@/components/farmer/PickupPointsEditor'
+import { COURIER_NOT_READY, courierFormFromRow, isCourierColumnMissing, resolveCourier, type CourierForm } from '@/lib/courierOptions'
 import { clearDraft, draftHasContent, draftKey, draftPhotos, readDraft, writeDraft } from '@/lib/formDraft'
 import {
   wholesaleFormFromRow, resolveWholesaleForm, needsRetailPrice, offersRetail, bothPricesError,
@@ -2355,11 +2357,10 @@ function ProduceListingForm({
   const [deliveryMode, setDeliveryMode] = useState<DeliveryMode | null>(
     editData ? (parseDeliveryMode(editData.delivery_mode) ?? 'pickup') : null,
   )
-  const [deliveryCharge, setDeliveryCharge] = useState(editData?.delivery_charge != null ? String(editData.delivery_charge) : '')
-  const [deliveryRadius, setDeliveryRadius] = useState(editData?.delivery_radius_km != null ? String(editData.delivery_radius_km) : '')
+  // Courier: Local (radius, who pays, charge) or Cargo (ToPay services, who
+  // pays) — the Delivery step (client card 2026-11-10, src/lib/courierOptions.ts).
+  const [courier, setCourier] = useState<CourierForm>(() => courierFormFromRow(editData as Record<string, unknown> | null | undefined))
   // Local only / Transportable across AP & TG (2026-11-05).
-  const [reach, setReach] = useState<ReachForm>(() => reachFormFromRow(editData as { retail_reach?: unknown; retail_transport_rates?: unknown } | null | undefined))
-  const wasTransport = (editData as { retail_reach?: unknown } | null | undefined)?.retail_reach === 'transport'
   // Retail / Wholesale / Both, and the wholesale details (src/lib/wholesale.ts).
   const [wholesale, setWholesale] = useState<WholesaleForm>(() => {
     const f = wholesaleFormFromRow(editData as Record<string, unknown> | null | undefined)
@@ -2392,8 +2393,8 @@ function ProduceListingForm({
   const draftNow = {
     name, variety, emoji, qty, availFrom, availTo, harvestFreq, harvestFreqCount, shelfLifeDays, farmingMethod,
     price1, price1Qty, price2, price2Qty, price3, description, brix, soc, soilPh, pesticide, howWeGrow, videoUrl,
-    category, unit, saleStep, sourceFarmerId, deliveryMode: deliveryMode ?? '', deliveryCharge, deliveryRadius,
-    wholesale, reach, photos: draftPhotos(photos), retailPackSize, retailPackPrice, retailPackTiers,
+    category, unit, saleStep, sourceFarmerId, deliveryMode: deliveryMode ?? '', courier,
+    wholesale, photos: draftPhotos(photos), retailPackSize, retailPackPrice, retailPackTiers,
   }
   type ProduceDraft = typeof draftNow
   useEffect(() => {
@@ -2408,9 +2409,8 @@ function ProduceListingForm({
     setPesticide((x) => str(d.pesticide, x)); setHowWeGrow((x) => str(d.howWeGrow, x)); setVideoUrl((x) => str(d.videoUrl, x)); setCategory((x) => str(d.category, x))
     setUnit((x) => str(d.unit, x)); setSaleStep((x) => str(d.saleStep, x)); setSourceFarmerId((x) => str(d.sourceFarmerId, x))
     if (typeof d.deliveryMode === 'string' && d.deliveryMode) setDeliveryMode(d.deliveryMode as DeliveryMode)
-    setDeliveryCharge((x) => str(d.deliveryCharge, x)); setDeliveryRadius((x) => str(d.deliveryRadius, x))
+    if (d.courier && typeof d.courier === 'object') setCourier((c) => ({ ...c, ...(d.courier as CourierForm) }))
     if (d.wholesale && typeof d.wholesale === 'object') setWholesale((w) => ({ ...w, ...(d.wholesale as WholesaleForm) }))
-    if (d.reach && typeof d.reach === 'object') setReach(d.reach as ReachForm)
     setRetailPackSize((x) => str(d.retailPackSize, x)); setRetailPackPrice((x) => str(d.retailPackPrice, x))
     if (Array.isArray(d.retailPackTiers)) setRetailPackTiers(d.retailPackTiers as PackTierForm[])
     if (Array.isArray(d.photos) && d.photos.length) setPhotos((cur) => (cur.some((p) => p.file) ? cur : (d.photos as PhotoItem[])))
@@ -2422,7 +2422,7 @@ function ProduceListingForm({
     const t = setTimeout(() => {
       const d = JSON.parse(draftJson) as ProduceDraft
       // A new form untouched beyond its defaults is not worth keeping.
-      if (editData || draftHasContent(d, ['emoji', 'unit', 'price1Qty', 'price2Qty', 'farmingMethod', 'shelfLifeDays', 'saleStep', 'harvestFreqCount', 'wholesale', 'reach', 'retailPackTiers'])) writeDraft(draftK, d)
+      if (editData || draftHasContent(d, ['emoji', 'unit', 'price1Qty', 'price2Qty', 'farmingMethod', 'shelfLifeDays', 'saleStep', 'harvestFreqCount', 'wholesale', 'courier', 'retailPackTiers'])) writeDraft(draftK, d)
     }, 400)
     return () => clearTimeout(t)
   }, [draftJson, draftK, editData])
@@ -2543,6 +2543,10 @@ function ProduceListingForm({
       setError(L('Choose a delivery method: Pickup only, I will courier, or Both.', 'డెలివరీ విధానం ఎంచుకోండి: పికప్ మాత్రమే, నేను డెలివరీ చేస్తా, లేదా రెండూ.'))
       return
     }
+    // Delivery step: same rules as the server, which checks them again.
+    const courierResult = resolveCourier({ deliveryMode, ...courier })
+    if (!courierResult.ok) { setError(L(courierResult.error.en, courierResult.error.te)); return }
+    const courierCols = courierResult.columns
     setLoading(true)
     setError('')
 
@@ -2586,9 +2590,8 @@ function ProduceListingForm({
         harvest_date: harvestDateIso,
         shelf_life_days: shelfLifeVal,
         delivery_mode: deliveryMode,
-        delivery_charge: deliveryMode === 'pickup' ? null : (deliveryCharge ? Number(deliveryCharge) : null),
-        delivery_radius_km: deliveryMode === 'pickup' ? null : (deliveryRadius ? Number(deliveryRadius) : null),
-        ...reachPayload(deliveryMode === 'pickup' ? { ...reach, reach: 'local' } : reach, wasTransport),
+        // Courier type, cargo services, who pays, charge, radius and reach.
+        ...courierCols,
         // Sent only by an aggregator: a plain farmer's payload is unchanged, and
         // sending null would trip the trigger on an environment where the
         // column doesn't exist yet.
@@ -2620,6 +2623,11 @@ function ProduceListingForm({
         if (!res.ok && isPackColumnMissing(json.error)) {
           setLoading(false)
           setError(L(PACKS_NOT_READY.en, PACKS_NOT_READY.te))
+          return
+        }
+        if (!res.ok && isCourierColumnMissing(json.error)) {
+          setLoading(false)
+          setError(L(COURIER_NOT_READY.en, COURIER_NOT_READY.te))
           return
         }
         // Pre-migration environment for wholesale: retail just drops the
@@ -2701,11 +2709,7 @@ function ProduceListingForm({
     payload.shelf_life_days = shelfLifeVal
     payload.delivery_mode = deliveryMode
     if (isAggregator && sourceFarmerId) payload.source_farmer_id = sourceFarmerId
-    if (deliveryMode !== 'pickup') {
-      if (deliveryCharge) payload.delivery_charge = Number(deliveryCharge)
-      if (deliveryRadius) payload.delivery_radius_km = Number(deliveryRadius)
-      Object.assign(payload, reachPayload(reach, false))
-    }
+    Object.assign(payload, courierCols)
     // New produce: retail needs nothing (the column defaults to 'retail').
     Object.assign(payload, wholesaleColumnsToSend(wholesaleResult.columns, false))
     // A pack overrides the per-unit price/tiers/step set above.
@@ -3191,67 +3195,16 @@ function ProduceListingForm({
         </FormStep>
 
         <FormStep n={4} title={L('Delivery', 'డెలివరీ')}>
-        {/* Delivery method — pickup only, farmer courier, or both (#11) */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {tx.deliveryMethod} <span className="text-red-500">*</span>
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {([
-              { key: 'pickup', en: 'Pickup only', te: 'పికప్ మాత్రమే', icon: '🧺' },
-              { key: 'courier', en: 'I will courier', te: 'నేను డెలివరీ చేస్తా', icon: '🛵' },
-              { key: 'both', en: 'Both', te: 'రెండూ', icon: '🔁' },
-            ] as const).map((opt) => {
-              const active = deliveryMode === opt.key
-              return (
-                <button
-                  key={opt.key}
-                  type="button"
-                  onClick={() => setDeliveryMode(opt.key)}
-                  className={`rounded-xl px-2 py-3 text-center border-2 transition-colors ${
-                    active ? 'border-green-600 bg-green-50' : 'border-gray-200 bg-white'
-                  }`}
-                >
-                  <span className="block text-lg leading-none">{opt.icon}</span>
-                  <span className={`block text-[11px] font-bold mt-1 leading-tight ${active ? 'text-green-800' : 'text-gray-600'}`}>
-                    {L(opt.en, opt.te)}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Courier details — only when the farmer offers delivery. */}
-          {deliveryMode && deliveryMode !== 'pickup' && (
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  placeholder={L('Delivery charge', 'డెలివరీ ఛార్జ్')}
-                  value={deliveryCharge}
-                  onChange={(e) => setDeliveryCharge(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
-                />
-              </div>
-              <div className="relative">
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  placeholder={L('Radius', 'పరిధి')}
-                  value={deliveryRadius}
-                  onChange={(e) => setDeliveryRadius(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl pl-3 pr-9 py-2.5 text-sm focus:border-green-500 focus:outline-none"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">km</span>
-              </div>
-            </div>
-          )}
-          {deliveryMode && deliveryMode !== 'pickup' && offersRetail(wholesale.saleMode) && (
-            <RetailReachFields value={reach} onChange={setReach} radiusKm={deliveryRadius} L={L} />
-          )}
-        </div>
+        {/* Delivery (client card 2026-11-10): method → pickup points (the
+            profile's, edited here) and/or courier: Local or Cargo, who pays. */}
+        <DeliveryFields
+          mode={deliveryMode}
+          onMode={setDeliveryMode}
+          courier={courier}
+          onCourier={setCourier}
+          L={L}
+          pickup={<PickupPointsEditor L={L} />}
+        />
 
         {/* Wholesale transport — part of Delivery, not of the price (2026-11-05). */}
         <WholesaleFields

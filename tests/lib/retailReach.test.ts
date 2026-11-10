@@ -104,8 +104,12 @@ describe('privacy and wiring', () => {
     }
   })
   it('forms, home grid, detail pages and cart are wired', () => {
-    expect(src('src/app/farmer/dashboard/page.tsx')).toMatch(/<RetailReachFields\b/)
-    expect(src('src/app/moderator/listings/ListingForm.tsx')).toMatch(/<RetailReachFields\b/)
+    // Since 2026-11-10 the forms' Delivery step sets reach through Cargo
+    // (src/lib/courierOptions.ts → retail_reach 'transport', ₹0 AP and TG).
+    for (const p of ['src/app/farmer/dashboard/page.tsx', 'src/app/moderator/listings/ListingForm.tsx']) {
+      expect(src(p)).toMatch(/<DeliveryFields\b/)
+      expect(src(p)).not.toMatch(/<RetailReachFields\b/)
+    }
     expect(src('src/app/consumer/page.tsx')).toMatch(/useState<number \| null \| 'reach'>\('reach'\)/)
     for (const p of ['src/app/consumer/produce/[id]/page.tsx', 'src/app/consumer/harvest/[harvestId]/page.tsx']) expect(src(p)).toMatch(/transportCharge: transport\.charge/)
     expect(src('src/components/consumer/Cart.tsx')).toMatch(/deliveryType: isTransported\(it\) \? 'courier'/)

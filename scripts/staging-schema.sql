@@ -1043,6 +1043,38 @@ ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_w
 ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_wholesale_pack_price_check
   CHECK (wholesale_pack_price IS NULL OR (wholesale_pack_price > 0 AND wholesale_pack_size IS NOT NULL));
 
+-- ── Delivery step: courier type / cargo services / who pays (scripts/courier-options-migration.sql, 2026-11-10) ──
+ALTER TABLE public.produce_listings
+  ADD COLUMN IF NOT EXISTS courier_type text,
+  ADD COLUMN IF NOT EXISTS cargo_services jsonb NOT NULL DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS delivery_paid_by text;
+
+ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_courier_type_check;
+ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_courier_type_check
+  CHECK (courier_type IS NULL OR courier_type IN ('local', 'cargo'));
+
+ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_delivery_paid_by_check;
+ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_delivery_paid_by_check
+  CHECK (delivery_paid_by IS NULL OR delivery_paid_by IN ('farmer', 'buyer'));
+
+-- Cargo needs at least one service; nothing else may carry a list.
+-- (IS NOT NULL spelled out where it matters: a bare comparison on NULL passes a CHECK.)
+ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_cargo_services_check;
+ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_cargo_services_check
+  CHECK (
+    jsonb_typeof(cargo_services) = 'array'
+    AND jsonb_array_length(cargo_services) <= 12
+    AND (
+      (courier_type IS NOT NULL AND courier_type = 'cargo' AND jsonb_array_length(cargo_services) >= 1)
+      OR ((courier_type IS NULL OR courier_type <> 'cargo') AND jsonb_array_length(cargo_services) = 0)
+    )
+  );
+
+-- A courier type always says who pays.
+ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_courier_paid_by_check;
+ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_courier_paid_by_check
+  CHECK (courier_type IS NULL OR delivery_paid_by IS NOT NULL);
+
 ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS buyer_aggregator_id uuid REFERENCES public.farmers(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS transport_charge    numeric(10,2) NOT NULL DEFAULT 0,
