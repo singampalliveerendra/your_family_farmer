@@ -6,6 +6,11 @@
  *   wholesale_price             ₹ per listing unit
  *   wholesale_min_qty           least a wholesale buyer can order
  *   wholesale_pack_size         optional; wholesale orders go in multiples of it
+ *   wholesale_pack_price        ₹ for ONE pack, exactly as typed (2026-11-10,
+ *                               scripts/pack-pricing-migration.sql); with a
+ *                               pack size the farmer prices the pack, the
+ *                               minimum is one pack, and wholesale_price
+ *                               (per unit) is derived from it
  *   wholesale_transport_states  {} = buyer collects, else AP and/or TG
  *
  * Retail and wholesale share one stock (harvests.stock_qty), so nothing here
@@ -48,6 +53,7 @@ export const WHOLESALE_COLUMNS = [
   'wholesale_price',
   'wholesale_min_qty',
   'wholesale_pack_size',
+  'wholesale_pack_price',
   'wholesale_transport_states',
   'wholesale_transport_rates',
 ] as const
@@ -100,6 +106,8 @@ export type WholesaleForm = {
   price: string
   minQty: string
   packSize: string
+  /** ₹ for one pack — asked instead of the per-unit price once a pack size is set. */
+  packPrice: string
   /** Transport Yes/No. null = not answered yet. */
   transport: boolean | null
   states: TransportState[]
@@ -112,6 +120,7 @@ export const EMPTY_WHOLESALE_FORM: WholesaleForm = {
   price: '',
   minQty: '',
   packSize: '',
+  packPrice: '',
   transport: null,
   states: [],
   rates: {},
@@ -125,6 +134,7 @@ export type WholesaleColumns =
       wholesale_price: number
       wholesale_min_qty: number
       wholesale_pack_size: number | null
+      wholesale_pack_price: number | null
       wholesale_transport_states: TransportState[]
       wholesale_transport_rates: TransportRates
     }
@@ -176,13 +186,14 @@ export function isMultipleOf(qty: number, pack: number): boolean {
  *
  * Rules:
  *  - Retail: nothing else is checked; only sale_mode is written.
- *  - Wholesale / Both:
- *     • price required, > 0, at most MAX_WHOLESALE_PRICE, kept to 2 decimals
+ *  - Wholesale / Both (client card 2026-11-10):
+ *     • WITH a pack size: the price of ONE pack is required (an old caller
+ *       that sends only a per-unit price gets pack price = price × pack); the
+ *       minimum is one pack (any typed minimum is ignored); the per-unit
+ *       wholesale_price is derived (pack price ÷ pack)
+ *     • WITHOUT a pack size: a minimum quantity and a price per unit
+ *     • prices > 0, at most MAX_WHOLESALE_PRICE, kept to 2 decimals
  *       (quantities to 3, like stock)
- *     • pack size OR minimum quantity required (either is enough):
- *         only pack  → minimum = one pack
- *         only min   → no pack size (any qty ≥ min)
- *         both       → minimum must be a whole number of packs
  *     • quantities > 0, at most MAX_WHOLESALE_QTY; whole numbers on
  *       piece / bunch / dozen units
  *     • transport must be answered; Yes needs at least one state
@@ -192,6 +203,8 @@ export function resolveWholesale(input: {
   price: unknown
   minQty: unknown
   packSize: unknown
+  /** ₹ for one pack (used when a pack size is set). */
+  packPrice?: unknown
   transport: unknown
   states: unknown
   /** Per-state charges, in the form's or the column's shape. */
@@ -201,23 +214,11 @@ export function resolveWholesale(input: {
   const mode = parseSaleMode(input.saleMode)
   if (mode === 'retail') return { ok: true, columns: { sale_mode: 'retail' } }
 
-  const price = toNumber(input.price)
-  if (price === null) return fail('Enter the wholesale price.', 'హోల్‌సేల్ ధర నమోదు చేయండి.')
-  if (Number.isNaN(price) || price <= 0) {
-    return fail('Wholesale price must be a number above 0.', 'హోల్‌సేల్ ధర 0 కంటే ఎక్కువ సంఖ్య ఉండాలి.')
-  }
-  if (price > MAX_WHOLESALE_PRICE) {
-    return fail('Wholesale price is too high.', 'హోల్‌సేల్ ధర చాలా ఎక్కువగా ఉంది.')
-  }
-
   const pack = toNumber(input.packSize)
   const min = toNumber(input.minQty)
-  if (pack === null && min === null) {
-    return fail('Enter the pack size or the minimum quantity.', 'ప్యాక్ పరిమాణం లేదా కనీస పరిమాణం నమోదు చేయండి.')
-  }
   for (const [n, en, te] of [
     [pack, 'Pack size', 'ప్యాక్ పరిమాణం'],
-    [min, 'Minimum quantity', 'కనీస పరిమాణం'],
+    [pack === null ? min : null, 'Minimum quantity', 'కనీస పరిమాణం'],
   ] as const) {
     if (n === null) continue
     if (Number.isNaN(n) || n <= 0) return fail(`${en} must be a number above 0.`, `${te} 0 కంటే ఎక్కువ సంఖ్య ఉండాలి.`)
@@ -226,14 +227,36 @@ export function resolveWholesale(input: {
       return fail(`${en} must be a whole number for this unit.`, `ఈ యూనిట్‌కు ${te} పూర్తి సంఖ్య ఉండాలి.`)
     }
   }
-
+  if (pack === null && min === null) {
+    return fail('Enter the pack size or the minimum quantity.', 'ప్యాక్ పరిమాణం లేదా కనీస పరిమాణం నమోదు చేయండి.')
+  }
   const packSize = pack === null ? null : roundQty(pack)
-  const minQty = min === null ? (packSize as number) : roundQty(min)
-  if (packSize !== null && !isMultipleOf(minQty, packSize)) {
-    return fail(
-      `Minimum quantity must be a whole number of packs (${packSize}, ${roundQty(packSize * 2)}, ${roundQty(packSize * 3)}…).`,
-      `కనీస పరిమాణం పూర్తి ప్యాక్‌లలో ఉండాలి (${packSize}, ${roundQty(packSize * 2)}, ${roundQty(packSize * 3)}…).`,
-    )
+  // With a pack, the minimum is one pack (client card 2026-11-10).
+  const minQty = packSize !== null ? packSize : roundQty(min as number)
+
+  // The price: one pack's when there is a pack, else per unit.
+  let price: number
+  let packPrice: number | null = null
+  if (packSize !== null) {
+    const typed = toNumber(input.packPrice)
+    const perUnit = toNumber(input.price)
+    const pp = typed !== null ? typed : perUnit !== null && !Number.isNaN(perUnit) ? round2(perUnit * packSize) : null
+    if (pp === null) return fail('Enter the wholesale price of one pack.', 'ఒక ప్యాక్ హోల్‌సేల్ ధర నమోదు చేయండి.')
+    if (Number.isNaN(pp) || pp <= 0) return fail('Wholesale pack price must be a number above 0.', 'హోల్‌సేల్ ప్యాక్ ధర 0 కంటే ఎక్కువ సంఖ్య ఉండాలి.')
+    if (pp > MAX_WHOLESALE_PRICE) return fail('Wholesale pack price is too high.', 'హోల్‌సేల్ ప్యాక్ ధర చాలా ఎక్కువగా ఉంది.')
+    packPrice = round2(pp)
+    price = round2(packPrice / packSize)
+    if (!(price > 0)) return fail('Wholesale pack price is too low for this pack size.', 'ఈ ప్యాక్ పరిమాణానికి హోల్‌సేల్ ప్యాక్ ధర చాలా తక్కువ.')
+  } else {
+    const p = toNumber(input.price)
+    if (p === null) return fail('Enter the wholesale price.', 'హోల్‌సేల్ ధర నమోదు చేయండి.')
+    if (Number.isNaN(p) || p <= 0) {
+      return fail('Wholesale price must be a number above 0.', 'హోల్‌సేల్ ధర 0 కంటే ఎక్కువ సంఖ్య ఉండాలి.')
+    }
+    if (p > MAX_WHOLESALE_PRICE) {
+      return fail('Wholesale price is too high.', 'హోల్‌సేల్ ధర చాలా ఎక్కువగా ఉంది.')
+    }
+    price = p
   }
 
   const transport = parseTransport(input.transport)
@@ -283,6 +306,7 @@ export function resolveWholesale(input: {
       wholesale_price: round2(price),
       wholesale_min_qty: minQty,
       wholesale_pack_size: packSize,
+      wholesale_pack_price: packPrice,
       wholesale_transport_states: states,
       wholesale_transport_rates: rates,
     },
@@ -305,6 +329,7 @@ export function resolveWholesaleBody(b: Record<string, unknown>, unit?: string |
     price: b.wholesale_price,
     minQty: b.wholesale_min_qty,
     packSize: b.wholesale_pack_size,
+    packPrice: b.wholesale_pack_price,
     transport: b.wholesale_transport,
     states: b.wholesale_transport_states,
     rates: b.wholesale_transport_rates,
@@ -337,6 +362,7 @@ export function resolveWholesaleColumns(
     price: payload.wholesale_price,
     minQty: payload.wholesale_min_qty,
     packSize: payload.wholesale_pack_size,
+    packPrice: payload.wholesale_pack_price,
     transport: Array.isArray(states) ? states.length > 0 : states == null ? false : null,
     states,
     rates: payload.wholesale_transport_rates,
@@ -366,6 +392,12 @@ export function normalizeRates(raw: unknown): TransportRates {
   return out
 }
 
+function packPriceFromUnit(price: unknown, pack: unknown): string {
+  const p = Number(price)
+  const k = Number(pack)
+  return price != null && pack != null && price !== '' && pack !== '' && Number.isFinite(p) && Number.isFinite(k) && p > 0 && k > 0 ? String(round2(p * k)) : ''
+}
+
 const numStr = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? String(v) : typeof v === 'string' ? v : '')
 
 /**
@@ -390,6 +422,8 @@ export function wholesaleFormFromRow(row: Record<string, unknown> | null | undef
     price: numStr(row.wholesale_price),
     minQty: numStr(row.wholesale_min_qty),
     packSize: numStr(row.wholesale_pack_size),
+    // A pack saved before pack prices existed: show what one pack cost (price × pack).
+    packPrice: numStr(row.wholesale_pack_price) || packPriceFromUnit(row.wholesale_price, row.wholesale_pack_size),
     transport: states.length > 0 ? true : saleMode === 'retail' ? null : false,
     states,
     rates,
@@ -494,6 +528,7 @@ export function wholesaleRequestBody(form: WholesaleForm, serverReady: boolean):
     wholesale_price: form.price,
     wholesale_min_qty: form.minQty,
     wholesale_pack_size: form.packSize,
+    wholesale_pack_price: form.packPrice,
     wholesale_transport: form.transport,
     wholesale_transport_states: form.states,
     wholesale_transport_rates: form.rates,

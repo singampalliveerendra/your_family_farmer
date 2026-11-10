@@ -1015,6 +1015,34 @@ ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_t
 ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_transport_rates_check
   CHECK (jsonb_typeof(wholesale_transport_rates) = 'object');
 
+-- ── Selling in packs (scripts/pack-pricing-migration.sql, 2026-11-10) ──
+ALTER TABLE public.produce_listings
+  ADD COLUMN IF NOT EXISTS retail_pack_size numeric(10,3),
+  ADD COLUMN IF NOT EXISTS retail_pack_price numeric(8,2),
+  ADD COLUMN IF NOT EXISTS retail_pack_tiers jsonb NOT NULL DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS wholesale_pack_price numeric(8,2);
+
+-- A retail pack is a size AND a price, or neither; tiers only with a pack.
+ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_retail_pack_check;
+ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_retail_pack_check
+  CHECK (
+    (retail_pack_size IS NULL AND retail_pack_price IS NULL)
+    -- IS NOT NULL spelled out: a bare "> 0" on a NULL passes a CHECK.
+    OR (retail_pack_size IS NOT NULL AND retail_pack_price IS NOT NULL AND retail_pack_size > 0 AND retail_pack_price > 0)
+  );
+ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_retail_pack_tiers_check;
+ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_retail_pack_tiers_check
+  CHECK (
+    jsonb_typeof(retail_pack_tiers) = 'array'
+    AND jsonb_array_length(retail_pack_tiers) <= 2
+    AND (retail_pack_size IS NOT NULL OR jsonb_array_length(retail_pack_tiers) = 0)
+  );
+
+-- A wholesale pack price only goes with a wholesale pack size.
+ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_wholesale_pack_price_check;
+ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_wholesale_pack_price_check
+  CHECK (wholesale_pack_price IS NULL OR (wholesale_pack_price > 0 AND wholesale_pack_size IS NOT NULL));
+
 ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS buyer_aggregator_id uuid REFERENCES public.farmers(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS transport_charge    numeric(10,2) NOT NULL DEFAULT 0,

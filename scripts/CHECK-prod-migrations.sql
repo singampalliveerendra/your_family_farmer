@@ -204,6 +204,14 @@ SELECT * FROM (
     CASE WHEN EXISTS (SELECT 1 FROM pg_indexes
       WHERE indexname='subscription_plans_kind_unique')
       THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  -- pack-pricing-migration.sql (needs wholesale-migration.sql first). Without
+  -- it no produce can be saved as wholesale/both (the pack price column is
+  -- missing) and orders cannot read retail packs.
+  SELECT 33, 'pack-pricing', 'produce_listings.retail_pack_price',
+    CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_name='produce_listings' AND column_name='retail_pack_price')
+      THEN 'PRESENT' ELSE 'MISSING' END
 
 ) checks ORDER BY ord;
 

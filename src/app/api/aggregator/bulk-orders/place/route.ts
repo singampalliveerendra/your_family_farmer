@@ -28,7 +28,7 @@ export const dynamic = 'force-dynamic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const LISTING_COLUMNS =
-  'id, farmer_id, name, unit, status, sale_mode, sale_step, stock_qty, wholesale_price, wholesale_min_qty, wholesale_pack_size, wholesale_transport_states, wholesale_transport_rates'
+  'id, farmer_id, name, unit, status, sale_mode, sale_step, stock_qty, wholesale_price, wholesale_min_qty, wholesale_pack_size, wholesale_pack_price, wholesale_transport_states, wholesale_transport_rates'
 
 const bad = (error: string, status = 400) => NextResponse.json({ error }, { status })
 

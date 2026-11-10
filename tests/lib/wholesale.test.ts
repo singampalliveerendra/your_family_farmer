@@ -30,13 +30,15 @@ import {
   type WholesaleForm,
 } from '@/lib/wholesale'
 
-// A complete, valid wholesale entry; each test changes one thing.
+// A complete, valid wholesale entry sold loose (minimum + price per unit);
+// each test changes one thing. Packs (pack price, min = one pack) since
+// 2026-11-10 — see 'resolveWholesale — packs'.
 const good = (extra: Partial<Parameters<typeof resolveWholesale>[0]> = {}) =>
   resolveWholesale({
     saleMode: 'wholesale',
     price: '30',
     minQty: '100',
-    packSize: '25',
+    packSize: '',
     transport: true,
     states: ['AP'],
     unit: 'kg',
@@ -156,7 +158,8 @@ describe('resolveWholesale — valid wholesale', () => {
       sale_mode: 'wholesale',
       wholesale_price: 30,
       wholesale_min_qty: 100,
-      wholesale_pack_size: 25,
+      wholesale_pack_size: null,
+      wholesale_pack_price: null,
       wholesale_transport_states: ['AP'],
       wholesale_transport_rates: {}, // no charge entered → AP is pickup-only in the app
     })
@@ -164,16 +167,9 @@ describe('resolveWholesale — valid wholesale', () => {
   it('"both" keeps its mode', () => {
     expect(columnsOf(good({ saleMode: 'both' })).sale_mode).toBe('both')
   })
-  it('only pack size → minimum is one pack', () => {
-    const c = columnsOf(good({ minQty: '', packSize: '50' }))
-    expect(c).toMatchObject({ wholesale_min_qty: 50, wholesale_pack_size: 50 })
-  })
   it('only minimum → no pack size', () => {
     const c = columnsOf(good({ minQty: '30', packSize: '' }))
     expect(c).toMatchObject({ wholesale_min_qty: 30, wholesale_pack_size: null })
-  })
-  it('minimum equal to one pack is fine', () => {
-    expect(good({ minQty: '25', packSize: '25' }).ok).toBe(true)
   })
   it('transport No → empty state list, even if states were ticked before', () => {
     expect(statesOf(good({ transport: false, states: ['AP', 'TG'] }))).toEqual([])
@@ -182,31 +178,69 @@ describe('resolveWholesale — valid wholesale', () => {
     expect(statesOf(good({ states: ['TG', 'AP'] }))).toEqual(['AP', 'TG'])
   })
   it('rounds price to 2 decimals and quantities to 3 (the column scales)', () => {
-    const c = columnsOf(good({ price: '30.456', minQty: '', packSize: '12.3456' }))
-    expect(c).toMatchObject({ wholesale_price: 30.46, wholesale_pack_size: 12.346, wholesale_min_qty: 12.346 })
-  })
-  it('a 0.25 kg pack keeps all its decimals', () => {
-    expect(columnsOf(good({ packSize: '0.25', minQty: '1' }))).toMatchObject({ wholesale_pack_size: 0.25, wholesale_min_qty: 1 })
-  })
-  it('pack-multiple message shows clean numbers for part units', () => {
-    expect(errorOf(good({ packSize: '0.1', minQty: '0.25' })).en).toMatch(/\(0\.1, 0\.2, 0\.3…\)/)
+    const c = columnsOf(good({ price: '30.456', minQty: '12.3456' }))
+    expect(c).toMatchObject({ wholesale_price: 30.46, wholesale_min_qty: 12.346 })
   })
   it('accepts numbers as well as strings (JSON bodies)', () => {
-    expect(columnsOf(good({ price: 30, minQty: 100, packSize: 25 }))).toMatchObject({ wholesale_price: 30 })
+    expect(columnsOf(good({ price: 30, minQty: 100 }))).toMatchObject({ wholesale_price: 30 })
   })
   it('trims spaces and accepts ".5" and "5."', () => {
-    expect(good({ price: ' 30 ', minQty: '', packSize: '.5' }).ok).toBe(true)
-    expect(good({ price: '30.', minQty: '', packSize: '5' }).ok).toBe(true)
+    expect(good({ price: ' 30 ', minQty: '.5' }).ok).toBe(true)
+    expect(good({ price: '30.', minQty: '5' }).ok).toBe(true)
   })
-  it('part units on kg: 0.5 kg packs, 2.5 kg minimum', () => {
-    expect(columnsOf(good({ packSize: '0.5', minQty: '2.5' }))).toMatchObject({ wholesale_min_qty: 2.5, wholesale_pack_size: 0.5 })
+  it('part units on kg: a 2.5 kg minimum', () => {
+    expect(columnsOf(good({ minQty: '2.5' }))).toMatchObject({ wholesale_min_qty: 2.5, wholesale_pack_size: null })
   })
   it('the largest values the columns can hold', () => {
-    const c = columnsOf(good({ price: String(MAX_WHOLESALE_PRICE), minQty: '', packSize: String(MAX_WHOLESALE_QTY) }))
-    expect(c).toMatchObject({ wholesale_price: MAX_WHOLESALE_PRICE, wholesale_pack_size: MAX_WHOLESALE_QTY })
+    const c = columnsOf(good({ price: String(MAX_WHOLESALE_PRICE), minQty: String(MAX_WHOLESALE_QTY) }))
+    expect(c).toMatchObject({ wholesale_price: MAX_WHOLESALE_PRICE, wholesale_min_qty: MAX_WHOLESALE_QTY })
   })
   it('whole numbers are fine on piece units', () => {
-    expect(good({ unit: 'piece', packSize: '12', minQty: '120' }).ok).toBe(true)
+    expect(good({ unit: 'piece', minQty: '120' }).ok).toBe(true)
+  })
+})
+
+// Client card 2026-11-10: with a pack size the farmer prices ONE pack, the
+// minimum is one pack, and "+" adds packs.
+describe('resolveWholesale — packs', () => {
+  const pack = (extra: Partial<Parameters<typeof resolveWholesale>[0]> = {}) =>
+    good({ packSize: '25', packPrice: '700', price: '', minQty: '', ...extra })
+  it('pack price as typed; per-unit price derived; minimum = one pack', () => {
+    expect(columnsOf(pack())).toMatchObject({ wholesale_pack_size: 25, wholesale_pack_price: 700, wholesale_price: 28, wholesale_min_qty: 25 })
+  })
+  it('a typed minimum is ignored once there is a pack (the box is hidden)', () => {
+    expect(columnsOf(pack({ minQty: '100' }))).toMatchObject({ wholesale_min_qty: 25 })
+    expect(pack({ minQty: '30' }).ok).toBe(true)
+  })
+  it('an old caller sending only a per-unit price: pack price = price × pack', () => {
+    expect(columnsOf(pack({ packPrice: undefined, price: '30' }))).toMatchObject({ wholesale_pack_price: 750, wholesale_price: 30 })
+  })
+  it('a 0.25 kg pack keeps all its decimals', () => {
+    expect(columnsOf(pack({ packSize: '0.25', packPrice: '20' }))).toMatchObject({ wholesale_pack_size: 0.25, wholesale_min_qty: 0.25, wholesale_price: 80 })
+  })
+  it('rounds the pack to 3 decimals and prices to 2', () => {
+    expect(columnsOf(pack({ packSize: '12.3456', packPrice: '100.456' }))).toMatchObject({ wholesale_pack_size: 12.346, wholesale_pack_price: 100.46 })
+  })
+  it('accepts numbers (JSON bodies)', () => {
+    expect(columnsOf(pack({ packSize: 25, packPrice: 700 }))).toMatchObject({ wholesale_pack_price: 700 })
+  })
+  it('the largest pack the column can hold', () => {
+    expect(columnsOf(pack({ packSize: String(MAX_WHOLESALE_QTY), packPrice: String(MAX_WHOLESALE_PRICE) }))).toMatchObject({ wholesale_pack_size: MAX_WHOLESALE_QTY })
+  })
+  it('whole packs are fine on piece units', () => {
+    expect(pack({ unit: 'piece', packSize: '12', packPrice: '60' }).ok).toBe(true)
+  })
+  it('no pack price and no per-unit price → asks for the pack price', () => {
+    expect(errorOf(pack({ packPrice: '' })).en).toMatch(/price of one pack/)
+  })
+  it.each(['0', '-5', 'abc'])('pack price %s is refused', (v) => {
+    expect(errorOf(pack({ packPrice: v })).en).toMatch(/pack price must be a number above 0/)
+  })
+  it('pack price over the column limit', () => {
+    expect(errorOf(pack({ packPrice: '1000000' })).en).toMatch(/too high/)
+  })
+  it('a pack price too small to give a per-unit price', () => {
+    expect(errorOf(pack({ packSize: '1000', packPrice: '1' })).en).toMatch(/too low/)
   })
 })
 
@@ -241,14 +275,6 @@ describe('resolveWholesale — quantity errors', () => {
   it('over the column limit', () => {
     expect(errorOf(good({ packSize: '', minQty: '10000000' })).en).toMatch(/too large/)
   })
-  it('minimum not a whole number of packs', () => {
-    const e = errorOf(good({ packSize: '25', minQty: '30' }))
-    expect(e.en).toMatch(/whole number of packs \(25, 50, 75…\)/)
-    expect(e.te).toMatch(/25, 50, 75/)
-  })
-  it('minimum smaller than one pack', () => {
-    expect(errorOf(good({ packSize: '25', minQty: '10' })).en).toMatch(/whole number of packs/)
-  })
   it('fractions on whole-only units are refused', () => {
     for (const unit of ['piece', 'bunch', 'dozen']) {
       expect(errorOf(good({ unit, packSize: '0.5', minQty: '' })).en).toMatch(/whole number for this unit/)
@@ -274,10 +300,13 @@ describe('resolveWholesale — transport errors', () => {
 })
 
 describe('resolveWholesale — the order of checks', () => {
-  it('price is reported before quantities and transport', () => {
+  it('quantities come first (the price asked depends on the pack), then price, then transport', () => {
     expect(errorOf(resolveWholesale({
       saleMode: 'both', price: '', minQty: '', packSize: '', transport: null, states: [],
-    })).en).toMatch(/price/)
+    })).en).toMatch(/pack size or the minimum/)
+    expect(errorOf(resolveWholesale({
+      saleMode: 'both', price: '', minQty: '10', packSize: '', transport: null, states: [],
+    })).en).toMatch(/Enter the wholesale price/)
   })
   it('quantities are reported before transport', () => {
     expect(errorOf(good({ packSize: '', minQty: '', transport: null })).en).toMatch(/pack size/)
@@ -288,7 +317,8 @@ describe('every error has both languages', () => {
   const failures = [
     good({ price: '' }), good({ price: '0' }), good({ price: '9999999' }),
     good({ packSize: '', minQty: '' }), good({ packSize: '0' }), good({ minQty: '0' }),
-    good({ packSize: '', minQty: '99999999' }), good({ packSize: '25', minQty: '30' }),
+    good({ packSize: '', minQty: '99999999' }), good({ packSize: '25', price: '', packPrice: '' }),
+    good({ packSize: '25', packPrice: '0' }), good({ packSize: '1000', packPrice: '1' }),
     good({ unit: 'piece', packSize: '1.5', minQty: '' }),
     good({ transport: null }), good({ states: [] }),
   ]
@@ -323,9 +353,9 @@ describe('labels', () => {
 
 describe('resolveWholesaleForm', () => {
   it('passes the form and unit through', () => {
-    const form: WholesaleForm = { saleMode: 'both', price: '40', minQty: '', packSize: '10', transport: false, states: [], rates: {} }
+    const form: WholesaleForm = { saleMode: 'both', price: '40', minQty: '', packSize: '10', packPrice: '', transport: false, states: [], rates: {} }
     expect(columnsOf(resolveWholesaleForm(form, 'kg'))).toEqual({
-      sale_mode: 'both', wholesale_price: 40, wholesale_min_qty: 10, wholesale_pack_size: 10, wholesale_transport_states: [], wholesale_transport_rates: {},
+      sale_mode: 'both', wholesale_price: 40, wholesale_min_qty: 10, wholesale_pack_size: 10, wholesale_pack_price: 400, wholesale_transport_states: [], wholesale_transport_rates: {},
     })
     expect(resolveWholesaleForm({ ...form, packSize: '1.5' }, 'piece').ok).toBe(false)
   })
@@ -340,7 +370,7 @@ describe('resolveWholesaleBody (moderator API)', () => {
       sale_mode: 'wholesale', wholesale_price: '25', wholesale_min_qty: '50', wholesale_pack_size: '',
       wholesale_transport: 'yes', wholesale_transport_states: ['TG'],
     }, 'kg'))).toEqual({
-      sale_mode: 'wholesale', wholesale_price: 25, wholesale_min_qty: 50, wholesale_pack_size: null, wholesale_transport_states: ['TG'], wholesale_transport_rates: {},
+      sale_mode: 'wholesale', wholesale_price: 25, wholesale_min_qty: 50, wholesale_pack_size: null, wholesale_pack_price: null, wholesale_transport_states: ['TG'], wholesale_transport_rates: {},
     })
   })
   it('an old caller that sends nothing is retail', () => {
@@ -364,7 +394,8 @@ describe('wholesaleFormFromRow', () => {
       sale_mode: 'both', wholesale_price: 30, wholesale_min_qty: 100, wholesale_pack_size: 25,
       wholesale_transport_states: ['TG', 'AP'],
     })).toEqual({
-      saleMode: 'both', price: '30', minQty: '100', packSize: '25', transport: true, states: ['AP', 'TG'],
+      // A pack saved before pack prices: one pack's price shown (30 × 25).
+      saleMode: 'both', price: '30', minQty: '100', packSize: '25', packPrice: '750', transport: true, states: ['AP', 'TG'],
       // No charges saved yet → empty boxes for each state, per order by default.
       rates: { AP: { mode: 'per_order', amount: '', freeAbove: '' }, TG: { mode: 'per_order', amount: '', freeAbove: '' } },
     })
@@ -373,7 +404,7 @@ describe('wholesaleFormFromRow', () => {
     expect(wholesaleFormFromRow({
       sale_mode: 'wholesale', wholesale_price: 30, wholesale_min_qty: 100, wholesale_pack_size: null,
       wholesale_transport_states: [],
-    })).toEqual({ saleMode: 'wholesale', price: '30', minQty: '100', packSize: '', transport: false, states: [], rates: {} })
+    })).toEqual({ saleMode: 'wholesale', price: '30', minQty: '100', packSize: '', packPrice: '', transport: false, states: [], rates: {} })
   })
   it('a retail row keeps saved wholesale values for a later switch', () => {
     const f = wholesaleFormFromRow({ sale_mode: 'retail', wholesale_price: 30, wholesale_min_qty: 50, wholesale_transport_states: [] })
@@ -433,7 +464,8 @@ describe('resolveWholesaleColumns (farmer edit route)', () => {
       sale_mode: 'both', wholesale_price: 30, wholesale_min_qty: 100, wholesale_pack_size: 25,
       wholesale_transport_states: ['TG', 'AP', 'AP'],
     }, 'kg')).toEqual({ ok: true, columns: {
-      sale_mode: 'both', wholesale_price: 30, wholesale_min_qty: 100, wholesale_pack_size: 25,
+      // A pack: minimum = one pack, pack price derived for an old caller.
+      sale_mode: 'both', wholesale_price: 30, wholesale_min_qty: 25, wholesale_pack_size: 25, wholesale_pack_price: 750,
       wholesale_transport_states: ['AP', 'TG'], wholesale_transport_rates: {},
     } })
   })
@@ -456,7 +488,7 @@ describe('resolveWholesaleColumns (farmer edit route)', () => {
   })
   it('bad values are refused with the same rules as the form', () => {
     expect(resolveWholesaleColumns({ sale_mode: 'wholesale', wholesale_price: 0, wholesale_min_qty: 10 }).ok).toBe(false)
-    expect(resolveWholesaleColumns({ sale_mode: 'wholesale', wholesale_price: 30, wholesale_min_qty: 30, wholesale_pack_size: 25 }).ok).toBe(false)
+    expect(resolveWholesaleColumns({ sale_mode: 'wholesale', wholesale_pack_price: -1, wholesale_pack_size: 25 }).ok).toBe(false)
     expect(resolveWholesaleColumns({ sale_mode: 'wholesale', wholesale_price: 30, wholesale_min_qty: 1.5 }, 'piece').ok).toBe(false)
   })
   it('the form output always passes the route check unchanged', () => {
@@ -487,7 +519,7 @@ describe('wholesaleColumnsToSend', () => {
 })
 
 describe('wholesaleRequestBody (moderator form → API)', () => {
-  const form: WholesaleForm = { saleMode: 'both', price: '30', minQty: '100', packSize: '25', transport: true, states: ['AP'], rates: { AP: { mode: 'per_unit', amount: '2', freeAbove: '1000' } } }
+  const form: WholesaleForm = { saleMode: 'both', price: '30', minQty: '100', packSize: '25', packPrice: '', transport: true, states: ['AP'], rates: { AP: { mode: 'per_unit', amount: '2', freeAbove: '1000' } } }
   it('retail on an un-migrated server sends nothing', () => {
     expect(wholesaleRequestBody({ ...form, saleMode: 'retail' }, false)).toEqual({})
   })

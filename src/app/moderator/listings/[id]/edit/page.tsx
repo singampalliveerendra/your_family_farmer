@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import ModeratorShell, { useModeratorAuth } from '../../../ModeratorShell'
 import ListingForm, { type ListingFormValues, EMPTY_LISTING_FORM } from '../../ListingForm'
+import { retailPackFormFromRow } from '@/lib/packPricing'
 import { wholesaleFormFromRow, type WholesaleForm } from '@/lib/wholesale'
 import { supabase } from '@/lib/supabase'
 import { isWholesaleLowStock, wholesaleStock, type StockHarvest } from '@/lib/wholesaleVisibility'
@@ -19,6 +20,9 @@ type Loaded = {
   wholesale: WholesaleForm
   reach: ReturnType<typeof reachFormFromRow>
   wholesaleReady: boolean
+  /** Retail pack (2026-11-10) and whether the row has the pack columns. */
+  retailPack: ReturnType<typeof retailPackFormFromRow>
+  packReady: boolean
   /** Set when the wholesale side is hidden for low stock (same rule as the farmer's alert). */
   lowStock: { left: number; min: number } | null
 }
@@ -94,6 +98,8 @@ export default function EditListingPage() {
       wholesale: wholesaleFormFromRow(l),
       reach: reachFormFromRow(l as { retail_reach?: unknown; retail_transport_rates?: unknown }),
       wholesaleReady: 'sale_mode' in l,
+      retailPack: retailPackFormFromRow(l),
+      packReady: 'retail_pack_size' in l,
       lowStock: low ? { left: wholesaleStock(l, harvests) ?? 0, min: Number(l.wholesale_min_qty) } : null,
     })
   }, [id])
@@ -127,6 +133,8 @@ export default function EditListingPage() {
           initialWholesale={loaded.wholesale}
           initialReach={loaded.reach}
           wholesaleReady={loaded.wholesaleReady}
+          initialRetailPack={loaded.retailPack}
+          packReady={loaded.packReady}
           lowStock={loaded.lowStock}
         />
       )}

@@ -51,6 +51,19 @@ describe('rateText', () => {
 })
 
 describe('checkBulkOrder', () => {
+  // Client card 2026-11-10: a pack lot is charged packs × the typed pack price.
+  it('packs: whole packs × the price of one pack, exactly as typed', () => {
+    const lot = L({ wholesale_pack_size: 0.3, wholesale_min_qty: 0.3, wholesale_pack_price: 10, wholesale_price: 33.33 })
+    expect(checkBulkOrder(lot, 0.9, 'pickup', 0)).toMatchObject({ ok: true, goods: 30, total: 30 })
+    expect(checkBulkOrder(L({ wholesale_pack_size: 25, wholesale_min_qty: 25, wholesale_pack_price: 700 }), 75, 'pickup', 0)).toMatchObject({ ok: true, goods: 2100 })
+  })
+  it('packs: part of a pack is still refused', () => {
+    const lot = L({ wholesale_pack_size: 25, wholesale_min_qty: 25, wholesale_pack_price: 700 })
+    expect(checkBulkOrder(lot, 30, 'pickup', 0)).toMatchObject({ ok: false })
+  })
+  it('a pack without a pack price (saved before pack prices) is charged per unit as before', () => {
+    expect(checkBulkOrder(L({ wholesale_pack_size: 25, wholesale_min_qty: 25 }), 75, 'pickup', 0)).toMatchObject({ ok: true, goods: 2250 })
+  })
   it('pickup: goods only, 0% fee', () => {
     expect(checkBulkOrder(L(), 150, 'pickup', 0)).toEqual({
       ok: true, unitPrice: 30, qty: 150, goods: 4500, transport: 0, fee: 0, total: 4500, linePrice: 4500,

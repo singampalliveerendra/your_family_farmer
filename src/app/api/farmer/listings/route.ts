@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { applyRetailReach } from '@/lib/retailReach'
 import { requireSeller, svc } from '@/lib/sellerAuth'
 import { checkSellerStatusChange, sellerListingPayload } from '@/lib/sellerWriteRules'
+import { PACKS_NOT_READY, applyRetailPackColumns, isPackColumnMissing } from '@/lib/packPricing'
 import { bothPricesError, isWholesaleColumnMissing, resolveWholesaleColumns, withoutWholesale, WHOLESALE_NOT_READY } from '@/lib/wholesale'
 import { SELLING_PLAN_REQUIRED, isSellingPlanError } from '@/lib/sellingLock'
 import { isMissingColumnError } from '@/lib/missingColumn'
@@ -40,6 +41,9 @@ export async function POST(req: NextRequest) {
   const wholesale = resolveWholesaleColumns(payload, unit)
   if (!wholesale.ok) return NextResponse.json({ error: t(wholesale.error.en, wholesale.error.te) }, { status: 400 })
   let row: Record<string, unknown> = { ...(wholesale.columns ? { ...withoutWholesale(payload), ...wholesale.columns } : payload), farmer_id: me.id }
+  // Retail packs (2026-11-10): same rules as the form; per-unit columns derived.
+  const packErr = applyRetailPackColumns(row, unit)
+  if (packErr) return NextResponse.json({ error: t(packErr.en, packErr.te) }, { status: 400 })
   // Both: wholesale must be cheaper than every retail price (2026-11-05).
   // Local only / Transportable across AP & TG (2026-11-05).
   const reachErr = applyRetailReach(row, payload, typeof payload.delivery_mode === 'string' ? payload.delivery_mode : null)
@@ -58,6 +62,7 @@ export async function POST(req: NextRequest) {
     ;({ data, error } = await insert(row))
     stepNotSaved = !error
   }
+  if (error && isPackColumnMissing(error.message)) return NextResponse.json({ error: t(PACKS_NOT_READY.en, PACKS_NOT_READY.te) }, { status: 503 })
   if (error && isWholesaleColumnMissing(error.message)) return NextResponse.json({ error: t(WHOLESALE_NOT_READY.en, WHOLESALE_NOT_READY.te) }, { status: 503 })
   if (error && isSellingPlanError(error.message)) {
     return NextResponse.json({ error: t(SELLING_PLAN_REQUIRED.en, SELLING_PLAN_REQUIRED.te), code: 'SELLING_PLAN_REQUIRED' }, { status: 403 })
