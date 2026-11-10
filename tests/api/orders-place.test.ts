@@ -30,6 +30,8 @@ const db = {
   missingSelfOrderColumn: false,
   // Simulates a database that has not run scripts/wholesale-migration.sql.
   missingSaleModeColumn: false,
+  // Simulates a database that has not run scripts/pack-pricing-migration.sql.
+  missingPackColumns: false,
   insertAttempts: [] as Row[][],
 }
 
@@ -54,6 +56,7 @@ function resetDb() {
   db.orders = []
   db.missingSelfOrderColumn = false
   db.missingSaleModeColumn = false
+  db.missingPackColumns = false
   db.insertAttempts = []
 }
 
@@ -75,6 +78,9 @@ function query(table: string) {
   const run = () => {
     if (db.missingSaleModeColumn && table === 'produce_listings' && selectCols.includes('sale_mode')) {
       return { data: null, error: { message: 'column produce_listings.sale_mode does not exist' } }
+    }
+    if (db.missingPackColumns && table === 'produce_listings' && selectCols.includes('retail_pack_size')) {
+      return { data: null, error: { message: 'column produce_listings.retail_pack_size does not exist' } }
     }
     if (table === 'platform_settings') {
       // No fee, no deposit, launch delivery defaults — the plain checkout.
@@ -357,6 +363,48 @@ describe('wholesale — the household checkout', () => {
   it('a pre-migration row with no sale_mode is retail', async () => {
     const res = await place(order())
     expect(res.status).toBe(200)
+  })
+})
+
+// Client card 2026-11-10: retail sold in packs is charged packs × the price
+// of one pack (with the buy-more tier reached), never ₹/kg × qty.
+describe('retail packs', () => {
+  const packed = (extra: Row = {}) => Object.assign(db.listings[0], {
+    sale_step: 0.25, retail_pack_size: 0.25, retail_pack_price: 25, retail_pack_tiers: [{ min_packs: 4, price: 22 }], ...extra,
+  })
+  it('charges packs × pack price', async () => {
+    packed()
+    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 0.75 }] }))
+    expect(res.status).toBe(200)
+    expect(db.orders[0]).toMatchObject({ quantity: 0.75, total_price: 75 }) // 3 × ₹25, not 0.75 × ₹40
+  })
+  it('the buy-more price per pack kicks in at its pack count', async () => {
+    packed()
+    await place(order({ items: [{ listingId: LISTING_ID, qty: 1 }] }))
+    expect(db.orders[0]).toMatchObject({ total_price: 88 }) // 4 packs × ₹22
+  })
+  it('₹10 for a 300 g pack is exactly ₹10 a pack', async () => {
+    packed({ sale_step: 0.3, retail_pack_size: 0.3, retail_pack_price: 10, retail_pack_tiers: [] })
+    await place(order({ items: [{ listingId: LISTING_ID, qty: 0.9 }] }))
+    expect(db.orders[0]).toMatchObject({ total_price: 30 })
+  })
+  it('refuses part of a pack, takes no stock', async () => {
+    packed({ sale_step: 0.1 }) // even if the step column disagrees, packs rule
+    const res = await place(order({ items: [{ listingId: LISTING_ID, qty: 0.3 }] }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/sold in packs of 250 g/)
+    expect(db.orders).toHaveLength(0)
+    expect(db.listings[0].stock_qty).toBe(10)
+  })
+  it('a loose listing is priced exactly as before', async () => {
+    await place(order())
+    expect(db.orders[0]).toMatchObject({ total_price: 80 })
+  })
+  it('works on a database without the pack columns (read as loose)', async () => {
+    db.missingPackColumns = true
+    const res = await place(order())
+    expect(res.status).toBe(200)
+    expect(db.orders[0]).toMatchObject({ total_price: 80 })
   })
 })
 

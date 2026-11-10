@@ -1,3 +1,4 @@
+import { PACKS_NOT_READY, RETAIL_PACK_COLUMNS, applyRetailPackColumns, isPackColumnMissing } from '@/lib/packPricing'
 import { createClient } from '@supabase/supabase-js'
 import { applyRetailReach } from '@/lib/retailReach'
 import { NextRequest, NextResponse } from 'next/server'
@@ -247,6 +248,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     Object.assign(update, wholesale.columns)
   }
 
+  // Retail packs (2026-11-10): sent only by a form that knows packs, so an
+  // older caller leaves them alone. Same rules as the farmer's; the per-unit
+  // columns (sale step, tiers) are derived from the pack when one is set.
+  for (const k of RETAIL_PACK_COLUMNS) if (k in b) update[k] = b[k]
+  const packErr = applyRetailPackColumns(update, unit)
+  if (packErr) return NextResponse.json({ error: packErr.en }, { status: 400 })
+
   // Local only / Transportable across AP & TG (2026-11-05).
   {
     const reachErr = applyRetailReach(update, b, String(update.delivery_mode ?? ''))
@@ -272,6 +280,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   let { data: updated, error } = await save(update)
   // Server without the wholesale columns: retail drops them and saves;
   // a wholesale choice is refused rather than silently lost.
+  if (error && isPackColumnMissing(error.message)) return NextResponse.json({ error: PACKS_NOT_READY.en }, { status: 503 })
   if (error && isWholesaleColumnMissing(error.message)) {
     if (update.sale_mode !== 'retail') {
       return NextResponse.json({ error: WHOLESALE_NOT_READY.en }, { status: 503 })

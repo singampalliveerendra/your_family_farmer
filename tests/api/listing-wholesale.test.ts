@@ -143,8 +143,9 @@ describe('/api/farmer/update-listing — wholesale', () => {
       wholesale_transport_states: ['TG', 'AP'],
     })
     expect(res.status).toBe(200)
+    // A pack (2026-11-10): the minimum is one pack; pack price = price × pack.
     expect(listing()).toMatchObject({
-      sale_mode: 'both', wholesale_price: 30.46, wholesale_min_qty: 100, wholesale_pack_size: 25,
+      sale_mode: 'both', wholesale_price: 30.46, wholesale_min_qty: 25, wholesale_pack_size: 25, wholesale_pack_price: 761.4,
       wholesale_transport_states: ['AP', 'TG'],
     })
   })
@@ -242,7 +243,7 @@ describe('/api/moderator/listings POST — wholesale', () => {
     const res = await create(createBody(wholesaleBody()))
     expect(res.status).toBe(200)
     expect(created()).toMatchObject({
-      sale_mode: 'both', wholesale_price: 30, wholesale_min_qty: 100, wholesale_pack_size: 25,
+      sale_mode: 'both', wholesale_price: 30, wholesale_min_qty: 25, wholesale_pack_size: 25, wholesale_pack_price: 750,
       wholesale_transport_states: ['AP'],
     })
   })
@@ -260,9 +261,9 @@ describe('/api/moderator/listings POST — wholesale', () => {
   })
 
   it.each([
-    ['no price', { wholesale_price: '' }, /wholesale price/],
+    ['no price', { wholesale_price: '' }, /price of one pack/],
     ['no pack or minimum', { wholesale_min_qty: '', wholesale_pack_size: '' }, /pack size or the minimum/],
-    ['minimum not whole packs', { wholesale_min_qty: '30' }, /whole number of packs/],
+    ['a bad pack price', { wholesale_pack_price: '0' }, /pack price must be a number above 0/],
     ['transport not answered', { wholesale_transport: null }, /Yes or No/],
     ['transport Yes, no state', { wholesale_transport_states: [] }, /Andhra Pradesh, Telangana/],
   ])('refuses %s with a 400 and creates nothing', async (_name, patch, msg) => {
@@ -316,7 +317,7 @@ describe('/api/moderator/listings/[id] PUT — wholesale', () => {
   it('saves Both', async () => {
     const res = await edit(editBody(wholesaleBody()))
     expect(res.status).toBe(200)
-    expect(listing()).toMatchObject({ sale_mode: 'both', wholesale_price: 30, wholesale_min_qty: 100, wholesale_transport_states: ['AP'] })
+    expect(listing()).toMatchObject({ sale_mode: 'both', wholesale_price: 30, wholesale_min_qty: 25, wholesale_pack_price: 750, wholesale_transport_states: ['AP'] })
   })
 
   it('back to retail writes only sale_mode', async () => {
@@ -443,5 +444,52 @@ describe('Both: wholesale must be cheaper than retail', () => {
   it('retail-only and wholesale-only are never checked', async () => {
     expect((await edit({ sale_mode: 'retail', price_tier_1_price: 10 })).status).toBe(200)
     expect((await edit({ sale_mode: 'wholesale', wholesale_price: 90, wholesale_min_qty: 100, wholesale_pack_size: null, wholesale_transport_states: [], price_tier_1_price: 10 })).status).toBe(200)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Retail packs (client card 2026-11-10): the routes apply the form's rules and
+// derive the per-unit columns from the pack, whatever the request sent.
+describe('retail packs through the save routes', () => {
+  const PACK = { retail_pack_size: 0.25, retail_pack_price: 25, retail_pack_tiers: [{ min_packs: 4, price: 22 }] }
+
+  it('farmer edit: pack saved, step = one pack, ₹/kg derived (a crafted ₹/kg is overwritten)', async () => {
+    const res = await updateListing(req('/api/farmer/update-listing', { listingId: LISTING_ID, payload: { ...PACK, price_tier_1_price: 1, sale_step: 1 } }))
+    expect(res.status).toBe(200)
+    expect(listing()).toMatchObject({ ...PACK, sale_step: 0.25, price_tier_1_price: 100, price_tier_1_qty: 0.75, price_tier_3_price: 88 })
+  })
+  it('farmer edit: a pack size not on the list is refused, nothing written', async () => {
+    const res = await updateListing(req('/api/farmer/update-listing', { listingId: LISTING_ID, payload: { ...PACK, retail_pack_size: 0.3 } }, 'POST', 'en'))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/from the list/)
+    expect(listing()).not.toHaveProperty('retail_pack_size')
+  })
+  it('farmer edit: a pack on a piece unit is refused', async () => {
+    const res = await updateListing(req('/api/farmer/update-listing', { listingId: LISTING_ID, payload: { ...PACK, unit: 'piece' } }, 'POST', 'en'))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/kg or gram/)
+  })
+  it('farmer edit: clearing the pack (loose again) clears all three', async () => {
+    Object.assign(listing(), PACK)
+    const res = await updateListing(req('/api/farmer/update-listing', { listingId: LISTING_ID, payload: { retail_pack_size: null, retail_pack_price: null, retail_pack_tiers: [], price_tier_1_price: 90 } }))
+    expect(res.status).toBe(200)
+    expect(listing()).toMatchObject({ retail_pack_size: null, retail_pack_price: null, retail_pack_tiers: [], price_tier_1_price: 90 })
+  })
+  it('farmer edit without pack fields leaves them alone (regression)', async () => {
+    Object.assign(listing(), PACK)
+    await updateListing(req('/api/farmer/update-listing', { listingId: LISTING_ID, payload: { stock_qty: 30 } }))
+    expect(listing()).toMatchObject(PACK)
+  })
+  it('moderator create: pack saved with the derived per-unit columns', async () => {
+    const res = await moderatorCreate(req('/api/moderator/listings', createBody({ ...PACK, price_tier_1_price: '1' })))
+    expect(res.status).toBe(200)
+    const row = db.writes.find((w) => w.table === 'produce_listings' && w.kind === 'insert')?.row
+    expect(row).toMatchObject({ ...PACK, sale_step: 0.25, price_tier_1_price: 100 })
+  })
+  it('moderator create: a bad pack is refused, nothing created', async () => {
+    const res = await moderatorCreate(req('/api/moderator/listings', createBody({ ...PACK, retail_pack_price: '' })))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/price of one pack/)
+    expect(db.writes.find((w) => w.table === 'produce_listings' && w.kind === 'insert')).toBeUndefined()
   })
 })

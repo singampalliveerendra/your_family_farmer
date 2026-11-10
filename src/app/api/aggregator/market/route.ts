@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const LISTING_COLUMNS =
-  'id, farmer_id, name, variety, emoji, category, unit, image_url, image_urls, status, sale_mode, sale_step, stock_qty, wholesale_price, wholesale_min_qty, wholesale_pack_size, wholesale_transport_states, source_farmer_id, method, description'
+  'id, farmer_id, name, variety, emoji, category, unit, image_url, image_urls, status, sale_mode, sale_step, stock_qty, wholesale_price, wholesale_min_qty, wholesale_pack_size, wholesale_pack_price, wholesale_transport_states, source_farmer_id, method, description'
 
 export async function GET(req: NextRequest) {
   const agg = await requireAggregator(req)

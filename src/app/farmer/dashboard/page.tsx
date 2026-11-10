@@ -20,6 +20,8 @@ import { useLang } from '@/lib/LanguageContext'
 import { compressImage } from '@/lib/compressImage'
 import { photosFromSaved, resolvePhotoUrls, type PhotoItem } from '@/lib/photoList'
 import PhotoPicker from '@/components/PhotoPicker'
+import SellHowFields, { perUnitPriceRow, type RetailSellForm } from '@/components/SellHowFields'
+import { PACKS_NOT_READY, isPackColumnMissing, legacyColumnsForPack, resolveRetailPack, retailPackFormFromRow, unitAllowsRetailPacks, type PackTierForm } from '@/lib/packPricing'
 import LocationSearch from '@/components/LocationSearch'
 import {
   normalizePickupSchedule, emptyPickupSlot, normalizePickupPhones,
@@ -32,7 +34,7 @@ import HarvestManager from '@/components/HarvestManager'
 import PayoutDetailsForm from '@/components/farmer/PayoutDetailsForm'
 import SourceFarmerPicker, { useSourceFarmers } from '@/components/SourceFarmerPicker'
 import { isLikelyUrl, normalizeUrl, linkHost } from '@/lib/links'
-import { STEP_CHOICES, unitAllowsFractions, formatQty, stepUp, stepDown } from '@/lib/saleStep'
+import { formatQty, stepUp, stepDown } from '@/lib/saleStep'
 import { isMissingColumnError } from '@/lib/missingColumn'
 import { previewNum, resolveSaleStep, previewAvailability, previewTiers } from '@/lib/previewModel'
 import { formatHarvestDate, nextHarvestDate } from '@/lib/harvestSchedule'
@@ -2334,6 +2336,13 @@ function ProduceListingForm({
   const [saleStep, setSaleStep] = useState(
     editData?.sale_step != null ? String(editData.sale_step) : '1',
   )
+  // Retail packs (client card 2026-11-10): kg/gram only, '' = sold loose.
+  const [initialPack] = useState(() => retailPackFormFromRow(editData as Record<string, unknown> | null | undefined))
+  const [retailPackSize, setRetailPackSize] = useState(initialPack.packSize)
+  const [retailPackPrice, setRetailPackPrice] = useState(initialPack.packPrice)
+  const [retailPackTiers, setRetailPackTiers] = useState<PackTierForm[]>(initialPack.tiers)
+  // Whether this server has the pack columns (a listing loaded with select('*')).
+  const rowHasPacks = !!editData && 'retail_pack_size' in editData
   // Aggregators: which of their farmers grows this produce. Asked here, once,
   // instead of on every harvest (client request 2026-08-14). Renders nothing
   // for a plain farmer.
@@ -2384,7 +2393,7 @@ function ProduceListingForm({
     name, variety, emoji, qty, availFrom, availTo, harvestFreq, harvestFreqCount, shelfLifeDays, farmingMethod,
     price1, price1Qty, price2, price2Qty, price3, description, brix, soc, soilPh, pesticide, howWeGrow, videoUrl,
     category, unit, saleStep, sourceFarmerId, deliveryMode: deliveryMode ?? '', deliveryCharge, deliveryRadius,
-    wholesale, reach, photos: draftPhotos(photos),
+    wholesale, reach, photos: draftPhotos(photos), retailPackSize, retailPackPrice, retailPackTiers,
   }
   type ProduceDraft = typeof draftNow
   useEffect(() => {
@@ -2402,6 +2411,8 @@ function ProduceListingForm({
     setDeliveryCharge((x) => str(d.deliveryCharge, x)); setDeliveryRadius((x) => str(d.deliveryRadius, x))
     if (d.wholesale && typeof d.wholesale === 'object') setWholesale((w) => ({ ...w, ...(d.wholesale as WholesaleForm) }))
     if (d.reach && typeof d.reach === 'object') setReach(d.reach as ReachForm)
+    setRetailPackSize((x) => str(d.retailPackSize, x)); setRetailPackPrice((x) => str(d.retailPackPrice, x))
+    if (Array.isArray(d.retailPackTiers)) setRetailPackTiers(d.retailPackTiers as PackTierForm[])
     if (Array.isArray(d.photos) && d.photos.length) setPhotos((cur) => (cur.some((p) => p.file) ? cur : (d.photos as PhotoItem[])))
     // Once, when the form opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2411,7 +2422,7 @@ function ProduceListingForm({
     const t = setTimeout(() => {
       const d = JSON.parse(draftJson) as ProduceDraft
       // A new form untouched beyond its defaults is not worth keeping.
-      if (editData || draftHasContent(d, ['emoji', 'unit', 'price1Qty', 'price2Qty', 'farmingMethod', 'shelfLifeDays', 'saleStep', 'harvestFreqCount', 'wholesale', 'reach'])) writeDraft(draftK, d)
+      if (editData || draftHasContent(d, ['emoji', 'unit', 'price1Qty', 'price2Qty', 'farmingMethod', 'shelfLifeDays', 'saleStep', 'harvestFreqCount', 'wholesale', 'reach', 'retailPackTiers'])) writeDraft(draftK, d)
     }, 400)
     return () => clearTimeout(t)
   }, [draftJson, draftK, editData])
@@ -2469,22 +2480,41 @@ function ProduceListingForm({
 
   // Both: wholesale must be cheaper than every retail price (decision 2026-11-05).
   // Shown live under the two price boxes, and blocks the save.
-  const bothPriceErr = bothPricesError({
-    sale_mode: wholesale.saleMode,
-    wholesale_price: wholesale.price,
-    price_tier_1_price: price1,
-    price_tier_2_price: price2,
-    price_tier_3_price: price3,
-  })
+  // Packs are compared as ₹ per unit (perUnitPriceRow).
+  const retailSell: RetailSellForm = {
+    price: price1, tier1Qty: price1Qty, price2, price2Qty, price3, saleStep,
+    packSize: retailPackSize, packPrice: retailPackPrice, packTiers: retailPackTiers,
+  }
+  const onRetailSell = (p: Partial<RetailSellForm>) => {
+    if (p.price !== undefined) setPrice1(p.price)
+    if (p.tier1Qty !== undefined) setPrice1Qty(p.tier1Qty)
+    if (p.price2 !== undefined) setPrice2(p.price2)
+    if (p.price2Qty !== undefined) setPrice2Qty(p.price2Qty)
+    if (p.price3 !== undefined) setPrice3(p.price3)
+    if (p.saleStep !== undefined) setSaleStep(p.saleStep)
+    if (p.packSize !== undefined) setRetailPackSize(p.packSize)
+    if (p.packPrice !== undefined) setRetailPackPrice(p.packPrice)
+    if (p.packTiers !== undefined) setRetailPackTiers(p.packTiers)
+  }
+  const retailPacked = offersRetail(wholesale.saleMode) && unitAllowsRetailPacks(unit) && retailPackSize !== ''
+  const bothPriceErr = bothPricesError(perUnitPriceRow(wholesale, retailSell, unit))
 
   const handlePublish = async () => {
     if (!name.trim()) { setError(tx.produceNameRequired); return }
     // A retail price is needed unless the produce is sold wholesale only.
     const price1Num = Number(price1)
-    if (needsRetailPrice(wholesale.saleMode) && (!price1 || !Number.isFinite(price1Num) || price1Num <= 0)) {
+    if (needsRetailPrice(wholesale.saleMode) && !retailPacked && (!price1 || !Number.isFinite(price1Num) || price1Num <= 0)) {
       setError(tx.priceRequired)
       return
     }
+    // Retail packs: checked with the same rules as the server; the per-unit
+    // columns (step, ₹/unit tiers) are derived from the pack.
+    const packResult = resolveRetailPack({ unit, packSize: retailPacked ? retailPackSize : '', packPrice: retailPackPrice, tiers: retailPackTiers })
+    if (!packResult.ok) { setError(L(packResult.error.en, packResult.error.te)); return }
+    const packCols: Record<string, unknown> = retailPacked
+      ? { ...packResult.columns, ...legacyColumnsForPack(packResult.columns) }
+      // Loose: clear a saved pack, but only on a server that has the columns.
+      : rowHasPacks ? { ...packResult.columns } : {}
     const wholesaleResult = resolveWholesaleForm(wholesale, unit)
     if (!wholesaleResult.ok) {
       setError(L(wholesaleResult.error.en, wholesaleResult.error.te))
@@ -2564,6 +2594,7 @@ function ProduceListingForm({
         // column doesn't exist yet.
         ...(isAggregator && sourceFarmerId ? { source_farmer_id: sourceFarmerId } : {}),
         ...wholesaleCols,
+        ...packCols,
       }
 
       const sendEdit = async (body: Record<string, unknown>) => {
@@ -2585,6 +2616,11 @@ function ProduceListingForm({
           delete editPayload.sale_step
           ;({ res, json } = await sendEdit(editPayload))
           if (res.ok) setStepNotSaved(true)
+        }
+        if (!res.ok && isPackColumnMissing(json.error)) {
+          setLoading(false)
+          setError(L(PACKS_NOT_READY.en, PACKS_NOT_READY.te))
+          return
         }
         // Pre-migration environment for wholesale: retail just drops the
         // columns; a wholesale choice is refused rather than silently lost.
@@ -2672,6 +2708,8 @@ function ProduceListingForm({
     }
     // New produce: retail needs nothing (the column defaults to 'retail').
     Object.assign(payload, wholesaleColumnsToSend(wholesaleResult.columns, false))
+    // A pack overrides the per-unit price/tiers/step set above.
+    if (retailPacked) Object.assign(payload, packCols)
 
     // Added through the server (security fix, 2026-11-04): the owner comes
     // from the login, and the same rules as an edit apply — wholesale, grower,
@@ -2785,8 +2823,11 @@ function ProduceListingForm({
       </div>
 
       <div className="p-4 space-y-5">
-        {/* The form in 6 steps, each following from the last (client, 2026-11-05):
-            what → how much & when → who buys & price → delivery → photos & story → quality. */}
+        {/* The form in 4 steps (client, 2026-11-05; regrouped 2026-11-10): what
+            you are selling — with shelf life, availability, photos and the
+            Story and Quality details subsections — → how do you want to sell
+            (retail/wholesale, unit, packs, prices) → how much & when →
+            delivery. */}
         <FormStep n={1} title={L('What are you selling?', 'మీరు ఏమి అమ్ముతున్నారు?')}>
         {/* Emoji picker */}
         <div>
@@ -2879,68 +2920,6 @@ function ProduceListingForm({
             <option value="chemical">{tx.methodChemical}</option>
           </select>
         </div>
-
-        </FormStep>
-
-        <FormStep n={2} title={L('How much, and when?', 'ఎంత, ఎప్పుడు?')}>
-        {/* Unit selector */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {L('Unit', 'కొలత')}
-          </label>
-          <select
-            value={unit}
-            onChange={(e) => setUnit(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
-          >
-            {UNIT_OPTIONS(L).map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Quantity. The label used to read "Availability", which is what the
-            availability block below actually answers — this box is stock. */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {L('Quantity', 'పరిమాణం')}
-          </label>
-          <input
-            type="number"
-            placeholder={`Quantity (${unit})`}
-            value={qty}
-            onChange={(e) => setQty(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
-          />
-        </div>
-
-        {/* Sale step. Sits directly under Unit because it is read IN that unit
-            — "1/4" means a quarter kilo only once the unit says kg. Hidden for
-            piece/bunch, where a fraction cannot be sold. */}
-        {unitAllowsFractions(unit) && (
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-              {L('Sell in multiples of', 'ఎంత మోతాదులో అమ్మాలి')}
-            </label>
-            <select
-              value={saleStep}
-              onChange={(e) => setSaleStep(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:border-green-500 focus:outline-none"
-            >
-              {STEP_CHOICES.map((o) => (
-                <option key={o.value} value={String(o.value)}>
-                  {L(o.en, o.te)} {unit}
-                </option>
-              ))}
-            </select>
-            <p className="text-[11px] text-gray-500">
-              {L(
-                `Buyers order in steps of this much. Pick 1/4 for mirchi and a buyer's "+" adds ${formatQty(0.25)} ${unit} at a time, not a whole ${unit}.`,
-                `కొనుగోలుదారులు ఈ మోతాదులో ఆర్డర్ చేస్తారు. మిరపకు 1/4 ఎంచుకుంటే "+" నొక్కినప్పుడు ${formatQty(0.25)} ${unit} చొప్పున కలుస్తుంది, పూర్తి ${unit} కాదు.`,
-              )}
-            </p>
-          </div>
-        )}
 
         {/* Shelf life (required) for this listing. Harvest date & time is set
             per-pick in the harvests model (HarvestManager below), not here. */}
@@ -3040,6 +3019,162 @@ function ProduceListingForm({
           )}
         </div>
 
+        {/* Produce photos — cover + extras in one picker */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            {L('Photos (optional)', 'ఫోటోలు (ఐచ్ఛికం)')}
+          </label>
+          <PhotoPicker
+            photos={photos}
+            onChange={setPhotos}
+            onError={setError}
+            upload={(f) => uploadFarmImage(f, 'produce').then((r) => r.url)}
+          />
+        </div>
+
+        <FormSubsection title={L('Story', 'మీ కథ')}>
+          {/* Description */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+              {tx.description}
+            </label>
+            <textarea
+              placeholder={tx.descriptionPlaceholder}
+              value={description}
+              onChange={(e) => setDescription(e.target.value.slice(0, 500))}
+              rows={3}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm resize-none focus:border-green-500 focus:outline-none"
+            />
+            <p className="text-right text-xs text-gray-400">{description.length}/500</p>
+          </div>
+
+          {/* Video link — a link, not an upload. Farmers already post clips to
+              YouTube/Instagram/WhatsApp status; asking them to upload video over
+              rural 4G would just mean nobody uses it. Buyers get a "Watch video"
+              link on the produce page. */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+              {L('Video link (optional)', 'వీడియో లింక్')}
+            </label>
+            <input
+              type="url"
+              inputMode="url"
+              placeholder="https://youtube.com/..."
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value.slice(0, 500))}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
+            />
+            {videoUrl.trim() && !isLikelyUrl(videoUrl) && (
+              <p className="text-xs text-amber-700">
+                {L('That does not look like a link. Paste the full address, starting with https://', 'ఇది లింక్‌లా లేదు. https:// తో మొదలయ్యే పూర్తి చిరునామా ఇవ్వండి.')}
+              </p>
+            )}
+          </div>
+        </FormSubsection>
+
+        {/* Quality details — optional, closed until tapped. */}
+        <FormSubsection title={L('Quality details (optional)', 'నాణ్యత వివరాలు (ఐచ్ఛికం)')} collapsible>
+          {/* Quality params */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+              {tx.qualityParams}
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className="text-xs text-gray-500 mb-1">{L('BRIX reading', 'BRIX రీడింగ్')}</p>
+                <input
+                  type="number"
+                  step="0.1"
+                  placeholder="e.g. 8.5"
+                  value={brix}
+                  onChange={(e) => setBrix(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">{L('Soil Organic Carbon %', 'నేల సేంద్రియ కార్బన్ %')}</p>
+                <input
+                  type="number"
+                  step="0.1"
+                  placeholder="e.g. 2.1"
+                  value={soc}
+                  onChange={(e) => setSoc(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">{L('Soil pH', 'నేల pH')}</p>
+                <input
+                  type="number"
+                  step="0.1"
+                  placeholder="e.g. 6.8"
+                  value={soilPh}
+                  onChange={(e) => setSoilPh(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">{L('Chemicals / pesticide', 'రసాయనాలు / పురుగుమందు')}</p>
+                <input
+                  type="text"
+                  placeholder={L('e.g. None / Lab tested', 'ఉదా. ఏదీ లేదు')}
+                  value={pesticide}
+                  onChange={(e) => setPesticide(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+        </FormSubsection>
+
+        </FormStep>
+
+        {/* How do you want to sell? (client card 2026-11-10): Retail / Wholesale /
+            Both, the unit, then the fields for each — packs, prices, minimum,
+            buy-more tiers (src/components/SellHowFields.tsx). */}
+        <FormStep n={2} title={L('How do you want to sell?', 'ఎలా అమ్మాలనుకుంటున్నారు?')}>
+        <SellHowFields
+          wholesale={wholesale}
+          onWholesale={setWholesale}
+          unit={unit}
+          onUnit={setUnit}
+          unitOptions={UNIT_OPTIONS(L)}
+          retail={retailSell}
+          onRetail={onRetailSell}
+          L={L}
+          priceError={bothPriceErr ? L(bothPriceErr.en, bothPriceErr.te) : null}
+          retailHint={
+            priceHint && (priceHint.min_price != null || priceHint.max_price != null) && (
+          <p className="text-[11px] text-green-700 bg-green-50 rounded-lg px-3 py-1.5">
+            💡 Suggested for {name.trim()}:{' '}
+            {priceHint.min_price != null && priceHint.max_price != null
+              ? `₹${priceHint.min_price}–₹${priceHint.max_price}`
+              : priceHint.min_price != null
+                ? `₹${priceHint.min_price}+`
+                : `up to ₹${priceHint.max_price}`}
+            /{priceHint.unit}
+          </p>
+            )
+          }
+        />
+        </FormStep>
+
+        <FormStep n={3} title={L('How much, and when?', 'ఎంత, ఎప్పుడు?')}>
+        {/* Quantity. The label used to read "Availability", which is what the
+            availability block below actually answers — this box is stock. */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            {L('Quantity', 'పరిమాణం')}
+          </label>
+          <input
+            type="number"
+            placeholder={`Quantity (${unit})`}
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
+          />
+        </div>
+
         {/* Harvest timings — log/edit individual harvests (each a sellable pick
             with its own date, shelf life and qty). Only when editing an existing
             produce, since a harvest needs a saved produce to attach to. */}
@@ -3051,91 +3186,6 @@ function ProduceListingForm({
             produceShelfLife={shelfLifeDays ? parseInt(shelfLifeDays, 10) : null}
             sourceFarmerId={editData.source_farmer_id ?? null}
           />
-        )}
-
-        </FormStep>
-
-        <FormStep n={3} title={L('Who buys it, and at what price?', 'ఎవరు కొంటారు, ఏ ధరకు?')}>
-        {/* Retail / Wholesale / Both — the wholesale details open only when needed */}
-        <WholesaleFields
-          part="sale"
-          value={wholesale}
-          onChange={setWholesale}
-          unit={unit}
-          L={L}
-          retailPrice={{ value: price1, onChange: setPrice1 }}
-          priceError={bothPriceErr ? L(bothPriceErr.en, bothPriceErr.te) : null}
-        />
-
-        {/* Household bulk prices — optional lower retail prices for bigger
-            household orders. The main retail price is in the Price box above
-            (2026-11-05). Not asked when sold wholesale only. */}
-        {offersRetail(wholesale.saleMode) && (
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {L('Lower price when a household buys more (optional)', 'ఇంటివాళ్లు ఎక్కువ కొంటే తక్కువ ధర (ఐచ్ఛికం)')}
-          </label>
-          <div className="space-y-2">
-            <div className="flex gap-2 items-center flex-wrap">
-              <span className="text-xs text-gray-500">{L('Retail price above is for up to', 'పై చిల్లర ధర ఇంతవరకు')}</span>
-              <input
-                type="number"
-                placeholder={`Up to ${price1Qty}`}
-                value={price1Qty}
-                onChange={(e) => setPrice1Qty(e.target.value)}
-                className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm"
-              />
-              <span className="text-xs text-gray-400">{unit}</span>
-            </div>
-            <div className="flex gap-2 items-center">
-              <span className="text-xs text-gray-500 w-14 flex-shrink-0">{L('Tier 2', 'శ్రేణి 2')}</span>
-              <input
-                type="number"
-                placeholder={`Up to`}
-                value={price2Qty}
-                onChange={(e) => setPrice2Qty(e.target.value)}
-                className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm"
-              />
-              <span className="text-xs text-gray-400">{unit} →</span>
-              <div className="flex-1 relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
-                <input
-                  type="number"
-                  placeholder={`Price/${unit}`}
-                  value={price2}
-                  onChange={(e) => setPrice2(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-sm"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 items-center">
-              <span className="text-xs text-gray-500 w-14 flex-shrink-0">{L('Tier 3', 'శ్రేణి 3')}</span>
-              <span className="text-xs text-gray-400 w-20 text-center">{Number(price2Qty) + 1}+ {unit}</span>
-              <span className="text-xs text-gray-400">→</span>
-              <div className="flex-1 relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
-                <input
-                  type="number"
-                  placeholder={`Price/${unit}`}
-                  value={price3}
-                  onChange={(e) => setPrice3(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-          {priceHint && (priceHint.min_price != null || priceHint.max_price != null) && (
-            <p className="text-[11px] text-green-700 bg-green-50 rounded-lg px-3 py-1.5">
-              💡 Suggested for {name.trim()}:{' '}
-              {priceHint.min_price != null && priceHint.max_price != null
-                ? `₹${priceHint.min_price}–₹${priceHint.max_price}`
-                : priceHint.min_price != null
-                  ? `₹${priceHint.min_price}+`
-                  : `up to ₹${priceHint.max_price}`}
-              /{priceHint.unit}
-            </p>
-          )}
-        </div>
         )}
 
         </FormStep>
@@ -3214,126 +3264,11 @@ function ProduceListingForm({
         />
         </FormStep>
 
-        <FormStep n={5} title={L('Photos and story', 'ఫోటోలు, మీ కథ')}>
-        {/* Produce photos — cover + extras in one picker */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {L('Photos (optional)', 'ఫోటోలు (ఐచ్ఛికం)')}
-          </label>
-          <PhotoPicker
-            photos={photos}
-            onChange={setPhotos}
-            onError={setError}
-            upload={(f) => uploadFarmImage(f, 'produce').then((r) => r.url)}
-          />
-        </div>
-
-        {/* Description */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {tx.description}
-          </label>
-          <textarea
-            placeholder={tx.descriptionPlaceholder}
-            value={description}
-            onChange={(e) => setDescription(e.target.value.slice(0, 500))}
-            rows={3}
-            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm resize-none focus:border-green-500 focus:outline-none"
-          />
-          <p className="text-right text-xs text-gray-400">{description.length}/500</p>
-        </div>
-
-        {/* Video link — a link, not an upload. Farmers already post clips to
-            YouTube/Instagram/WhatsApp status; asking them to upload video over
-            rural 4G would just mean nobody uses it. Buyers get a "Watch video"
-            link on the produce page. */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {L('Video link (optional)', 'వీడియో లింక్')}
-          </label>
-          <input
-            type="url"
-            inputMode="url"
-            placeholder="https://youtube.com/..."
-            value={videoUrl}
-            onChange={(e) => setVideoUrl(e.target.value.slice(0, 500))}
-            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-green-500 focus:outline-none"
-          />
-          {videoUrl.trim() && !isLikelyUrl(videoUrl) && (
-            <p className="text-xs text-amber-700">
-              {L('That does not look like a link. Paste the full address, starting with https://', 'ఇది లింక్‌లా లేదు. https:// తో మొదలయ్యే పూర్తి చిరునామా ఇవ్వండి.')}
-            </p>
-          )}
-        </div>
-
-        </FormStep>
-
-        {/* 6 — optional, closed until tapped. */}
-        <details className="group rounded-2xl border border-gray-200 bg-gray-50/60 p-3">
-          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-extrabold text-gray-900">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-700 text-xs font-bold text-white">6</span>
-            {L('Quality details (optional)', 'నాణ్యత వివరాలు (ఐచ్ఛికం)')}
-            <span className="ml-auto text-gray-400 transition-transform group-open:rotate-90">›</span>
-          </summary>
-          <div className="mt-4">
-        {/* Quality params */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            {tx.qualityParams}
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <p className="text-xs text-gray-500 mb-1">{L('BRIX reading', 'BRIX రీడింగ్')}</p>
-              <input
-                type="number"
-                step="0.1"
-                placeholder="e.g. 8.5"
-                value={brix}
-                onChange={(e) => setBrix(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">{L('Soil Organic Carbon %', 'నేల సేంద్రియ కార్బన్ %')}</p>
-              <input
-                type="number"
-                step="0.1"
-                placeholder="e.g. 2.1"
-                value={soc}
-                onChange={(e) => setSoc(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">{L('Soil pH', 'నేల pH')}</p>
-              <input
-                type="number"
-                step="0.1"
-                placeholder="e.g. 6.8"
-                value={soilPh}
-                onChange={(e) => setSoilPh(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">{L('Chemicals / pesticide', 'రసాయనాలు / పురుగుమందు')}</p>
-              <input
-                type="text"
-                placeholder={L('e.g. None / Lab tested', 'ఉదా. ఏదీ లేదు')}
-                value={pesticide}
-                onChange={(e) => setPesticide(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-green-500 focus:outline-none"
-              />
-            </div>
-          </div>
-        </div>
-
+        {/* Errors sit by the buttons — they used to be inside the closed
+            Quality box, where nobody saw them. */}
         {error && (
           <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3">{error}</p>
         )}
-
-          </div>
-        </details>
 
         {/* Preview + Publish buttons */}
         <div className="flex gap-3 pt-2">
@@ -3405,6 +3340,28 @@ const PREVIEW_PRODUCE_BG: Record<string, string> = {
 const PREVIEW_CATEGORY_LABEL: Record<string, string> = {
   vegetables: 'Vegetables', fruits: 'Fruits', grains: 'Grains & Pulses', leafy: 'Leafy Greens',
   spices: 'Spices', other: 'Other',
+}
+
+/** A titled part inside a step (2026-11-10): Story, Quality details. A
+ *  collapsible one starts closed — used for optional fields. */
+function FormSubsection({ title, collapsible = false, children }: { title: string; collapsible?: boolean; children: React.ReactNode }) {
+  if (collapsible) {
+    return (
+      <details className="group rounded-xl border border-gray-200 bg-gray-50/60 p-3">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-green-800">
+          {title}
+          <span className="ml-auto text-base text-gray-400 transition-transform group-open:rotate-90">›</span>
+        </summary>
+        <div className="mt-4 space-y-4">{children}</div>
+      </details>
+    )
+  }
+  return (
+    <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50/60 p-3">
+      <h5 className="text-xs font-extrabold uppercase tracking-wide text-green-800">{title}</h5>
+      {children}
+    </div>
+  )
 }
 
 /** One numbered step of the produce form (2026-11-05). */

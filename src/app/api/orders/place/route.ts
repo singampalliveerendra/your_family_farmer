@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getConsumerSessionFromRequest } from '@/lib/session'
 import { createGuestOrderToken } from '@/lib/guest-order-token'
 import { getTierPrice } from '@/lib/pricing'
+import { packLinePrice } from '@/lib/packPricing'
 import { normalizePhone } from '@/lib/phone'
 import { isSelfOrder } from '@/lib/sellerBuyerLink'
 import { markSelfOrder, withoutSelfOrderFlag } from '@/lib/selfOrder'
@@ -82,6 +83,10 @@ type ListingRow = {
   price_tier_3_price: number | null
   /** Absent on a server without scripts/wholesale-migration.sql (= retail). */
   sale_mode?: string | null
+  /** Retail packs (scripts/pack-pricing-migration.sql); absent before it = sold loose. */
+  retail_pack_size?: number | string | null
+  retail_pack_price?: number | string | null
+  retail_pack_tiers?: unknown
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -320,11 +325,17 @@ export async function POST(req: NextRequest) {
   // Pull live listing rows — never trust prices from the client cart
   const listingIds = items.map((i) => i.listingId)
   const LISTING_COLS = 'id, name, unit, stock_qty, status, farmer_id, sale_step, price_tier_1_qty, price_tier_1_price, price_tier_2_qty, price_tier_2_price, price_tier_3_price'
-  const { data: listings } = await readWithSaleMode((withMode) =>
+  // Retail packs are priced from their own columns; a server without
+  // scripts/pack-pricing-migration.sql reads the listing as sold loose.
+  const PACK_COLS = 'retail_pack_size, retail_pack_price, retail_pack_tiers'
+  const readListings = (withPacks: boolean) => readWithSaleMode((withMode) =>
     supabase
       .from('produce_listings')
-      .select(withMode ? `${LISTING_COLS}, sale_mode` : LISTING_COLS)
-      .in('id', listingIds)) as { data: ListingRow[] | null }
+      .select([LISTING_COLS, withMode ? 'sale_mode' : '', withPacks ? PACK_COLS : ''].filter(Boolean).join(', '))
+      .in('id', listingIds)) as unknown as Promise<{ data: ListingRow[] | null; error: { message: string } | null }>
+  let listingRead = await readListings(true)
+  if (listingRead.error && isMissingColumnError(listingRead.error.message, 'retail_pack_size')) listingRead = await readListings(false)
+  const { data: listings } = listingRead
 
   // Compared with the UNIQUE ids: two lines can share a produce (two harvests
   // of it), and .in() returns each row once.
@@ -439,7 +450,11 @@ export async function POST(req: NextRequest) {
       return bad(`${listing.name} is sold in multiples of ${formatQty(step)} ${listing.unit || 'kg'}.`)
     }
 
-    const unitPrice = getTierPrice(item.qty, {
+    // Sold in packs (2026-11-10): whole packs only, charged packs × the price
+    // of one pack (with the buy-more tier reached). Loose: the old ₹/unit tiers.
+    const packed = packLinePrice(item.qty, listing)
+    if (packed && !packed.ok) return bad(`${listing.name} is ${packed.error}.`)
+    const unitPrice = packed ? null : getTierPrice(item.qty, {
       priceTier1Qty: listing.price_tier_1_qty,
       priceTier1Price: listing.price_tier_1_price,
       priceTier2Qty: listing.price_tier_2_qty,
@@ -447,7 +462,7 @@ export async function POST(req: NextRequest) {
       priceTier3Price: listing.price_tier_3_price,
     })
 
-    const linePrice = unitPrice != null ? Math.round(unitPrice * item.qty) : null
+    const linePrice = packed ? packed.total : unitPrice != null ? Math.round(unitPrice * item.qty) : null
     if (linePrice == null || linePrice <= 0) {
       return bad(`Price not set for ${listing.name}. Please ask the farmer.`)
     }

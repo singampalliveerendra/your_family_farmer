@@ -6,6 +6,7 @@ import { RETAIL_PRICE_KEYS, bothPricesError, resolveWholesaleColumns, touchesBot
 import { SELLING_PLAN_REQUIRED, isSellingPlanError } from '@/lib/sellingLock'
 import { reqLang, tr } from '@/lib/serverLang'
 import { checkSellerStatusChange, sellerListingPayload } from '@/lib/sellerWriteRules'
+import { PACKS_NOT_READY, applyRetailPackColumns, isPackColumnMissing } from '@/lib/packPricing'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -76,6 +77,11 @@ export async function POST(request: NextRequest) {
     Object.assign(cleanPayload, rest, wholesale.columns)
   }
 
+  // Retail packs (2026-11-10): same rules as the form; the per-unit columns
+  // are derived from the pack, whatever the request sent.
+  const packErr = applyRetailPackColumns(cleanPayload, unit)
+  if (packErr) return NextResponse.json({ error: tr(reqLang(request), packErr.en, packErr.te) }, { status: 400 })
+
   // Local only / Transportable across AP & TG (2026-11-05).
   const reachErr = applyRetailReach(cleanPayload, cleanPayload, typeof cleanPayload.delivery_mode === 'string' ? cleanPayload.delivery_mode : null)
   if (reachErr) return NextResponse.json({ error: tr(reqLang(request), reachErr.en, reachErr.te) }, { status: 400 })
@@ -124,6 +130,10 @@ export async function POST(request: NextRequest) {
     .eq('id', listingId)
     .eq('farmer_id', session.farmerId)
     .select('id, status, stock_qty')
+
+  if (error && isPackColumnMissing(error.message)) {
+    return NextResponse.json({ error: tr(reqLang(request), PACKS_NOT_READY.en, PACKS_NOT_READY.te) }, { status: 503 })
+  }
 
   // The selling lock (Phase 7): an aggregator without a Selling plan cannot
   // put produce back on sale.

@@ -28,6 +28,8 @@ export type BulkListing = {
   wholesale_price?: number | string | null
   wholesale_min_qty?: number | string | null
   wholesale_pack_size?: number | string | null
+  /** ₹ for one pack (scripts/pack-pricing-migration.sql); charged per pack when set. */
+  wholesale_pack_price?: number | string | null
   wholesale_transport_states?: unknown
   wholesale_transport_rates?: unknown
 }
@@ -137,7 +139,12 @@ export function checkBulkOrder(l: BulkListing, qty: number, delivery: Delivery, 
     transportMode = opt.rate.mode
     transportRate = opt.rate.mode === 'per_km' ? opt.rate.amount : null
   }
-  const goods = Math.round(price * roundQty(qty))
+  // Packs (2026-11-10): whole packs × the price of one pack, as the seller
+  // typed it — never the derived ₹/unit × qty, which can drift by a paisa.
+  const packPrice = num(l.wholesale_pack_price)
+  const goods = pack !== null && pack > 0 && packPrice !== null && packPrice > 0
+    ? Math.round(Math.round(roundQty(qty) / pack) * packPrice)
+    : Math.round(price * roundQty(qty))
   if (!(goods > 0)) return { ok: false, error: `Price not set for ${l.name}.` }
   // The fee is on the produce only — transport is the seller's own charge.
   const fee = computePlatformFee(goods, feePercent)
