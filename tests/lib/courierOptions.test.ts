@@ -143,3 +143,43 @@ describe('courier-options migration', () => {
     }
   })
 })
+
+describe('checkout: cargo choice (part 2)', () => {
+  it('cart fields only for cargo produce', async () => {
+    const { cartCargoFields } = await import('@/lib/courierOptions')
+    expect(cartCargoFields({ courier_type: 'cargo', cargo_services: ['VRL Logistics'], delivery_paid_by: 'buyer' })).toEqual({ courierType: 'cargo', cargoServices: ['VRL Logistics'], deliveryPaidBy: 'buyer' })
+    expect(cartCargoFields({ courier_type: 'local', delivery_paid_by: 'buyer' })).toEqual({})
+    expect(cartCargoFields({ courier_type: 'cargo', cargo_services: [] })).toEqual({})
+  })
+  it('one parcel per farmer: only services every line lists; ToPay if any line is', async () => {
+    const { commonCargoServices, parcelPaidBy } = await import('@/lib/courierOptions')
+    expect(commonCargoServices([{ cargoServices: ['VRL Logistics', 'Navata Road Transport'] }, { cargoServices: ['navata road transport', 'SRMT'] }])).toEqual(['Navata Road Transport'])
+    expect(commonCargoServices([])).toEqual([])
+    expect(parcelPaidBy([{ deliveryPaidBy: 'farmer' }, { deliveryPaidBy: 'buyer' }])).toBe('buyer')
+    expect(parcelPaidBy([{ deliveryPaidBy: 'farmer' }])).toBe('farmer')
+  })
+  it('server check of the buyer’s pick', async () => {
+    const { checkCargoChoice } = await import('@/lib/courierOptions')
+    const rows = [
+      { name: 'Mirchi', courier_type: 'cargo', cargo_services: ['VRL Logistics', 'SRMT'], delivery_paid_by: 'buyer' },
+      { name: 'Tomato', courier_type: 'cargo', cargo_services: ['SRMT'], delivery_paid_by: 'farmer' },
+    ]
+    expect(checkCargoChoice([{ name: 'X', courier_type: 'local' }], 'SRMT')).toBeNull()
+    expect(checkCargoChoice(rows, ' srmt ')).toEqual({ ok: true, service: 'SRMT', paidBy: 'buyer' })
+    expect(checkCargoChoice(rows, 'VRL Logistics')).toMatchObject({ ok: false, error: expect.stringMatching(/Choose the cargo service.*SRMT/) })
+    expect(checkCargoChoice(rows, undefined)).toMatchObject({ ok: false })
+    expect(checkCargoChoice([rows[0], { ...rows[1], cargo_services: ['APSRTC Cargo'] }], 'SRMT')).toMatchObject({ ok: false, error: expect.stringMatching(/order them separately/) })
+  })
+})
+
+describe('orders cargo columns', () => {
+  it('are in the migration and the schema, with the both-or-neither CHECK', async () => {
+    const { readFileSync } = await import('node:fs')
+    for (const f of ['scripts/courier-options-migration.sql', 'scripts/staging-schema.sql']) {
+      const s = readFileSync(f, 'utf8')
+      expect(s).toContain('ADD COLUMN IF NOT EXISTS cargo_service text')
+      expect(s).toContain('ADD COLUMN IF NOT EXISTS cargo_paid_by text')
+      expect(s).toMatch(/\(cargo_service IS NULL AND cargo_paid_by IS NULL\)\s+OR \(cargo_service IS NOT NULL AND cargo_paid_by IS NOT NULL/)
+    }
+  })
+})

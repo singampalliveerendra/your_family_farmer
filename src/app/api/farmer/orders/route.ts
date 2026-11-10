@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getFarmerSessionFromRequest, refreshFarmerSessionCookie } from '@/lib/farmer-session'
 import { attachFarmerResolved } from '@/lib/farmerResolve'
-import { attachOrderType } from '@/lib/orderType'
+import { attachCargo, attachOrderType } from '@/lib/orderType'
 import { jsonWithEtag } from '@/lib/etag'
 import { FARMER_ORDER_COLUMNS, FARMER_ORDER_PREORDER_COLUMNS, FARMER_ORDER_SELF_COLUMNS } from '@/lib/orderColumns'
 
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Could not load orders.' }, { status: 500 })
     }
     // farmer_resolved_at rides on a separate tolerant read (src/lib/farmerResolve).
-    const orders = await attachOrderType(supabase, await attachFarmerResolved(supabase, (data ?? []) as unknown as Array<{ id: string }>))
+    const orders = await attachCargo(supabase, await attachOrderType(supabase, await attachFarmerResolved(supabase, (data ?? []) as unknown as Array<{ id: string }>)))
     // ETag: the Orders page polls this every 25 s; an unchanged list is a
     // body-less 304 instead of up to 500 orders again (src/lib/etag.ts).
     const res = jsonWithEtag(req, { orders })
@@ -121,7 +121,7 @@ export async function GET(req: NextRequest) {
   }
 
   const res = jsonWithEtag(req, {
-    orders: await attachOrderType(supabase, await attachFarmerResolved(supabase, (activeRes.data ?? []) as unknown as Array<{ id: string }>)),
+    orders: await attachCargo(supabase, await attachOrderType(supabase, await attachFarmerResolved(supabase, (activeRes.data ?? []) as unknown as Array<{ id: string }>))),
     weekOrders: weekRes.data ?? [],
     monthOrders: monthRes.data ?? [],
     todayCount: todayRes.count ?? 0,

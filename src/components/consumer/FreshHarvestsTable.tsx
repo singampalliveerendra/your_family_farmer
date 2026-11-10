@@ -1,5 +1,6 @@
 'use client'
 
+import { cartPackFields } from '@/lib/packPricing'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
@@ -174,7 +175,7 @@ function HarvestTable({ variant }: { variant: Variant }) {
       setAdding((s) => ({ ...s, [r.id]: true }))
       const { data: listing } = await supabase
         .from('produce_listings')
-        .select('id, name, variety, emoji, unit, price_tier_1_qty, price_tier_1_price, price_tier_2_qty, price_tier_2_price, price_tier_3_price, farmer_id')
+        .select('id, name, variety, emoji, unit, price_tier_1_qty, price_tier_1_price, price_tier_2_qty, price_tier_2_price, price_tier_3_price, farmer_id, sale_step, retail_pack_size, retail_pack_price, retail_pack_tiers')
         .eq('id', r.produce_listing_id)
         .single()
       if (!listing) { setAdding((s) => ({ ...s, [r.id]: false })); return }
@@ -198,6 +199,10 @@ function HarvestTable({ variant }: { variant: Variant }) {
         unit: listing.unit ?? undefined,
         stockQty: r.stock_qty ?? undefined,
         pricePerKg: listing.price_tier_1_price,
+        // Sold in packs (2026-11-10): pack size/price/tiers, and the step = one pack.
+        // Part-unit step (1/4 kg…) — this line used to ignore it.
+        saleStep: listing.sale_step ?? undefined,
+        ...cartPackFields(listing),
         priceTier1Qty: listing.price_tier_1_qty,
         priceTier1Price: listing.price_tier_1_price,
         priceTier2Qty: listing.price_tier_2_qty,

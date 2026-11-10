@@ -61,6 +61,8 @@ import { formatPickupSlots, type PickupSchedule, type PickupPhones } from '@/lib
 // }
 import { loadCashfreeScript, runCashfreeCheckout } from '@/lib/cashfreeCheckout'
 import { withoutBulkLines } from '@/lib/cartLine'
+import { packLabel, packPerUnit, packsText, type CartPackFields } from '@/lib/packPricing'
+import { commonCargoServices, parcelPaidBy, type CartCargoFields } from '@/lib/courierOptions'
 
 export type CartItem = {
   listingId: string
@@ -114,7 +116,8 @@ export type CartItem = {
   // delivery pincode's state.
   transportCharge?: number
   transportState?: 'AP' | 'TG'
-}
+} & CartPackFields // Sold in packs (2026-11-10): retailPackSize / Price / Tiers.
+  & CartCargoFields // Cargo produce (2026-11-10): courierType / cargoServices / deliveryPaidBy.
 
 export type CartState = Record<string, CartItem>
 
@@ -161,6 +164,10 @@ const writeCart = (next: CartState) => {
 }
 
 function getActiveTier(qty: number, item: CartItem): { price?: number; isDiscount: boolean } {
+  // A pack line: the price per unit that makes "per unit × qty" come out as
+  // packs × the price of one pack — exactly what /api/orders/place charges.
+  const pack = packPerUnit(qty, item)
+  if (pack) return { price: pack.perUnit, isDiscount: pack.isDiscount }
   const { priceTier1Qty, priceTier1Price, priceTier2Qty, priceTier2Price, priceTier3Price } = item
   if (priceTier1Qty == null || priceTier1Price == null)
     return { price: item.pricePerKg, isDiscount: false }
@@ -572,6 +579,9 @@ export function CartSheet({
   const addressTyped = useRef(false)
   const [sentFarmers, setSentFarmers] = useState<Record<string, boolean>>({})
   const [pickupByFarmer, setPickupByFarmer] = useState<Record<string, string>>({})
+  // Cargo produce (2026-11-10): the cargo service the buyer picks per farmer —
+  // one parcel per farmer, from the services every cargo line lists.
+  const [cargoByFarmer, setCargoByFarmer] = useState<Record<string, string>>({})
   // Optional "who to call at the pickup point", per farmer — the pickup twin of
   // deliveryAltPhone. Blank means the farmer just uses the account's buyer_phone.
   const [pickupPhoneByFarmer, setPickupPhoneByFarmer] = useState<Record<string, string>>({})
@@ -938,7 +948,14 @@ export function CartSheet({
     const f = g[0]
     return g.some((it) => deliveryOf(it) === 'self_pickup') && pickupPhoneInvalid(f.farmerId)
   })
-  const detailsMissing = baseDetailsMissing || deliveryDetailsMissing || anyPickupPhoneInvalid
+  // A cargo parcel needs one of the farmer's ToPay services picked.
+  const cargoLinesOf = (g: CartItem[]) => g.filter((it) => isTransported(it) && it.courierType === 'cargo')
+  const cargoMissing = (g: CartItem[]) => {
+    const c = cargoLinesOf(g)
+    return c.length > 0 && !commonCargoServices(c).includes(cargoByFarmer[g[0].farmerId] ?? '')
+  }
+  const anyCargoMissing = farmerGroups.some(cargoMissing)
+  const detailsMissing = baseDetailsMissing || deliveryDetailsMissing || anyPickupPhoneInvalid || anyCargoMissing
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -979,6 +996,7 @@ export function CartSheet({
         pickupLocation: pickupByFarmer[f.farmerId] || null,
         pickupPhone: pickupPhoneByFarmer[f.farmerId]?.replace(/\D/g, '').slice(-10) || null,
         pickupLocationPhone: f.farmerPickupPhones?.[pickupByFarmer[f.farmerId] ?? ''] || null,
+        cargoService: cargoLinesOf(group).length ? (cargoByFarmer[f.farmerId] || null) : null,
         items: group.map((it) => ({
           listingId: it.listingId,
           harvestId: it.harvestId,
@@ -2228,7 +2246,14 @@ export function CartSheet({
                             )}
                             {it.pricePerKg && (
                               <>
-                                <p className="text-xs text-gray-500">₹{it.pricePerKg}/{it.unit || 'kg'} × {formatQty(it.qty)}</p>
+                                <p className="text-xs text-gray-500">
+                                  {(() => {
+                                    const pack = packPerUnit(it.qty, it)
+                                    return pack && it.retailPackSize
+                                      ? `₹${pack.perPack} / ${packLabel(it.retailPackSize, it.unit)} ${L('pack', 'ప్యాక్')} × ${pack.packs}`
+                                      : `₹${it.pricePerKg}/${it.unit || 'kg'} × ${formatQty(it.qty)}`
+                                  })()}
+                                </p>
                                 <span className="inline-block mt-1 text-sm font-extrabold text-green-800 bg-green-100 px-2 py-0.5 rounded-md">
                                   {/* Rounded to the rupee, matching how the
                                       subtotal below is computed — a 0.25 line
@@ -2248,9 +2273,12 @@ export function CartSheet({
                             )}
                             {getActiveTier(it.qty, it).isDiscount && (
                               <p className="text-[10px] font-semibold text-green-700 mt-0.5">
-                                {L('Bulk price applied', 'బల్క్ ధర వర్తింపు')}
+                                {it.retailPackSize ? L('Buy-more price applied', 'ఎక్కువ కొనుగోలు ధర వర్తింపు') : L('Bulk price applied', 'బల్క్ ధర వర్తింపు')}
                               </p>
                             )}
+                            {it.retailPackSize ? (
+                              <p className="text-[10px] text-gray-500 mt-0.5">{packsText(it.qty, it.retailPackSize, it.unit, L)}</p>
+                            ) : null}
                           </div>
                           <QtyStepper
                             qty={it.qty}
@@ -2433,6 +2461,52 @@ export function CartSheet({
                     )}
                   </div>
                 )}
+
+                {/* Cargo parcel for each farmer that sends by cargo (2026-11-10):
+                    the buyer picks a service that works in their area. */}
+                {farmerGroups.map((group) => {
+                  const f = group[0]
+                  const lines = cargoLinesOf(group)
+                  if (!lines.length) return null
+                  const options = commonCargoServices(lines)
+                  const chosen = cargoByFarmer[f.farmerId] ?? ''
+                  const toPay = parcelPaidBy(lines) === 'buyer'
+                  return (
+                    <div key={`cargo-${f.farmerId}`} className="space-y-1.5">
+                      <p className="text-[11px] font-extrabold text-sky-800 uppercase tracking-wide">
+                        🚛 {L('Cargo', 'కార్గో')}{farmerGroups.length > 1 ? ` — ${f.farmerName}` : ''}
+                      </p>
+                      {options.length === 0 ? (
+                        <p className="text-[12px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                          {L('These items go by different cargo services. Please order them separately.', 'ఈ వస్తువులు వేర్వేరు కార్గో సర్వీసుల ద్వారా వెళ్తాయి. దయచేసి వేర్వేరుగా ఆర్డర్ చేయండి.')}
+                        </p>
+                      ) : (
+                        <>
+                          <label htmlFor={`cargo-${f.farmerId}`} className="text-[11px] font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                            {L('Cargo service near you', 'మీ దగ్గర ఉన్న కార్గో సర్వీస్')}<span className="text-red-500"> *</span>
+                          </label>
+                          <select
+                            id={`cargo-${f.farmerId}`}
+                            value={chosen}
+                            onChange={(e) => setCargoByFarmer((prev) => ({ ...prev, [f.farmerId]: e.target.value }))}
+                            className={`w-full border rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none ${chosen ? 'border-gray-200 focus:border-green-500' : 'border-red-300 focus:border-red-500'}`}
+                          >
+                            <option value="">{L('Choose a service that has an office in your area', 'మీ ప్రాంతంలో ఆఫీసు ఉన్న సర్వీస్ ఎంచుకోండి')}</option>
+                            {options.map((s) => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                          <p className="text-[11px] text-sky-900 bg-sky-50 border border-sky-100 rounded-xl px-3 py-2 leading-snug">
+                            {toPay
+                              ? L('ToPay: you pay the cargo company when you collect the parcel. Nothing extra is paid here.', 'ToPay: పార్సెల్ తీసుకునేటప్పుడు కార్గో కంపెనీకి మీరు చెల్లిస్తారు. ఇక్కడ అదనంగా ఏమీ చెల్లించరు.')
+                              : L('The farmer pays the cargo — free for you.', 'కార్గో ఖర్చు రైతు భరిస్తారు — మీకు ఉచితం.')}
+                          </p>
+                          <p className="text-[11px] text-gray-500 leading-snug">
+                            {L('None of these near you? Remove the item or choose pickup instead.', 'ఇవేవీ మీ దగ్గర లేవా? వస్తువు తీసివేయండి లేదా పికప్ ఎంచుకోండి.')}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
 
                 {/* Pickup point for each farmer that has a pickup item */}
                 {farmerGroups.map((group) => {

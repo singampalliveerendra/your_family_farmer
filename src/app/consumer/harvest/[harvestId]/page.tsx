@@ -1,5 +1,7 @@
 'use client'
 
+import { cartCargoFields } from '@/lib/courierOptions'
+import { cartPackFields, packPriceTag, packTierLines } from '@/lib/packPricing'
 import { reachFor } from '@/lib/retailReach'
 import { readSavedBuyer } from '@/lib/savedBuyer'
 import { farmerCoords } from '@/lib/location'
@@ -271,6 +273,10 @@ export default function HarvestDetailPage() {
       preorderExpectedDate: preorder ? (nextHarvestAt ?? undefined) : undefined,
       pricePerKg: item.price_tier_1_price ?? undefined,
       saleStep: item.sale_step ?? undefined,
+      // Sold in packs (2026-11-10): pack size/price/tiers, and the step = one pack.
+      ...cartPackFields(item),
+      // Cargo produce: its ToPay services, for the checkout's pick (2026-11-10).
+      ...cartCargoFields(item as Parameters<typeof cartCargoFields>[0]),
       priceTier1Qty: item.price_tier_1_qty ?? undefined,
       priceTier1Price: item.price_tier_1_price ?? undefined,
       priceTier2Qty: item.price_tier_2_qty ?? undefined,
@@ -296,7 +302,10 @@ export default function HarvestDetailPage() {
   }
 
   // Price tiers shown as a small "buy more, save more" table.
-  const tiers: { label: string; price: number }[] = []
+  // Sold in packs (2026-11-10): the price of one pack, and buy-more in packs.
+  const packTag = packPriceTag(item)
+  const tiers: { label: string; price: number }[] = packTag ? packTierLines(item, L) : []
+  if (!packTag) {
   if (item.price_tier_1_price != null) {
     tiers.push({ label: `${L('Up to', 'వరకు')} ${formatQty(item.price_tier_1_qty ?? 1)} ${unitLabel}`, price: item.price_tier_1_price })
   }
@@ -305,6 +314,7 @@ export default function HarvestDetailPage() {
   }
   if (item.price_tier_3_price != null) {
     tiers.push({ label: `${L('Bulk', 'బల్క్')}`, price: item.price_tier_3_price })
+  }
   }
 
 
@@ -323,8 +333,8 @@ export default function HarvestDetailPage() {
                 variety: item.variety,
                 emoji: item.emoji,
                 method: item.method,
-                pricePerUnit: item.price_tier_1_price,
-                unit: item.unit,
+                pricePerUnit: packTag?.price ?? item.price_tier_1_price,
+                unit: packTag ? `${packTag.pack} pack` : item.unit,
                 farmerName: farmer?.name,
                 farmerVillage: farmer?.village,
                 imageUrl: coverImageUrl(item),
@@ -417,9 +427,9 @@ export default function HarvestDetailPage() {
             </p>
             <div className="mt-0.5 flex items-baseline gap-1">
               <span className="text-3xl font-extrabold text-green-800">
-                {item.price_tier_1_price ? `₹${item.price_tier_1_price}` : '—'}
+                {packTag ? `₹${packTag.price}` : item.price_tier_1_price ? `₹${item.price_tier_1_price}` : '—'}
               </span>
-              <span className="text-sm text-gray-500">/{unitLabel}</span>
+              <span className="text-sm text-gray-500">/{packTag ? `${packTag.pack} ${L('pack', 'ప్యాక్')}` : unitLabel}</span>
             </div>
           </div>
 
@@ -439,7 +449,7 @@ export default function HarvestDetailPage() {
               <div className="flex flex-wrap gap-2">
                 {tiers.map((t) => (
                   <div key={t.label} className="bg-green-50 rounded-lg px-2.5 py-1.5">
-                    <p className="text-xs font-bold text-green-900">₹{t.price}<span className="font-medium text-gray-500">/{unitLabel}</span></p>
+                    <p className="text-xs font-bold text-green-900">₹{t.price}<span className="font-medium text-gray-500">/{packTag ? L('pack', 'ప్యాక్') : unitLabel}</span></p>
                     <p className="text-[10px] text-gray-500">{t.label}</p>
                   </div>
                 ))}

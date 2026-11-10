@@ -1,5 +1,6 @@
 'use client'
 
+import { cartPackFields, packTierLines } from '@/lib/packPricing'
 import { reachFor, type Reachability } from '@/lib/retailReach'
 import { useSavedBuyer } from '@/lib/savedBuyer'
 import { farmerCoords } from '@/lib/location'
@@ -172,6 +173,8 @@ export default function ProduceTab({
                   variety: item.variety,
                   emoji: item.emoji,
                   pricePerKg: item.price_tier_1_price,
+                  // Sold in packs (2026-11-10): pack size/price/tiers, and the step = one pack.
+                  ...cartPackFields(item as Parameters<typeof cartPackFields>[0]),
                   priceTier1Qty: item.price_tier_1_qty,
                   priceTier1Price: item.price_tier_1_price,
                   priceTier2Qty: item.price_tier_2_qty,
@@ -566,6 +569,12 @@ function ProduceCard({
       {item.price_tier_1_price && (
         <div className="border-t border-gray-100 px-3 py-2 bg-gray-50">
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-700">
+            {/* Sold in packs (2026-11-10): one pack's price, buy-more in packs. */}
+            {packTierLines(item as Parameters<typeof packTierLines>[0], L).length > 0 ? (
+              packTierLines(item as Parameters<typeof packTierLines>[0], L).map((t) => (
+                <span key={t.label}>{t.label}: <strong>₹{t.price}</strong> {L('a pack', 'ఒక్కో ప్యాక్')}</span>
+              ))
+            ) : <>
             {item.price_tier_1_price && (
               <span>{item.price_tier_1_qty ? `1–${item.price_tier_2_qty ? item.price_tier_2_qty - 1 : item.price_tier_1_qty} kg` : L('Per kg', 'కిలోకు')}: <strong>₹{item.price_tier_1_price}</strong></span>
             )}
@@ -575,6 +584,7 @@ function ProduceCard({
             {item.price_tier_3_qty && item.price_tier_3_price && (
               <span>{item.price_tier_3_qty}+ kg: <strong>₹{item.price_tier_3_price}</strong></span>
             )}
+            </>}
           </div>
         </div>
       )}

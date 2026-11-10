@@ -25,7 +25,7 @@ export const revalidate = 300
 // chat instead of the generic site card. See src/lib/productShare.ts.
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
-  const cols = 'name, variety, method, unit, price_tier_1_price, image_url, image_urls, farmer:farmers!farmer_id(name, village)'
+  const cols = 'name, variety, method, unit, price_tier_1_price, retail_pack_size, retail_pack_price, image_url, image_urls, farmer:farmers!farmer_id(name, village)'
   const { data } = await readWithSaleMode((withMode) =>
     supabase.from('produce_listings').select(withMode ? `${cols}, sale_mode` : cols).eq('id', id).maybeSingle())
   // Missing, hidden from the public by RLS, or wholesale-only (never previewed

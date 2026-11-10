@@ -1076,6 +1076,18 @@ ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_courier_paid
   CHECK (courier_type IS NULL OR delivery_paid_by IS NOT NULL);
 
 ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS cargo_service text,
+  ADD COLUMN IF NOT EXISTS cargo_paid_by text;
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_cargo_check;
+ALTER TABLE public.orders ADD CONSTRAINT orders_cargo_check
+  CHECK (
+    (cargo_service IS NULL AND cargo_paid_by IS NULL)
+    OR (cargo_service IS NOT NULL AND cargo_paid_by IS NOT NULL
+        AND cargo_paid_by IN ('farmer', 'buyer')
+        AND length(btrim(cargo_service)) BETWEEN 1 AND 40)
+  );
+
+ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS buyer_aggregator_id uuid REFERENCES public.farmers(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS transport_charge    numeric(10,2) NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS transport_state     text;

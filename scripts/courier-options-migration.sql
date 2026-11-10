@@ -43,3 +43,18 @@ ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_cargo_servic
 ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_courier_paid_by_check;
 ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_courier_paid_by_check
   CHECK (courier_type IS NULL OR delivery_paid_by IS NOT NULL);
+
+-- Checkout (part 2, 2026-11-10): the cargo service the buyer picked, and who
+-- pays it (buyer = ToPay to the cargo company; farmer = prepaid), stamped on
+-- the order's courier rows so the farmer knows how to send the parcel.
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS cargo_service text,
+  ADD COLUMN IF NOT EXISTS cargo_paid_by text;
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_cargo_check;
+ALTER TABLE public.orders ADD CONSTRAINT orders_cargo_check
+  CHECK (
+    (cargo_service IS NULL AND cargo_paid_by IS NULL)
+    OR (cargo_service IS NOT NULL AND cargo_paid_by IS NOT NULL
+        AND cargo_paid_by IN ('farmer', 'buyer')
+        AND length(btrim(cargo_service)) BETWEEN 1 AND 40)
+  );

@@ -540,3 +540,51 @@ describe('transportable produce by courier', () => {
     expect(db.orders[0]).not.toHaveProperty('transport_charge')
   })
 })
+
+// Delivery step part 2 (2026-11-10): cargo produce — the buyer picks one of
+// the farmer's ToPay cargo services; nothing for transport is paid online.
+describe('cargo produce at checkout', () => {
+  const courier = (extra: Record<string, unknown> = {}) => order({
+    paymentMethod: 'cod',
+    deliveryType: 'courier',
+    items: [{ listingId: LISTING_ID, qty: 2, deliveryType: 'courier' }],
+    deliveryAddress: '12 Main Road', deliveryCity: 'Gajuwaka', deliveryPincode: '530026',
+    ...extra,
+  })
+  const cargo = (extra: Row = {}) => Object.assign(db.listings[0], {
+    retail_reach: 'transport', retail_transport_rates: { AP: 0, TG: 0 },
+    courier_type: 'cargo', cargo_services: ['VRL Logistics', 'SRMT'], delivery_paid_by: 'buyer', ...extra,
+  })
+
+  it('stamps the chosen service and ToPay on the order; no transport charge online', async () => {
+    cargo()
+    const r = await place(courier({ cargoService: 'srmt' }))
+    const j = await r.json()
+    expect(r.status).toBe(200)
+    expect(j.transportCharge).toBe(0)
+    expect(db.orders[0]).toMatchObject({ cargo_service: 'SRMT', cargo_paid_by: 'buyer', total_price: 80, delivery_type: 'courier' })
+  })
+  it('farmer pays the cargo → recorded as prepaid by the farmer', async () => {
+    cargo({ delivery_paid_by: 'farmer' })
+    await place(courier({ cargoService: 'VRL Logistics' }))
+    expect(db.orders[0]).toMatchObject({ cargo_service: 'VRL Logistics', cargo_paid_by: 'farmer' })
+  })
+  it('no service picked → refused, nothing written, no stock taken', async () => {
+    cargo()
+    const r = await place(courier())
+    expect(r.status).toBe(400)
+    expect((await r.json()).error).toMatch(/Choose the cargo service.*VRL Logistics, SRMT/)
+    expect(db.orders).toHaveLength(0)
+    expect(db.listings[0].stock_qty).toBe(10)
+  })
+  it('a service the farmer did not list → refused', async () => {
+    cargo()
+    expect((await place(courier({ cargoService: 'Navata Road Transport' }))).status).toBe(400)
+  })
+  it('an old transportable (non-cargo) produce needs no service and gets none', async () => {
+    Object.assign(db.listings[0], { retail_reach: 'transport', retail_transport_rates: { AP: 80 } })
+    const r = await place(courier())
+    expect(r.status).toBe(200)
+    expect(db.orders[0]).not.toHaveProperty('cargo_service')
+  })
+})

@@ -1,5 +1,6 @@
 'use client'
 
+import { packLabel } from '@/lib/packPricing'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
@@ -74,7 +75,7 @@ export default function BulkListingPage() {
   const place = placeOf(it.seller)
   const minValue = it.price * it.minQty
   const waText = encodeURIComponent(
-    `Hello ${it.seller.name}, I saw your ${it.name} on the Go Grameen bulk market (${inr(it.price)}/${it.unit}, min ${formatQty(it.minQty)} ${it.unit}). I would like to buy.`,
+    `Hello ${it.seller.name}, I saw your ${it.name} on the Go Grameen bulk market (${it.packPrice && it.packSize ? `${inr(it.packPrice)}/${packLabel(it.packSize, it.unit)} pack` : `${inr(it.price)}/${it.unit}`}, min ${formatQty(it.minQty)} ${it.unit}). I would like to buy.`,
   )
 
   return (

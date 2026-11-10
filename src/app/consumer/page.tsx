@@ -1,5 +1,7 @@
 'use client'
 
+import { cartCargoFields } from '@/lib/courierOptions'
+import { cartPackFields, packPriceTag } from '@/lib/packPricing'
 import { useState, useEffect, useCallback, useMemo, useRef, startTransition } from 'react'
 import Link from 'next/link'
 import GlobalNav from '@/components/consumer/GlobalNav'
@@ -866,6 +868,10 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, trans
       preorderExpectedDate: preorder ? (nextHarvestAt ?? undefined) : undefined,
       saleStep: item.sale_step ?? undefined,
       pricePerKg: item.price_tier_1_price,
+      // Sold in packs (2026-11-10): pack size/price/tiers, and the step = one pack.
+      ...cartPackFields(item),
+      // Cargo produce: its ToPay services, for the checkout's pick (2026-11-10).
+      ...cartCargoFields(item as Parameters<typeof cartCargoFields>[0]),
       priceTier1Qty: item.price_tier_1_qty,
       priceTier1Price: item.price_tier_1_price,
       priceTier2Qty: item.price_tier_2_qty,
@@ -920,8 +926,9 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, trans
             variety: item.variety,
             emoji: item.emoji,
             method: item.method,
-            pricePerUnit: item.price_tier_1_price,
-            unit,
+            // A pack produce shares "₹25/250 g pack" (2026-11-10).
+            pricePerUnit: packPriceTag(item)?.price ?? item.price_tier_1_price,
+            unit: packPriceTag(item) ? `${packPriceTag(item)!.pack} pack` : unit,
             farmerName: farmer?.name,
             farmerVillage: farmer?.village,
             imageUrl: coverImageUrl(item),
@@ -957,7 +964,10 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, trans
           )}
         </>
       }
-      price={{ main: item.price_tier_1_price ? `₹${item.price_tier_1_price}` : '—', unit: localizeUnit(unit, lang) }}
+      // Sold in packs: "₹25/250 g" — the price of one pack (2026-11-10).
+      price={packPriceTag(item)
+        ? { main: `₹${packPriceTag(item)!.price}`, unit: packPriceTag(item)!.pack }
+        : { main: item.price_tier_1_price ? `₹${item.price_tier_1_price}` : '—', unit: localizeUnit(unit, lang) }}
       // With nothing left it names the next harvest instead of declaring the
       // produce dead — amber (waiting), never red (gone).
       badge={(liveStock != null || isOutOfStock) ? {

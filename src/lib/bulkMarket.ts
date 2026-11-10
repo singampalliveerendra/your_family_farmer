@@ -41,6 +41,8 @@ export type MarketListingRow = {
   wholesale_price?: number | string | null
   wholesale_min_qty?: number | string | null
   wholesale_pack_size?: number | string | null
+  /** ₹ for one wholesale pack (scripts/pack-pricing-migration.sql). */
+  wholesale_pack_price?: number | string | null
   wholesale_transport_states?: unknown
   /** Per-state delivery charges (scripts/bulk-orders-migration.sql); absent before it runs. */
   wholesale_transport_rates?: unknown
@@ -83,6 +85,8 @@ export type MarketItem = {
   minQty: number
   step: number
   packSize: number | null
+  /** ₹ for one pack, as the seller typed it; null = priced per unit. */
+  packPrice: number | null
   transportStates: TransportState[]
   /** Where the lot can go in the app and what delivery costs (Phase 6). */
   delivery: Array<{ delivery: Delivery; rate: TransportRate | null }>
@@ -168,6 +172,7 @@ export function toMarketItem(
     minQty: rules.min,
     step: rules.step,
     packSize: pack !== null && pack > 0 ? pack : null,
+    packPrice: pack !== null && pack > 0 && (num(l.wholesale_pack_price) ?? 0) > 0 ? num(l.wholesale_pack_price) : null,
     transportStates: normalizeStates(l.wholesale_transport_states),
     delivery: deliveryOptions(l),
     stock: wholesaleStock(l, live),

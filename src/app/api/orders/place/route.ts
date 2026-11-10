@@ -7,6 +7,7 @@ import { getConsumerSessionFromRequest } from '@/lib/session'
 import { createGuestOrderToken } from '@/lib/guest-order-token'
 import { getTierPrice } from '@/lib/pricing'
 import { packLinePrice } from '@/lib/packPricing'
+import { checkCargoChoice } from '@/lib/courierOptions'
 import { normalizePhone } from '@/lib/phone'
 import { isSelfOrder } from '@/lib/sellerBuyerLink'
 import { markSelfOrder, withoutSelfOrderFlag } from '@/lib/selfOrder'
@@ -126,6 +127,9 @@ export async function POST(req: NextRequest) {
         deliveryChargeApplies?: boolean
         deliveryFarmerIndex?: number
         guest?: { name?: string; email?: string; phone?: string } | null
+        // Cargo produce (2026-11-10): the cargo service the buyer picked from
+        // the farmer's list — checked against the listings below.
+        cargoService?: string | null
       }
     | null
 
@@ -571,12 +575,15 @@ export async function POST(req: NextRequest) {
   const courierIdx = items.map((it, i) => (rowDeliveryTypeOf(it) === 'courier' ? i : -1)).filter((i) => i >= 0)
   if (courierIdx.length) {
     const ids = [...new Set(courierIdx.map((i) => items[i].listingId))]
-    const { data: reachRows, error: reachErr } = await supabase
+    // Cargo columns (scripts/courier-options-migration.sql) when they exist.
+    const readReach = (withCargo: boolean) => supabase
       .from('produce_listings')
-      .select('id, name, retail_reach, retail_transport_rates')
+      .select(withCargo ? 'id, name, retail_reach, retail_transport_rates, courier_type, cargo_services, delivery_paid_by' : 'id, name, retail_reach, retail_transport_rates')
       .in('id', ids)
+    let { data: reachRows, error: reachErr } = await readReach(true)
+    if (reachErr && isMissingColumnError(reachErr.message, 'courier_type')) ({ data: reachRows, error: reachErr } = await readReach(false))
     // No columns yet (migration not run): plain courier lines, as before.
-    const transported = reachErr ? [] : ((reachRows ?? []) as Array<{ id: string; name: string; retail_reach?: string | null; retail_transport_rates?: unknown }>)
+    const transported = reachErr ? [] : ((reachRows ?? []) as unknown as Array<{ id: string; name: string; retail_reach?: string | null; retail_transport_rates?: unknown; courier_type?: string | null; cargo_services?: unknown; delivery_paid_by?: string | null }>)
       .filter((r) => r.retail_reach === 'transport')
     if (transported.length) {
       const state = stateOfPincode(deliveryPincode)
@@ -587,6 +594,21 @@ export async function POST(req: NextRequest) {
           : 'Enter an Andhra Pradesh or Telangana pincode for transported produce.')
       }
       transportCharge = charge
+      // Cargo (2026-11-10): the buyer must pick one of the farmer's cargo
+      // services (one parcel per farmer, so one every cargo line lists). It is
+      // stamped on the courier rows so the farmer knows how to send it, and
+      // whether it goes ToPay (buyer pays the cargo company on delivery).
+      const cargo = checkCargoChoice(transported, body.cargoService)
+      if (cargo && !cargo.ok) return bad(cargo.error)
+      if (cargo && cargo.ok) {
+        const cargoIds = new Set(transported.filter((r) => r.courier_type === 'cargo').map((r) => r.id))
+        rows.forEach((r, i) => {
+          if (rowDeliveryTypeOf(items[i]) === 'courier' && cargoIds.has(String(r.produce_listing_id))) {
+            r.cargo_service = cargo.service
+            r.cargo_paid_by = cargo.paidBy
+          }
+        })
+      }
       if (charge > 0) {
         const tIds = new Set(transported.map((r) => r.id))
         const row = rows.find((r, i) => rowDeliveryTypeOf(items[i]) === 'courier' && tIds.has(String(r.produce_listing_id)))
@@ -719,6 +741,12 @@ export async function POST(req: NextRequest) {
     // yet. Fail loudly rather than retrying without them: a pre-order saved as
     // an ordinary order would show the farmer a paid order against stock they
     // do not have, with nothing anywhere to say the buyer agreed to wait.
+    // Same for cargo: without the service on the order the farmer cannot know
+    // how to send it, so refuse rather than drop it.
+    if (isMissingColumnError(insertErr?.message, 'cargo_service')) {
+      console.error('[YFF] cargo order placed but the orders cargo columns (scripts/courier-options-migration.sql) are missing')
+      return bad('Cargo delivery is not switched on yet. Please try again later.', 503)
+    }
     if (isMissingColumnError(insertErr?.message, 'is_preorder')) {
       console.error('[YFF] pre-order placed but scripts/preorder-migration.sql has not been run on this database')
       return bad(

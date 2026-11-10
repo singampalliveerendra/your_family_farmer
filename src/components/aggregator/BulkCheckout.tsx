@@ -33,7 +33,7 @@ export default function BulkCheckout({ it, feePercent, unitLabel, L }: { it: Mar
     for (const d of it.delivery) if (d.delivery !== 'pickup' && d.rate) rates[d.delivery] = d.rate
     return {
       name: it.name, unit: it.unit, sale_mode: it.saleMode, sale_step: it.step,
-      wholesale_price: it.price, wholesale_min_qty: it.minQty, wholesale_pack_size: it.packSize,
+      wholesale_price: it.price, wholesale_min_qty: it.minQty, wholesale_pack_size: it.packSize, wholesale_pack_price: it.packPrice,
       wholesale_transport_states: it.transportStates, wholesale_transport_rates: rates,
     }
   }, [it])

@@ -8,6 +8,7 @@
 // never open a website. So the link to the farmer's page goes as the share's
 // caption text (tappable) and is also printed + QR-coded on every image.
 
+import { packPriceTag } from '@/lib/packPricing'
 import { isSoldOutWithHarvests } from './produceStatus'
 import { formatQty, normalizeStep } from './saleStep'
 
@@ -21,6 +22,9 @@ export type ShareListing = {
   stock_qty?: number | null
   sale_step?: number | null
   image_url?: string | null
+  /** Sold in packs (2026-11-10): the tile reads "₹25/250 g pack". */
+  retail_pack_size?: number | string | null
+  retail_pack_price?: number | string | null
 }
 
 // Tiles per image: 3 columns × 4 rows at the 1080×1350 (4:5) size WhatsApp and
@@ -74,7 +78,9 @@ export function chunkForShare<T>(items: readonly T[], perPage = SHARE_PER_PAGE):
  * mirchi) still reads per kg, with the smallest pack after it so a buyer
  * isn't surprised they can order less: "₹40/kg · min 0.25 kg".
  */
-export function sharePriceLabel(item: Pick<ShareListing, 'price_tier_1_price' | 'unit' | 'sale_step'>): string {
+export function sharePriceLabel(item: Pick<ShareListing, 'price_tier_1_price' | 'unit' | 'sale_step'> & Partial<Pick<ShareListing, 'retail_pack_size' | 'retail_pack_price'>>): string {
+  const tag = packPriceTag(item)
+  if (tag) return `₹${formatQty(tag.price)}/${tag.pack} pack`
   const unit = (item.unit || 'kg').trim()
   const price = Number(item.price_tier_1_price ?? 0)
   const base = `₹${formatQty(price)}/${unit}`

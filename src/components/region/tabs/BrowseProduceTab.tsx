@@ -1,5 +1,6 @@
 'use client'
 
+import { cartPackFields, packPriceTag } from '@/lib/packPricing'
 import { reachFor } from '@/lib/retailReach'
 import { useSavedBuyer } from '@/lib/savedBuyer'
 import { farmerCoords } from '@/lib/location'
@@ -92,6 +93,8 @@ export default function BrowseProduceTab({
       variety: item.variety,
       emoji: item.emoji,
       pricePerKg: item.price_tier_1_price,
+      // Sold in packs (2026-11-10): pack size/price/tiers, and the step = one pack.
+      ...cartPackFields(item),
       priceTier1Qty: item.price_tier_1_qty,
       priceTier1Price: item.price_tier_1_price,
       priceTier2Qty: item.price_tier_2_qty,
@@ -170,8 +173,8 @@ export default function BrowseProduceTab({
                   <div className="flex items-center justify-between mt-2">
                     {item.price_tier_1_price ? (
                       <span className="text-sm font-bold text-gray-900">
-                        ₹{item.price_tier_1_price}
-                        <span className="text-xs font-normal text-gray-400">/{item.unit ?? 'kg'}</span>
+                        ₹{packPriceTag(item as Parameters<typeof packPriceTag>[0])?.price ?? item.price_tier_1_price}
+                        <span className="text-xs font-normal text-gray-400">/{packPriceTag(item as Parameters<typeof packPriceTag>[0])?.pack ?? item.unit ?? 'kg'}</span>
                       </span>
                     ) : (
                       <span />

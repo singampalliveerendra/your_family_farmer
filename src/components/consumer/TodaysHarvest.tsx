@@ -1,5 +1,6 @@
 'use client'
 
+import { cartPackFields, packPriceTag } from '@/lib/packPricing'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -32,6 +33,9 @@ type Listing = {
   price_tier_1_price?: number | null
   unit?: string | null
   shelf_life_days?: number | null
+  /** Sold in packs (2026-11-10). */
+  retail_pack_size?: number | null
+  retail_pack_price?: number | null
 }
 
 type HarvestRow = {
@@ -66,7 +70,7 @@ export default function TodaysHarvest() {
     void readWithSaleMode((withMode) => {
       const q = supabase
         .from('harvests')
-        .select('id, harvested_at, shelf_life_days, approx_quantity, stock_qty, unit, produce_listing_id, produce_listings!inner(id, name, variety, emoji, image_url, image_urls, method, status, price_tier_1_price, unit, shelf_life_days)')
+        .select('id, harvested_at, shelf_life_days, approx_quantity, stock_qty, unit, produce_listing_id, produce_listings!inner(id, name, variety, emoji, image_url, image_urls, method, status, price_tier_1_price, unit, shelf_life_days, retail_pack_size, retail_pack_price)')
         .eq('paused', false)
         .gte('harvested_at', start)
         .lte('harvested_at', end)
@@ -100,7 +104,7 @@ export default function TodaysHarvest() {
       setAdding((s) => ({ ...s, [r.id]: true }))
       const { data: listing } = await supabase
         .from('produce_listings')
-        .select('id, name, variety, emoji, unit, price_tier_1_qty, price_tier_1_price, price_tier_2_qty, price_tier_2_price, price_tier_3_price, farmer_id')
+        .select('id, name, variety, emoji, unit, price_tier_1_qty, price_tier_1_price, price_tier_2_qty, price_tier_2_price, price_tier_3_price, farmer_id, sale_step, retail_pack_size, retail_pack_price, retail_pack_tiers')
         .eq('id', r.produce_listing_id)
         .single()
       if (!listing) { setAdding((s) => ({ ...s, [r.id]: false })); return }
@@ -124,6 +128,10 @@ export default function TodaysHarvest() {
         unit: listing.unit ?? undefined,
         stockQty: r.stock_qty ?? undefined,
         pricePerKg: listing.price_tier_1_price,
+        // Sold in packs (2026-11-10): pack size/price/tiers, and the step = one pack.
+        // Part-unit step (1/4 kg…) — this line used to ignore it.
+        saleStep: listing.sale_step ?? undefined,
+        ...cartPackFields(listing),
         priceTier1Qty: listing.price_tier_1_qty,
         priceTier1Price: listing.price_tier_1_price,
         priceTier2Qty: listing.price_tier_2_qty,
@@ -222,7 +230,9 @@ export default function TodaysHarvest() {
         <div className="p-2">
           <p className="text-[13px] font-bold text-gray-900 truncate">{localizeName(item.name, lang)}</p>
           <p className={`text-[10px] font-semibold truncate mt-0.5 ${kind === 'fresh' ? 'text-green-700' : 'text-blue-700'}`}>⏱ {clock}</p>
-          {item.price_tier_1_price != null && (
+          {packPriceTag(item) ? (
+            <p className="text-xs font-extrabold text-green-800 mt-0.5">₹{packPriceTag(item)!.price}<span className="text-[10px] font-medium text-gray-400">/{packPriceTag(item)!.pack}</span></p>
+          ) : item.price_tier_1_price != null && (
             <p className="text-xs font-extrabold text-green-800 mt-0.5">₹{item.price_tier_1_price}<span className="text-[10px] font-medium text-gray-400">/{localizeUnit(item.unit || 'kg', lang)}</span></p>
           )}
         </div>

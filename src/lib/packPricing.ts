@@ -251,3 +251,58 @@ export function applyRetailPackColumns(payload: Record<string, unknown>, unit: s
 export function isPackColumnMissing(msg: string | null | undefined): boolean {
   return RETAIL_PACK_COLUMNS.some((c) => isMissingColumnError(msg, c))
 }
+
+// ── Buyer side (part 2, 2026-11-10) ─────────────────────────────────
+
+/** What a cart line carries for a pack produce (absent = sold loose). */
+export type CartPackFields = {
+  retailPackSize?: number
+  retailPackPrice?: number
+  retailPackTiers?: PackTier[]
+}
+
+/** The pack fields to put on a cart line, plus the step (= one pack). */
+export function cartPackFields(l: PackListing | null | undefined): CartPackFields & { saleStep?: number } {
+  const pack = retailPackOf(l)
+  if (!pack) return {}
+  return { retailPackSize: pack.size, retailPackPrice: pack.price, retailPackTiers: pack.tiers, saleStep: pack.size }
+}
+
+/**
+ * A pack cart line's price per UNIT for `qty`, so the cart's existing
+ * "price per unit × qty" totals come out as packs × the price of one pack
+ * (with the buy-more tier reached). null = not a pack line.
+ */
+export function packPerUnit(qty: number, item: CartPackFields): { perUnit: number; perPack: number; packs: number; isDiscount: boolean } | null {
+  const size = item.retailPackSize
+  const base = item.retailPackPrice
+  if (!size || !base || size <= 0 || base <= 0) return null
+  const packs = Math.max(1, Math.round(roundQty(qty) / size))
+  const perPack = pricePerPack(packs, base, item.retailPackTiers ?? [])
+  return { perUnit: perPack / size, perPack, packs, isDiscount: perPack < base }
+}
+
+/** The headline price on a card / page: "₹25 / 250 g" for a pack, else null. */
+export function packPriceTag(l: PackListing | null | undefined): { price: number; pack: string } | null {
+  const pack = retailPackOf(l)
+  return pack ? { price: pack.price, pack: packLabel(pack.size, l?.unit) } : null
+}
+
+/** "3 packs (750 g)" / "1 pack (250 g)" for a quantity in the listing unit. */
+export function packsText(qty: number, size: number, unit: string | null | undefined, L: (en: string, te: string) => string): string {
+  const packs = Math.max(1, Math.round(roundQty(qty) / size))
+  const total = packLabel(roundQty(packs * size), unit)
+  return packs === 1 ? L(`1 pack (${total})`, `1 ప్యాక్ (${total})`) : L(`${packs} packs (${total})`, `${packs} ప్యాక్‌లు (${total})`)
+}
+
+/** The buy-more lines for a page: "5+ packs → ₹22 a pack". */
+export function packTierLines(l: PackListing | null | undefined, L: (en: string, te: string) => string): Array<{ label: string; price: number }> {
+  const pack = retailPackOf(l)
+  if (!pack) return []
+  const name = packLabel(pack.size, l?.unit)
+  const first = pack.tiers[0]?.min_packs
+  return [
+    { label: first ? L(`1–${first - 1} packs of ${name}`, `${name} 1–${first - 1} ప్యాక్‌లు`) : L(`One ${name} pack`, `ఒక ${name} ప్యాక్`), price: pack.price },
+    ...pack.tiers.map((t) => ({ label: L(`${t.min_packs}+ packs`, `${t.min_packs}+ ప్యాక్‌లు`), price: t.price })),
+  ]
+}

@@ -79,7 +79,7 @@ export default function ShareProduceButton({
     if (busy) return
     setBusy(true)
     try {
-      const cols = 'id, name, emoji, status, price_tier_1_price, unit, stock_qty, sale_step, image_url'
+      const cols = 'id, name, emoji, status, price_tier_1_price, unit, stock_qty, sale_step, image_url, retail_pack_size, retail_pack_price'
       const { data: listings } = await readWithSaleMode((withMode) =>
         supabase
           .from('produce_listings')

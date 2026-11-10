@@ -64,6 +64,9 @@ export type FarmerOrder = {
   refunded_at?: string | null
   created_at: string
   delivery_type?: 'self_pickup' | 'home_delivery' | 'courier' | null
+  /** Cargo parcel (2026-11-10): the service the buyer picked, and who pays it. */
+  cargo_service?: string | null
+  cargo_paid_by?: 'farmer' | 'buyer' | null
   delivery_status?: DeliveryStatus | null
   delivery_boy_id?: string | null
   // Rider-flow milestones, stamped by the rider's own routes (never by the
@@ -432,6 +435,19 @@ export default function OrderCard({
 
         {order.delivery_type === 'home_delivery' && (
           <DeliveryTagForFarmer order={order} />
+        )}
+
+        {/* Cargo parcel: how to send it — the buyer picked this service. */}
+        {order.delivery_type === 'courier' && order.cargo_service && (
+          <div className="bg-sky-50 border border-sky-200 rounded-xl px-3 py-2 mt-1">
+            <p className="text-[10px] font-bold text-sky-800 uppercase tracking-wide">🚛 {L('Send by cargo', 'కార్గోలో పంపండి')}</p>
+            <p className="text-xs font-bold text-gray-900">{order.cargo_service}</p>
+            <p className="text-[11px] text-sky-900">
+              {order.cargo_paid_by === 'farmer'
+                ? L('You pay the cargo (prepaid) — free for the buyer.', 'కార్గో ఖర్చు మీరే ముందుగా చెల్లిస్తారు — కొనుగోలుదారుకు ఉచితం.')
+                : L('Book it ToPay — the buyer pays the cargo company on delivery.', 'ToPay గా బుక్ చేయండి — డెలివరీ సమయంలో కొనుగోలుదారు కార్గో కంపెనీకి చెల్లిస్తారు.')}
+            </p>
+          </div>
         )}
 
         {/* Which harvest this order is against — highlighted so the farmer
