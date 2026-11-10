@@ -76,8 +76,8 @@ export default function AggregatorPlans({ plans }: { plans: PlanRow[] }) {
           <thead>
             <tr className="text-[11px] uppercase tracking-wide text-black/55">
               <th className="px-4 py-3 text-left font-bold" scope="col"><span className="sr-only">{L('Feature', 'సౌకర్యం')}</span></th>
-              {(['buying', 'selling'] as const).map((k) => (
-                <th key={k} scope="col" className="px-2 py-3 text-center font-bold">{PLAN_KIND_LABELS[k][lg]}</th>
+              {(['buying', 'selling', 'combined'] as const).map((k) => (
+                <th key={k} scope="col" className={`px-2 py-3 text-center font-bold ${k === 'combined' ? 'text-[#27486a]' : ''}`}>{PLAN_KIND_LABELS[k][lg]}</th>
               ))}
             </tr>
           </thead>
@@ -85,8 +85,8 @@ export default function AggregatorPlans({ plans }: { plans: PlanRow[] }) {
             {PLAN_COMPARE.map((r) => (
               <tr key={r.label[0]} className="border-t border-black/10">
                 <th scope="row" className="px-4 py-3 text-left font-medium leading-snug">{L(r.label[0], r.label[1])}</th>
-                {([r.buying, r.selling] as const).map((on, i) => (
-                  <td key={i} className="px-2 py-3 text-center">
+                {([r.buying, r.selling, r.combined] as const).map((on, i) => (
+                  <td key={i} className={`px-2 py-3 text-center ${i === 2 ? 'bg-[#e5ecf3]/60' : ''}`}>
                     {on ? (
                       <Icon name="check" className="mx-auto h-5 w-5 text-[#2f6f4f]" strokeWidth={2.6} />
                     ) : (

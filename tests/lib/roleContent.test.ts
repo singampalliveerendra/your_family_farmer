@@ -100,10 +100,9 @@ describe('/home role cards', () => {
 })
 
 describe('plan comparison table', () => {
-  it('two plans only: Buying and Selling split the features (no Combined column)', () => {
+  it('Buying + Selling unlocks everything; Buying and Selling split the rest', () => {
     for (const r of PLAN_COMPARE) {
-      expect(Object.keys(r).sort()).toEqual(['buying', 'label', 'selling'])
-      expect(r.buying || r.selling).toBe(true)
+      expect(r.combined).toBe(true)
       expect(r.label[1]).toMatch(TELUGU)
     }
     expect(PLAN_COMPARE.some((r) => r.buying && !r.selling)).toBe(true)

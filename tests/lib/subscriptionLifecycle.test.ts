@@ -62,8 +62,9 @@ describe('quotePurchase', () => {
   it('an offer that has ended is not given', () => {
     expect(quotePurchase(PLAN({ offer_ends_at: day(-1) }), [], 'now', NOW)).toMatchObject({ ok: true, amount: 999, onOffer: false })
   })
-  it('an old Combined plan row is never sold again (two plans since 2026-11-10)', () => {
-    expect(quotePurchase(PLAN({ kind: 'combined' }), [], 'now', NOW)).toEqual({ ok: false, error: 'This plan is not available any more.' })
+  it('the Buying + Selling plan can be bought; an unknown kind cannot', () => {
+    expect(quotePurchase(PLAN({ kind: 'combined' }), [], 'now', NOW)).toMatchObject({ ok: true })
+    expect(quotePurchase(PLAN({ kind: 'gold' }), [], 'now', NOW)).toEqual({ ok: false, error: 'This plan is not available any more.' })
   })
   it('₹0 plan', () => {
     expect(quotePurchase(PLAN({ actual_price: 0, offer_enabled: false, offer_price: null }), [], 'now', NOW)).toMatchObject({ ok: true, amount: 0, free: true })

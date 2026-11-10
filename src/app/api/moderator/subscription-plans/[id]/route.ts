@@ -11,7 +11,8 @@ export const dynamic = 'force-dynamic'
 // never deleted: aggregators who bought it keep their row (plan_id is kept,
 // and the name/price were copied onto the subscription at purchase). Hide it
 // instead (active = false). A plan's kind never changes (2026-11-10: exactly
-// one Buying and one Selling plan), so `kind` is never written here.
+// one Buying, one Selling and one Buying + Selling plan), so `kind` is never
+// written here.
 
 function client() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
