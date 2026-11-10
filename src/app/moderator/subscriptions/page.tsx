@@ -6,20 +6,23 @@ import PlanCard from '@/components/PlanCard'
 import {
   PLAN_KINDS,
   PLAN_KIND_LABELS,
+  isPlanRowKind,
   accessOf,
   inr,
   validatePlan,
   type PlanKind,
   type PlanRow,
+  type PlanRowKind,
   type SubscriptionRow,
 } from '@/lib/subscriptionPlans'
 import { HIDE_AFTER_DAYS, hideDue, standingOf } from '@/lib/subscriptionLifecycle'
 
 // Moderator → Subscriptions (decision 2026-11-04). Moderators are the
 // super-users for now, so this screen is platform-wide, not per zone.
-//   Plans: add / edit Buying, Selling and Combined plans; actual + offer price,
-//          offer on/off and end date, ₹0 = free, show/hide. The card on the
-//          right of the form is exactly what /home/aggregator shows.
+//   Plans: exactly two, Buying and Selling (client card 2026-11-10). No adding
+//          or deleting — edit price, duration, offer on/off and end date,
+//          ₹0 = free, show/hide. The card on the right of the form is exactly
+//          what /home/aggregator shows. They come from two-plans-migration.sql.
 //   Aggregators: who holds what; activate by hand for N days, Free forever,
 //          or switch a subscription off.
 // English only, like the rest of the moderator area.
@@ -28,8 +31,8 @@ type Aggregator = { id: string; name: string; village: string | null; phone: str
 type Sub = SubscriptionRow & { aggregator_id: string; note?: string | null; paid_at?: string | null; receipt_no?: string | null; payment_label?: string | null }
 
 type Form = {
-  id: string | null
-  kind: PlanKind
+  id: string
+  kind: PlanRowKind
   name_en: string
   name_te: string
   duration: '30' | '365' | 'custom'
@@ -46,12 +49,6 @@ type Form = {
   sort_order: string
 }
 
-const EMPTY: Form = {
-  id: null, kind: 'buying', name_en: '', name_te: '', duration: '30', customDays: '', actual_price: '',
-  offer_enabled: false, offer_price: '', offer_end_date: '', offer_label_en: '', offer_label_te: '',
-  highlights_en: '', highlights_te: '', active: true, sort_order: '0',
-}
-
 /** The India date of an instant, as yyyy-mm-dd for <input type="date">. */
 function istDate(iso: string | null | undefined): string {
   if (!iso) return ''
@@ -64,7 +61,7 @@ function formFromPlan(p: PlanRow): Form {
   const days = Number(p.duration_days)
   return {
     id: p.id,
-    kind: (PLAN_KINDS as readonly string[]).includes(p.kind) ? (p.kind as PlanKind) : 'buying',
+    kind: isPlanRowKind(p.kind) ? p.kind : 'buying',
     name_en: p.name_en ?? '',
     name_te: p.name_te ?? '',
     duration: days === 30 ? '30' : days === 365 ? '365' : 'custom',
@@ -165,8 +162,8 @@ export default function ModeratorSubscriptionsPage() {
 
   const savePlan = async (f: Form) => {
     setBusy(true); setError('')
-    const r = await fetch(f.id ? `/api/moderator/subscription-plans/${f.id}` : '/api/moderator/subscription-plans', {
-      method: f.id ? 'PUT' : 'POST',
+    const r = await fetch(`/api/moderator/subscription-plans/${f.id}`, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
       body: JSON.stringify(bodyOf(f)),
@@ -222,7 +219,7 @@ export default function ModeratorSubscriptionsPage() {
     <ModeratorShell title="Subscriptions" subtitle="Aggregator plans, offers and who holds what — all zones" zone={zone}>
       {!configured && (
         <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-3 text-sm font-semibold mb-4">
-          Subscriptions are not switched on in this database yet. Run scripts/subscription-migration.sql.
+          Plans are not set up in this database yet. Run scripts/subscription-migration.sql, then scripts/two-plans-migration.sql.
         </div>
       )}
       {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2 text-sm font-semibold mb-4">{error}</div>}
@@ -260,19 +257,18 @@ export default function ModeratorSubscriptionsPage() {
             <button disabled={busy} onClick={() => void saveBulkFee()} className="min-h-[44px] rounded-xl bg-green-800 px-4 text-sm font-bold text-white disabled:opacity-50">Save</button>
           </div>
 
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">
-              {plans.filter((p) => p.active !== false).length} shown on the homepage
+          <div className="mb-3">
+            <p className="text-sm font-bold text-gray-800">Two plans: Buying and Selling</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Set each plan’s price and duration, then show it to aggregators. An aggregator who wants both buys both.
+              {' '}{plans.filter((p) => p.active !== false).length} of {plans.length} shown now.
             </p>
-            <button onClick={() => setForm({ ...EMPTY })} className="bg-green-800 text-white text-sm font-bold px-4 py-2 rounded-xl active:bg-green-900">
-              + Add plan
-            </button>
           </div>
           {plans.length === 0 ? (
             <div className="text-center py-14 bg-white rounded-2xl border border-gray-100">
               <div className="text-5xl mb-3">🏷️</div>
-              <p className="font-semibold text-gray-500 text-sm">No plans yet</p>
-              <p className="text-xs text-gray-400 mt-1">Until you add one, the homepage says “Plans coming soon”.</p>
+              <p className="font-semibold text-gray-500 text-sm">Plans are not set up yet</p>
+              <p className="text-xs text-gray-400 mt-1">Run scripts/two-plans-migration.sql. Until then the homepage says “Plans coming soon”.</p>
             </div>
           ) : (
             <div className="grid gap-5 sm:grid-cols-2">
@@ -283,9 +279,9 @@ export default function ModeratorSubscriptionsPage() {
                     lang="en"
                     footer={
                       <div className="flex flex-wrap gap-2">
-                        <button onClick={() => setForm(formFromPlan(p))} className="flex-1 min-h-[40px] rounded-xl bg-gray-900 text-white text-xs font-bold">Edit</button>
+                        <button onClick={() => setForm(formFromPlan(p))} className="flex-1 min-h-[40px] rounded-xl bg-gray-900 text-white text-xs font-bold">Edit price &amp; duration</button>
                         <button disabled={busy} onClick={() => void quickToggle(p, { active: p.active === false })} className="flex-1 min-h-[40px] rounded-xl border border-gray-300 text-xs font-bold text-gray-700">
-                          {p.active === false ? 'Show on homepage' : 'Hide'}
+                          {p.active === false ? 'Show to aggregators' : 'Hide'}
                         </button>
                         {p.offer_price != null && (
                           <button disabled={busy} onClick={() => void quickToggle(p, { offer_enabled: !p.offer_enabled })} className="w-full min-h-[40px] rounded-xl border border-amber-300 bg-amber-50 text-xs font-bold text-amber-900">
@@ -295,7 +291,7 @@ export default function ModeratorSubscriptionsPage() {
                       </div>
                     }
                   />
-                  {p.active === false && <p className="text-[11px] font-bold text-gray-500 mt-1 text-center">Hidden from the homepage</p>}
+                  {p.active === false && <p className="text-[11px] font-bold text-gray-500 mt-1 text-center">Hidden — aggregators cannot see or buy it</p>}
                 </div>
               ))}
             </div>
@@ -463,24 +459,17 @@ function PlanForm({ initial, busy, onCancel, onSave }: {
     <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center" onClick={onCancel}>
       <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-3xl p-5 max-h-[94vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-extrabold">{f.id ? 'Edit plan' : 'Add plan'}</h2>
+          <h2 className="text-lg font-extrabold">Edit {PLAN_KIND_LABELS[f.kind].en} plan</h2>
           <button onClick={onCancel} className="text-2xl leading-none text-gray-400" aria-label="Close">×</button>
         </div>
         <div className="grid gap-5 md:grid-cols-[1fr_280px]">
           <div className="space-y-3">
-            <div>
-              <span className={label}>What it unlocks</span>
-              <div className="grid grid-cols-3 gap-2">
-                {PLAN_KINDS.map((k) => (
-                  <button key={k} type="button" onClick={() => set('kind', k)} className={`min-h-[44px] rounded-xl border-2 px-1 text-xs font-bold ${f.kind === k ? 'border-green-700 bg-green-50 text-green-900' : 'border-gray-200 text-gray-600'}`}>
-                    {PLAN_KIND_LABELS[k].en}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <p className="rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-600">
+              {f.kind === 'buying' ? 'Unlocks buying in bulk from the bulk market.' : 'Unlocks selling produce on Go Grameen — retail, wholesale or both.'}
+            </p>
             <div className="grid grid-cols-2 gap-2">
-              <label><span className={label}>Name (English)</span><input className={input} value={f.name_en} onChange={(e) => set('name_en', e.target.value)} placeholder="Bulk Buyer Monthly" /></label>
-              <label><span className={label}>Name (Telugu)</span><input className={input} value={f.name_te} onChange={(e) => set('name_te', e.target.value)} placeholder="బల్క్ కొనుగోలు నెలవారీ" /></label>
+              <label><span className={label}>Name (English)</span><input className={input} value={f.name_en} onChange={(e) => set('name_en', e.target.value)} placeholder={f.kind === 'buying' ? 'Buying plan' : 'Selling plan'} /></label>
+              <label><span className={label}>Name (Telugu)</span><input className={input} value={f.name_te} onChange={(e) => set('name_te', e.target.value)} placeholder={f.kind === 'buying' ? 'కొనుగోలు ప్లాన్' : 'అమ్మకం ప్లాన్'} /></label>
             </div>
             <div>
               <span className={label}>Duration</span>
@@ -515,13 +504,10 @@ function PlanForm({ initial, busy, onCancel, onSave }: {
               <label><span className={label}>Benefits (English) — one per line</span><textarea rows={4} className={input} value={f.highlights_en} onChange={(e) => set('highlights_en', e.target.value)} placeholder={'See every bulk listing\nFarmer phone numbers\nBuy direct, pay online'} /></label>
               <label><span className={label}>Benefits (Telugu) — one per line</span><textarea rows={4} className={input} value={f.highlights_te} onChange={(e) => set('highlights_te', e.target.value)} /></label>
             </div>
-            <div className="grid grid-cols-2 gap-2 items-end">
-              <label><span className={label}>Order on homepage</span><input className={input} inputMode="numeric" value={f.sort_order} onChange={(e) => set('sort_order', e.target.value.replace(/[^\d-]/g, ''))} /></label>
-              <label className="flex items-center gap-2 text-sm font-bold text-gray-700 min-h-[44px]">
-                <input type="checkbox" checked={f.active} onChange={(e) => set('active', e.target.checked)} className="h-5 w-5" />
-                Show on homepage
-              </label>
-            </div>
+            <label className="flex items-center gap-2 text-sm font-bold text-gray-700 min-h-[44px]">
+              <input type="checkbox" checked={f.active} onChange={(e) => set('active', e.target.checked)} className="h-5 w-5" />
+              Show to aggregators
+            </label>
           </div>
 
           <div>

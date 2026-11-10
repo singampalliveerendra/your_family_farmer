@@ -4,8 +4,12 @@
  * Pure — used by the moderator Plans screen, its API routes, the /home pages,
  * and later the subscribe flow (Phase 4) and the bulk market (Phase 5).
  *
- * Decisions (2026-11-04): plans are Buying, Selling or Combined; moderators set
- * them (super-users for now); price ₹0 = free (no payment); an offer is a lower
+ * Decisions (2026-11-04, changed 2026-11-10): there are exactly TWO plans —
+ * Buying and Selling — and a moderator only edits their price, duration and
+ * offer (no adding, no deleting). An aggregator who wants both buys both.
+ * `combined` survives only as a SUBSCRIPTION kind: the client's own accounts
+ * hold free-forever Combined rows, and a moderator can still grant both at
+ * once; it is never a plan. Moderators are super-users for now; price ₹0 = free (no payment); an offer is a lower
  * price with an optional end date, after which the actual price shows again by
  * itself; existing aggregators hold a free-forever Combined row; no refunds or
  * part payments. Schema: scripts/subscription-migration.sql.
@@ -15,6 +19,12 @@ export type Msg = { en: string; te: string }
 
 export const PLAN_KINDS = ['buying', 'selling', 'combined'] as const
 export type PlanKind = (typeof PLAN_KINDS)[number]
+
+/** The only kinds a PLAN can be (subscriptions may still be `combined`). */
+export const PLAN_ROW_KINDS = ['buying', 'selling'] as const
+export type PlanRowKind = (typeof PLAN_ROW_KINDS)[number]
+export const isPlanRowKind = (v: unknown): v is PlanRowKind =>
+  typeof v === 'string' && (PLAN_ROW_KINDS as readonly string[]).includes(v)
 
 export const SUB_SOURCES = ['payment', 'free_plan', 'manual', 'free_forever'] as const
 export type SubSource = (typeof SUB_SOURCES)[number]
@@ -160,7 +170,7 @@ export function highlightLines(text: string | null | undefined): string[] {
 /** Active plans in homepage order: by sort order, then cheapest first. */
 export function sortPlans<T extends PlanRow>(plans: readonly T[], now: Date = new Date()): T[] {
   return plans
-    .filter((p) => p.active !== false && isPlanKind(p.kind))
+    .filter((p) => p.active !== false && isPlanRowKind(p.kind))
     .slice()
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || planPrice(a, now).price - planPrice(b, now).price)
 }
@@ -187,7 +197,7 @@ export function plansTeaser(plans: readonly PlanRow[], now: Date = new Date()):
 // ── Moderator input ─────────────────────────────────────────────────
 
 export type PlanColumns = {
-  kind: PlanKind
+  kind: PlanRowKind
   name_en: string
   name_te: string | null
   duration_days: number
@@ -230,7 +240,7 @@ const money = (v: unknown): number | null => {
  */
 export function validatePlan(input: PlanInput, now: Date = new Date()):
   { ok: true; columns: PlanColumns } | { ok: false; error: string } {
-  if (!isPlanKind(input.kind)) return { ok: false, error: 'Choose Buying, Selling or Buying + Selling.' }
+  if (!isPlanRowKind(input.kind)) return { ok: false, error: 'A plan is either Buying or Selling.' }
   const name = text(input.name_en, MAX_PLAN_NAME + 1)
   if (!name) return { ok: false, error: 'Enter a plan name.' }
   if (name.length > MAX_PLAN_NAME) return { ok: false, error: `Plan name must be ${MAX_PLAN_NAME} characters or less.` }

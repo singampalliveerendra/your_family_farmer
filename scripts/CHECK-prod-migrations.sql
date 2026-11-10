@@ -197,6 +197,13 @@ SELECT * FROM (
     CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
       WHERE table_name='produce_listings' AND column_name='retail_reach')
       THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  -- two-plans-migration.sql (needs subscription-migration.sql first). Without
+  -- it the moderator Plans screen shows "not switched on" and no plan can be sold.
+  SELECT 32, 'two-plans', 'subscription_plans_one_per_kind index',
+    CASE WHEN EXISTS (SELECT 1 FROM pg_indexes
+      WHERE indexname='subscription_plans_one_per_kind')
+      THEN 'PRESENT' ELSE 'MISSING' END
 
 ) checks ORDER BY ord;
 
