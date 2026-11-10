@@ -101,15 +101,22 @@ describe('highlightLines', () => {
 describe('sortPlans / plansTeaser', () => {
   const plans = [
     PLAN({ id: 'y', kind: 'selling', duration_days: 365, actual_price: 4999, offer_price: 2999, sort_order: 2 }),
-    PLAN({ id: 'old', kind: 'combined', sort_order: 0 }),
     PLAN({ id: 'm', sort_order: 1 }),
     PLAN({ id: 'off', active: false, actual_price: 1, offer_enabled: false }),
     PLAN({ id: 'bad', kind: 'gold' }),
   ]
-  it('only active Buying/Selling plans, in sort order (an old Combined plan never shows)', () => {
+  it('only active, known plans, in sort order', () => {
     expect(sortPlans(plans, NOW).map((p) => p.id)).toEqual(['m', 'y'])
   })
-  it('same sort order → cheapest first', () => {
+  it('always Buying, Selling, Buying + Selling — whatever sort_order says', () => {
+    const three = [
+      PLAN({ id: 'both', kind: 'combined', sort_order: 1 }),
+      PLAN({ id: 'sell', kind: 'selling', sort_order: 9 }),
+      PLAN({ id: 'buy', kind: 'buying', sort_order: 1 }),
+    ]
+    expect(sortPlans(three, NOW).map((p) => p.id)).toEqual(['buy', 'sell', 'both'])
+  })
+  it('same kind → cheapest first', () => {
     expect(sortPlans([PLAN({ id: 'a', actual_price: 500, offer_enabled: false }), PLAN({ id: 'b', actual_price: 100, offer_enabled: false })], NOW).map((p) => p.id)).toEqual(['b', 'a'])
   })
   it('teaser: lowest current price and best saving', () => {
@@ -144,9 +151,8 @@ describe('validatePlan', () => {
     expect(validatePlan({ ...GOOD, offer_enabled: false, offer_ends_at: '2026-01-01' }, NOW).ok).toBe(true)
   })
   it.each([
-    [{ kind: 'gold' }, /either Buying or Selling/],
-    [{ kind: 'combined' }, /either Buying or Selling/],
-    [{ kind: undefined }, /either Buying or Selling/],
+    [{ kind: 'gold' }, /Buying, Selling or Buying \+ Selling/],
+    [{ kind: undefined }, /Buying, Selling or Buying \+ Selling/],
     [{ name_en: '   ' }, /plan name/],
     [{ name_en: 'x'.repeat(61) }, /60 characters/],
     [{ name_te: 'త'.repeat(61) }, /Telugu name/],

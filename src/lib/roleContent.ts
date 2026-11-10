@@ -158,14 +158,14 @@ export const AGGREGATOR_CONTENT: RoleContent = {
     'రైతుల నుండి నేరుగా బల్క్‌గా కొని, గో గ్రామీణ్‌లో చిల్లర, హోల్‌సేల్ లేదా రెండుగా అమ్మండి — ప్రతి రైతు పేరుతో.',
   ],
   glance: [
-    { value: ['2 plans', '2 ప్లాన్లు'], label: ['Buying and Selling', 'కొనుగోలు, అమ్మకం'] },
+    { value: ['3 plans', '3 ప్లాన్లు'], label: ['Buying, Selling, or both', 'కొనుగోలు, అమ్మకం లేదా రెండూ'] },
     { value: ['0%', '0%'], label: ['platform fee on bulk orders', 'బల్క్ ఆర్డర్లపై ప్లాట్‌ఫామ్ ఫీజు'] },
     { value: ['Direct', 'నేరుగా'], label: ['from farmers and other aggregators', 'రైతులు, ఇతర అగ్రిగేటర్ల నుండి'] },
   ],
   benefits: [
     { icon: 'box', title: ['Buying plan', 'కొనుగోలు ప్లాన్'], body: ['See all bulk listings from farmers and other aggregators, and buy direct.', 'రైతులు, ఇతర అగ్రిగేటర్ల బల్క్ లిస్టింగ్‌లు అన్నీ చూసి నేరుగా కొనండి.'] },
     { icon: 'store', title: ['Selling plan', 'అమ్మకం ప్లాన్'], body: ['List your produce on Go Grameen — retail, wholesale or both.', 'మీ ఉత్పత్తులను గో గ్రామీణ్‌లో అమ్మండి — చిల్లర, హోల్‌సేల్ లేదా రెండూ.'] },
-    { icon: 'handshake', title: ['Want both? Take both', 'రెండూ కావాలా? రెండూ తీసుకోండి'], body: ['Buy and sell by taking the Buying plan and the Selling plan.', 'కొనుగోలు ప్లాన్, అమ్మకం ప్లాన్ రెండూ తీసుకుని కొనండి, అమ్మండి.'] },
+    { icon: 'handshake', title: ['Buying + Selling plan', 'కొనుగోలు + అమ్మకం ప్లాన్'], body: ['Buy in bulk and sell on Go Grameen, in one plan.', 'బల్క్‌గా కొనడం, గో గ్రామీణ్‌లో అమ్మడం — రెండూ ఒకే ప్లాన్‌లో.'] },
     { icon: 'sprout', title: ['Growers named', 'పండించినవారి పేరు'], body: ['Buyers see “Grown by” the real farmer on every item you sell.', 'మీరు అమ్మే ప్రతి వస్తువుపై అసలు రైతు పేరు కనిపిస్తుంది.'] },
     { icon: 'rupee', title: ['0% platform fee on bulk', 'బల్క్‌పై 0% ప్లాట్‌ఫామ్ ఫీజు'], body: ['No commission on bulk orders for now.', 'ప్రస్తుతానికి బల్క్ ఆర్డర్లపై కమీషన్ లేదు.'] },
     { icon: 'cart', title: ['Shop as a consumer too', 'వినియోగదారుగా కూడా కొనండి'], body: ['Buy everyday retail produce like any family.', 'ఏ కుటుంబంలాగానైనా రోజువారీ చిల్లర ఉత్పత్తులు కొనండి.'] },
@@ -179,7 +179,7 @@ export const AGGREGATOR_CONTENT: RoleContent = {
     { title: ['Resell on Go Grameen', 'గో గ్రామీణ్‌లో మళ్లీ అమ్మండి'], body: ['List as retail, wholesale or both, naming the farmer who grew it.', 'పండించిన రైతు పేరుతో చిల్లర, హోల్‌సేల్ లేదా రెండుగా అమ్మండి.'] },
   ],
   terms: [
-    ['Buying and Selling are two separate plans, each with its own price and duration. To buy and sell, take both.', 'కొనుగోలు, అమ్మకం రెండు వేర్వేరు ప్లాన్లు, ఒక్కోదానికి సొంత ధర, కాలవ్యవధి. కొనడానికి, అమ్మడానికి రెండూ తీసుకోండి.'],
+    ['There are three plans — Buying, Selling, and Buying + Selling — each with its own price and duration.', 'మూడు ప్లాన్లు ఉన్నాయి — కొనుగోలు, అమ్మకం, కొనుగోలు + అమ్మకం — ఒక్కోదానికి సొంత ధర, కాలవ్యవధి.'],
     ['Your plan starts as soon as it is paid. There are no refunds or part payments.', 'చెల్లించిన వెంటనే ప్లాన్ మొదలవుతుంది. రీఫండ్‌లు, పాక్షిక చెల్లింపులు లేవు.'],
     ['Changing plan: the new one starts when the current one ends — or pay the full price to start it now.', 'ప్లాన్ మార్చాలంటే: ప్రస్తుత ప్లాన్ ముగిసాక కొత్తది మొదలవుతుంది — లేదా పూర్తి ధర చెల్లించి ఇప్పుడే మొదలుపెట్టండి.'],
     ['We remind you on WhatsApp 3 days before a plan ends. Nothing is charged automatically.', 'ప్లాన్ ముగియడానికి 3 రోజుల ముందు వాట్సాప్‌లో గుర్తుచేస్తాం. ఆటోమేటిక్‌గా ఏమీ వసూలు చేయం.'],
@@ -200,10 +200,10 @@ export const AGGREGATOR_CONTENT: RoleContent = {
 }
 
 /** What each plan unlocks — the comparison table on /home/aggregator. */
-export const PLAN_COMPARE: Array<{ label: Pair; buying: boolean; selling: boolean }> = [
-  { label: ['Buy bulk from farmers and aggregators', 'రైతులు, అగ్రిగేటర్ల నుండి బల్క్ కొనుగోలు'], buying: true, selling: false },
-  { label: ['Farmer phone numbers and addresses', 'రైతుల ఫోన్ నంబర్లు, చిరునామాలు'], buying: true, selling: false },
-  { label: ['Sell retail, wholesale or both', 'చిల్లర, హోల్‌సేల్ లేదా రెండూ అమ్మకం'], buying: false, selling: true },
-  { label: ['Your growers named on every listing', 'ప్రతి లిస్టింగ్‌పై మీ రైతుల పేర్లు'], buying: false, selling: true },
-  { label: ['Receipt for every payment', 'ప్రతి చెల్లింపుకు రసీదు'], buying: true, selling: true },
+export const PLAN_COMPARE: Array<{ label: Pair; buying: boolean; selling: boolean; combined: boolean }> = [
+  { label: ['Buy bulk from farmers and aggregators', 'రైతులు, అగ్రిగేటర్ల నుండి బల్క్ కొనుగోలు'], buying: true, selling: false, combined: true },
+  { label: ['Farmer phone numbers and addresses', 'రైతుల ఫోన్ నంబర్లు, చిరునామాలు'], buying: true, selling: false, combined: true },
+  { label: ['Sell retail, wholesale or both', 'చిల్లర, హోల్‌సేల్ లేదా రెండూ అమ్మకం'], buying: false, selling: true, combined: true },
+  { label: ['Your growers named on every listing', 'ప్రతి లిస్టింగ్‌పై మీ రైతుల పేర్లు'], buying: false, selling: true, combined: true },
+  { label: ['Receipt for every payment', 'ప్రతి చెల్లింపుకు రసీదు'], buying: true, selling: true, combined: true },
 ]

@@ -111,7 +111,6 @@ export function quotePurchase(
   mode: StartMode,
   now: Date = new Date(),
 ): Quote {
-  // Only Buying / Selling plans are sold (2026-11-10); an old Combined plan row is never bought again.
   if (plan.active === false || !isPlanRowKind(plan.kind)) return { ok: false, error: 'This plan is not available any more.' }
   const days = Number(plan.duration_days)
   if (!Number.isInteger(days) || days < 1) return { ok: false, error: 'This plan is not available any more.' }

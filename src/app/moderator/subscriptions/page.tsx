@@ -19,10 +19,11 @@ import { HIDE_AFTER_DAYS, hideDue, standingOf } from '@/lib/subscriptionLifecycl
 
 // Moderator → Subscriptions (decision 2026-11-04). Moderators are the
 // super-users for now, so this screen is platform-wide, not per zone.
-//   Plans: exactly two, Buying and Selling (client card 2026-11-10). No adding
-//          or deleting — edit price, duration, offer on/off and end date,
-//          ₹0 = free, show/hide. The card on the right of the form is exactly
-//          what /home/aggregator shows. They come from two-plans-migration.sql.
+//   Plans: exactly three fixed plans — Buying, Selling, Buying + Selling
+//          (2026-11-10). No adding or deleting — edit price, duration, offer
+//          on/off and end date, ₹0 = free, show/hide. The card on the right of
+//          the form is exactly what /home/aggregator shows. They come from
+//          scripts/fixed-plans-migration.sql.
 //   Aggregators: who holds what; activate by hand for N days, Free forever,
 //          or switch a subscription off.
 // English only, like the rest of the moderator area.
@@ -97,6 +98,12 @@ function bodyOf(f: Form) {
     active: f.active,
     sort_order: Number(f.sort_order) || 0,
   }
+}
+
+const PLAN_UNLOCKS: Record<PlanRowKind, string> = {
+  buying: 'Unlocks buying in bulk from the bulk market.',
+  selling: 'Unlocks selling produce on Go Grameen — retail, wholesale or both.',
+  combined: 'Unlocks both: buying in bulk and selling on Go Grameen.',
 }
 
 const fmt = (iso: string | null) =>
@@ -219,7 +226,7 @@ export default function ModeratorSubscriptionsPage() {
     <ModeratorShell title="Subscriptions" subtitle="Aggregator plans, offers and who holds what — all zones" zone={zone}>
       {!configured && (
         <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-3 text-sm font-semibold mb-4">
-          Plans are not set up in this database yet. Run scripts/subscription-migration.sql, then scripts/two-plans-migration.sql.
+          Plans are not set up in this database yet. Run scripts/subscription-migration.sql, then scripts/fixed-plans-migration.sql.
         </div>
       )}
       {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2 text-sm font-semibold mb-4">{error}</div>}
@@ -258,9 +265,9 @@ export default function ModeratorSubscriptionsPage() {
           </div>
 
           <div className="mb-3">
-            <p className="text-sm font-bold text-gray-800">Two plans: Buying and Selling</p>
+            <p className="text-sm font-bold text-gray-800">Three plans: Buying, Selling, and Buying + Selling</p>
             <p className="text-xs text-gray-500 mt-0.5">
-              Set each plan’s price and duration, then show it to aggregators. An aggregator who wants both buys both.
+              Set each plan’s price and duration, then show it to aggregators.
               {' '}{plans.filter((p) => p.active !== false).length} of {plans.length} shown now.
             </p>
           </div>
@@ -268,10 +275,10 @@ export default function ModeratorSubscriptionsPage() {
             <div className="text-center py-14 bg-white rounded-2xl border border-gray-100">
               <div className="text-5xl mb-3">🏷️</div>
               <p className="font-semibold text-gray-500 text-sm">Plans are not set up yet</p>
-              <p className="text-xs text-gray-400 mt-1">Run scripts/two-plans-migration.sql. Until then the homepage says “Plans coming soon”.</p>
+              <p className="text-xs text-gray-400 mt-1">Run scripts/fixed-plans-migration.sql. Until then the homepage says “Plans coming soon”.</p>
             </div>
           ) : (
-            <div className="grid gap-5 sm:grid-cols-2">
+            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
               {plans.map((p) => (
                 <div key={p.id} className={p.active === false ? 'opacity-60' : ''}>
                   <PlanCard
@@ -465,11 +472,11 @@ function PlanForm({ initial, busy, onCancel, onSave }: {
         <div className="grid gap-5 md:grid-cols-[1fr_280px]">
           <div className="space-y-3">
             <p className="rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-600">
-              {f.kind === 'buying' ? 'Unlocks buying in bulk from the bulk market.' : 'Unlocks selling produce on Go Grameen — retail, wholesale or both.'}
+              {PLAN_UNLOCKS[f.kind]}
             </p>
             <div className="grid grid-cols-2 gap-2">
-              <label><span className={label}>Name (English)</span><input className={input} value={f.name_en} onChange={(e) => set('name_en', e.target.value)} placeholder={f.kind === 'buying' ? 'Buying plan' : 'Selling plan'} /></label>
-              <label><span className={label}>Name (Telugu)</span><input className={input} value={f.name_te} onChange={(e) => set('name_te', e.target.value)} placeholder={f.kind === 'buying' ? 'కొనుగోలు ప్లాన్' : 'అమ్మకం ప్లాన్'} /></label>
+              <label><span className={label}>Name (English)</span><input className={input} value={f.name_en} onChange={(e) => set('name_en', e.target.value)} placeholder={`${PLAN_KIND_LABELS[f.kind].en} plan`} /></label>
+              <label><span className={label}>Name (Telugu)</span><input className={input} value={f.name_te} onChange={(e) => set('name_te', e.target.value)} placeholder={`${PLAN_KIND_LABELS[f.kind].te} ప్లాన్`} /></label>
             </div>
             <div>
               <span className={label}>Duration</span>
