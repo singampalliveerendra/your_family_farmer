@@ -7,6 +7,7 @@ import HarvestManager from '@/components/HarvestManager'
 import { useSourceFarmers, sourceFarmerLabel } from '@/components/SourceFarmerPicker'
 import { STEP_CHOICES } from '@/lib/saleStep'
 import { parseDeliveryMode } from '@/lib/fulfillment'
+import { compressImage } from '@/lib/imageCompress'
 
 // Shared add/edit form for a farmer's harvest listing, used by both
 //   /moderator/listings/new          (mode="create")
@@ -162,13 +163,16 @@ export default function ListingForm({
       .finally(() => setLoadingFarmers(false))
   }, [mode])
 
-  const onAddFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? [])
+  // Shrink camera photos (4000px, ~2 MB) to 800px before upload, same as the
+  // farmer form, so buyers' pages don't pull 2 MB per card on 4G.
+  const onAddFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    const files = await Promise.all(picked.map((f) => compressImage(f, 800, 0.7)))
     if (files.length) {
       setNewFiles((prev) => [...prev, ...files])
       setNewPreviews((prev) => [...prev, ...files.map((f) => URL.createObjectURL(f))])
     }
-    e.target.value = ''
   }
   const removeExisting = (i: number) => setExistingImages((prev) => prev.filter((_, x) => x !== i))
   const removeNew = (i: number) => {
