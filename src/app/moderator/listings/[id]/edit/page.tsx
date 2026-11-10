@@ -1,11 +1,11 @@
 'use client'
 
-import { reachFormFromRow } from '@/components/RetailReachFields'
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import ModeratorShell, { useModeratorAuth } from '../../../ModeratorShell'
 import ListingForm, { type ListingFormValues, EMPTY_LISTING_FORM } from '../../ListingForm'
 import { retailPackFormFromRow } from '@/lib/packPricing'
+import { courierFormFromRow } from '@/lib/courierOptions'
 import { wholesaleFormFromRow, type WholesaleForm } from '@/lib/wholesale'
 import { supabase } from '@/lib/supabase'
 import { isWholesaleLowStock, wholesaleStock, type StockHarvest } from '@/lib/wholesaleVisibility'
@@ -18,7 +18,7 @@ type Loaded = {
   farmerName: string
   images: string[]
   wholesale: WholesaleForm
-  reach: ReturnType<typeof reachFormFromRow>
+  courier: ReturnType<typeof courierFormFromRow>
   wholesaleReady: boolean
   /** Retail pack (2026-11-10) and whether the row has the pack columns. */
   retailPack: ReturnType<typeof retailPackFormFromRow>
@@ -96,7 +96,7 @@ export default function EditListingPage() {
       farmerName: (json.farmer_name as string) ?? '—',
       images,
       wholesale: wholesaleFormFromRow(l),
-      reach: reachFormFromRow(l as { retail_reach?: unknown; retail_transport_rates?: unknown }),
+      courier: courierFormFromRow(l),
       wholesaleReady: 'sale_mode' in l,
       retailPack: retailPackFormFromRow(l),
       packReady: 'retail_pack_size' in l,
@@ -131,7 +131,7 @@ export default function EditListingPage() {
           initialImages={loaded.images}
           fixedFarmerName={loaded.farmerName}
           initialWholesale={loaded.wholesale}
-          initialReach={loaded.reach}
+          initialCourier={loaded.courier}
           wholesaleReady={loaded.wholesaleReady}
           initialRetailPack={loaded.retailPack}
           packReady={loaded.packReady}

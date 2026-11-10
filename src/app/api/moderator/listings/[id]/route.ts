@@ -1,3 +1,4 @@
+import { COURIER_NOT_READY, COURIER_COLUMNS, applyCourierColumns, isCourierColumnMissing, withoutCourier } from '@/lib/courierOptions'
 import { PACKS_NOT_READY, RETAIL_PACK_COLUMNS, applyRetailPackColumns, isPackColumnMissing } from '@/lib/packPricing'
 import { createClient } from '@supabase/supabase-js'
 import { applyRetailReach } from '@/lib/retailReach'
@@ -251,6 +252,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // Retail packs (2026-11-10): sent only by a form that knows packs, so an
   // older caller leaves them alone. Same rules as the farmer's; the per-unit
   // columns (sale step, tiers) are derived from the pack when one is set.
+  // Delivery step (2026-11-10): sent only by a form that knows it, so an
+  // older caller leaves the courier fields alone. The reach check below reads
+  // the body, so the normalised reach is copied back onto it.
+  for (const k of COURIER_COLUMNS) if (k in b) update[k] = b[k]
+  const courierErr = applyCourierColumns(update)
+  if (courierErr) return NextResponse.json({ error: courierErr.en }, { status: 400 })
+  if ('courier_type' in update) Object.assign(b, { retail_reach: update.retail_reach, retail_transport_rates: update.retail_transport_rates })
   for (const k of RETAIL_PACK_COLUMNS) if (k in b) update[k] = b[k]
   const packErr = applyRetailPackColumns(update, unit)
   if (packErr) return NextResponse.json({ error: packErr.en }, { status: 400 })
@@ -278,6 +286,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const save = (row: Record<string, unknown>) =>
     supabase.from('produce_listings').update(row).eq('id', id).select('id, farmer_id').single()
   let { data: updated, error } = await save(update)
+  // No courier columns yet: Local / Pickup save without them; Cargo is refused.
+  if (error && isCourierColumnMissing(error.message)) {
+    if (update.courier_type === 'cargo') return NextResponse.json({ error: COURIER_NOT_READY.en }, { status: 503 })
+    ;({ data: updated, error } = await save(withoutCourier(update)))
+  }
   // Server without the wholesale columns: retail drops them and saves;
   // a wholesale choice is refused rather than silently lost.
   if (error && isPackColumnMissing(error.message)) return NextResponse.json({ error: PACKS_NOT_READY.en }, { status: 503 })

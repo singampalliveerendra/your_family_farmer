@@ -6,6 +6,7 @@ import { RETAIL_PRICE_KEYS, bothPricesError, resolveWholesaleColumns, touchesBot
 import { SELLING_PLAN_REQUIRED, isSellingPlanError } from '@/lib/sellingLock'
 import { reqLang, tr } from '@/lib/serverLang'
 import { checkSellerStatusChange, sellerListingPayload } from '@/lib/sellerWriteRules'
+import { COURIER_NOT_READY, applyCourierColumns, isCourierColumnMissing, withoutCourier } from '@/lib/courierOptions'
 import { PACKS_NOT_READY, applyRetailPackColumns, isPackColumnMissing } from '@/lib/packPricing'
 
 export const runtime = 'nodejs'
@@ -82,6 +83,11 @@ export async function POST(request: NextRequest) {
   const packErr = applyRetailPackColumns(cleanPayload, unit)
   if (packErr) return NextResponse.json({ error: tr(reqLang(request), packErr.en, packErr.te) }, { status: 400 })
 
+  // Delivery step (2026-11-10): courier type, cargo services, who pays — the
+  // form's rules; also normalises the charge, radius and reach to match.
+  const courierErr = applyCourierColumns(cleanPayload)
+  if (courierErr) return NextResponse.json({ error: tr(reqLang(request), courierErr.en, courierErr.te) }, { status: 400 })
+
   // Local only / Transportable across AP & TG (2026-11-05).
   const reachErr = applyRetailReach(cleanPayload, cleanPayload, typeof cleanPayload.delivery_mode === 'string' ? cleanPayload.delivery_mode : null)
   if (reachErr) return NextResponse.json({ error: tr(reqLang(request), reachErr.en, reachErr.te) }, { status: 400 })
@@ -124,12 +130,21 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { data: updated, error } = await supabaseAdmin
+  const save = (row: Record<string, unknown>) => supabaseAdmin
     .from('produce_listings')
-    .update(cleanPayload)
+    .update(row)
     .eq('id', listingId)
     .eq('farmer_id', session.farmerId)
     .select('id, status, stock_qty')
+  let { data: updated, error } = await save(cleanPayload)
+  // A server without scripts/courier-options-migration.sql: Local / Pickup
+  // save without the new columns; Cargo is refused rather than silently lost.
+  if (error && isCourierColumnMissing(error.message)) {
+    if (cleanPayload.courier_type === 'cargo') {
+      return NextResponse.json({ error: tr(reqLang(request), COURIER_NOT_READY.en, COURIER_NOT_READY.te) }, { status: 503 })
+    }
+    ;({ data: updated, error } = await save(withoutCourier(cleanPayload)))
+  }
 
   if (error && isPackColumnMissing(error.message)) {
     return NextResponse.json({ error: tr(reqLang(request), PACKS_NOT_READY.en, PACKS_NOT_READY.te) }, { status: 503 })

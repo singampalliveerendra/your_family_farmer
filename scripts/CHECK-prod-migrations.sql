@@ -212,6 +212,14 @@ SELECT * FROM (
     CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
       WHERE table_name='produce_listings' AND column_name='retail_pack_price')
       THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  -- courier-options-migration.sql (needs retail-reach-migration.sql first).
+  -- Without it a Cargo choice is refused with a friendly message; Local and
+  -- Pickup still save (the routes retry without the new columns).
+  SELECT 34, 'courier-options', 'produce_listings.courier_type',
+    CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_name='produce_listings' AND column_name='courier_type')
+      THEN 'PRESENT' ELSE 'MISSING' END
 
 ) checks ORDER BY ord;
 
