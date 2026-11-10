@@ -243,3 +243,56 @@ export function withoutCourier<T extends Record<string, unknown>>(payload: T): T
   for (const c of COURIER_COLUMNS) delete copy[c]
   return copy as T
 }
+
+// ── Checkout (part 2, 2026-11-10) ──────────────────────────────────
+
+/** What a cart line carries for a cargo produce. */
+export type CartCargoFields = {
+  courierType?: CourierType
+  cargoServices?: string[]
+  deliveryPaidBy?: PaidBy
+}
+
+/** The cargo fields for a cart line (nothing for local / pickup produce). */
+export function cartCargoFields(l: { courier_type?: unknown; cargo_services?: unknown; delivery_paid_by?: unknown } | null | undefined): CartCargoFields {
+  if (!l || l.courier_type !== 'cargo') return {}
+  const services = normalizeCargoServices(l.cargo_services)
+  if (!services.length) return {}
+  return { courierType: 'cargo', cargoServices: services, deliveryPaidBy: l.delivery_paid_by === 'farmer' ? 'farmer' : 'buyer' }
+}
+
+/**
+ * The services a buyer can pick for one farmer's parcel: the ones EVERY cargo
+ * line lists (one parcel per farmer, one cargo company). Order kept from the
+ * first line. Empty = the lines share none (order them separately).
+ */
+export function commonCargoServices(lines: ReadonlyArray<{ cargoServices?: readonly string[] }>): string[] {
+  const lists = lines.map((l) => normalizeCargoServices(l.cargoServices ?? []))
+  if (!lists.length) return []
+  return lists[0].filter((s) => lists.every((l) => l.some((x) => x.toLowerCase() === s.toLowerCase())))
+}
+
+/** Who pays, for the parcel: the buyer if ANY line says ToPay. */
+export function parcelPaidBy(lines: ReadonlyArray<{ deliveryPaidBy?: PaidBy }>): PaidBy {
+  return lines.some((l) => l.deliveryPaidBy !== 'farmer') ? 'buyer' : 'farmer'
+}
+
+/**
+ * Server check of the buyer's cargo choice for one farmer's order. `rows` are
+ * the transported courier lines' listings. null = no cargo line (nothing to
+ * check); otherwise the chosen service must be one every cargo line lists.
+ */
+export function checkCargoChoice(
+  rows: ReadonlyArray<{ name: string; courier_type?: unknown; cargo_services?: unknown; delivery_paid_by?: unknown }>,
+  chosen: unknown,
+): null | { ok: true; service: string; paidBy: PaidBy } | { ok: false; error: string } {
+  const cargo = rows.filter((r) => r.courier_type === 'cargo')
+  if (!cargo.length) return null
+  const lines = cargo.map((r) => cartCargoFields(r))
+  const common = commonCargoServices(lines)
+  if (!common.length) return { ok: false, error: `${cargo.map((r) => r.name).join(' and ')} go by different cargo services. Please order them separately.` }
+  const pick = typeof chosen === 'string' ? chosen.trim().toLowerCase() : ''
+  const service = common.find((s) => s.toLowerCase() === pick)
+  if (!service) return { ok: false, error: `Choose the cargo service that works in your area: ${common.join(', ')}.` }
+  return { ok: true, service, paidBy: parcelPaidBy(lines) }
+}

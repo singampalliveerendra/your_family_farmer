@@ -278,3 +278,11 @@ describe('catalogue size vs the 10-file share limit', () => {
     expect(shareBatches(pages.map(() => 2 * 1024 * 1024))).toHaveLength(1)
   })
 })
+
+describe('sharePriceLabel — packs (2026-11-10)', () => {
+  it('a pack produce reads as the price of one pack', async () => {
+    const { sharePriceLabel } = await import('@/lib/produceShare')
+    expect(sharePriceLabel({ price_tier_1_price: 100, unit: 'kg', sale_step: 0.25, retail_pack_size: 0.25, retail_pack_price: 25 })).toBe('₹25/250 g pack')
+    expect(sharePriceLabel({ price_tier_1_price: 40, unit: 'kg', sale_step: 1 })).toBe('₹40/kg')
+  })
+})

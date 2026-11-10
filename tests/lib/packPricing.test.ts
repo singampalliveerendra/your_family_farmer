@@ -152,3 +152,33 @@ describe('pack-pricing migration', () => {
     }
   })
 })
+
+describe('buyer side helpers', () => {
+  const L = (en: string) => en
+  const row = { unit: 'kg', retail_pack_size: 0.25, retail_pack_price: 25, retail_pack_tiers: [{ min_packs: 4, price: 22 }] }
+  it('cart fields + step = one pack; loose → nothing', async () => {
+    const { cartPackFields } = await import('@/lib/packPricing')
+    expect(cartPackFields(row)).toEqual({ retailPackSize: 0.25, retailPackPrice: 25, retailPackTiers: [{ min_packs: 4, price: 22 }], saleStep: 0.25 })
+    expect(cartPackFields({ unit: 'kg' })).toEqual({})
+  })
+  it('per-unit × qty = packs × price per pack (what the server charges)', async () => {
+    const { packPerUnit, cartPackFields } = await import('@/lib/packPricing')
+    const f = cartPackFields(row)
+    for (const packs of [1, 3, 4, 7]) {
+      const qty = packs * 0.25
+      const p = packPerUnit(qty, f)!
+      expect(Math.round(p.perUnit * qty)).toBe((packLinePrice(qty, row) as { total: number }).total)
+    }
+    expect(packPerUnit(1, f)).toMatchObject({ packs: 4, perPack: 22, isDiscount: true })
+    expect(packPerUnit(1, {})).toBeNull()
+  })
+  it('price tag, packs text and tier lines', async () => {
+    const { packPriceTag, packsText, packTierLines } = await import('@/lib/packPricing')
+    expect(packPriceTag(row)).toEqual({ price: 25, pack: '250 g' })
+    expect(packPriceTag({ unit: 'kg' })).toBeNull()
+    expect(packsText(0.75, 0.25, 'kg', L)).toBe('3 packs (750 g)')
+    expect(packsText(0.25, 0.25, 'kg', L)).toBe('1 pack (250 g)')
+    expect(packTierLines(row, L)).toEqual([{ label: '1–3 packs of 250 g', price: 25 }, { label: '4+ packs', price: 22 }])
+    expect(packTierLines({ ...row, retail_pack_tiers: [] }, L)).toEqual([{ label: 'One 250 g pack', price: 25 }])
+  })
+})

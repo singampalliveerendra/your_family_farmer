@@ -1,5 +1,6 @@
 'use client'
 
+import { packLabel } from '@/lib/packPricing'
 import Link from 'next/link'
 import Icon from '@/components/home/Icon'
 import { formatQty } from '@/lib/saleStep'
@@ -65,8 +66,9 @@ export function LockedNote({ L, compact = false }: { L: T; compact?: boolean }) 
 export function Price({ it, unitLabel, L, big = false }: { it: MarketItem; unitLabel: string; L: T; big?: boolean }) {
   return (
     <p className="leading-none">
-      <span className={`brand-wordmark font-bold text-[#1d2a20] ${big ? 'text-[2.4rem]' : 'text-2xl'}`}>{inr(it.price)}</span>
-      <span className="ml-0.5 text-sm font-semibold text-black/55">/{unitLabel}</span>
+      {/* A pack lot: the price of one pack, as the seller typed it (2026-11-10). */}
+      <span className={`brand-wordmark font-bold text-[#1d2a20] ${big ? 'text-[2.4rem]' : 'text-2xl'}`}>{inr(it.packPrice ?? it.price)}</span>
+      <span className="ml-0.5 text-sm font-semibold text-black/55">/{it.packPrice && it.packSize ? L(`${packLabel(it.packSize, it.unit)} pack`, `${packLabel(it.packSize, it.unit)} ప్యాక్`) : unitLabel}</span>
       <span className="ml-2 align-middle text-[10px] font-bold uppercase tracking-wide text-black/45">{L('bulk price', 'బల్క్ ధర')}</span>
     </p>
   )

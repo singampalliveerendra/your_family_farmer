@@ -163,3 +163,10 @@ describe('the market screens only read the aggregator-only route', () => {
     expect(src).not.toMatch(/from\(\s*['"](produce_listings|farmers|source_farmers)['"]/)
   })
 })
+
+describe('pack price on a market lot (2026-11-10)', () => {
+  it('carries the typed pack price; none without a pack', () => {
+    expect(toMarketItem(L({ wholesale_pack_size: 25, wholesale_min_qty: 25, wholesale_pack_price: 700 }), [H()], FARMER, null, false).packPrice).toBe(700)
+    expect(toMarketItem(L({ wholesale_pack_size: null, wholesale_pack_price: 700 }), [H()], FARMER, null, false).packPrice).toBeNull()
+  })
+})

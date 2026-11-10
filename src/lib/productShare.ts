@@ -11,6 +11,7 @@
 // The farmer's multi-product catalogue images are a different feature:
 // src/lib/produceShare.ts.
 
+import { packPriceTag } from '@/lib/packPricing'
 import type { Metadata } from 'next'
 
 export const SITE_NAME = 'Go Grameen'
@@ -51,7 +52,9 @@ export type ProductMetaInput = WithPhotos & {
  * once on the server for everyone, before anyone's language is known.
  */
 export function productMetadata(p: ProductMetaInput): Metadata {
-  const title = `${p.name}${p.variety ? ` (${p.variety})` : ''}${p.price_tier_1_price != null ? ` — ₹${p.price_tier_1_price}/${p.unit || 'kg'}` : ''}`
+  const pack = packPriceTag(p as Parameters<typeof packPriceTag>[0])
+  const price = pack ? ` — ₹${pack.price}/${pack.pack} pack` : p.price_tier_1_price != null ? ` — ₹${p.price_tier_1_price}/${p.unit || 'kg'}` : ''
+  const title = `${p.name}${p.variety ? ` (${p.variety})` : ''}${price}`
   const method = p.method ? METHOD_EN[p.method.toLowerCase()] : undefined
   const farmer = p.farmer?.name
     ? `${p.farmer.name}${p.farmer.village ? `, ${p.farmer.village}` : ''}`

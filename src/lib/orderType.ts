@@ -64,3 +64,29 @@ export async function attachTransport<T extends { id: string }>(
     return orders
   }
 }
+
+/**
+ * A cargo parcel's service and who pays it (orders.cargo_service /
+ * cargo_paid_by, scripts/courier-options-migration.sql, 2026-11-10). Read
+ * tolerantly like attachTransport: before that migration orders go out as-is.
+ */
+export async function attachCargo<T extends { id: string }>(
+  supabase: SupabaseClient,
+  orders: T[],
+): Promise<Array<T & { cargo_service?: string | null; cargo_paid_by?: string | null }>> {
+  if (orders.length === 0) return orders
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('id, cargo_service, cargo_paid_by')
+      .in('id', orders.map((o) => o.id))
+    if (error || !data) return orders
+    const by = new Map((data as Array<{ id: string; cargo_service?: string | null; cargo_paid_by?: string | null }>).map((r) => [r.id, r]))
+    return orders.map((o) => {
+      const r = by.get(o.id)
+      return r && r.cargo_service ? { ...o, cargo_service: r.cargo_service, cargo_paid_by: r.cargo_paid_by ?? null } : o
+    })
+  } catch {
+    return orders
+  }
+}

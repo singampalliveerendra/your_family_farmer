@@ -1,5 +1,6 @@
 'use client'
 
+import { packLabel } from '@/lib/packPricing'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
@@ -159,7 +160,9 @@ function BulkTile({ it, buying, priority }: { it: MarketItem; buying: boolean; p
       priority={priority}
       chips={chips}
       seller={{ icon: it.seller.type === 'aggregator' ? '🤝' : '👨‍🌾', text: place ? `${it.seller.name} · ${place}` : it.seller.name }}
-      price={{ main: `₹${it.price}`, unit: unitLabel }}
+      price={it.packPrice && it.packSize
+        ? { main: `₹${it.packPrice}`, unit: `${packLabel(it.packSize, it.unit)} ${L('pack', 'ప్యాక్')}` }
+        : { main: `₹${it.price}`, unit: unitLabel }}
       priceNote={
         <p className="mt-0.5 text-[11px] font-semibold text-[#27486a]">
           {L('Bulk price', 'బల్క్ ధర')} · {quantityText(it, L, unitLabel)}
