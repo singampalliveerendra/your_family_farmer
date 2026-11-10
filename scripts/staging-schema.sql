@@ -897,6 +897,15 @@ ALTER TABLE public.subscription_plans ADD CONSTRAINT subscription_plans_offer_ch
 CREATE INDEX IF NOT EXISTS subscription_plans_active_idx
   ON public.subscription_plans (active, sort_order);
 
+-- Exactly two plans, Buying and Selling (scripts/two-plans-migration.sql,
+-- 2026-11-10). 'combined' stays allowed on subscriptions (free-forever rows)
+-- and as a hidden legacy plan row, but never on show.
+CREATE UNIQUE INDEX IF NOT EXISTS subscription_plans_one_per_kind
+  ON public.subscription_plans (kind) WHERE kind IN ('buying', 'selling');
+ALTER TABLE public.subscription_plans DROP CONSTRAINT IF EXISTS subscription_plans_no_combined_on_show;
+ALTER TABLE public.subscription_plans ADD CONSTRAINT subscription_plans_no_combined_on_show
+  CHECK (kind <> 'combined' OR NOT active);
+
 CREATE TABLE IF NOT EXISTS public.aggregator_subscriptions (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   aggregator_id   uuid NOT NULL REFERENCES public.farmers(id) ON DELETE CASCADE,

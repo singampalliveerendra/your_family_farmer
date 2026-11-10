@@ -100,12 +100,13 @@ describe('highlightLines', () => {
 
 describe('sortPlans / plansTeaser', () => {
   const plans = [
-    PLAN({ id: 'y', kind: 'combined', duration_days: 365, actual_price: 4999, offer_price: 2999, sort_order: 2 }),
+    PLAN({ id: 'y', kind: 'selling', duration_days: 365, actual_price: 4999, offer_price: 2999, sort_order: 2 }),
+    PLAN({ id: 'old', kind: 'combined', sort_order: 0 }),
     PLAN({ id: 'm', sort_order: 1 }),
     PLAN({ id: 'off', active: false, actual_price: 1, offer_enabled: false }),
     PLAN({ id: 'bad', kind: 'gold' }),
   ]
-  it('only active, known plans, in sort order', () => {
+  it('only active Buying/Selling plans, in sort order (an old Combined plan never shows)', () => {
     expect(sortPlans(plans, NOW).map((p) => p.id)).toEqual(['m', 'y'])
   })
   it('same sort order → cheapest first', () => {
@@ -143,8 +144,9 @@ describe('validatePlan', () => {
     expect(validatePlan({ ...GOOD, offer_enabled: false, offer_ends_at: '2026-01-01' }, NOW).ok).toBe(true)
   })
   it.each([
-    [{ kind: 'gold' }, /Choose Buying/],
-    [{ kind: undefined }, /Choose Buying/],
+    [{ kind: 'gold' }, /either Buying or Selling/],
+    [{ kind: 'combined' }, /either Buying or Selling/],
+    [{ kind: undefined }, /either Buying or Selling/],
     [{ name_en: '   ' }, /plan name/],
     [{ name_en: 'x'.repeat(61) }, /60 characters/],
     [{ name_te: 'త'.repeat(61) }, /Telugu name/],

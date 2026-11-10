@@ -1,13 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { getModeratorId, isModeratorRequest } from '@/lib/moderator-session'
-import { validatePlan, type PlanInput } from '@/lib/subscriptionPlans'
+import { isModeratorRequest } from '@/lib/moderator-session'
+import { PLAN_ROW_KINDS } from '@/lib/subscriptionPlans'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 // Aggregator subscription plans (scripts/subscription-migration.sql).
-// Moderators are the super-users for now (decision 2026-11-04): every
+// Since 2026-11-10 there are exactly two plans, Buying and Selling, created by
+// scripts/two-plans-migration.sql. Moderators edit them (PUT …/[id]); they
+// cannot add or delete plans, so there is no POST. Moderators are the super-users for now (decision 2026-11-04): every
 // moderator sees and edits every plan, whatever their zone. The homepage reads
 // active plans with the public key (RLS allows that one read); every write
 // goes through here with the service role.
@@ -19,35 +21,22 @@ function client() {
 const PLAN_COLUMNS =
   'id, kind, name_en, name_te, duration_days, actual_price, offer_enabled, offer_price, offer_ends_at, offer_label_en, offer_label_te, highlights_en, highlights_te, active, sort_order, created_at, updated_at'
 
-const NOT_READY = 'Subscriptions are not switched on yet. Run scripts/subscription-migration.sql first.'
-
-/** Every plan, hidden ones too. */
+/** The two plans (Buying first), hidden ones too. */
 export async function GET(req: NextRequest) {
   if (!isModeratorRequest(req)) return NextResponse.json({ error: 'Moderator login required.' }, { status: 401 })
   const { data, error } = await client()
     .from('subscription_plans')
     .select(PLAN_COLUMNS)
-    .order('sort_order', { ascending: true })
-    .order('created_at', { ascending: true })
+    .in('kind', [...PLAN_ROW_KINDS])
   if (error) return NextResponse.json({ plans: [], configured: false })
-  return NextResponse.json({ plans: data ?? [], configured: true })
+  const order = (k: string) => PLAN_ROW_KINDS.indexOf(k as (typeof PLAN_ROW_KINDS)[number])
+  const plans = (data ?? []).slice().sort((a, b) => order(a.kind) - order(b.kind))
+  // Both rows must exist; if one is missing the two-plans migration has not run.
+  return NextResponse.json({ plans, configured: plans.length === PLAN_ROW_KINDS.length })
 }
 
-/** Add a plan. */
+/** Plans are fixed: there is nothing to add. */
 export async function POST(req: NextRequest) {
   if (!isModeratorRequest(req)) return NextResponse.json({ error: 'Moderator login required.' }, { status: 401 })
-  const body = (await req.json().catch(() => null)) as PlanInput | null
-  if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
-  const v = validatePlan(body)
-  if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 })
-  const { data, error } = await client()
-    .from('subscription_plans')
-    .insert({ ...v.columns, updated_by: getModeratorId(req), updated_at: new Date().toISOString() })
-    .select(PLAN_COLUMNS)
-    .single()
-  if (error) {
-    console.error('[YFF moderator/subscription-plans] insert failed:', error.message)
-    return NextResponse.json({ error: NOT_READY }, { status: 500 })
-  }
-  return NextResponse.json({ ok: true, plan: data })
+  return NextResponse.json({ error: 'There are only two plans, Buying and Selling. Edit one of them instead.' }, { status: 405 })
 }

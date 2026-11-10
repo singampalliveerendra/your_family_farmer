@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 // The moderator subscription routes end to end against an in-memory Supabase:
-// plans (list / add / edit) and aggregator grants (list / activate / switch
+// plans (list / edit the two fixed plans) and aggregator grants (list / activate / switch
 // off). The rules themselves are unit-tested in tests/lib/subscriptionPlans.test.ts.
 
 type Row = Record<string, unknown>
@@ -99,52 +99,82 @@ describe('every route needs a moderator login', () => {
   })
 })
 
+// Two fixed plans since 2026-11-10 (scripts/two-plans-migration.sql): seeded
+// rows, edited in place, never added.
+const BUY_ID = '00000000-0000-4000-8000-0000000000b1'
+const SELL_ID = '00000000-0000-4000-8000-0000000000s1'.replace('s1', 'c1')
+const seedTwo = () => db.tables.subscription_plans.push(
+  { id: SELL_ID, kind: 'selling', name_en: 'Selling plan', duration_days: 30, actual_price: 0, active: false },
+  { id: BUY_ID, kind: 'buying', name_en: 'Buying plan', duration_days: 30, actual_price: 0, active: false },
+)
+
 describe('plans', () => {
-  it('add a plan: cleaned columns + who changed it', async () => {
-    const res = await plans.POST(req('POST', { ...GOOD, name_en: '  Bulk buyer  ' }))
-    expect(res.status).toBe(200)
-    expect(db.tables.subscription_plans[0]).toMatchObject({ name_en: 'Bulk buyer', actual_price: 999, offer_price: 599, offer_enabled: true, updated_by: MOD, active: true })
-  })
-  it('a bad plan is refused with a plain message, nothing saved', async () => {
-    const res = await plans.POST(req('POST', { ...GOOD, offer_price: 1200 }))
-    expect(res.status).toBe(400)
-    expect((await res.json()).error).toMatch(/lower than the actual/)
+  it('no adding plans: POST is refused and nothing is saved', async () => {
+    const res = await plans.POST(req('POST', GOOD))
+    expect(res.status).toBe(405)
+    expect((await res.json()).error).toMatch(/only two plans/)
     expect(db.tables.subscription_plans).toHaveLength(0)
   })
-  it('junk body → 400', async () => {
-    const r = new NextRequest('http://localhost/api/x', { method: 'POST', body: 'not json' })
-    expect((await plans.POST(r)).status).toBe(400)
+  it('list: Buying then Selling, hidden ones too, never an old Combined plan', async () => {
+    seedTwo()
+    db.tables.subscription_plans.push({ id: 'old', kind: 'combined', active: false })
+    const j = await (await plans.GET(req('GET'))).json()
+    expect(j.plans.map((p: Row) => p.kind)).toEqual(['buying', 'selling'])
+    expect(j.configured).toBe(true)
   })
-  it('list shows hidden plans too (moderator view)', async () => {
-    db.tables.subscription_plans.push({ id: 'a', active: true }, { id: 'b', active: false })
-    expect((await (await plans.GET(req('GET'))).json()).plans).toHaveLength(2)
+  it('only one of the two plans there → configured=false (migration not run)', async () => {
+    db.tables.subscription_plans.push({ id: BUY_ID, kind: 'buying', active: false })
+    expect((await (await plans.GET(req('GET'))).json()).configured).toBe(false)
   })
-  it('before the migration: empty list, configured=false; saving says why', async () => {
+  it('before the migration: empty list, configured=false', async () => {
     db.failTable = 'subscription_plans'
     expect(await (await plans.GET(req('GET'))).json()).toEqual({ plans: [], configured: false })
-    const res = await plans.POST(req('POST', GOOD))
-    expect(res.status).toBe(500)
-    expect((await res.json()).error).toMatch(/subscription-migration/)
+  })
+  it('edit: moderator sets price, duration and offer; who changed it is kept', async () => {
+    seedTwo()
+    const res = await plan.PUT(req('PUT', { ...GOOD, name_en: '  Buying plan  ', duration_days: 365, active: true }), params(BUY_ID))
+    expect(res.status).toBe(200)
+    expect(db.tables.subscription_plans.find((p) => p.id === BUY_ID)).toMatchObject({
+      kind: 'buying', name_en: 'Buying plan', duration_days: 365, actual_price: 999, offer_price: 599, offer_enabled: true, active: true, updated_by: MOD,
+    })
+  })
+  it('edit can never change a plan into the other kind', async () => {
+    seedTwo()
+    await plan.PUT(req('PUT', { ...GOOD, kind: 'selling' }), params(BUY_ID))
+    expect(db.tables.subscription_plans.filter((p) => p.kind === 'buying')).toHaveLength(1)
+    expect(db.tables.subscription_plans.find((p) => p.id === BUY_ID)?.kind).toBe('buying')
+  })
+  it('a Combined plan cannot be saved, and an old Combined row cannot be edited back on', async () => {
+    seedTwo()
+    db.tables.subscription_plans.push({ id: '00000000-0000-4000-8000-0000000000d1', kind: 'combined', active: false })
+    expect((await plan.PUT(req('PUT', { ...GOOD, kind: 'combined' }), params(BUY_ID))).status).toBe(400)
+    expect((await plan.PUT(req('PUT', { ...GOOD, active: true }), params('00000000-0000-4000-8000-0000000000d1'))).status).toBe(404)
+    expect(db.tables.subscription_plans.find((p) => p.kind === 'combined')?.active).toBe(false)
   })
   it('edit: switch the offer off, keep its price', async () => {
-    await plans.POST(req('POST', GOOD))
-    const id = db.tables.subscription_plans[0].id as string
-    const res = await plan.PUT(req('PUT', { ...GOOD, offer_enabled: false }), params(id))
+    seedTwo()
+    await plan.PUT(req('PUT', GOOD), params(BUY_ID))
+    const res = await plan.PUT(req('PUT', { ...GOOD, offer_enabled: false }), params(BUY_ID))
     expect(res.status).toBe(200)
-    expect(db.tables.subscription_plans[0]).toMatchObject({ offer_enabled: false, offer_price: 599 })
+    expect(db.tables.subscription_plans.find((p) => p.id === BUY_ID)).toMatchObject({ offer_enabled: false, offer_price: 599 })
   })
   it('edit: hide a plan', async () => {
-    await plans.POST(req('POST', GOOD))
-    const id = db.tables.subscription_plans[0].id as string
-    await plan.PUT(req('PUT', { ...GOOD, active: false }), params(id))
-    expect(db.tables.subscription_plans[0].active).toBe(false)
+    seedTwo()
+    await plan.PUT(req('PUT', { ...GOOD, active: true }), params(SELL_ID))
+    await plan.PUT(req('PUT', { ...GOOD, active: false }), params(SELL_ID))
+    expect(db.tables.subscription_plans.find((p) => p.id === SELL_ID)?.active).toBe(false)
   })
-  it('edit: bad values refused, the plan unchanged', async () => {
-    await plans.POST(req('POST', GOOD))
-    const id = db.tables.subscription_plans[0].id as string
-    const res = await plan.PUT(req('PUT', { ...GOOD, duration_days: 0 }), params(id))
+  it('edit: bad values refused with a plain message, the plan unchanged', async () => {
+    seedTwo()
+    const res = await plan.PUT(req('PUT', { ...GOOD, offer_price: 1200 }), params(BUY_ID))
     expect(res.status).toBe(400)
-    expect(db.tables.subscription_plans[0].duration_days).toBe(30)
+    expect((await res.json()).error).toMatch(/lower than the actual/)
+    expect((await plan.PUT(req('PUT', { ...GOOD, duration_days: 0 }), params(BUY_ID))).status).toBe(400)
+    expect(db.tables.subscription_plans.find((p) => p.id === BUY_ID)).toMatchObject({ duration_days: 30, actual_price: 0 })
+  })
+  it('junk body → 400', async () => {
+    const r = new NextRequest('http://localhost/api/x', { method: 'PUT', body: 'not json' })
+    expect((await plan.PUT(r, params(BUY_ID))).status).toBe(400)
   })
   it('edit: unknown or malformed id', async () => {
     expect((await plan.PUT(req('PUT', GOOD), params('00000000-0000-4000-8000-000000000999'))).status).toBe(404)
