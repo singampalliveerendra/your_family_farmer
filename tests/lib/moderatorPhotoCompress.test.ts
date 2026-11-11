@@ -3,17 +3,25 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 
 // 2026-11-09: two 2 MB raw camera photos reached prod through the moderator
-// produce form because it uploaded picked files as-is. Guard against that.
-describe('moderator produce form photo upload', () => {
-  const src = readFileSync(join(__dirname, '../../src/app/moderator/listings/ListingForm.tsx'), 'utf8')
+// produce form because it uploaded picked files as-is (fixed on prod in
+// 729479c3). Since the shared PhotoPicker (33106aaa) the moderator form
+// uploads through it, and the picker shrinks every photo to 800px / 0.7 first.
+// Guard both halves so neither can quietly go back to raw uploads.
+const read = (p: string) => readFileSync(join(__dirname, '../..', p), 'utf8')
 
-  it('imports the shared compressor', () => {
-    expect(src).toMatch(/import \{ compressImage \} from '@\/lib\/imageCompress'/)
+describe('moderator produce form photo upload', () => {
+  it('the moderator form uploads through the shared PhotoPicker', () => {
+    const form = read('src/app/moderator/listings/ListingForm.tsx')
+    expect(form).toMatch(/import PhotoPicker from '@\/components\/PhotoPicker'/)
+    expect(form).toMatch(/<PhotoPicker[\s\S]*?upload=\{\(f\) => uploadFarmImage\(f, 'produce'/)
   })
 
-  it('compresses every picked file to 800px before it is queued for upload', () => {
-    const handler = src.slice(src.indexOf('const onAddFiles'), src.indexOf('const removeExisting'))
-    expect(handler).toMatch(/compressImage\(f, 800, 0\.7\)/)
-    expect(handler).not.toMatch(/setNewFiles\(\(prev\) => \[\.\.\.prev, \.\.\.picked\]\)/)
+  it('the picker compresses every file before uploading it', () => {
+    const picker = read('src/components/PhotoPicker.tsx')
+    expect(picker).toMatch(/const c = await compressImage\(f\)\s*\n\s*const url = upload \? await upload\(c\)/)
+  })
+
+  it('the compressor defaults to 800px at quality 0.7', () => {
+    expect(read('src/lib/compressImage.ts')).toMatch(/export async function compressImage\(file: File, maxPx = 800, quality = 0\.7\)/)
   })
 })
