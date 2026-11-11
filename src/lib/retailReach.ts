@@ -80,7 +80,7 @@ export type Reachability =
  * produce for the buyer's state — with that state's charge.
  */
 export function reachFor(
-  listing: { retail_reach?: unknown; retail_transport_rates?: unknown; delivery_radius_km?: unknown },
+  listing: { retail_reach?: unknown; retail_transport_rates?: unknown; delivery_radius_km?: unknown; courier_type?: unknown },
   farm: FarmPoint,
   buyer: Buyer,
 ): Reachability {
@@ -88,6 +88,9 @@ export function reachFor(
   const radius = Number(listing.delivery_radius_km) > 0 ? Number(listing.delivery_radius_km) : DEFAULT_LOCAL_RADIUS_KM
   const distKm = farm ? haversineKm(buyer.lat, buyer.lng, farm.lat, farm.lng) : null
   if (distKm !== null && distKm <= radius) return { show: true, kind: 'local', distKm, charge: null }
+  // Cargo (2026-11-11): sent anywhere in India, nothing charged online (ToPay
+  // to the cargo company, or paid by the farmer) — no state needed.
+  if (listing.courier_type === 'cargo') return { show: true, kind: 'transport', distKm, charge: 0 }
   if (parseReach(listing.retail_reach) === 'transport' && buyer.state) {
     const charge = normalizeRetailRates(listing.retail_transport_rates)[buyer.state]
     if (charge !== undefined) return { show: true, kind: 'transport', distKm, charge }

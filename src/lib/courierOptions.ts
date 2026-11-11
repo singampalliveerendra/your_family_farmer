@@ -8,7 +8,8 @@
  *     local  — the farmer delivers nearby (radius in km). Who bears it:
  *                farmer → free for the buyer (charge 0)
  *                buyer  → the farmer's charge (₹, required)
- *     cargo  — sent by cargo/parcel services anywhere in AP & TG. The farmer
+ *     cargo  — sent by cargo/parcel services anywhere in India (2026-11-11;
+ *              it was AP & TG the day before). The farmer
  *              ticks the services in their area that take ToPay; the buyer
  *              orders only if one of them works in their area. Who bears it:
  *                buyer  → ToPay: the buyer pays the cargo company on delivery
@@ -24,8 +25,10 @@
  *   courier_type      'local' | 'cargo' | null (pickup only)
  *   cargo_services    jsonb array of service names
  *   delivery_paid_by  'farmer' | 'buyer' | null (pickup only)
- * Cargo also writes retail_reach = 'transport' with ₹0 for AP and TG, so the
- * shop's existing reach rules offer it across both states at no online charge.
+ * Cargo also writes retail_reach = 'transport' (₹0 for AP and TG kept for the
+ * old reach check); the shop's reach rule offers cargo anywhere in India and
+ * the order route takes any valid pincode for it (2026-11-11), with no
+ * online transport charge.
  */
 
 import { isMissingColumnError } from '@/lib/missingColumn'
@@ -34,7 +37,7 @@ export type Msg = { en: string; te: string }
 export type CourierType = 'local' | 'cargo'
 export type PaidBy = 'farmer' | 'buyer'
 
-/** Cargo / parcel services common in AP & TG. "Other" names are typed in. */
+/** Cargo / parcel services common in AP & TG (they ship India-wide). "Other" names are typed in. */
 export const KNOWN_CARGO_SERVICES = [
   'APSRTC Cargo',
   'TGSRTC Logistics',

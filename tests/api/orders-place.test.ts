@@ -588,3 +588,42 @@ describe('cargo produce at checkout', () => {
     expect(db.orders[0]).not.toHaveProperty('cargo_service')
   })
 })
+
+// 2026-11-11: cargo goes anywhere in India — not only AP & TG.
+describe('cargo anywhere in India', () => {
+  const courier = (pincode: string, extra: Record<string, unknown> = {}) => order({
+    paymentMethod: 'cod',
+    deliveryType: 'courier',
+    items: [{ listingId: LISTING_ID, qty: 2, deliveryType: 'courier' }],
+    deliveryAddress: '12 MG Road', deliveryCity: 'Bengaluru', deliveryPincode: pincode,
+    cargoService: 'VRL Logistics',
+    ...extra,
+  })
+  const cargo = () => Object.assign(db.listings[0], {
+    retail_reach: 'transport', retail_transport_rates: { AP: 0, TG: 0 },
+    courier_type: 'cargo', cargo_services: ['VRL Logistics'], delivery_paid_by: 'buyer',
+  })
+  it('a Karnataka pincode can order cargo produce, nothing charged for transport', async () => {
+    cargo()
+    const r = await place(courier('560001'))
+    expect(r.status).toBe(200)
+    expect((await r.json()).transportCharge).toBe(0)
+    expect(db.orders[0]).toMatchObject({ cargo_service: 'VRL Logistics', total_price: 80 })
+  })
+  it('a Delhi pincode too', async () => {
+    cargo()
+    expect((await place(courier('110001'))).status).toBe(200)
+  })
+  it('an invalid pincode is refused', async () => {
+    cargo()
+    const r = await place(courier('012345'))
+    expect(r.status).toBe(400)
+    expect(db.orders).toHaveLength(0)
+  })
+  it('older per-state "Transportable" produce is still AP / TG only', async () => {
+    Object.assign(db.listings[0], { retail_reach: 'transport', retail_transport_rates: { AP: 80, TG: 120 } })
+    const r = await place(courier('560001', { cargoService: undefined }))
+    expect(r.status).toBe(400)
+    expect((await r.json()).error).toMatch(/Andhra Pradesh or Telangana pincode/)
+  })
+})

@@ -387,7 +387,12 @@ export default function HarvestDetailPage() {
           {/* Farmer doesn't deliver this one — said here, not first in the cart. */}
           {transport && (
             <p className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-[#27486a] bg-[#e5ecf3] rounded-full px-2.5 py-1">
-              🚚 {transport.charge > 0 ? L(`Delivers to you by courier · ₹${transport.charge} transport`, `కొరియర్ ద్వారా మీకు డెలివరీ · రవాణా ₹${transport.charge}`) : L('Delivers to you by courier · free transport', 'కొరియర్ ద్వారా మీకు డెలివరీ · రవాణా ఉచితం')}
+              🚚 {(item as { courier_type?: unknown }).courier_type === 'cargo'
+                // Cargo, anywhere in India (2026-11-11): ToPay, or the farmer pays.
+                ? ((item as { delivery_paid_by?: unknown }).delivery_paid_by === 'farmer'
+                    ? L('Sent by cargo · free delivery', 'కార్గో ద్వారా పంపుతారు · ఉచిత డెలివరీ')
+                    : L('Sent by cargo · pay the cargo company on delivery (ToPay)', 'కార్గో ద్వారా పంపుతారు · డెలివరీ సమయంలో కార్గో కంపెనీకి చెల్లించండి (ToPay)'))
+                : transport.charge > 0 ? L(`Delivers to you by courier · ₹${transport.charge} transport`, `కొరియర్ ద్వారా మీకు డెలివరీ · రవాణా ₹${transport.charge}`) : L('Delivers to you by courier · free transport', 'కొరియర్ ద్వారా మీకు డెలివరీ · రవాణా ఉచితం')}
             </p>
           )}
           {reach?.kind === 'out_of_range' && (

@@ -28,8 +28,13 @@ import { roundQty, unitAllowsFractions } from '@/lib/saleStep'
 export const SALE_MODES = ['retail', 'wholesale', 'both'] as const
 export type SaleMode = (typeof SALE_MODES)[number]
 
-export const TRANSPORT_STATES = ['AP', 'TG'] as const
+/* Where a seller transports bulk orders. 'IN' = anywhere in India (client,
+ * 2026-11-11): the form now saves only that, with ONE way of charging. 'AP' /
+ * 'TG' are lots saved before — they keep working until edited. */
+export const TRANSPORT_STATES = ['AP', 'TG', 'IN'] as const
 export type TransportState = (typeof TRANSPORT_STATES)[number]
+/** What the form saves for "Yes, I can transport". */
+export const ALL_INDIA: TransportState = 'IN'
 
 export const SALE_MODE_LABELS: Record<SaleMode, { en: string; te: string; icon: string }> = {
   retail: { en: 'Retail', te: 'చిల్లర', icon: '🛒' },
@@ -40,6 +45,7 @@ export const SALE_MODE_LABELS: Record<SaleMode, { en: string; te: string; icon: 
 export const TRANSPORT_STATE_LABELS: Record<TransportState, { en: string; te: string }> = {
   AP: { en: 'Andhra Pradesh', te: 'ఆంధ్రప్రదేశ్' },
   TG: { en: 'Telangana', te: 'తెలంగాణ' },
+  IN: { en: 'Anywhere in India', te: 'భారతదేశంలో ఎక్కడికైనా' },
 }
 
 // Column limits: numeric(8,2) for the price, numeric(10,3) for quantities
@@ -265,7 +271,7 @@ export function resolveWholesale(input: {
   }
   const states = transport ? normalizeStates(input.states) : []
   if (transport && states.length === 0) {
-    return fail('Choose where you can transport: Andhra Pradesh, Telangana or both.', 'ఎక్కడికి రవాణా చేయగలరో ఎంచుకోండి: ఆంధ్రప్రదేశ్, తెలంగాణ లేదా రెండూ.')
+    return fail('Choose Yes or No for transport.', 'రవాణాకు అవును లేదా కాదు ఎంచుకోండి.')
   }
 
   // The charge for each state they deliver to (₹0 = free). Left blank, that

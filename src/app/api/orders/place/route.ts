@@ -587,10 +587,17 @@ export async function POST(req: NextRequest) {
       .filter((r) => r.retail_reach === 'transport')
     if (transported.length) {
       const state = stateOfPincode(deliveryPincode)
-      const charge = orderTransportCharge(transported, state)
+      // Cargo goes anywhere in India for ₹0 online (ToPay or farmer-paid,
+      // 2026-11-11): any valid pincode. Only the older "Transportable" produce
+      // is priced per state (AP / TG).
+      const perState = transported.filter((r) => r.courier_type !== 'cargo')
+      if (transported.length > perState.length && !/^[1-9]\d{5}$/.test(String(deliveryPincode ?? '').trim())) {
+        return bad('Enter a valid 6-digit pincode for cargo delivery.')
+      }
+      const charge = perState.length ? orderTransportCharge(perState, state) : 0
       if (charge === null) {
         return bad(state
-          ? `${transported[0].name} is not delivered to ${state === 'AP' ? 'Andhra Pradesh' : 'Telangana'} by this farmer.`
+          ? `${perState[0].name} is not delivered to ${state === 'AP' ? 'Andhra Pradesh' : 'Telangana'} by this farmer.`
           : 'Enter an Andhra Pradesh or Telangana pincode for transported produce.')
       }
       transportCharge = charge
@@ -610,7 +617,7 @@ export async function POST(req: NextRequest) {
         })
       }
       if (charge > 0) {
-        const tIds = new Set(transported.map((r) => r.id))
+        const tIds = new Set(perState.map((r) => r.id))
         const row = rows.find((r, i) => rowDeliveryTypeOf(items[i]) === 'courier' && tIds.has(String(r.produce_listing_id)))
         if (row) {
           row.total_price = (Number(row.total_price) || 0) + charge

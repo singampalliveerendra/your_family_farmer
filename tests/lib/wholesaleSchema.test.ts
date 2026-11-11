@@ -32,9 +32,11 @@ describe.each(files)('%s', (file) => {
     expect(m![1].split(',').map((x) => x.trim().replace(/'/g, ''))).toEqual([...SALE_MODES])
   })
 
-  it('allows exactly the transport states the code knows', () => {
-    const m = s.match(/wholesale_transport_states <@ ARRAY\[([^\]]*)\]/)
-    expect(m).not.toBeNull()
+  it('allows exactly the transport regions the code knows', () => {
+    // 'IN' (anywhere in India) comes with all-india-transport-migration.sql (2026-11-11).
+    const all = file === 'staging-schema.sql' ? s : s + sql('all-india-transport-migration.sql')
+    const m = [...all.matchAll(/wholesale_transport_states <@ ARRAY\[([^\]]*)\]/g)].pop()
+    expect(m).toBeDefined()
     expect(m![1].split(',').map((x) => x.trim().replace(/'/g, ''))).toEqual([...TRANSPORT_STATES])
   })
 

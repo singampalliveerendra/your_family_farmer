@@ -183,3 +183,25 @@ describe('orders cargo columns', () => {
     }
   })
 })
+
+describe('cargo reach anywhere in India (2026-11-11)', () => {
+  it('beyond the radius, cargo shows for any buyer, even with no AP/TG state', async () => {
+    const { reachFor } = await import('@/lib/retailReach')
+    const farm = { lat: 16.8142, lng: 81.5288 } // Tadepalligudem
+    const bengaluru = { lat: 12.9716, lng: 77.5946, state: null }
+    const cargo = { courier_type: 'cargo', retail_reach: 'transport', retail_transport_rates: { AP: 0, TG: 0 } }
+    expect(reachFor(cargo, farm, bengaluru as never)).toMatchObject({ show: true, kind: 'transport', charge: 0 })
+    expect(reachFor({ retail_reach: 'transport', retail_transport_rates: { AP: 80 } }, farm, bengaluru as never)).toMatchObject({ show: false, kind: 'out_of_range' })
+  })
+})
+
+describe('all-india-transport migration', () => {
+  it('lets wholesale transport and bulk orders use IN, in the migration and the schema', async () => {
+    const { readFileSync } = await import('node:fs')
+    for (const f of ['scripts/all-india-transport-migration.sql', 'scripts/staging-schema.sql']) {
+      const s = readFileSync(f, 'utf8')
+      expect(s).toContain("CHECK (wholesale_transport_states <@ ARRAY['AP', 'TG', 'IN']::text[])")
+      expect(s).toContain("CHECK (transport_state IS NULL OR transport_state IN ('AP', 'TG', 'IN'))")
+    }
+  })
+})

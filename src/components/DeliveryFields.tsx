@@ -87,7 +87,7 @@ export default function DeliveryFields({
             <div className="grid grid-cols-2 gap-2" role="group" aria-label={L('How will you send it?', 'ఎలా పంపుతారు?')}>
               {([
                 { key: 'local', en: 'Local delivery', te: 'లోకల్ డెలివరీ', icon: '🏘️', sub: ['I deliver nearby', 'దగ్గరలో నేనే ఇస్తా'] },
-                { key: 'cargo', en: 'Cargo', te: 'కార్గో', icon: '🚛', sub: ['Parcel service, AP & TG', 'పార్సెల్ సర్వీస్, AP & TG'] },
+                { key: 'cargo', en: 'Cargo', te: 'కార్గో', icon: '🚛', sub: ['Parcel service, anywhere in India', 'పార్సెల్ సర్వీస్, భారతదేశంలో ఎక్కడికైనా'] },
               ] as const).map((o) => {
                 const active = courier.courierType === o.key
                 return (

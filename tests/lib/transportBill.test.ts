@@ -134,13 +134,13 @@ describe('wired in', () => {
 describe('transport is one question (client, 2026-11-05)', () => {
   const src = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
   const f = src('src/components/WholesaleFields.tsx')
-  it('asks once for both states, with Yes / No — buyer collects', () => {
-    expect(f).toMatch(/Can you transport to both Andhra Pradesh and Telangana\?/)
+  it('asks once, for anywhere in India, with Yes / No — buyer collects (2026-11-11)', () => {
+    expect(f).toMatch(/Can you transport anywhere in India\?/)
     expect(f).toMatch(/'No — buyer collects'/)
     expect(f).not.toMatch(/Where can you transport\?/)
   })
-  it('Yes sets both states, and one charge is used for both', () => {
-    expect(f).toMatch(/set\(\{ transport: true, states: \[\.\.\.TRANSPORT_STATES\], rates: bothRates\(shared\) \}\)/)
+  it('Yes saves the all-India region, with one charge', () => {
+    expect(f).toMatch(/set\(\{ transport: true, states: \[ALL_INDIA\], rates: bothRates\(shared\) \}\)/)
     expect(f).toMatch(/How do you charge for transport\?/)
     expect(f).not.toMatch(/setRate\(/)
   })

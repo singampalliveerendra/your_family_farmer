@@ -841,7 +841,8 @@ ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_wholesale_pa
   CHECK (wholesale_pack_size IS NULL OR wholesale_pack_size > 0);
 ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_wholesale_transport_check;
 ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_wholesale_transport_check
-  CHECK (wholesale_transport_states <@ ARRAY['AP', 'TG']::text[]);
+  -- 'IN' = anywhere in India (scripts/all-india-transport-migration.sql, 2026-11-11).
+  CHECK (wholesale_transport_states <@ ARRAY['AP', 'TG', 'IN']::text[]);
 CREATE INDEX IF NOT EXISTS idx_produce_listings_wholesale
   ON public.produce_listings (sale_mode) WHERE sale_mode <> 'retail';
 
@@ -1096,7 +1097,8 @@ ALTER TABLE public.orders ADD CONSTRAINT orders_transport_charge_check
   CHECK (transport_charge >= 0);
 ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_transport_state_check;
 ALTER TABLE public.orders ADD CONSTRAINT orders_transport_state_check
-  CHECK (transport_state IS NULL OR transport_state IN ('AP', 'TG'));
+  -- 'IN' = anywhere in India (scripts/all-india-transport-migration.sql, 2026-11-11).
+  CHECK (transport_state IS NULL OR transport_state IN ('AP', 'TG', 'IN'));
 -- A bulk purchase is wholesale, online-paid, and not also a household order.
 ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_bulk_purchase_check;
 ALTER TABLE public.orders ADD CONSTRAINT orders_bulk_purchase_check
