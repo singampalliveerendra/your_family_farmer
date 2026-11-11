@@ -220,6 +220,15 @@ SELECT * FROM (
     CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
       WHERE table_name='produce_listings' AND column_name='courier_type')
       THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  -- all-india-transport-migration.sql (needs wholesale + bulk-orders first).
+  -- Without it a wholesale lot saved with "transport anywhere in India" and a
+  -- bulk order delivered that way are refused by the database.
+  SELECT 35, 'all-india-transport', 'wholesale transport allows IN',
+    CASE WHEN EXISTS (SELECT 1 FROM pg_constraint
+      WHERE conname='produce_listings_wholesale_transport_check'
+        AND pg_get_constraintdef(oid) LIKE '%IN%')
+      THEN 'PRESENT' ELSE 'MISSING' END
 
 ) checks ORDER BY ord;
 

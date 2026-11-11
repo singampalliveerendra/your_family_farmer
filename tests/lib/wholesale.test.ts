@@ -291,11 +291,14 @@ describe('resolveWholesale — transport errors', () => {
     expect(errorOf(good({ transport: null })).en).toMatch(/Choose Yes or No/)
     expect(errorOf(good({ transport: undefined })).en).toMatch(/Choose Yes or No/)
   })
-  it('Yes with no state', () => {
-    expect(errorOf(good({ states: [] })).en).toMatch(/Andhra Pradesh, Telangana or both/)
+  it('Yes with no region', () => {
+    expect(errorOf(good({ states: [] })).en).toMatch(/Choose Yes or No for transport/)
   })
-  it('Yes with only unknown states', () => {
-    expect(errorOf(good({ states: ['KA'] })).en).toMatch(/Andhra Pradesh, Telangana or both/)
+  it('Yes with only unknown regions', () => {
+    expect(errorOf(good({ states: ['KA'] })).en).toMatch(/Choose Yes or No for transport/)
+  })
+  it('anywhere in India (IN) is a valid region (2026-11-11)', () => {
+    expect(statesOf(good({ states: ['IN'] }))).toEqual(['IN'])
   })
 })
 
@@ -346,8 +349,8 @@ describe('labels', () => {
       expect(TRANSPORT_STATE_LABELS[s].te).toMatch(/[ఀ-౿]/)
     }
   })
-  it('states match the database CHECK (AP, TG only)', () => {
-    expect([...TRANSPORT_STATES]).toEqual(['AP', 'TG'])
+  it('regions match the database CHECK: AP, TG (older lots) and IN = anywhere in India', () => {
+    expect([...TRANSPORT_STATES]).toEqual(['AP', 'TG', 'IN'])
   })
 })
 

@@ -869,7 +869,9 @@ export function CartSheet({
   // Address form is needed as soon as any line is home delivery.
   const anyDelivery = items.some((it) => deliveryOf(it) === 'home_delivery')
   // A delivered transportable line goes by the farmer's courier, not our rider.
-  const isTransported = (it: CartItem) => it.transportCharge != null && deliveryOf(it) === 'home_delivery'
+  // Cargo lines always go by cargo, anywhere in India (2026-11-11) — even
+  // without a saved buyer state; nothing for transport is charged online.
+  const isTransported = (it: CartItem) => (it.transportCharge != null || it.courierType === 'cargo') && deliveryOf(it) === 'home_delivery'
   const anyRiderDelivery = items.some((it) => deliveryOf(it) === 'home_delivery' && !isTransported(it))
   const needsAddress = anyDelivery
 

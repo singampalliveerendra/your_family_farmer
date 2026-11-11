@@ -265,7 +265,7 @@ describe('/api/moderator/listings POST — wholesale', () => {
     ['no pack or minimum', { wholesale_min_qty: '', wholesale_pack_size: '' }, /pack size or the minimum/],
     ['a bad pack price', { wholesale_pack_price: '0' }, /pack price must be a number above 0/],
     ['transport not answered', { wholesale_transport: null }, /Yes or No/],
-    ['transport Yes, no state', { wholesale_transport_states: [] }, /Andhra Pradesh, Telangana/],
+    ['transport Yes, no region', { wholesale_transport_states: [] }, /Choose Yes or No for transport/],
   ])('refuses %s with a 400 and creates nothing', async (_name, patch, msg) => {
     const res = await create(createBody(wholesaleBody(patch)))
     expect(res.status).toBe(400)

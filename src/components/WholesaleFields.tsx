@@ -4,7 +4,7 @@ import { useId } from 'react'
 import {
   SALE_MODES,
   SALE_MODE_LABELS,
-  TRANSPORT_STATES,
+  ALL_INDIA,
   offersRetail,
   offersWholesale,
   type RateForm,
@@ -52,16 +52,17 @@ export default function WholesaleFields({
   const retail = offersRetail(value.saleMode)
   const both = value.saleMode === 'both'
 
-  // Transport is one question since 2026-11-05 (client): "Can you transport
-  // to both Andhra Pradesh and Telangana?" Yes = both states, with ONE way of
-  // charging used for both. The saved data still holds a rate per state (the
-  // same one twice), so checkout and older lots work unchanged; a lot saved
-  // earlier with one state shows its charge here and becomes both on change.
+  // Transport is one question (client 2026-11-05, widened 2026-11-11): "Can
+  // you transport anywhere in India?" Yes = the 'IN' region with ONE way of
+  // charging. A lot saved earlier with AP / TG shows that charge here and
+  // becomes all-India when the seller changes it.
   const rateOf = (s: TransportState): RateForm => value.rates?.[s] ?? { mode: 'per_order', amount: '', freeAbove: '' }
   const shared: RateForm = rateOf(value.states[0] ?? 'AP')
-  const bothRates = (r: RateForm) => Object.fromEntries(TRANSPORT_STATES.map((st) => [st, { ...r }])) as WholesaleForm['rates']
+  // "Yes" = anywhere in India with ONE way of charging (2026-11-11). A lot
+  // saved earlier for AP/TG shows its charge here and becomes all-India on change.
+  const bothRates = (r: RateForm) => ({ [ALL_INDIA]: { ...r } }) as WholesaleForm['rates']
   const setShared = (patch: Partial<RateForm>) =>
-    set({ states: [...TRANSPORT_STATES], rates: bothRates({ ...shared, ...patch }) })
+    set({ states: [ALL_INDIA], rates: bothRates({ ...shared, ...patch }) })
 
   const inputCls =
     'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-green-500 focus:outline-none min-h-[44px]'
@@ -73,9 +74,9 @@ export default function WholesaleFields({
     <>
             <div>
               <span className={labelCls}>
-                {L('Can you transport to both Andhra Pradesh and Telangana?', 'ఆంధ్రప్రదేశ్, తెలంగాణ రెండింటికీ రవాణా చేయగలరా?')} <span className="text-red-500">*</span>
+                {L('Can you transport anywhere in India?', 'భారతదేశంలో ఎక్కడికైనా రవాణా చేయగలరా?')} <span className="text-red-500">*</span>
               </span>
-              <div className="grid grid-cols-2 gap-2" role="group" aria-label={L('Can you transport to both Andhra Pradesh and Telangana?', 'ఆంధ్రప్రదేశ్, తెలంగాణ రెండింటికీ రవాణా చేయగలరా?')}>
+              <div className="grid grid-cols-2 gap-2" role="group" aria-label={L('Can you transport anywhere in India?', 'భారతదేశంలో ఎక్కడికైనా రవాణా చేయగలరా?')}>
                 {([
                   [true, 'Yes', 'అవును'],
                   [false, 'No — buyer collects', 'కాదు — కొనుగోలుదారు తీసుకెళ్తారు'],
@@ -86,7 +87,7 @@ export default function WholesaleFields({
                       key={String(v)}
                       type="button"
                       aria-pressed={active}
-                      onClick={() => (v ? set({ transport: true, states: [...TRANSPORT_STATES], rates: bothRates(shared) }) : set({ transport: false }))}
+                      onClick={() => (v ? set({ transport: true, states: [ALL_INDIA], rates: bothRates(shared) }) : set({ transport: false }))}
                       className={`rounded-xl px-2 py-2.5 text-xs font-bold border-2 leading-tight min-h-[44px] ${
                         active ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 bg-white text-gray-600'
                       }`}
@@ -98,11 +99,11 @@ export default function WholesaleFields({
               </div>
             </div>
 
-            {/* How they charge for transport — one choice for both states.
+            {/* How they charge for transport — one choice for all of India.
                 Blank amount = pickup only in the app (never read as free). */}
             {value.transport === true && (() => {
               const r = shared
-              const s = 'AP' as TransportState
+              const s = ALL_INDIA
               return (
               <div className="space-y-2">
                 <span className={labelCls}>{L('How do you charge for transport?', 'రవాణాకు ఎలా ఛార్జ్ చేస్తారు?')}</span>

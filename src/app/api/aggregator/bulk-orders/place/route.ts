@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   if (!UUID_RE.test(listingId)) return bad('Invalid listing.')
   const qty = Number(body.qty)
   if (!Number.isFinite(qty) || qty <= 0 || qty > 10_000_000) return bad('Invalid quantity.')
-  const delivery: Delivery = body.delivery === 'AP' || body.delivery === 'TG' ? body.delivery : 'pickup'
+  const delivery: Delivery = body.delivery === 'AP' || body.delivery === 'TG' || body.delivery === 'IN' ? body.delivery : 'pickup'
 
   const supabase = svc()
 

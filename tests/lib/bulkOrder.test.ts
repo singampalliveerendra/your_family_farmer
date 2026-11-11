@@ -167,3 +167,11 @@ describe('bulkOrderStage (My bulk orders)', () => {
     expect(bulkOrderStage({ status: 'pending', payment_status: 'completed' }).key).toBe('waiting')
   })
 })
+
+describe('bulk transport anywhere in India (2026-11-11)', () => {
+  it('a lot saved with IN offers "Anywhere in India" delivery at its one charge', () => {
+    const lot = L({ wholesale_transport_states: ['IN'], wholesale_transport_rates: { IN: { mode: 'per_order', amount: 900, free_above: null } } })
+    expect(deliveryOptions(lot).map((o) => o.delivery)).toEqual(['pickup', 'IN'])
+    expect(checkBulkOrder(lot, 200, 'IN', 0)).toMatchObject({ ok: true, transport: 900, transportState: 'IN', deliveryType: 'courier' })
+  })
+})
