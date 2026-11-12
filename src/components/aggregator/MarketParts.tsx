@@ -15,9 +15,10 @@ import { TRANSPORT_STATE_LABELS } from '@/lib/wholesale'
 export const SLATE = '#27486a'
 type T = (en: string, te: string) => string
 
-/** "Delivers in AP, TG" or "Pickup only". */
+/** "Pan India transport", "Delivers in Andhra Pradesh, Telangana" (older lots) or "Pickup only". */
 export function transportText(it: Pick<MarketItem, 'transportStates'>, L: T): string {
   if (!it.transportStates.length) return L('Pickup only', 'పికప్ మాత్రమే')
+  if (it.transportStates.includes('IN')) return L(TRANSPORT_STATE_LABELS.IN.en, TRANSPORT_STATE_LABELS.IN.te)
   const s = it.transportStates.map((x) => L(TRANSPORT_STATE_LABELS[x].en, TRANSPORT_STATE_LABELS[x].te)).join(', ')
   return L(`Delivers in ${s}`, `${s}లో డెలివరీ`)
 }
