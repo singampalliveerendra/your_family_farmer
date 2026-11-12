@@ -2359,15 +2359,34 @@ export function CartSheet({
                                 <span className="font-semibold text-gray-800">₹{dFee}</span>
                               </div>
                             )}
-                            {transported && (
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-gray-500">
-                                  🚚 {L('Transport (farmer’s courier)', 'రవాణా (రైతు కొరియర్)')}
-                                  <span className="block text-[10px] text-gray-400">{L('needs an AP / Telangana address', 'ఏపీ / తెలంగాణ చిరునామా అవసరం')}</span>
-                                </span>
-                                <span className="font-semibold text-gray-800">{tFee > 0 ? `₹${tFee}` : L('Free', 'ఉచితం')}</span>
-                              </div>
-                            )}
+                            {transported && (() => {
+                              // Cargo (pan India, 2026-11-12): nothing is paid here —
+                              // ToPay to the cargo company, or the farmer pays it.
+                              const cargo = cargoLinesOf(group)
+                              if (cargo.length) {
+                                const toPay = parcelPaidBy(cargo) === 'buyer'
+                                return (
+                                  <div className="flex items-center justify-between text-xs">
+                                    <span className="text-gray-500">
+                                      🚛 {L('Cargo · pan India', 'కార్గో · దేశవ్యాప్తంగా')}
+                                      <span className="block text-[10px] text-gray-400">
+                                        {toPay ? L('you pay the cargo company on delivery', 'డెలివరీ సమయంలో కార్గో కంపెనీకి మీరు చెల్లిస్తారు') : L('the farmer pays the cargo', 'కార్గో ఖర్చు రైతు భరిస్తారు')}
+                                      </span>
+                                    </span>
+                                    <span className="font-semibold text-gray-800">{toPay ? L('ToPay', 'ToPay') : L('Free', 'ఉచితం')}</span>
+                                  </div>
+                                )
+                              }
+                              return (
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="text-gray-500">
+                                    🚚 {L('Transport (farmer’s courier)', 'రవాణా (రైతు కొరియర్)')}
+                                    <span className="block text-[10px] text-gray-400">{L('needs an AP / Telangana address', 'ఏపీ / తెలంగాణ చిరునామా అవసరం')}</span>
+                                  </span>
+                                  <span className="font-semibold text-gray-800">{tFee > 0 ? `₹${tFee}` : L('Free', 'ఉచితం')}</span>
+                                </div>
+                              )
+                            })()}
                             {pFee > 0 && (
                               <div className="flex items-center justify-between text-xs">
                                 <span className="text-gray-500">{L('Platform fee', 'ప్లాట్‌ఫామ్ ఫీజు')} ({platformFeePercent}%)</span>

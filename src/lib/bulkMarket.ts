@@ -219,8 +219,9 @@ export function buildMarket(args: {
 export type MarketFilter = {
   q?: string
   seller?: 'all' | 'farmer' | 'aggregator'
-  /** Only sellers who deliver to this state. */
-  delivers?: TransportState | null
+  /** Only sellers who transport (pan India since 2026-11-12; any region counts,
+   *  so lots saved earlier for AP / TG still show). */
+  transports?: boolean
   category?: string | null
 }
 
@@ -228,7 +229,7 @@ export function filterMarket(items: readonly MarketItem[], f: MarketFilter): Mar
   const q = (f.q ?? '').trim().toLowerCase()
   return items.filter((it) => {
     if (f.seller && f.seller !== 'all' && it.seller.type !== f.seller) return false
-    if (f.delivers && !it.transportStates.includes(f.delivers)) return false
+    if (f.transports && !it.transportStates.length) return false
     if (f.category && it.category !== f.category) return false
     if (!q) return true
     const hay = [it.name, it.variety, it.category, it.seller.name, it.seller.village, it.seller.district, it.grower?.name, it.grower?.village]

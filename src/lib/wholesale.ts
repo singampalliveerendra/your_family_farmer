@@ -45,7 +45,7 @@ export const SALE_MODE_LABELS: Record<SaleMode, { en: string; te: string; icon: 
 export const TRANSPORT_STATE_LABELS: Record<TransportState, { en: string; te: string }> = {
   AP: { en: 'Andhra Pradesh', te: 'ఆంధ్రప్రదేశ్' },
   TG: { en: 'Telangana', te: 'తెలంగాణ' },
-  IN: { en: 'Anywhere in India', te: 'భారతదేశంలో ఎక్కడికైనా' },
+  IN: { en: 'Pan India transport', te: 'దేశవ్యాప్త రవాణా' },
 }
 
 // Column limits: numeric(8,2) for the price, numeric(10,3) for quantities

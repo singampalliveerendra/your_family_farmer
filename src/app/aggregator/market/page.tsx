@@ -31,7 +31,7 @@ export default function BulkMarketPage() {
   const [items, setItems] = useState<MarketItem[] | null>(null)
   const [access, setAccess] = useState<Access>({ buying: false, standing: 'none' })
   const [denied, setDenied] = useState(false)
-  const [f, setF] = useState<MarketFilter>({ q: '', seller: 'all', delivers: null, category: null })
+  const [f, setF] = useState<MarketFilter>({ q: '', seller: 'all', transports: false, category: null })
 
   useEffect(() => {
     void (async () => {
@@ -66,12 +66,14 @@ export default function BulkMarketPage() {
       on: f.seller === k,
       onClick: () => setF((x) => ({ ...x, seller: k })),
     })),
-    ...(['AP', 'TG'] as const).map((st) => ({
-      key: `state-${st}`,
-      label: L(`Delivers in ${st}`, `${st}లో డెలివరీ`),
-      on: f.delivers === st,
-      onClick: () => setF((x) => ({ ...x, delivers: x.delivers === st ? null : st })),
-    })),
+    // One chip since transport went pan India (client, 2026-11-12) — not
+    // "Delivers in AP" / "Delivers in TG".
+    {
+      key: 'transports',
+      label: L('Pan India transport', 'దేశవ్యాప్త రవాణా'),
+      on: !!f.transports,
+      onClick: () => setF((x) => ({ ...x, transports: !x.transports })),
+    },
     ...categories.map((c) => ({
       key: `cat-${c}`,
       label: categoryLabel(c, lang) ?? c,

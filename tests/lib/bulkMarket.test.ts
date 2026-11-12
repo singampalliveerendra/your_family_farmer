@@ -137,10 +137,11 @@ describe('filterMarket / placeOf', () => {
     expect(filterMarket(items, { q: 'ravi' }).map((i) => i.id).sort()).toEqual(['l1', 'l3'])
     expect(filterMarket(items, { q: 'tadepalli' }).map((i) => i.id)).toEqual(['l2'])
   })
-  it('by seller type, delivery state and category', () => {
+  it('by seller type, "Pan India transport" and category', () => {
     expect(filterMarket(items, { seller: 'aggregator' }).map((i) => i.id)).toEqual(['l2'])
-    expect(filterMarket(items, { delivers: 'AP' }).map((i) => i.id)).toEqual(['l1'])
-    expect(filterMarket(items, { delivers: 'TG' }).map((i) => i.id).sort()).toEqual(['l1', 'l2'])
+    // Any seller who transports — older AP / TG lots included (2026-11-12).
+    expect(filterMarket(items, { transports: true }).map((i) => i.id).sort()).toEqual(['l1', 'l2'])
+    expect(filterMarket(items, { transports: false }).map((i) => i.id).sort()).toEqual(['l1', 'l2', 'l3'])
     expect(filterMarket(items, { category: 'bulbs' }).map((i) => i.id)).toEqual(['l2'])
   })
   it('no filter = everything', () => {
@@ -168,5 +169,23 @@ describe('pack price on a market lot (2026-11-10)', () => {
   it('carries the typed pack price; none without a pack', () => {
     expect(toMarketItem(L({ wholesale_pack_size: 25, wholesale_min_qty: 25, wholesale_pack_price: 700 }), [H()], FARMER, null, false).packPrice).toBe(700)
     expect(toMarketItem(L({ wholesale_pack_size: null, wholesale_pack_price: 700 }), [H()], FARMER, null, false).packPrice).toBeNull()
+  })
+})
+
+// Client, 2026-11-12: the bulk market still showed "Delivers in AP" /
+// "Delivers in TG" chips after transport went pan India. One chip now.
+describe('pan India transport in the bulk market', () => {
+  it('the market page has one "Pan India transport" chip, no per-state chips', async () => {
+    const { readFileSync } = await import('node:fs')
+    const page = readFileSync('src/app/aggregator/market/page.tsx', 'utf8')
+    expect(page).toContain("L('Pan India transport', 'దేశవ్యాప్త రవాణా')")
+    expect(page).not.toMatch(/\['AP', 'TG'\]|Delivers in \$\{st\}/)
+  })
+  it('a lot card reads "Pan India transport"; older AP/TG lots keep their states', async () => {
+    const { transportText } = await import('@/components/aggregator/MarketParts')
+    const en = (e: string) => e
+    expect(transportText({ transportStates: ['IN'] }, en)).toBe('Pan India transport')
+    expect(transportText({ transportStates: ['AP', 'TG'] }, en)).toBe('Delivers in Andhra Pradesh, Telangana')
+    expect(transportText({ transportStates: [] }, en)).toBe('Pickup only')
   })
 })
