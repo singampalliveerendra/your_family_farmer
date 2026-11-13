@@ -260,6 +260,7 @@ export default function ConsumerOrdersPage() {
                   onAcknowledge={acknowledge}
                   onConfirmReceipt={confirmReceipt}
                   onCancel={setCancellingOrder}
+                  onPaid={() => void refresh(true)}
                   busy={busyId === order.id}
                 />
               ))

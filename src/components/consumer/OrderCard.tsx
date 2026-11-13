@@ -8,6 +8,8 @@ import { cashDue, isGatewayMethod } from '@/lib/payment'
 import { formatQty } from '@/lib/saleStep'
 import type { MyReview } from '@/components/consumer/ProduceReviewBox'
 import { canGiveFeedback, isOrderCompleted } from '@/lib/orderFeedback'
+import { canPayNow } from '@/lib/payPending'
+import PayNowButton from '@/components/consumer/PayNowButton'
 
 type DeliveryStatus = 'unassigned' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered'
 
@@ -121,6 +123,7 @@ export default function OrderCard({
   onAcknowledge,
   onConfirmReceipt,
   onCancel,
+  onPaid,
   busy = false,
 }: {
   order: ConsumerOrder
@@ -132,6 +135,8 @@ export default function OrderCard({
   onConfirmReceipt?: (order: ConsumerOrder) => void
   // Cancel a still-pending order (opens the reason modal in the parent).
   onCancel?: (order: ConsumerOrder) => void
+  // A Pay Now payment went through — the parent refetches the list.
+  onPaid?: () => void
   // The parent is mid-request for this card (disables the action buttons).
   busy?: boolean
 }) {
@@ -205,6 +210,12 @@ export default function OrderCard({
       }
     }
     if (!order.payment_method || order.payment_method === 'cod') return null
+    // Not paid yet — the Pay Now button below takes the payment (2026-11-13).
+    if (canPayNow(order)) {
+      return order.payment_status === 'failed'
+        ? { label: L('✕ Payment failed', '✕ చెల్లింపు విఫలమైంది'), cls: 'bg-red-100 text-red-700' }
+        : { label: L('⏳ Payment pending', '⏳ చెల్లింపు పెండింగ్'), cls: 'bg-amber-100 text-amber-800' }
+    }
     // Online payments go through the gateway (Cashfree; Razorpay before 2026-09-18).
     if (isGatewayMethod(order.payment_method) && order.payment_status === 'paid') {
       return { label: L('✓ Paid online', 'ఆన్‌లైన్ చెల్లించారు'), cls: 'bg-green-100 text-green-800' }
@@ -329,6 +340,13 @@ export default function OrderCard({
                   `మీ చెల్లింపు Rs.${order.total_price ?? 0} 3-5 పని దినాలలో తిరిగి వస్తుంది`,
                 )}
               </p>
+            </div>
+          )}
+
+          {/* Pay Now — online payment still pending or failed (2026-11-13). */}
+          {canPayNow(order) && (
+            <div className="mt-1">
+              <PayNowButton orderId={order.id} onPaid={onPaid} compact />
             </div>
           )}
 
