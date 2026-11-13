@@ -18,6 +18,7 @@ import { haversineKm, nearestTown, nearestPlace, formatDistance, farmerCoords, t
 import { reachFor, type Buyer, type Reachability } from '@/lib/retailReach'
 import { todayInIndia, isPastDate } from '@/lib/date'
 import LocationSearch from '@/components/LocationSearch'
+import { DEFAULT_FEED_LOCATION_FILTER, FEED_LOCATION_FILTERS, FEED_LOCATION_LABELS, passesLocationFilter, type FeedLocationFilter } from '@/lib/feedLocation'
 import { matchesProduceQuery, matchesCategoryKeywords } from '@/lib/produceSearch'
 import { normalizeStep, stepUp, stepDown, formatQty } from '@/lib/saleStep'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
@@ -211,15 +212,11 @@ export default function ConsumerPage() {
   const [consumerLng, setConsumerLng]           = useState<number | null>(null)
   const [consumerLocationName, setConsumerLocationName] = useState('')
   const [showLocationSheet, setShowLocationSheet]       = useState(false)
-  // Default to "< 25 km", not "All". The point of the app is buying from a
-  // farmer near you, and an unfiltered feed led with produce hundreds of km
-  // away that nobody was going to collect. Only bites once a location is set —
-  // without one the filter can't run at all, so a new visitor still sees
-  // everything. "All" stays one tap away, and the empty state offers to clear
-  // it when nothing is in range.
-  // 'reach' (default): what delivers to the buyer — local produce within each
-  // farmer's radius + transportable produce for the buyer's state (2026-11-05).
-  const [distanceFilter, setDistanceFilter]             = useState<number | null | 'reach'>('reach')
+  // Local · Far Away · All (client 2026-11-13, replacing "Delivers to me" and
+  // the 5 / 10 / 25 km chips). Default Local: the point of the app is buying
+  // from a farmer near you. Only bites once a location is set — without one
+  // the feed shows everything (src/lib/feedLocation.ts).
+  const [distanceFilter, setDistanceFilter]             = useState<FeedLocationFilter>(DEFAULT_FEED_LOCATION_FILTER)
 
   // When the feed was last fetched, so tab-focus refetches can be skipped if
   // the data is still fresh (flicking between apps used to refetch every time).
@@ -396,12 +393,8 @@ export default function ConsumerPage() {
 
     // Filter by farmer.
     if (farmerFilter !== 'all') items = items.filter((i) => i.farmer_id === farmerFilter)
-    // Filter by distance (only meaningful once a location is set).
-    if (consumerLat && consumerLng && distanceFilter === 'reach') {
-      items = items.filter((i) => i.reach.show)
-    } else if (consumerLat && consumerLng && typeof distanceFilter === 'number') {
-      items = items.filter((i) => i.distKm !== null && i.distKm <= distanceFilter)
-    }
+    // Local / Far Away (a no-op until a location is set — reach is 'unknown').
+    items = items.filter((i) => passesLocationFilter(i.reach, distanceFilter))
 
     const ts = (iso: string | null | undefined) => {
       const t = iso ? new Date(iso).getTime() : NaN
@@ -534,13 +527,35 @@ export default function ConsumerPage() {
             {L('Straight from the farm. No Middlemen', 'నేరుగా పొలం నుండి. మధ్యవర్తులు లేరు')}
           </p>
 
-          {/* Location on the right. My orders lives on the bottom bar's Orders
-              tab (with its badge), so there is no second link up here. */}
-          <div className="mt-5 flex items-center gap-2">
+          {/* Local · Far Away · All, then Location on the right. My orders
+              lives on the bottom bar's Orders tab (with its badge), so there
+              is no second link up here. Local / Far Away need a location, so
+              without one a tap opens the location sheet. */}
+          <div className="mt-5 flex items-center gap-1.5">
+            <div className="flex gap-1.5 min-w-0" role="group" aria-label={L('Show harvests from', 'ఎక్కడి కోతలు చూపించాలి')}>
+              {FEED_LOCATION_FILTERS.map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  aria-pressed={distanceFilter === f}
+                  onClick={() => {
+                    setDistanceFilter(f)
+                    if (f !== 'all' && !(consumerLat && consumerLng)) setShowLocationSheet(true)
+                  }}
+                  className={`flex-shrink-0 rounded-full px-3 py-2 text-xs font-bold leading-tight border transition-colors ${
+                    distanceFilter === f
+                      ? 'bg-white text-green-800 border-white'
+                      : 'bg-green-800 text-green-100 border-green-700 active:bg-green-700'
+                  }`}
+                >
+                  {L(FEED_LOCATION_LABELS[f].en, FEED_LOCATION_LABELS[f].te)}
+                </button>
+              ))}
+            </div>
             <button
               onClick={() => setShowLocationSheet(true)}
               aria-label={L('Set location', 'లొకేషన్ పెట్టండి')}
-              className="ml-auto inline-flex items-center gap-1 text-xs font-bold text-green-100 bg-green-800 active:bg-green-700 rounded-full px-3 py-2 leading-tight max-w-[160px]"
+              className="ml-auto inline-flex min-w-0 items-center gap-1 text-xs font-bold text-green-100 bg-green-800 active:bg-green-700 rounded-full px-3 py-2 leading-tight max-w-[140px]"
             >
               <span aria-hidden>📍</span>
               <span className="truncate">{consumerLocationName || L('Set location', 'లొకేషన్ పెట్టండి')}</span>
@@ -602,27 +617,6 @@ export default function ConsumerPage() {
         <ProduceChipRow chips={CATEGORIES.map((chip) => ({ key: chip.key, label: L(chip.en, chip.te), on: category === chip.key, onClick: () => setCategory(chip.key) }))} />
       </div>
 
-      {/* ── Distance filter chips (only when location set) ── */}
-      {consumerLat && consumerLng && (
-        <div className="max-w-3xl mx-auto mt-3 px-4">
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-            {(['reach', 5, 10, 25, null] as const).map((d) => (
-              <button
-                key={d ?? 'all'}
-                onClick={() => setDistanceFilter(d)}
-                className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold border transition-all ${
-                  distanceFilter === d
-                    ? 'bg-green-700 text-white border-green-700'
-                    : 'bg-white text-gray-700 border-gray-200'
-                }`}
-              >
-                {d === 'reach' ? L('🚚 Delivers to me', '🚚 నాకు డెలివరీ') : d === null ? L('All', 'అన్నీ') : `< ${d} km`}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* ── Available now ────────────────────── */}
       <div className="max-w-3xl mx-auto px-3 mt-6">
         <div className="flex items-end justify-between mb-4">
@@ -642,11 +636,11 @@ export default function ConsumerPage() {
         {loading ? (
           <LoadingSkeleton />
         ) : displayItems.length === 0 ? (
-          // Blame the distance filter only when it actually ran. It now defaults
-          // to 25 km, but with no location set nothing was filtered out, so an
-          // empty grid there means "no produce", not "none nearby".
-          distanceFilter && consumerLat && consumerLng ? (
-            <DistanceEmptyState km={distanceFilter === 'reach' ? null : distanceFilter} area={buyer ? nearestPlace(buyer.lat, buyer.lng).name : null} onClear={() => setDistanceFilter(null)} />
+          // Blame the location filter only when it actually ran. With no
+          // location set nothing was filtered out, so an empty grid there
+          // means "no produce", not "none nearby".
+          distanceFilter !== 'all' && consumerLat && consumerLng ? (
+            <DistanceEmptyState filter={distanceFilter} area={buyer ? nearestPlace(buyer.lat, buyer.lng).name : null} onClear={() => setDistanceFilter('all')} />
           ) : (
             <EmptyState />
           )
@@ -1123,15 +1117,15 @@ function LoadingSkeleton() {
 }
 
 /* ─── Distance empty state ──────────────────────────────── */
-function DistanceEmptyState({ km, area, onClear }: { km: number | null; area?: string | null; onClear: () => void }) {
+function DistanceEmptyState({ filter, area, onClear }: { filter: 'local' | 'far'; area?: string | null; onClear: () => void }) {
   const { L } = useLang()
   return (
     <div className="text-center py-14">
       <div className="text-6xl mb-4">📍</div>
       <p className="text-gray-800 font-bold text-lg">
-        {km === null
-          ? L(`No farmer delivers to ${area ?? 'your area'} yet`, `${area ?? 'మీ ప్రాంతానికి'} ఇంకా ఏ రైతూ డెలివరీ చేయడం లేదు`)
-          : L(`No farmers within ${km} km`, `${km} కి.మీ లోపల రైతులు లేరు`)}
+        {filter === 'local'
+          ? L(`No local farmers near ${area ?? 'you'} yet`, `${area ?? 'మీ'} దగ్గర ఇంకా స్థానిక రైతులు లేరు`)
+          : L(`No far-away farmer sends to ${area ?? 'your area'} yet`, `దూరంలోని ఏ రైతూ ఇంకా ${area ?? 'మీ ప్రాంతానికి'} పంపడం లేదు`)}
       </p>
       <p className="text-gray-400 text-xs mt-2 leading-snug px-8">
         {L('Farmers nearby may not have set their location yet.', 'దగ్గరలోని రైతులు ఇంకా లొకేషన్ పెట్టలేదు.')}
