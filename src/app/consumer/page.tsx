@@ -18,7 +18,7 @@ import { haversineKm, nearestTown, nearestPlace, formatDistance, farmerCoords, t
 import { reachFor, type Buyer, type Reachability } from '@/lib/retailReach'
 import { todayInIndia, isPastDate } from '@/lib/date'
 import LocationSearch from '@/components/LocationSearch'
-import { DEFAULT_FEED_LOCATION_FILTER, FEED_LOCATION_FILTERS, FEED_LOCATION_LABELS, passesLocationFilter, type FeedLocationFilter } from '@/lib/feedLocation'
+import { DEFAULT_FEED_LOCATION_FILTER, FEED_LOCATION_FILTERS, FEED_LOCATION_LABELS, loadFeedLocationFilter, passesLocationFilter, saveFeedLocationFilter, sessionStore, type FeedLocationFilter } from '@/lib/feedLocation'
 import { matchesProduceQuery, matchesCategoryKeywords } from '@/lib/produceSearch'
 import { normalizeStep, stepUp, stepDown, formatQty } from '@/lib/saleStep'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
@@ -216,7 +216,17 @@ export default function ConsumerPage() {
   // the 5 / 10 / 25 km chips). Default Local: the point of the app is buying
   // from a farmer near you. Only bites once a location is set — without one
   // the feed shows everything (src/lib/feedLocation.ts).
-  const [distanceFilter, setDistanceFilter]             = useState<FeedLocationFilter>(DEFAULT_FEED_LOCATION_FILTER)
+  const [distanceFilter, setDistanceFilterState]        = useState<FeedLocationFilter>(DEFAULT_FEED_LOCATION_FILTER)
+  // The buyer's pick sticks until the app is closed (sessionStorage). Read
+  // after mount so the server render and the first client render agree.
+  useEffect(() => {
+    const saved = loadFeedLocationFilter(sessionStore())
+    if (saved !== DEFAULT_FEED_LOCATION_FILTER) setDistanceFilterState(saved)
+  }, [])
+  const setDistanceFilter = useCallback((f: FeedLocationFilter) => {
+    setDistanceFilterState(f)
+    saveFeedLocationFilter(sessionStore(), f)
+  }, [])
 
   // When the feed was last fetched, so tab-focus refetches can be skipped if
   // the data is still fresh (flicking between apps used to refetch every time).

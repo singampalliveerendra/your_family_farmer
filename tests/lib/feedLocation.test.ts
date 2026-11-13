@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { DEFAULT_FEED_LOCATION_FILTER, passesLocationFilter } from '@/lib/feedLocation'
+import { DEFAULT_FEED_LOCATION_FILTER, loadFeedLocationFilter, parseFeedLocationFilter, passesLocationFilter, saveFeedLocationFilter } from '@/lib/feedLocation'
 import { reachFor } from '@/lib/retailReach'
 
 // Client 2026-11-13: the buyer feed filters by Local · Far Away · All (default
@@ -56,5 +56,35 @@ describe('feed location filter', () => {
     expect(page).toContain('FEED_LOCATION_FILTERS')
     expect(page).not.toContain("'reach', 5, 10, 25")
     expect(page).not.toContain("L('🚚 Delivers to me'")
+  })
+})
+
+// Client 2026-11-13: the buyer's pick stays until they close the app.
+describe('the pick sticks for the session', () => {
+  const store = () => {
+    const m = new Map<string, string>()
+    return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) }
+  }
+  it('saved, then read back on the next open of the page', () => {
+    const s = store()
+    expect(loadFeedLocationFilter(s)).toBe('local')
+    saveFeedLocationFilter(s, 'all')
+    expect(loadFeedLocationFilter(s)).toBe('all')
+    saveFeedLocationFilter(s, 'far')
+    expect(loadFeedLocationFilter(s)).toBe('far')
+  })
+  it('junk, nothing, or blocked storage → Local, never a crash', () => {
+    expect(parseFeedLocationFilter('25')).toBe('local')
+    expect(parseFeedLocationFilter(null)).toBe('local')
+    expect(loadFeedLocationFilter(null)).toBe('local')
+    const blocked = { getItem: () => { throw new Error('blocked') }, setItem: () => { throw new Error('blocked') } }
+    expect(loadFeedLocationFilter(blocked)).toBe('local')
+    expect(() => saveFeedLocationFilter(blocked, 'all')).not.toThrow()
+  })
+  it('kept in sessionStorage (cleared when the app closes), not localStorage', () => {
+    const page = readFileSync(join(__dirname, '../../src/app/consumer/page.tsx'), 'utf8')
+    expect(page).toMatch(/loadFeedLocationFilter\(sessionStore\(\)\)/)
+    expect(page).toMatch(/saveFeedLocationFilter\(sessionStore\(\), f\)/)
+    expect(page).not.toMatch(/localStorage[^\n]*yff_feed_location_filter/)
   })
 })
