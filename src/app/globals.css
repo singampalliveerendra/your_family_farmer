@@ -10,6 +10,34 @@
  * by src/lib/homeTheme.ts. */
 @custom-variant dark (&:where(.gg-dark, .gg-dark *));
 
+/* ── Readability (client 2026-11-13): slightly bigger small text ──
+   The small sizes were hard to read on phones. Each is nudged up ~1px —
+   more on phones — and nothing else changes: line heights in Tailwind's scale
+   are ratios, so they follow. Plain (unlayered) CSS here beats the utility
+   layer, so the arbitrary px sizes used across the app move too; sm:/md:
+   sizes at wider screens are untouched. */
+@theme {
+  --text-xs: 0.78125rem;  /* 12.5px, was 12 */
+  --text-sm: 0.90625rem;  /* 14.5px, was 14 */
+}
+@media (max-width: 639px) {
+  :root {
+    --text-xs: 0.8125rem;  /* 13px on phones */
+    --text-sm: 0.9375rem;  /* 15px on phones */
+  }
+  .text-\[9px\]  { font-size: 10.5px; }
+  .text-\[10px\] { font-size: 11.5px; }
+  .text-\[11px\] { font-size: 12.5px; }
+  .text-\[12px\] { font-size: 13px; }
+  .text-\[13px\] { font-size: 14px; }
+}
+/* Wider screens: a smaller nudge, and never over an element's own sm:/md:/lg: size. */
+@media (min-width: 640px) {
+  .text-\[9px\]:not([class*="sm:text-"]):not([class*="md:text-"]):not([class*="lg:text-"])  { font-size: 10px; }
+  .text-\[10px\]:not([class*="sm:text-"]):not([class*="md:text-"]):not([class*="lg:text-"]) { font-size: 11px; }
+  .text-\[11px\]:not([class*="sm:text-"]):not([class*="md:text-"]):not([class*="lg:text-"]) { font-size: 12px; }
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: #f9fafb;
