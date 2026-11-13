@@ -8,6 +8,8 @@ import LanguageToggle from '@/components/LanguageToggle'
 import { useLang } from '@/lib/LanguageContext'
 import { localizeName } from '@/lib/localizeName'
 import { isGatewayMethod, isOrderPaid, isPaymentClaimed } from '@/lib/payment'
+import { canPayNow } from '@/lib/payPending'
+import PayNowButton from '@/components/consumer/PayNowButton'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { supabase } from '@/lib/supabase'
 import { formatQty } from '@/lib/saleStep'
@@ -121,6 +123,17 @@ export default function OrderDetailsPage() {
   // The buyer no longer self-confirms delivery. For every farmer-fulfilled type
   // the farmer (or rider) closes the order by entering the buyer's handover code
   // at the door / at the farm. The buyer just shows their code.
+
+  // After Pay Now: read the order again so it shows Paid.
+  const refetchOrder = () => {
+    if (!id) return
+    fetch(`/api/consumer/orders/${id}`, { credentials: 'same-origin' })
+      .then(async (r) => {
+        const json = await r.json().catch(() => ({}))
+        if (r.ok && json.order) setOrder(json.order as Order)
+      })
+      .catch(() => {})
+  }
 
   const handleCancel = async (reason: string) => {
     if (!order) return
@@ -430,6 +443,13 @@ export default function OrderDetailsPage() {
                   {order.pickup_phone && (
                     <p className="text-xs text-gray-600">📞 +91 {order.pickup_phone}</p>
                   )}
+                </div>
+              )}
+
+              {/* Pay Now — online payment still pending or failed (2026-11-13). */}
+              {canPayNow(order) && (
+                <div className="mt-3">
+                  <PayNowButton orderId={order.id} onPaid={refetchOrder} />
                 </div>
               )}
 
