@@ -110,7 +110,8 @@ describe('privacy and wiring', () => {
       expect(src(p)).toMatch(/<DeliveryFields\b/)
       expect(src(p)).not.toMatch(/<RetailReachFields\b/)
     }
-    expect(src('src/app/consumer/page.tsx')).toMatch(/useState<number \| null \| 'reach'>\('reach'\)/)
+    // Feed default is Local (reach.kind 'local') since 2026-11-13 — see tests/lib/feedLocation.test.ts.
+    expect(src('src/app/consumer/page.tsx')).toMatch(/passesLocationFilter\(i\.reach, distanceFilter\)/)
     for (const p of ['src/app/consumer/produce/[id]/page.tsx', 'src/app/consumer/harvest/[harvestId]/page.tsx']) expect(src(p)).toMatch(/transportCharge: transport\.charge/)
     expect(src('src/components/consumer/Cart.tsx')).toMatch(/deliveryType: isTransported\(it\) \? 'courier'/)
   })
