@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { billView, canBill, cargoBillPath, parseTransportBill, type BillOrder } from '@/lib/transportBill'
-import { isBilledAfterDelivery, normalizeRates, resolveWholesaleForm, EMPTY_WHOLESALE_FORM, OFFERED_TRANSPORT_MODES } from '@/lib/wholesale'
+import { isBilledAfterDelivery, normalizeRates, resolveWholesale, EMPTY_WHOLESALE_FORM, OFFERED_TRANSPORT_MODES } from '@/lib/wholesale'
 import { checkBulkOrder, rateText, transportCharge, type BulkListing } from '@/lib/bulkOrder'
 import { planHighlight, needsSubscribeNudge } from '@/lib/planHighlight'
 import type { PlanRow } from '@/lib/subscriptionPlans'
@@ -58,7 +58,9 @@ describe('transport bill', () => {
 })
 
 describe('transport rates on the lot', () => {
-  const form = (rates: Record<string, unknown>) => resolveWholesaleForm({ ...EMPTY_WHOLESALE_FORM, saleMode: 'wholesale', price: '30', minQty: '100', transport: true, states: ['AP'], rates: rates as never }, 'kg')
+  // The form no longer sends rates (2026-11-13); the save rules still apply
+  // to an older client that does.
+  const form = (rates: Record<string, unknown>) => resolveWholesale({ ...EMPTY_WHOLESALE_FORM, saleMode: 'wholesale', price: '30', minQty: '100', transport: true, states: ['AP'], rates: rates as never, unit: 'kg' })
   it('the form offers per order, per km and cargo bill (not per kg)', () => {
     expect([...OFFERED_TRANSPORT_MODES]).toEqual(['per_order', 'per_km', 'cargo_bill'])
   })
@@ -131,17 +133,12 @@ describe('wired in', () => {
   })
 })
 
-describe('transport is one question (client, 2026-11-05)', () => {
+// The wholesale transport question (2026-11-05, widened 2026-11-11) left the
+// form on 2026-11-13: bulk delivery follows the produce's Courier setting.
+// Old lots saved with per km / cargo bill keep billing after delivery until edited.
+describe('no wholesale transport question (client 2026-11-13)', () => {
   const src = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
-  const f = src('src/components/WholesaleFields.tsx')
-  it('asks once, for anywhere in India, with Yes / No — buyer collects (2026-11-11)', () => {
-    expect(f).toMatch(/Can you transport anywhere in India\?/)
-    expect(f).toMatch(/'No — buyer collects'/)
-    expect(f).not.toMatch(/Where can you transport\?/)
-  })
-  it('Yes saves the all-India region, with one charge', () => {
-    expect(f).toMatch(/set\(\{ transport: true, states: \[ALL_INDIA\], rates: bothRates\(shared\) \}\)/)
-    expect(f).toMatch(/How do you charge for transport\?/)
-    expect(f).not.toMatch(/setRate\(/)
+  it('the component is gone from the codebase', () => {
+    expect(() => src('src/components/WholesaleFields.tsx')).toThrow()
   })
 })

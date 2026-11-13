@@ -15,11 +15,16 @@ import { TRANSPORT_STATE_LABELS } from '@/lib/wholesale'
 export const SLATE = '#27486a'
 type T = (en: string, te: string) => string
 
-/** "Pan India transport", "Delivers in Andhra Pradesh, Telangana" (older lots) or "Pickup only". */
-export function transportText(it: Pick<MarketItem, 'transportStates'>, L: T): string {
-  if (!it.transportStates.length) return L('Pickup only', 'పికప్ మాత్రమే')
-  if (it.transportStates.includes('IN')) return L(TRANSPORT_STATE_LABELS.IN.en, TRANSPORT_STATE_LABELS.IN.te)
-  const s = it.transportStates.map((x) => L(TRANSPORT_STATE_LABELS[x].en, TRANSPORT_STATE_LABELS[x].te)).join(', ')
+/** "Pan India transport", "Delivers nearby", "Delivers in Andhra Pradesh, Telangana"
+ *  (older lots) or "Pickup only" — from the lot's delivery options, which follow
+ *  the produce's Courier setting since 2026-11-13. */
+export function transportText(it: Pick<MarketItem, 'delivery'>, L: T): string {
+  const ways = it.delivery.filter((d) => d.delivery !== 'pickup')
+  if (!ways.length) return L('Pickup only', 'పికప్ మాత్రమే')
+  if (ways.some((d) => d.delivery === 'IN')) return L(TRANSPORT_STATE_LABELS.IN.en, TRANSPORT_STATE_LABELS.IN.te)
+  const states = ways.flatMap((d) => (d.delivery === 'AP' || d.delivery === 'TG' ? [d.delivery] : []))
+  if (!states.length) return L('Delivers nearby', 'దగ్గరలో డెలివరీ')
+  const s = states.map((x) => L(TRANSPORT_STATE_LABELS[x].en, TRANSPORT_STATE_LABELS[x].te)).join(', ')
   return L(`Delivers in ${s}`, `${s}లో డెలివరీ`)
 }
 

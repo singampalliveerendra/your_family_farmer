@@ -5,7 +5,7 @@ import { requireAggregator, svc } from '@/lib/aggregator-auth'
 import { cashfreeMode, createCashfreeOrder, makeCashfreeOrderId } from '@/lib/cashfree'
 import { rateLimit } from '@/lib/rate-limit'
 import { onMarket, type MarketHarvestRow, type MarketListingRow, type MarketSellerRow } from '@/lib/bulkMarket'
-import { checkBulkAddress, checkBulkOrder, pickHarvest, type BulkListing, type Delivery } from '@/lib/bulkOrder'
+import { BULK_COURIER_COLUMNS, checkBulkAddress, checkBulkOrder, pickHarvest, type BulkListing, type Delivery } from '@/lib/bulkOrder'
 import { getBulkFeePercent } from '@/lib/bulkOrderServer'
 import { scheduleWholesaleLowStockCheck } from '@/lib/wholesaleLowStockAlert'
 import { wholesaleStock } from '@/lib/wholesaleVisibility'
@@ -16,7 +16,9 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 // An aggregator buys one bulk lot (Phase 6):
-//   { listingId, qty, delivery: 'pickup' | 'AP' | 'TG', address? }
+//   { listingId, qty, delivery: 'pickup' | 'IN' | 'local' | 'AP' | 'TG', address? }
+// ('IN' = cargo anywhere in India, 'local' = the seller's Local delivery —
+// both from the produce's Courier setting since 2026-11-13; AP / TG = old lots.)
 // Requires a Buying (or Combined) plan. Paid online through Cashfree only —
 // there is no cash option for bulk (decision 2026-11-04). Everything that
 // costs money is worked out HERE from the live listing (checkBulkOrder): the
@@ -43,7 +45,7 @@ export async function POST(req: NextRequest) {
   if (!UUID_RE.test(listingId)) return bad('Invalid listing.')
   const qty = Number(body.qty)
   if (!Number.isFinite(qty) || qty <= 0 || qty > 10_000_000) return bad('Invalid quantity.')
-  const delivery: Delivery = body.delivery === 'AP' || body.delivery === 'TG' || body.delivery === 'IN' ? body.delivery : 'pickup'
+  const delivery: Delivery = body.delivery === 'AP' || body.delivery === 'TG' || body.delivery === 'IN' || body.delivery === 'local' ? body.delivery : 'pickup'
 
   const supabase = svc()
 
@@ -54,10 +56,13 @@ export async function POST(req: NextRequest) {
     .eq('aggregator_id', agg.id)
   if (!accessOf((subs ?? []) as SubscriptionRow[]).buying) return bad('A Buying plan is needed to order in bulk.', 403)
 
-  const { data: listing, error: lErr } = await supabase.from('produce_listings').select(LISTING_COLUMNS).eq('id', listingId).maybeSingle()
+  // With the Courier columns (bulk delivery follows them since 2026-11-13);
+  // a database without them falls back to the old per-state rates.
+  let { data: listing, error: lErr } = await supabase.from('produce_listings').select(`${LISTING_COLUMNS}, ${BULK_COURIER_COLUMNS}`).eq('id', listingId).maybeSingle()
+  if (lErr) ({ data: listing, error: lErr } = await supabase.from('produce_listings').select(LISTING_COLUMNS).eq('id', listingId).maybeSingle())
   if (lErr) return bad('Bulk ordering is not switched on yet. Please try again later.', 503)
   if (!listing) return bad('This bulk lot is not available any more.', 404)
-  const l = listing as MarketListingRow & BulkListing
+  const l = { ...(listing as unknown as MarketListingRow & BulkListing), delivery_options: undefined }
 
   const [{ data: sellerRow }, { data: harvestRows }, { data: me }] = await Promise.all([
     supabase.from('farmers').select('id, name, village, district, state, phone, farm_address, account_type, active, pickup_locations').eq('id', l.farmer_id).maybeSingle(),

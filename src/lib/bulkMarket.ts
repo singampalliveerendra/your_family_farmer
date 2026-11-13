@@ -20,8 +20,7 @@
 
 import { parseSaleMode, normalizeStates, type TransportState } from '@/lib/wholesale'
 import { wholesaleQtyRules } from '@/lib/wholesaleOrder'
-import { deliveryOptions, type Delivery } from '@/lib/bulkOrder'
-import type { TransportRate } from '@/lib/wholesale'
+import { deliveryOptions, type DeliveryOption } from '@/lib/bulkOrder'
 import { isWholesaleLowStock, wholesaleStock, type StockHarvest } from '@/lib/wholesaleVisibility'
 
 export type MarketListingRow = {
@@ -46,6 +45,13 @@ export type MarketListingRow = {
   wholesale_transport_states?: unknown
   /** Per-state delivery charges (scripts/bulk-orders-migration.sql); absent before it runs. */
   wholesale_transport_rates?: unknown
+  /** The Delivery step (scripts/courier-options-migration.sql) — bulk delivery follows it since 2026-11-13. */
+  delivery_mode?: string | null
+  courier_type?: string | null
+  cargo_services?: unknown
+  delivery_paid_by?: string | null
+  delivery_charge?: number | string | null
+  delivery_radius_km?: number | string | null
   source_farmer_id?: string | null
   method?: string | null
   description?: string | null
@@ -88,8 +94,9 @@ export type MarketItem = {
   /** ₹ for one pack, as the seller typed it; null = priced per unit. */
   packPrice: number | null
   transportStates: TransportState[]
-  /** Where the lot can go in the app and what delivery costs (Phase 6). */
-  delivery: Array<{ delivery: Delivery; rate: TransportRate | null }>
+  /** Where the lot can go in the app and what delivery costs (Phase 6;
+   *  from the produce's Courier setting since 2026-11-13). */
+  delivery: DeliveryOption[]
   /** What can go in one bulk order now (best single harvest); null = not tracked. */
   stock: number | null
   harvestedAt: string | null
@@ -220,7 +227,8 @@ export type MarketFilter = {
   q?: string
   seller?: 'all' | 'farmer' | 'aggregator'
   /** Only sellers who transport (pan India since 2026-11-12; any region counts,
-   *  so lots saved earlier for AP / TG still show). */
+   *  so lots saved earlier for AP / TG still show). Since 2026-11-13 Cargo on
+   *  the Courier setting counts; Local delivery (nearby only) does not. */
   transports?: boolean
   category?: string | null
 }
@@ -229,13 +237,18 @@ export function filterMarket(items: readonly MarketItem[], f: MarketFilter): Mar
   const q = (f.q ?? '').trim().toLowerCase()
   return items.filter((it) => {
     if (f.seller && f.seller !== 'all' && it.seller.type !== f.seller) return false
-    if (f.transports && !it.transportStates.length) return false
+    if (f.transports && !sendsFar(it)) return false
     if (f.category && it.category !== f.category) return false
     if (!q) return true
     const hay = [it.name, it.variety, it.category, it.seller.name, it.seller.village, it.seller.district, it.grower?.name, it.grower?.village]
       .filter(Boolean).join(' ').toLowerCase()
     return hay.includes(q)
   })
+}
+
+/** Does this lot go beyond the seller's area — Cargo, or an old per-state rate? */
+export function sendsFar(it: Pick<MarketItem, 'delivery'>): boolean {
+  return it.delivery.some((d) => d.delivery !== 'pickup' && d.delivery !== 'local')
 }
 
 /** The seller's place line: "Pentapadu, West Godavari". */

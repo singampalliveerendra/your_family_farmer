@@ -265,10 +265,11 @@ export function resolveWholesale(input: {
     price = p
   }
 
-  const transport = parseTransport(input.transport)
-  if (transport === null) {
-    return fail('Can you transport wholesale orders? Choose Yes or No.', 'హోల్‌సేల్ ఆర్డర్లను మీరు రవాణా చేయగలరా? అవును లేదా కాదు ఎంచుకోండి.')
-  }
+  // The "Can you transport anywhere in India?" question left the form
+  // (client 2026-11-13): bulk delivery now follows the produce's Courier
+  // setting (bulkOrder.ts deliveryOptions). Not answered = no wholesale-only
+  // transport. An older caller that still sends Yes + states keeps working.
+  const transport = parseTransport(input.transport) ?? false
   const states = transport ? normalizeStates(input.states) : []
   if (transport && states.length === 0) {
     return fail('Choose Yes or No for transport.', 'రవాణాకు అవును లేదా కాదు ఎంచుకోండి.')
@@ -319,10 +320,15 @@ export function resolveWholesale(input: {
   }
 }
 
-/** Same as resolveWholesale, from the dashboard/moderator form state. */
+/** Same as resolveWholesale, from the dashboard/moderator form state. The
+ *  form no longer asks about wholesale transport (2026-11-13), so a save
+ *  clears any old wholesale-only transport and the lot follows Courier. */
 export function resolveWholesaleForm(form: WholesaleForm, unit?: string | null): WholesaleResult {
-  return resolveWholesale({ ...form, unit })
+  return resolveWholesale({ ...form, ...NO_WHOLESALE_TRANSPORT, unit })
 }
+
+/** What the form saves for transport now: none of its own — Courier decides. */
+export const NO_WHOLESALE_TRANSPORT = { transport: false, states: [] as TransportState[], rates: {} as WholesaleForm['rates'] }
 
 /**
  * Read a JSON request body (moderator API). Accepts the column names, so the
@@ -363,6 +369,9 @@ export function resolveWholesaleColumns(
     return { ok: false, error: { en: 'Send sale_mode with the wholesale fields.', te: 'హోల్‌సేల్ వివరాలతో పాటు అమ్మకం విధానం కూడా పంపండి.' } }
   }
   const states = payload.wholesale_transport_states
+  if (states !== undefined && states !== null && !Array.isArray(states)) {
+    return { ok: false, error: { en: 'Transport regions must be a list.', te: 'రవాణా ప్రాంతాలు జాబితాగా ఉండాలి.' } }
+  }
   return resolveWholesale({
     saleMode: payload.sale_mode,
     price: payload.wholesale_price,
@@ -535,8 +544,9 @@ export function wholesaleRequestBody(form: WholesaleForm, serverReady: boolean):
     wholesale_min_qty: form.minQty,
     wholesale_pack_size: form.packSize,
     wholesale_pack_price: form.packPrice,
-    wholesale_transport: form.transport,
-    wholesale_transport_states: form.states,
-    wholesale_transport_rates: form.rates,
+    // No wholesale transport question since 2026-11-13 — Courier decides.
+    wholesale_transport: NO_WHOLESALE_TRANSPORT.transport,
+    wholesale_transport_states: NO_WHOLESALE_TRANSPORT.states,
+    wholesale_transport_rates: NO_WHOLESALE_TRANSPORT.rates,
   }
 }

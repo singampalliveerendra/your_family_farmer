@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { bulkOrderStage, checkBulkAddress, checkBulkOrder, deliveryOptions, pickHarvest, rateText, transportCharge, type BulkListing } from '@/lib/bulkOrder'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { bulkOrderStage, checkBulkAddress, checkBulkOrder, deliveryCostText, deliveryLabel, deliveryOptions, pickHarvest, rateText, transportCharge, type BulkListing } from '@/lib/bulkOrder'
 
 const L = (x: Partial<BulkListing> = {}): BulkListing => ({
   name: 'Tomato', unit: 'kg', sale_mode: 'wholesale', sale_step: 1, wholesale_price: 30, wholesale_min_qty: 100, wholesale_pack_size: 25,
@@ -173,5 +175,58 @@ describe('bulk transport anywhere in India (2026-11-11)', () => {
     const lot = L({ wholesale_transport_states: ['IN'], wholesale_transport_rates: { IN: { mode: 'per_order', amount: 900, free_above: null } } })
     expect(deliveryOptions(lot).map((o) => o.delivery)).toEqual(['pickup', 'IN'])
     expect(checkBulkOrder(lot, 200, 'IN', 0)).toMatchObject({ ok: true, transport: 900, transportState: 'IN', deliveryType: 'courier' })
+  })
+})
+
+// Client 2026-11-13: the wholesale "Can you transport anywhere in India?"
+// question is gone — bulk delivery follows the produce's Courier setting.
+describe('bulk delivery follows the Courier setting (2026-11-13)', () => {
+  const courier = (x: Partial<BulkListing>) => L({ wholesale_transport_states: [], wholesale_transport_rates: {}, delivery_mode: 'courier', ...x })
+  const en = (e: string) => e
+
+  it('Cargo, buyer pays (ToPay): anywhere in India, ₹0 online', () => {
+    const lot = courier({ courier_type: 'cargo', delivery_paid_by: 'buyer', cargo_services: ['VRL Logistics', 'SRMT'] })
+    const opts = deliveryOptions(lot)
+    expect(opts.map((o) => o.delivery)).toEqual(['pickup', 'IN'])
+    expect(checkBulkOrder(lot, 200, 'IN', 0)).toMatchObject({ ok: true, transport: 0, transportState: 'IN', deliveryType: 'courier', transportMode: 'per_order' })
+    expect(deliveryLabel(opts[1], en)).toBe('Sent by cargo, anywhere in India')
+    expect(deliveryCostText(opts[1], 'kg', en)).toBe('ToPay — you pay the cargo company on delivery · VRL Logistics, SRMT')
+  })
+
+  it('Cargo, seller pays: free', () => {
+    const lot = courier({ courier_type: 'cargo', delivery_paid_by: 'farmer', cargo_services: ['SRMT'] })
+    expect(checkBulkOrder(lot, 200, 'IN', 0)).toMatchObject({ ok: true, transport: 0 })
+    expect(deliveryCostText(deliveryOptions(lot)[1], 'kg', en)).toMatch(/^Free — the seller pays the cargo/)
+  })
+
+  it('Local delivery: the seller’s charge, no state, within their radius', () => {
+    const lot = courier({ courier_type: 'local', delivery_paid_by: 'buyer', delivery_charge: 150, delivery_radius_km: 30 })
+    const opts = deliveryOptions(lot)
+    expect(opts.map((o) => o.delivery)).toEqual(['pickup', 'local'])
+    expect(checkBulkOrder(lot, 200, 'local', 0)).toMatchObject({ ok: true, transport: 150, transportState: null, deliveryType: 'courier' })
+    expect(deliveryLabel(opts[1], en)).toBe('Seller delivers within 30 km of the farm')
+    expect(deliveryCostText(opts[1], 'kg', en)).toBe('₹150 per order')
+    // Seller pays → free; radius blank → 25 km.
+    const free = courier({ courier_type: 'local', delivery_paid_by: 'farmer', delivery_radius_km: null })
+    expect(checkBulkOrder(free, 200, 'local', 0)).toMatchObject({ ok: true, transport: 0 })
+    expect(deliveryLabel(deliveryOptions(free)[1], en)).toBe('Seller delivers within 25 km of the farm')
+  })
+
+  it('Pickup only, or a buyer-pays local with no charge: pickup only', () => {
+    expect(deliveryOptions(courier({ delivery_mode: 'pickup', courier_type: null })).map((o) => o.delivery)).toEqual(['pickup'])
+    expect(deliveryOptions(courier({ courier_type: 'local', delivery_paid_by: 'buyer', delivery_charge: null })).map((o) => o.delivery)).toEqual(['pickup'])
+    expect(checkBulkOrder(courier({ delivery_mode: 'pickup' }), 200, 'IN', 0).ok).toBe(false)
+  })
+
+  it('an old lot with per-state rates keeps them (until edited), Courier ignored', () => {
+    const lot = L({ wholesale_transport_states: ['AP'], wholesale_transport_rates: { AP: { mode: 'per_order', amount: 500, free_above: null } }, delivery_mode: 'courier', courier_type: 'cargo', delivery_paid_by: 'buyer' })
+    expect(deliveryOptions(lot).map((o) => o.delivery)).toEqual(['pickup', 'AP'])
+    expect(checkBulkOrder(lot, 200, 'IN', 0).ok).toBe(false)
+  })
+
+  it('the server never trusts delivery_options from the browser', () => {
+    const route = readFileSync(join(process.cwd(), 'src/app/api/aggregator/bulk-orders/place/route.ts'), 'utf8')
+    expect(route).toMatch(/delivery_options: undefined/)
+    expect(route).toMatch(/body\.delivery === 'local'/)
   })
 })

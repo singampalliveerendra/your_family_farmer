@@ -31,7 +31,7 @@ describe('farmer / aggregator produce form', () => {
       "<FormSubsection title={L('Quality details (optional)'", '{/* Quality params */}',
       "<FormStep n={2} title={L('How do you want to sell?'", '<SellHowFields',
       "<FormStep n={3} title={L('How much, and when?'", '{/* Quantity. The label', '<HarvestManager',
-      "<FormStep n={4} title={L('Delivery'", '<DeliveryFields', '<PickupPointsEditor', 'part="transport"',
+      "<FormStep n={4} title={L('Delivery'", '<DeliveryFields', '<PickupPointsEditor',
       '{/* Preview + Publish buttons */}',
     ])
     expect(form).not.toMatch(/<FormStep n=\{5\}|Photos and story|Who buys it, and at what price|part="sale"/)
@@ -59,17 +59,17 @@ describe('moderator produce form (parity)', () => {
       '<ModSubsection title="Quality details (optional)" collapsible>', '<Field label="Brix (sweetness)">', '<Field label="Soil pH">',
       '<ModStep n={2} title="How do you want to sell?">', '<SellHowFields',
       '<ModStep n={3} title="How much, and when?">', '<Field label="Stock available">',
-      '<ModStep n={4} title="Delivery">', '<DeliveryFields', '<PickupPointsSummary', 'part="transport"',
+      '<ModStep n={4} title="Delivery">', '<DeliveryFields', '<PickupPointsSummary',
     ])
     expect(m).not.toMatch(/<ModStep n=\{5\}|Photos and story|Who buys it, and at what price|part="sale"/)
   })
 })
 
-describe('the wholesale part split', () => {
-  const w = src('src/components/WholesaleFields.tsx')
-  it("transport sits in Delivery ('transport' part), not inside the price step", () => {
-    expect(w).toMatch(/part\?: 'all' \| 'sale' \| 'transport'/)
-    expect(w).toMatch(/\{part === 'all' && transportBlock\}/)
+describe('no separate wholesale transport question (client 2026-11-13)', () => {
+  it('the Delivery step has only the Courier box — bulk delivery follows it', () => {
+    for (const p of ['src/app/farmer/dashboard/page.tsx', 'src/app/moderator/listings/ListingForm.tsx']) {
+      expect(src(p)).not.toMatch(/WholesaleFields|Can you transport anywhere in India/)
+    }
   })
   it('the grower note no longer promises the phone', () => {
     for (const p of ['src/components/SourceFarmerPicker.tsx', 'src/components/SourceFarmersManager.tsx']) {

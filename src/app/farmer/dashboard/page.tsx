@@ -40,7 +40,6 @@ import { previewNum, resolveSaleStep, previewAvailability, previewTiers } from '
 import { formatHarvestDate, nextHarvestDate } from '@/lib/harvestSchedule'
 import { localizeName, localizeUnit } from '@/lib/localizeName'
 import ShareProduceButton from '@/components/farmer/ShareProduceButton'
-import WholesaleFields from '@/components/WholesaleFields'
 import WholesaleLowStockAlerts from '@/components/farmer/WholesaleLowStockAlerts'
 import SubscriptionStatusCard from '@/components/farmer/SubscriptionStatusCard'
 import { sellingLockText } from '@/lib/sellingLock'
@@ -3204,16 +3203,6 @@ function ProduceListingForm({
           onCourier={setCourier}
           L={L}
           pickup={<PickupPointsEditor L={L} />}
-        />
-
-        {/* Wholesale transport — part of Delivery, not of the price (2026-11-05). */}
-        <WholesaleFields
-          part="transport"
-          value={wholesale}
-          onChange={setWholesale}
-          unit={unit}
-          L={L}
-          retailPrice={{ value: price1, onChange: setPrice1 }}
         />
         </FormStep>
 

@@ -144,7 +144,7 @@ function BulkTile({ it, buying, priority }: { it: MarketItem; buying: boolean; p
   const methodShort = method ? METHOD_SHORT[method] : null
   const chips: TileChip[] = []
   if (it.harvestedAt) chips.push({ key: 'clock', icon: '⏱', text: harvestClock(it.harvestedAt, L), tone: 'green' })
-  chips.push(it.transportStates.length
+  chips.push(it.delivery.length > 1
     ? { key: 'transport', icon: '🚚', text: transportText(it, L), tone: 'blue' }
     : { key: 'transport', icon: '🚶', text: L('Pickup only', 'పికప్ మాత్రమే'), tone: 'gray' })
   if (it.seller.type === 'aggregator') chips.push({ key: 'agg', icon: '🤝', text: L('Aggregator', 'అగ్రిగేటర్'), tone: 'amber' })

@@ -4,12 +4,11 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import Icon from '@/components/home/Icon'
 import { SLATE } from '@/components/aggregator/MarketParts'
-import { checkBulkOrder, rateText, type BulkListing, type Delivery } from '@/lib/bulkOrder'
+import { checkBulkOrder, deliveryCostText, deliveryLabel, type BulkListing, type Delivery } from '@/lib/bulkOrder'
 import { payBulkOrder, placeBulkOrder } from '@/lib/bulkCheckout'
 import type { MarketItem } from '@/lib/bulkMarket'
 import { formatQty, roundQty } from '@/lib/saleStep'
 import { inr } from '@/lib/subscriptionPlans'
-import { TRANSPORT_STATE_LABELS, type TransportRates } from '@/lib/wholesale'
 
 /* The bulk checkout on a market lot (Phase 6), for an aggregator holding a
  * Buying plan: quantity (whole packs, from the minimum, up to what one
@@ -28,15 +27,13 @@ export default function BulkCheckout({ it, feePercent, unitLabel, L }: { it: Mar
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' })
 
   // The lot in the shape checkBulkOrder reads, rebuilt from the market item.
-  const listing: BulkListing = useMemo(() => {
-    const rates: TransportRates = {}
-    for (const d of it.delivery) if (d.delivery !== 'pickup' && d.rate) rates[d.delivery] = d.rate
-    return {
-      name: it.name, unit: it.unit, sale_mode: it.saleMode, sale_step: it.step,
-      wholesale_price: it.price, wholesale_min_qty: it.minQty, wholesale_pack_size: it.packSize, wholesale_pack_price: it.packPrice,
-      wholesale_transport_states: it.transportStates, wholesale_transport_rates: rates,
-    }
-  }, [it])
+  // The delivery options come as the market worked them out (old per-state
+  // rates or the produce's Courier setting); the server works them out again.
+  const listing: BulkListing = useMemo(() => ({
+    name: it.name, unit: it.unit, sale_mode: it.saleMode, sale_step: it.step,
+    wholesale_price: it.price, wholesale_min_qty: it.minQty, wholesale_pack_size: it.packSize, wholesale_pack_price: it.packPrice,
+    delivery_options: it.delivery,
+  }), [it])
   const max = it.stock
   const quote = checkBulkOrder(listing, qty, delivery, feePercent)
   const canUp = max === null || roundQty(qty + it.step) <= max + 1e-9
@@ -107,10 +104,10 @@ export default function BulkCheckout({ it, feePercent, unitLabel, L }: { it: Mar
               <Icon name={d.delivery === 'pickup' ? 'pin' : 'truck'} className="mt-0.5 h-5 w-5 shrink-0" />
               <span className="min-w-0">
                 <span className="block text-sm font-bold">
-                  {d.delivery === 'pickup' ? L('I will collect from the seller', 'అమ్మకందారు దగ్గర నేనే తీసుకుంటాను') : L(`Seller delivers in ${TRANSPORT_STATE_LABELS[d.delivery].en}`, `అమ్మకందారు ${TRANSPORT_STATE_LABELS[d.delivery].te}లో డెలివరీ`)}
+                  {deliveryLabel(d, L)}
                 </span>
                 <span className="block text-xs text-black/60">
-                  {d.delivery === 'pickup' ? (it.contact?.address ?? L('Pickup point is on your order after payment.', 'చెల్లించాక పికప్ స్థలం మీ ఆర్డర్‌లో కనిపిస్తుంది.')) : rateText(d.rate!, unitLabel, L)}
+                  {d.delivery === 'pickup' ? (it.contact?.address ?? L('Pickup point is on your order after payment.', 'చెల్లించాక పికప్ స్థలం మీ ఆర్డర్‌లో కనిపిస్తుంది.')) : deliveryCostText(d, unitLabel, L)}
                 </span>
               </span>
             </button>
