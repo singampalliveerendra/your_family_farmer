@@ -2,8 +2,12 @@
  * Buying a bulk lot in the app (Phase 6, model agreed 2026-11-04):
  *  - buyers are aggregators holding a Buying (or Combined) plan;
  *  - paid online through Cashfree only — no cash on delivery;
- *  - the seller's transport charge comes from their per-state rate
- *    (src/lib/wholesale.ts TransportRates) and is shown before paying;
+ *  - how a lot reaches the buyer follows the produce's Courier setting
+ *    (src/lib/courierOptions.ts, client 2026-11-13): Cargo = anywhere in
+ *    India (ToPay to the cargo company, or free when the seller pays),
+ *    Local delivery = the seller delivers within their radius for their
+ *    charge. A lot saved earlier with the old per-state wholesale rates
+ *    (src/lib/wholesale.ts TransportRates) keeps those until it is edited;
  *  - platform fee on bulk orders = a moderator setting, 0% for now;
  *  - the order is an ordinary `orders` row (order_type 'wholesale',
  *    buyer_aggregator_id set), so the seller's whole order flow — approve,
@@ -17,6 +21,7 @@
 
 import { computePlatformFee } from '@/lib/platform-fee'
 import { roundQty, unitAllowsFractions, formatQty } from '@/lib/saleStep'
+import { normalizeCargoServices, type PaidBy } from '@/lib/courierOptions'
 import { isBilledAfterDelivery, normalizeRates, normalizeStates, parseSaleMode, TRANSPORT_STATE_LABELS, type TransportRate, type TransportRateMode, type TransportRates, type TransportState } from '@/lib/wholesale'
 import { wholesaleQtyRules } from '@/lib/wholesaleOrder'
 
@@ -32,9 +37,33 @@ export type BulkListing = {
   wholesale_pack_price?: number | string | null
   wholesale_transport_states?: unknown
   wholesale_transport_rates?: unknown
+  /** The produce's Delivery step (scripts/courier-options-migration.sql). */
+  delivery_mode?: string | null
+  courier_type?: string | null
+  cargo_services?: unknown
+  delivery_paid_by?: string | null
+  delivery_charge?: number | string | null
+  delivery_radius_km?: number | string | null
+  /** Browser only: the options the market already worked out. The server
+   *  never reads this — it rebuilds the listing from the database. */
+  delivery_options?: DeliveryOption[]
 }
 
-export type Delivery = 'pickup' | TransportState
+/** 'local' = the seller's Local delivery (within their radius). */
+export type Delivery = 'pickup' | TransportState | 'local'
+
+export type DeliveryOption = {
+  delivery: Delivery
+  rate: TransportRate | null
+  /** Set when the option comes from the produce's Courier setting. */
+  courier?: { kind: 'cargo' | 'local'; paidBy: PaidBy; services: string[]; radiusKm: number | null }
+}
+
+/** The Courier columns bulk delivery reads (2026-11-13), for the selects. */
+export const BULK_COURIER_COLUMNS = 'delivery_mode, courier_type, cargo_services, delivery_paid_by, delivery_charge, delivery_radius_km'
+
+/** The radius when the seller left it blank (same as retail). */
+const DEFAULT_RADIUS_KM = 25
 
 const num = (v: unknown): number | null => {
   if (v === null || v === undefined || v === '') return null
@@ -56,17 +85,71 @@ export function transportCharge(rate: TransportRate, qty: number): number {
 }
 
 /**
- * Where this lot can go: always pickup, plus every state the seller delivers
- * to AND has set a charge for. A state without a charge is not offered — an
- * unset rate is never treated as free.
+ * Where this lot can go: always pickup, plus
+ *  - an OLD lot with per-state wholesale rates: every state the seller set a
+ *    charge for (an unset rate is never treated as free) — until it is edited;
+ *  - otherwise the produce's Courier setting (2026-11-13):
+ *      Cargo → anywhere in India ('IN'), ₹0 online — ToPay to the cargo
+ *              company, or free when the seller pays
+ *      Local → the seller delivers within their radius; free, or their charge
+ *              (a buyer-pays local with no charge set is not offered)
+ *    Pickup only → nothing more.
  */
-export function deliveryOptions(l: BulkListing): Array<{ delivery: Delivery; rate: TransportRate | null }> {
+export function deliveryOptions(l: BulkListing): DeliveryOption[] {
+  const pickup: DeliveryOption = { delivery: 'pickup', rate: null }
+  if (l.delivery_options) return l.delivery_options
   const states = normalizeStates(l.wholesale_transport_states)
   const rates: TransportRates = normalizeRates(l.wholesale_transport_rates)
-  return [
-    { delivery: 'pickup' as const, rate: null },
-    ...states.filter((s) => rates[s]).map((s) => ({ delivery: s, rate: rates[s] as TransportRate })),
-  ]
+  const legacy = states.filter((s) => rates[s]).map((s) => ({ delivery: s, rate: rates[s] as TransportRate }))
+  if (legacy.length) return [pickup, ...legacy]
+  const courier = courierOption(l)
+  return courier ? [pickup, courier] : [pickup]
+}
+
+/** The bulk delivery option from the produce's Courier setting, or null. */
+export function courierOption(l: BulkListing): DeliveryOption | null {
+  if (l.delivery_mode === 'pickup') return null
+  const paidBy: PaidBy | null = l.delivery_paid_by === 'farmer' || l.delivery_paid_by === 'buyer' ? l.delivery_paid_by : null
+  if (!paidBy) return null
+  const radius = num(l.delivery_radius_km)
+  const courier = {
+    paidBy,
+    services: normalizeCargoServices(l.cargo_services),
+    radiusKm: radius !== null && radius > 0 ? radius : null,
+  }
+  if (l.courier_type === 'cargo') {
+    return { delivery: 'IN', rate: { mode: 'per_order', amount: 0, free_above: null }, courier: { kind: 'cargo', ...courier } }
+  }
+  if (l.courier_type === 'local') {
+    const charge = paidBy === 'farmer' ? 0 : num(l.delivery_charge)
+    if (charge === null || charge < 0) return null
+    return { delivery: 'local', rate: { mode: 'per_order', amount: Math.round(charge), free_above: null }, courier: { kind: 'local', ...courier } }
+  }
+  return null
+}
+
+/** "Sent by cargo, anywhere in India", "Seller delivers within 25 km", "Seller delivers in Telangana". */
+export function deliveryLabel(d: DeliveryOption, L: (en: string, te: string) => string): string {
+  if (d.delivery === 'pickup') return L('I will collect from the seller', 'అమ్మకందారు దగ్గర నేనే తీసుకుంటాను')
+  if (d.courier?.kind === 'cargo') return L('Sent by cargo, anywhere in India', 'కార్గోలో పంపుతారు, భారతదేశంలో ఎక్కడికైనా')
+  if (d.courier?.kind === 'local' || d.delivery === 'local') {
+    const km = d.courier?.radiusKm ?? DEFAULT_RADIUS_KM
+    return L(`Seller delivers within ${km} km of the farm`, `పొలం నుండి ${km} కి.మీ. లోపల అమ్మకందారు డెలివరీ`)
+  }
+  const s = TRANSPORT_STATE_LABELS[d.delivery]
+  return L(`Seller delivers in ${s.en}`, `అమ్మకందారు ${s.te}లో డెలివరీ`)
+}
+
+/** What the delivery costs, in words: ToPay / free / ₹ for courier options, else the old rate text. */
+export function deliveryCostText(d: DeliveryOption, unit: string, L: (en: string, te: string) => string): string {
+  if (!d.rate) return ''
+  if (d.courier?.kind === 'cargo') {
+    const via = d.courier.services.length ? ` · ${d.courier.services.join(', ')}` : ''
+    return d.courier.paidBy === 'buyer'
+      ? L(`ToPay — you pay the cargo company on delivery${via}`, `ToPay — డెలివరీ సమయంలో కార్గో కంపెనీకి మీరు చెల్లిస్తారు${via}`)
+      : L(`Free — the seller pays the cargo${via}`, `ఉచితం — కార్గో ఖర్చు అమ్మకందారుదే${via}`)
+  }
+  return rateText(d.rate, unit, L)
 }
 
 /** "₹500 per order", "₹2/kg · free above 1000 kg", "Free delivery". */
@@ -132,10 +215,12 @@ export function checkBulkOrder(l: BulkListing, qty: number, delivery: Delivery, 
   if (delivery !== 'pickup') {
     const opt = deliveryOptions(l).find((o) => o.delivery === delivery)
     if (!opt?.rate) {
-      return { ok: false, error: `The seller does not deliver ${l.name} to ${TRANSPORT_STATE_LABELS[delivery]?.en ?? delivery} in the app. Choose pickup.` }
+      const where = delivery === 'local' ? 'nearby' : `to ${TRANSPORT_STATE_LABELS[delivery]?.en ?? delivery}`
+      return { ok: false, error: `The seller does not deliver ${l.name} ${where} in the app. Choose pickup.` }
     }
     transport = transportCharge(opt.rate, roundQty(qty))
-    transportState = delivery
+    // Local delivery has no state (orders.transport_state allows AP / TG / IN).
+    transportState = delivery === 'local' ? null : delivery
     transportMode = opt.rate.mode
     transportRate = opt.rate.mode === 'per_km' ? opt.rate.amount : null
   }

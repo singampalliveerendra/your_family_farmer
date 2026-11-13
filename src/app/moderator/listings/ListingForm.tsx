@@ -14,7 +14,6 @@ import { resolveRetailPack, unitAllowsRetailPacks, type PackTierForm } from '@/l
 import { parseDeliveryMode } from '@/lib/fulfillment'
 import { photosFromSaved, resolvePhotoUrls, type PhotoItem } from '@/lib/photoList'
 import PhotoPicker from '@/components/PhotoPicker'
-import WholesaleFields from '@/components/WholesaleFields'
 import {
   EMPTY_WHOLESALE_FORM, resolveWholesaleForm, offersRetail, wholesaleRequestBody, bothPricesError, type WholesaleForm,
 } from '@/lib/wholesale'
@@ -586,16 +585,6 @@ export default function ListingForm({
         onCourier={setCourier}
         L={EN}
         pickup={<PickupPointsSummary farmerId={farmerId} />}
-      />
-
-      {/* Wholesale transport — part of Delivery, not of the price (2026-11-05). */}
-      <WholesaleFields
-        part="transport"
-        value={wholesale}
-        onChange={setWholesale}
-        unit={form.unit}
-        L={EN}
-        retailPrice={{ value: form.price_tier_1_price, onChange: (v) => setForm((f) => ({ ...f, price_tier_1_price: v })) }}
       />
       </ModStep>
 

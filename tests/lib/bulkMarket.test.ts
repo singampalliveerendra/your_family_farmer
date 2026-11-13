@@ -129,7 +129,13 @@ describe('buildMarket', () => {
 
 describe('filterMarket / placeOf', () => {
   const items = buildMarket({
-    listings: [L(), L({ id: 'l2', farmer_id: 'a2', name: 'Onion', category: 'bulbs', wholesale_transport_states: ['TG'] }), L({ id: 'l3', name: 'Chilli', wholesale_transport_states: [] })],
+    // l1: Cargo on the Courier setting (2026-11-13); l2: an old lot with a TG
+    // rate; l3: Local delivery only — nearby, so not "Pan India transport".
+    listings: [
+      L({ wholesale_transport_states: [], courier_type: 'cargo', delivery_mode: 'courier', delivery_paid_by: 'buyer', cargo_services: ['VRL Logistics'] }),
+      L({ id: 'l2', farmer_id: 'a2', name: 'Onion', category: 'bulbs', wholesale_transport_states: ['TG'], wholesale_transport_rates: { TG: { mode: 'per_order', amount: 500, free_above: null } } }),
+      L({ id: 'l3', name: 'Chilli', wholesale_transport_states: [], courier_type: 'local', delivery_mode: 'both', delivery_paid_by: 'farmer' }),
+    ],
     harvests: [], sellers: [FARMER, OTHER_AGG], growers: [], viewerId: ME, canContact: false,
   })
   it('search by produce, seller, village', () => {
@@ -184,8 +190,11 @@ describe('pan India transport in the bulk market', () => {
   it('a lot card reads "Pan India transport"; older AP/TG lots keep their states', async () => {
     const { transportText } = await import('@/components/aggregator/MarketParts')
     const en = (e: string) => e
-    expect(transportText({ transportStates: ['IN'] }, en)).toBe('Pan India transport')
-    expect(transportText({ transportStates: ['AP', 'TG'] }, en)).toBe('Delivers in Andhra Pradesh, Telangana')
-    expect(transportText({ transportStates: [] }, en)).toBe('Pickup only')
+    const rate = { mode: 'per_order' as const, amount: 0, free_above: null }
+    const pickup = { delivery: 'pickup' as const, rate: null }
+    expect(transportText({ delivery: [pickup, { delivery: 'IN', rate }] }, en)).toBe('Pan India transport')
+    expect(transportText({ delivery: [pickup, { delivery: 'AP', rate }, { delivery: 'TG', rate }] }, en)).toBe('Delivers in Andhra Pradesh, Telangana')
+    expect(transportText({ delivery: [pickup, { delivery: 'local', rate }] }, en)).toBe('Delivers nearby')
+    expect(transportText({ delivery: [pickup] }, en)).toBe('Pickup only')
   })
 })

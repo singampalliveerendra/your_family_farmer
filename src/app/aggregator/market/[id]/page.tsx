@@ -12,7 +12,7 @@ import BackButton from '@/components/BackButton'
 import Icon from '@/components/home/Icon'
 import { LockedNote, Price, SLATE, quantityText, transportText } from '@/components/aggregator/MarketParts'
 import BulkCheckout from '@/components/aggregator/BulkCheckout'
-import { rateText } from '@/lib/bulkOrder'
+import { deliveryCostText, deliveryLabel } from '@/lib/bulkOrder'
 import { placeOf, type MarketItem } from '@/lib/bulkMarket'
 import { localizeName, localizeUnit } from '@/lib/localizeName'
 import { methodLabel } from '@/lib/produceLabels'
@@ -125,7 +125,7 @@ export default function BulkListingPage() {
             {it.delivery.some((d) => d.rate) && (
               <ul className="mt-3 space-y-0.5 text-xs text-black/60">
                 {it.delivery.filter((d) => d.rate).map((d) => (
-                  <li key={d.delivery}>{L(`Delivery in ${d.delivery}`, `${d.delivery}లో డెలివరీ`)}: {rateText(d.rate!, unitLabel, L)}</li>
+                  <li key={d.delivery}>{deliveryLabel(d, L)}: {deliveryCostText(d, unitLabel, L)}</li>
                 ))}
               </ul>
             )}

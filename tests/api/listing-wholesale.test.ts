@@ -255,6 +255,14 @@ describe('/api/moderator/listings POST — wholesale', () => {
     expect(created()).not.toHaveProperty('price_tier_1_price')
   })
 
+  // The form stopped asking about wholesale transport (2026-11-13) — bulk
+  // delivery follows the Courier setting — so not answered saves no transport.
+  it('transport not answered saves an empty state list (2026-11-13)', async () => {
+    const res = await create(createBody(wholesaleBody({ wholesale_transport: null })))
+    expect(res.status).toBe(200)
+    expect(created()).toMatchObject({ wholesale_transport_states: [] })
+  })
+
   it('transport No saves an empty state list', async () => {
     await create(createBody(wholesaleBody({ wholesale_transport: false })))
     expect(created()).toMatchObject({ wholesale_transport_states: [] })
@@ -264,7 +272,6 @@ describe('/api/moderator/listings POST — wholesale', () => {
     ['no price', { wholesale_price: '' }, /price of one pack/],
     ['no pack or minimum', { wholesale_min_qty: '', wholesale_pack_size: '' }, /pack size or the minimum/],
     ['a bad pack price', { wholesale_pack_price: '0' }, /pack price must be a number above 0/],
-    ['transport not answered', { wholesale_transport: null }, /Yes or No/],
     ['transport Yes, no region', { wholesale_transport_states: [] }, /Choose Yes or No for transport/],
   ])('refuses %s with a 400 and creates nothing', async (_name, patch, msg) => {
     const res = await create(createBody(wholesaleBody(patch)))

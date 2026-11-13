@@ -287,9 +287,13 @@ describe('resolveWholesale — quantity errors', () => {
 })
 
 describe('resolveWholesale — transport errors', () => {
-  it('not answered', () => {
-    expect(errorOf(good({ transport: null })).en).toMatch(/Choose Yes or No/)
-    expect(errorOf(good({ transport: undefined })).en).toMatch(/Choose Yes or No/)
+  // The form stopped asking (client 2026-11-13) — bulk delivery follows the
+  // Courier setting — so not answered is fine and means no wholesale transport.
+  it('not answered = no wholesale-only transport (2026-11-13)', () => {
+    for (const transport of [null, undefined]) {
+      const cols = columnsOf(good({ transport }))
+      expect(cols).toMatchObject({ wholesale_transport_states: [], wholesale_transport_rates: {} })
+    }
   })
   it('Yes with no region', () => {
     expect(errorOf(good({ states: [] })).en).toMatch(/Choose Yes or No for transport/)
@@ -323,7 +327,7 @@ describe('every error has both languages', () => {
     good({ packSize: '', minQty: '99999999' }), good({ packSize: '25', price: '', packPrice: '' }),
     good({ packSize: '25', packPrice: '0' }), good({ packSize: '1000', packPrice: '1' }),
     good({ unit: 'piece', packSize: '1.5', minQty: '' }),
-    good({ transport: null }), good({ states: [] }),
+    good({ states: [] }),
   ]
   it.each(failures.map((r, i) => [i, r] as const))('failure %i', (_i, r) => {
     const e = errorOf(r)
@@ -417,8 +421,12 @@ describe('wholesaleFormFromRow', () => {
     expect(wholesaleFormFromRow({ sale_mode: 'wholesale', wholesale_price: '30.50' }).price).toBe('30.50')
   })
   it('round-trips: a saved row resolves to the same columns', () => {
-    const cols = columnsOf(good({ saleMode: 'both', states: ['AP', 'TG'] }))
+    const cols = columnsOf(good({ saleMode: 'both', transport: false }))
     expect(columnsOf(resolveWholesaleForm(wholesaleFormFromRow(cols), 'kg'))).toEqual(cols)
+  })
+  it('saving an old lot with wholesale transport clears it — Courier decides now (2026-11-13)', () => {
+    const cols = columnsOf(good({ saleMode: 'both', states: ['AP', 'TG'] }))
+    expect(columnsOf(resolveWholesaleForm(wholesaleFormFromRow(cols), 'kg'))).toEqual({ ...cols, wholesale_transport_states: [], wholesale_transport_rates: {} })
   })
 })
 
@@ -534,8 +542,11 @@ describe('wholesaleRequestBody (moderator form → API)', () => {
     const no = { ...form, transport: false as const, states: [] }
     expect(resolveWholesaleBody(wholesaleRequestBody(no, true), 'kg')).toEqual(resolveWholesaleForm(no, 'kg'))
   })
-  it('an unanswered transport stays unanswered on the server', () => {
-    expect(resolveWholesaleBody(wholesaleRequestBody({ ...form, transport: null }, true), 'kg').ok).toBe(false)
+  it('the form never sends wholesale transport now — Courier decides (2026-11-13)', () => {
+    for (const f of [form, { ...form, transport: null }]) {
+      expect(wholesaleRequestBody(f, true)).toMatchObject({ wholesale_transport: false, wholesale_transport_states: [], wholesale_transport_rates: {} })
+      expect(columnsOf(resolveWholesaleBody(wholesaleRequestBody(f, true), 'kg'))).toMatchObject({ wholesale_transport_states: [], wholesale_transport_rates: {} })
+    }
   })
 })
 
@@ -586,8 +597,9 @@ describe('transport charges per state (Phase 6)', () => {
   it('round-trips through a saved row', () => {
     const r = resolveWholesale({ ...base, rates: { AP: { mode: 'per_unit', amount: '2', freeAbove: '1000' }, TG: { mode: 'per_order', amount: '800', freeAbove: '' } } })
     if (!r.ok) throw new Error('bad')
-    const back = resolveWholesaleForm(wholesaleFormFromRow(r.columns as unknown as Record<string, unknown>), 'kg')
-    expect(back).toEqual(r)
+    // Read back from the row, the old rates are what an older client resends.
+    const f = wholesaleFormFromRow(r.columns as unknown as Record<string, unknown>)
+    expect(resolveWholesale({ ...f, unit: 'kg' })).toEqual(r)
   })
   it('normalizeRates: lenient reading of junk', () => {
     expect(normalizeRates(null)).toEqual({})

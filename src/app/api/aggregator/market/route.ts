@@ -4,6 +4,7 @@ import { buildMarket, type MarketGrowerRow, type MarketHarvestRow, type MarketLi
 import { accessOf, type SubscriptionRow } from '@/lib/subscriptionPlans'
 import { standingOf } from '@/lib/subscriptionLifecycle'
 import { getBulkFeePercent } from '@/lib/bulkOrderServer'
+import { BULK_COURIER_COLUMNS } from '@/lib/bulkOrder'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -43,7 +44,10 @@ export async function GET(req: NextRequest) {
     if (id) q = q.eq('id', id)
     return q.limit(500)
   }
-  let { data: listings, error } = await read(`${LISTING_COLUMNS}, wholesale_transport_rates`)
+  // Bulk delivery follows the Courier setting (2026-11-13); a database
+  // without those columns falls back to the old per-state rates only.
+  let { data: listings, error } = await read(`${LISTING_COLUMNS}, wholesale_transport_rates, ${BULK_COURIER_COLUMNS}`)
+  if (error) ({ data: listings, error } = await read(`${LISTING_COLUMNS}, wholesale_transport_rates`))
   if (error) ({ data: listings, error } = await read(LISTING_COLUMNS))
   if (error) {
     // Before scripts/wholesale-migration.sql there is no bulk produce at all.

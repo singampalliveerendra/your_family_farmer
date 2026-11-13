@@ -44,18 +44,12 @@ describe('bothPricesError', () => {
 
 describe('the forms ask for two separate, named prices', () => {
   const src = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
-  const fields = src('src/components/WholesaleFields.tsx')
-  it('the shared Sell-as block shows a Retail and a Wholesale price box, side by side for Both', () => {
-    expect(fields).toMatch(/Retail price/)
-    expect(fields).toMatch(/For households/)
-    expect(fields).toMatch(/Wholesale price/)
-    expect(fields).toMatch(/For aggregators/)
-    expect(fields).toMatch(/both \? 'grid-cols-2'/)
-    expect(fields.match(/Wholesale price', 'హోల్‌సేల్ ధర'/g)).toHaveLength(1) // not repeated inside the details box
+  // The price boxes live in SellHowFields ("How do you want to sell?" step).
+  it('the Sell step shows a Retail price box', () => {
+    expect(src('src/components/SellHowFields.tsx')).toMatch(/Retail price/)
   })
-  it.each(['src/app/farmer/dashboard/page.tsx', 'src/app/moderator/listings/ListingForm.tsx'])('%s passes the retail price in and blocks the save', (p) => {
+  it.each(['src/app/farmer/dashboard/page.tsx', 'src/app/moderator/listings/ListingForm.tsx'])('%s shows the price error and blocks the save', (p) => {
     const s = src(p)
-    expect(s).toMatch(/retailPrice=\{\{ value:/)
     expect(s).toMatch(/priceError=/)
     expect(s).toMatch(/if \(bothPriceErr\) \{ setError\(/)
   })
