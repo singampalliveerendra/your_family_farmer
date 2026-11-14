@@ -1,7 +1,9 @@
 import type { Reachability } from '@/lib/retailReach'
 
 /* The buyer feed's location filter (client 2026-11-13): Local · Far Away · All,
- * replacing "Delivers to me" / 5 / 10 / 25 km.
+ * replacing "Delivers to me" / 5 / 10 / 25 km. Shown to buyers as
+ * Fresh from farms · Remote · Both (client 2026-11-14) — the keys stay
+ * local / far / all, so saved picks still work.
  *
  *   local — the buyer is inside the farmer's local radius (the radius set on
  *           the produce, 25 km when not set): pick up or get it delivered nearby
@@ -18,9 +20,9 @@ export const FEED_LOCATION_FILTERS: FeedLocationFilter[] = ['local', 'far', 'all
 export const DEFAULT_FEED_LOCATION_FILTER: FeedLocationFilter = 'local'
 
 export const FEED_LOCATION_LABELS: Record<FeedLocationFilter, { en: string; te: string }> = {
-  local: { en: 'Local', te: 'స్థానిక' },
-  far: { en: 'Far Away', te: 'దూరం' },
-  all: { en: 'All', te: 'అన్నీ' },
+  local: { en: 'Fresh from farms', te: 'పొలం నుండి తాజా' },
+  far: { en: 'Remote', te: 'దూర ప్రాంతం' },
+  all: { en: 'Both', te: 'రెండూ' },
 }
 
 /** Does a card with this reach stay in the feed under this filter? */

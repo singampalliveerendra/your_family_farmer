@@ -537,9 +537,9 @@ export default function ConsumerPage() {
             {L('Straight from the farm. No Middlemen', 'నేరుగా పొలం నుండి. మధ్యవర్తులు లేరు')}
           </p>
 
-          {/* Local · Far Away · All, then Location on the right. My orders
+          {/* Fresh from farms · Remote · Both (local / far / all), then Location on the right. My orders
               lives on the bottom bar's Orders tab (with its badge), so there
-              is no second link up here. Local / Far Away need a location, so
+              is no second link up here. Fresh from farms / Remote need a location, so
               without one a tap opens the location sheet. */}
           <div className="mt-5 flex items-center gap-1.5">
             <div className="flex gap-1.5 min-w-0" role="group" aria-label={L('Show harvests from', 'ఎక్కడి కోతలు చూపించాలి')}>
