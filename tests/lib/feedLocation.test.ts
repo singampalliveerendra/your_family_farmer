@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { DEFAULT_FEED_LOCATION_FILTER, loadFeedLocationFilter, parseFeedLocationFilter, passesLocationFilter, saveFeedLocationFilter } from '@/lib/feedLocation'
+import { DEFAULT_FEED_LOCATION_FILTER, FEED_LOCATION_FILTERS, FEED_LOCATION_LABELS, loadFeedLocationFilter, parseFeedLocationFilter, passesLocationFilter, saveFeedLocationFilter } from '@/lib/feedLocation'
 import { reachFor } from '@/lib/retailReach'
 
 // Client 2026-11-13: the buyer feed filters by Local · Far Away · All (default
@@ -86,5 +86,15 @@ describe('the pick sticks for the session', () => {
     expect(page).toMatch(/loadFeedLocationFilter\(sessionStore\(\)\)/)
     expect(page).toMatch(/saveFeedLocationFilter\(sessionStore\(\), f\)/)
     expect(page).not.toMatch(/localStorage[^\n]*yff_feed_location_filter/)
+  })
+})
+
+// Client 2026-11-14: buyers see Fresh from farms · Remote · Both, in that order.
+describe('filter chip names', () => {
+  it('shows Fresh from farms · Remote · Both', () => {
+    expect(FEED_LOCATION_FILTERS.map((f) => FEED_LOCATION_LABELS[f].en)).toEqual(['Fresh from farms', 'Remote', 'Both'])
+  })
+  it('every chip has a Telugu name', () => {
+    for (const f of FEED_LOCATION_FILTERS) expect(FEED_LOCATION_LABELS[f].te.trim()).not.toBe('')
   })
 })
