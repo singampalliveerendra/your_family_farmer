@@ -540,9 +540,11 @@ export default function ConsumerPage() {
           {/* Fresh from farms · Remote · Both (local / far / all), then Location on the right. My orders
               lives on the bottom bar's Orders tab (with its badge), so there
               is no second link up here. Fresh from farms / Remote need a location, so
-              without one a tap opens the location sheet. */}
-          <div className="mt-5 flex items-center gap-1.5">
-            <div className="flex gap-1.5 min-w-0" role="group" aria-label={L('Show harvests from', 'ఎక్కడి కోతలు చూపించాలి')}>
+              without one a tap opens the location sheet. The row wraps, so on a
+              narrow phone Location drops to its own line instead of sitting on
+              top of Both. */}
+          <div className="mt-5 flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label={L('Show harvests from', 'ఎక్కడి కోతలు చూపించాలి')}>
               {FEED_LOCATION_FILTERS.map((f) => (
                 <button
                   key={f}
