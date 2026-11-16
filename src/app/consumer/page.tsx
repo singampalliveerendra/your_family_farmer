@@ -537,13 +537,13 @@ export default function ConsumerPage() {
             {L('Straight from the farm. No Middlemen', 'నేరుగా పొలం నుండి. మధ్యవర్తులు లేరు')}
           </p>
 
-          {/* Fresh from farms · Remote · Both (local / far / all), then Location on the right. My orders
+          {/* Fresh from farms · Remote · Both (local / far / all), then Location below. My orders
               lives on the bottom bar's Orders tab (with its badge), so there
               is no second link up here. Fresh from farms / Remote need a location, so
-              without one a tap opens the location sheet. The row wraps, so on a
-              narrow phone Location drops to its own line instead of sitting on
-              top of Both. */}
-          <div className="mt-5 flex flex-wrap items-center gap-1.5">
+              without one a tap opens the location sheet. Location sits on its
+              own line under the chips, so on a narrow phone it can never land
+              on top of (or squeeze into) Both. */}
+          <div className="mt-5 space-y-2">
             <div className="flex flex-wrap gap-1.5" role="group" aria-label={L('Show harvests from', 'ఎక్కడి కోతలు చూపించాలి')}>
               {FEED_LOCATION_FILTERS.map((f) => (
                 <button
@@ -567,7 +567,7 @@ export default function ConsumerPage() {
             <button
               onClick={() => setShowLocationSheet(true)}
               aria-label={L('Set location', 'లొకేషన్ పెట్టండి')}
-              className="ml-auto inline-flex min-w-0 items-center gap-1 text-xs font-bold text-green-100 bg-green-800 active:bg-green-700 rounded-full px-3 py-2 leading-tight max-w-[140px]"
+              className="flex w-fit max-w-full min-w-0 items-center gap-1 text-xs font-bold text-green-100 bg-green-800 active:bg-green-700 rounded-full px-3 py-2 leading-tight"
             >
               <span aria-hidden>📍</span>
               <span className="truncate">{consumerLocationName || L('Set location', 'లొకేషన్ పెట్టండి')}</span>
