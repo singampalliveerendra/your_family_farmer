@@ -72,3 +72,30 @@ describe('resolvePhotoUrls', () => {
     expect(await resolvePhotoUrls([], async () => 'u')).toEqual([])
   })
 })
+
+describe('produce photo size (2026-11-18 blurry 2nd/3rd photos)', () => {
+  it('produce photos are kept at 1280px / 0.8, sharper than the old 800px', async () => {
+    const { PRODUCE_PHOTO_MAX_PX, PRODUCE_PHOTO_QUALITY } = await import('@/lib/photoList')
+    expect(PRODUCE_PHOTO_MAX_PX).toBe(1280)
+    expect(PRODUCE_PHOTO_QUALITY).toBe(0.8)
+  })
+
+  it('refuses thumbnails like the 96 × 96 photos found on prod', async () => {
+    const { photoTooSmall } = await import('@/lib/photoList')
+    expect(photoTooSmall(96, 96)).toBe(true)
+    expect(photoTooSmall(399, 300)).toBe(true)
+  })
+
+  it('accepts real photos, including tall narrow ones', async () => {
+    const { photoTooSmall } = await import('@/lib/photoList')
+    expect(photoTooSmall(400, 300)).toBe(false)
+    expect(photoTooSmall(369, 800)).toBe(false)
+    expect(photoTooSmall(4000, 3000)).toBe(false)
+  })
+
+  it('lets a photo through when its size could not be read', async () => {
+    const { photoTooSmall } = await import('@/lib/photoList')
+    expect(photoTooSmall(0, 0)).toBe(false)
+    expect(photoTooSmall(NaN, 100)).toBe(false)
+  })
+})

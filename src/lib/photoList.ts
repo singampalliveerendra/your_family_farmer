@@ -11,6 +11,24 @@ export type PhotoItem = {
 
 export const MAX_PHOTO_BYTES = 8 * 1024 * 1024
 
+// Produce photos are kept sharper than other uploads (2026-11-18). At the old
+// 800px a portrait photo was only 600px wide, stretched across a phone screen
+// that needs ~1100px — so it looked soft, and label text could not be read
+// even when zoomed. 1280px / 0.8 is ~150–250 KB per photo.
+export const PRODUCE_PHOTO_MAX_PX = 1280
+export const PRODUCE_PHOTO_QUALITY = 0.8
+
+// Below this on its longest side a photo is a thumbnail (e.g. 96 × 96 saved
+// from a shop website) and is blurry on every screen, so it is refused.
+// Prod on 2026-11-18 had 37 such photos, nearly all 2nd/3rd gallery photos.
+export const MIN_PHOTO_PX = 400
+
+export function photoTooSmall(width: number, height: number): boolean {
+  // 0 × 0 means the browser could not read the size (e.g. HEIC) — let it through.
+  if (!(width > 0) || !(height > 0)) return false
+  return Math.max(width, height) < MIN_PHOTO_PX
+}
+
 let seq = 0
 const nextKey = () => `p${Date.now().toString(36)}-${(seq++).toString(36)}`
 
