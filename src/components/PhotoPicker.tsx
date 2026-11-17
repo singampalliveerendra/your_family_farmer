@@ -8,8 +8,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useLang } from '@/lib/LanguageContext'
-import { compressImage } from '@/lib/compressImage'
-import { makeCover, newPhoto, removePhoto, screenPhotoFiles, type PhotoItem } from '@/lib/photoList'
+import { compressPhoto } from '@/lib/compressImage'
+import {
+  makeCover, newPhoto, photoTooSmall, removePhoto, screenPhotoFiles,
+  PRODUCE_PHOTO_MAX_PX, PRODUCE_PHOTO_QUALITY, type PhotoItem,
+} from '@/lib/photoList'
 
 export default function PhotoPicker({
   photos,
@@ -31,6 +34,18 @@ export default function PhotoPicker({
   const { tx, L } = useLang()
   const [adding, setAdding] = useState(false)
   const [busy, setBusy] = useState(false)
+  // Photos already in the list that turn out tiny once loaded (saved before
+  // the size check existed) get a "Blurry" badge so the seller replaces them.
+  const [blurry, setBlurry] = useState<Set<string>>(() => new Set())
+  const checkSize = (key: string) => (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth: w, naturalHeight: h } = e.currentTarget
+    if (photoTooSmall(w, h)) setBlurry((s) => (s.has(key) ? s : new Set(s).add(key)))
+  }
+  const blurryBadge = (key: string, small: boolean) => blurry.has(key) && (
+    <span className={`absolute bg-red-600 text-white font-bold rounded-full pointer-events-none ${small ? 'top-1 left-1 text-[9px] px-1.5' : 'top-2 left-2 text-[11px] px-2 py-0.5'}`}>
+      {small ? L('Blurry', 'మసక') : L('Blurry photo — please replace', 'మసక ఫోటో — దయచేసి మార్చండి')}
+    </span>
+  )
 
   // Revoke any unsaved previews when the form goes away.
   const latest = useRef(photos)
@@ -48,10 +63,18 @@ export default function PhotoPicker({
     if (!ok.length) return
     setBusy(true)
     const added: PhotoItem[] = []
+    let tooSmall = 0
     for (const f of ok) {
-      const c = await compressImage(f)
+      const { file: c, width, height } = await compressPhoto(f, PRODUCE_PHOTO_MAX_PX, PRODUCE_PHOTO_QUALITY)
+      if (photoTooSmall(width, height)) { tooSmall++; continue }
       const url = upload ? await upload(c).catch(() => null) : null
       added.push(url ? { key: url, url } : newPhoto(c, URL.createObjectURL(c)))
+    }
+    if (tooSmall) {
+      onError(L(
+        `${tooSmall === 1 ? 'This photo is' : `${tooSmall} photos are`} too small and will look blurry to buyers. Please use the original camera photo, not a thumbnail or a picture saved from a website.`,
+        `${tooSmall === 1 ? 'ఈ ఫోటో' : `${tooSmall} ఫోటోలు`} చాలా చిన్నవి, కొనుగోలుదారులకు మసకగా కనిపిస్తాయి. దయచేసి కెమెరాతో తీసిన అసలు ఫోటో వాడండి, వెబ్‌సైట్ నుండి సేవ్ చేసిన చిన్న చిత్రం కాదు.`,
+      ))
     }
     setBusy(false)
     setAdding(false)
@@ -91,7 +114,9 @@ export default function PhotoPicker({
               src={cover.url}
               alt={L('Cover photo', 'కవర్ ఫోటో')}
               className="w-full max-h-64 object-cover rounded-xl border border-gray-200 bg-gray-50"
+              onLoad={checkSize(cover.key)}
             />
+            {blurryBadge(cover.key, false)}
             <span className="absolute bottom-2 left-2 bg-green-700 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
               {L('Cover', 'కవర్')}
             </span>
@@ -112,8 +137,9 @@ export default function PhotoPicker({
                   aria-label={L('Make this the cover', 'దీన్ని కవర్ చేయి')}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={p.url} alt="" className="w-20 h-20 object-cover rounded-xl border border-gray-200" />
+                  <img src={p.url} alt="" onLoad={checkSize(p.key)} className={`w-20 h-20 object-cover rounded-xl border ${blurry.has(p.key) ? 'border-red-500 border-2' : 'border-gray-200'}`} />
                 </button>
+                {blurryBadge(p.key, true)}
                 <button
                   type="button"
                   onClick={() => remove(p)}

@@ -31,6 +31,7 @@ import { coverImageUrl } from '@/lib/productShare'
 import { growerLine } from '@/lib/source-farmers'
 import { canDeliver, normalizeDeliveryMode } from '@/lib/fulfillment'
 import BackButton from '@/components/BackButton'
+import ImageViewer from '@/components/ImageViewer'
 
 type Farmer = {
   id: string
@@ -137,6 +138,8 @@ export default function ProduceDetailPage() {
   // Swipe gallery
   const [activeImg, setActiveImg] = useState(0)
   const galleryRef = useRef<HTMLDivElement>(null)
+  // Tapping a photo opens it full-screen with pinch / double-tap zoom.
+  const [viewerAt, setViewerAt] = useState<number | null>(null)
   const onGalleryScroll = () => {
     const el = galleryRef.current
     if (!el) return
@@ -389,12 +392,21 @@ export default function ProduceDetailPage() {
               onScroll={onGalleryScroll}
               className="flex w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide"
             >
-              {gallery.map((url) => (
-                <div key={url} className="relative snap-center shrink-0 w-full h-72">
+              {gallery.map((url, i) => (
+                <button
+                  key={url}
+                  type="button"
+                  onClick={() => setViewerAt(i)}
+                  className="relative snap-center shrink-0 w-full h-72 cursor-zoom-in"
+                  aria-label={L('Open photo to zoom', 'జూమ్ చేయడానికి ఫోటో తెరవండి')}
+                >
                   <Image src={url} alt={item.name} fill sizes="(max-width: 640px) 100vw, 512px" className="object-cover" />
-                </div>
+                </button>
               ))}
             </div>
+            <span className="absolute bottom-7 right-3 bg-black/55 text-white text-[11px] font-semibold rounded-full px-2 py-1 pointer-events-none">
+              🔍 {L('Tap to zoom', 'జూమ్ కోసం నొక్కండి')}
+            </span>
             {gallery.length > 1 && (
               <div className="absolute bottom-7 left-0 right-0 flex justify-center gap-1.5 pointer-events-none drop-shadow">
                 {gallery.map((_, i) => (
@@ -666,6 +678,10 @@ export default function ProduceDetailPage() {
       </div>
 
       <CartFab raised />
+
+      {viewerAt !== null && gallery.length > 0 && (
+        <ImageViewer images={gallery} startIndex={viewerAt} alt={localizeName(item.name, lang)} onClose={() => setViewerAt(null)} />
+      )}
 
       {showReviews && (
         <ProduceReviewsModal listingId={item.id} produceName={item.name} onClose={() => setShowReviews(false)} />

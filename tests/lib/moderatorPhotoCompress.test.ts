@@ -18,7 +18,9 @@ describe('moderator produce form photo upload', () => {
 
   it('the picker compresses every file before uploading it', () => {
     const picker = read('src/components/PhotoPicker.tsx')
-    expect(picker).toMatch(/const c = await compressImage\(f\)\s*\n\s*const url = upload \? await upload\(c\)/)
+    // 2026-11-18: produce photos go up at 1280px / 0.8 (sharper), and tiny
+    // thumbnails are refused between the compress and the upload.
+    expect(picker).toMatch(/const \{ file: c, width, height \} = await compressPhoto\(f, PRODUCE_PHOTO_MAX_PX, PRODUCE_PHOTO_QUALITY\)\s*\n\s*if \(photoTooSmall\(width, height\)\) \{ tooSmall\+\+; continue \}\s*\n\s*const url = upload \? await upload\(c\)/)
   })
 
   it('the compressor defaults to 800px at quality 0.7', () => {
