@@ -13,7 +13,14 @@ export const fetchCache = 'force-no-store'
 // A short shared-cache window lets Vercel's CDN answer a burst of those from
 // one function run. Kept short because stock/price must look current; orders
 // re-check stock server-side, so a few seconds of staleness cannot oversell.
-const FEED_CACHE = 'public, s-maxage=15'
+//
+// stale-while-revalidate: at today's traffic most visits come more than 15 s
+// apart, so 88% of feed calls missed the cache and waited ~0.8 s for a fresh
+// run (vercel metrics, 2026-11-10..18). Now the CDN answers at once with the
+// last copy and refreshes it in the background, so the next visitor gets the
+// new one. A served copy is as old as the previous visit, never over 5 min.
+// (Not exported: Next.js rejects unknown exports from a route file.)
+const FEED_CACHE = 'public, s-maxage=15, stale-while-revalidate=300'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
