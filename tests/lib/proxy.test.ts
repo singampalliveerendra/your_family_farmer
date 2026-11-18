@@ -119,3 +119,47 @@ describe('proxy matcher', async () => {
     }
   })
 })
+
+// `/` is force-dynamic (src/app/page.tsx). A visitor with no app or session
+// signal always ends at /home, so the proxy answers them in ~8 ms instead of a
+// ~0.6 s function run. Anyone carrying a signal must still reach page.tsx, or
+// the installed app would open on the promo page.
+describe('plain visitor at /', () => {
+  const root = (url: string, cookie?: string) =>
+    proxy(new NextRequest(new URL(url, 'https://www.gogrameen.in'), { headers: cookie ? { cookie } : undefined }))
+
+  it('sends a visitor with no signals straight to /home', () => {
+    setEnv('production')
+    const res = root('/')
+    expect(res.status).toBe(307)
+    expect(res.headers.get('location')).toBe('https://www.gogrameen.in/home')
+  })
+
+  it('leaves the installed app launch (?pwa=1) to page.tsx', () => {
+    setEnv('production')
+    expect(root('/?pwa=1').headers.get('location')).toBeNull()
+  })
+
+  it.each(['yff_entry=seller', 'yff_entry=consumer', 'yff_farmer=tok', 'yff_consumer=tok'])(
+    'leaves a visitor with %s to page.tsx', (cookie) => {
+      setEnv('production')
+      expect(root('/', cookie).headers.get('location')).toBeNull()
+    })
+
+  it('ignores unrelated cookies', () => {
+    setEnv('production')
+    expect(root('/', 'yff_lang=te').headers.get('location')).toBe('https://www.gogrameen.in/home')
+  })
+
+  it('touches no other page', () => {
+    setEnv('production')
+    for (const p of ['/home', '/consumer', '/farmer/ramesh']) {
+      expect(root(p).headers.get('location'), p).toBeNull()
+    }
+  })
+
+  it('still bounces a stranger on a preview build to production first', () => {
+    setEnv('preview')
+    expect(root('/').headers.get('location')).toBe('https://www.gogrameen.in/')
+  })
+})

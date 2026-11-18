@@ -74,3 +74,20 @@ describe.each([
     expect(await res.json()).toEqual([])
   })
 })
+
+// Low traffic means most feed calls arrive more than 15 s apart; without
+// stale-while-revalidate 88% of them missed the CDN and waited ~0.8 s
+// (vercel metrics 2026-11-10..18). The CDN must be allowed to answer with the
+// last copy while it refreshes.
+describe('/api/produce cache header', () => {
+  it('lets the CDN serve the last copy while it refreshes', async () => {
+    const res = await get(feed, '/api/produce?status=feed')
+    expect(res.headers.get('Cache-Control')).toBe('public, s-maxage=15, stale-while-revalidate=300')
+  })
+
+  it('caches the empty feed the same way', async () => {
+    db.listings = []
+    const res = await get(feed, '/api/produce?status=feed')
+    expect(res.headers.get('Cache-Control')).toBe('public, s-maxage=15, stale-while-revalidate=300')
+  })
+})

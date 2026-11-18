@@ -108,6 +108,24 @@ function previewGate(req: NextRequest): NextResponse | null {
   return NextResponse.redirect(to, 307)
 }
 
+// ── `/` for a plain visitor ────────────────────────────────────────────────
+//
+// src/app/page.tsx is force-dynamic: it reads cookies to pick the installed
+// app's surface or a signed-in person's saved default dashboard. But a visitor
+// with none of those signals always ends at /home, and making a server
+// function say so cost ~0.6 s (p75, vercel metrics 2026-11-18) where the proxy
+// answers in ~8 ms. So the proxy sends exactly that visitor; anyone holding
+// ?pwa=1 or one of these cookies still goes through page.tsx unchanged.
+// Cookie names are written out because the session modules need Node crypto.
+const ROOT_SIGNAL_COOKIES = ['yff_entry', 'yff_farmer', 'yff_consumer']
+
+function plainVisitorAtRoot(req: NextRequest): NextResponse | null {
+  if (req.nextUrl.pathname !== '/') return null
+  if (req.nextUrl.searchParams.get('pwa') === '1') return null
+  if (ROOT_SIGNAL_COOKIES.some((c) => req.cookies.get(c)?.value)) return null
+  return NextResponse.redirect(new URL('/home', req.url), 307)
+}
+
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
@@ -115,6 +133,9 @@ export function proxy(req: NextRequest) {
   // sent to the real site whatever they asked for.
   const bounce = previewGate(req)
   if (bounce) return bounce
+
+  const home = plainVisitorAtRoot(req)
+  if (home) return home
 
   if (PUBLIC_PATHS.has(pathname)) return NextResponse.next()
   if (PUBLIC_PATTERNS.some((re) => re.test(pathname))) return NextResponse.next()
