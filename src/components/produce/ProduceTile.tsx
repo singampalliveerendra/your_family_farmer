@@ -66,6 +66,9 @@ export type ProduceTileProps = {
   cta: ReactNode
   /** Rendered after the card body (modals that belong to this card). */
   children?: ReactNode
+  /** Marks the tile so the home feed can return to it after Back
+   *  (src/lib/feedRestore.ts). */
+  anchorKey?: string
 }
 
 export default function ProduceTile(p: ProduceTileProps) {
@@ -80,7 +83,7 @@ export default function ProduceTile(p: ProduceTileProps) {
   const chips = p.chips ?? []
 
   return (
-    <div className="bg-white rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.08)] flex flex-col h-full">
+    <div data-feed-key={p.anchorKey} className="bg-white rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.08)] flex flex-col h-full">
       {/* Image — fixed 160px. Multiple photos become a swipe gallery; method
           pill top-right, dots bottom-centre. */}
       <div className="relative h-40 w-full flex-shrink-0">

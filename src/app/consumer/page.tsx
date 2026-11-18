@@ -2,7 +2,7 @@
 
 import { cartCargoFields } from '@/lib/courierOptions'
 import { cartPackFields, packPriceTag } from '@/lib/packPricing'
-import { useState, useEffect, useCallback, useMemo, useRef, startTransition } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, startTransition } from 'react'
 import Link from 'next/link'
 import GlobalNav from '@/components/consumer/GlobalNav'
 import { CartFab, useCart, EditableQty } from '@/components/consumer/Cart'
@@ -31,6 +31,7 @@ import PreorderConfirm from '@/components/consumer/PreorderConfirm'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
 import ProduceTile, { METHOD_PILL, PRODUCE_BG, DEFAULT_PRODUCE_BG, PRODUCE_GRID_CLASS, ProduceSearchBox, ProduceChipRow, type TileChip } from '@/components/produce/ProduceTile'
 import { FEED_PAGE_SIZE, FEED_PREFETCH_MARGIN, nextVisibleCount, nextBatchCoverUrls } from '@/lib/feedPaging'
+import { readFeedSnapshot, saveFeedSnapshot, updateFeedSnapshot, pickAnchor, scrollDeltaFor, snapshotIsStale, feedViewKey, type FeedAnchor } from '@/lib/feedRestore'
 
 const DEFAULT_REGION = 'tadepalligudem'
 
@@ -190,33 +191,48 @@ const CATEGORIES = (['all', 'vegetables', 'fruits', 'grains', 'leafy', 'spices',
 // Method pill colours, emoji tints and the grid live in the shared tile
 // (src/components/produce/ProduceTile.tsx), also used by the bulk market.
 
+type FeedData = {
+  available: ProduceListing[]
+  comingSoon: ProduceListing[]
+  harvestsByListing: Record<string, GridHarvest[]>
+  farmerCount: number
+}
+
 export default function ConsumerPage() {
   const { L } = useLang()
-  const [available, setAvailable]     = useState<ProduceListing[]>([])
-  const [comingSoon, setComingSoon]   = useState<ProduceListing[]>([])
+  // Back from a product (or any page) within the same app session: start from
+  // the snapshot — same cards, filters and spot — instead of the top
+  // (src/lib/feedRestore.ts). Read once per mount; null on a fresh load or
+  // refresh, so the server render and the first client render still agree.
+  const [restored] = useState(() => readFeedSnapshot<FeedData>())
+  const [available, setAvailable]     = useState<ProduceListing[]>(() => restored?.data.available ?? [])
+  const [comingSoon, setComingSoon]   = useState<ProduceListing[]>(() => restored?.data.comingSoon ?? [])
   // All logged harvests per produce (listing id → harvests, newest first). Each
   // becomes its own card; the newest also drives the fallback clock. Best-effort
   // from the `harvests` table.
-  const [harvestsByListing, setHarvestsByListing] = useState<Record<string, GridHarvest[]>>({})
-  const [search, setSearch]           = useState('')
-  const [method, setMethod]           = useState('all')
-  const [category, setCategory]       = useState('all')
+  const [harvestsByListing, setHarvestsByListing] = useState<Record<string, GridHarvest[]>>(() => restored?.data.harvestsByListing ?? {})
+  const [search, setSearch]           = useState(() => restored?.filters.search ?? '')
+  const [method, setMethod]           = useState(() => restored?.filters.method ?? 'all')
+  const [category, setCategory]       = useState(() => restored?.filters.category ?? 'all')
   // Harvest-list sort + farmer filter (Trello: sort/filter the harvests list).
-  const [sortBy, setSortBy]           = useState<'fresh' | 'rating' | 'purchases'>('fresh')
-  const [farmerFilter, setFarmerFilter] = useState('all')
-  const [loading, setLoading]         = useState(true)
-  const [farmerCount, setFarmerCount] = useState(0)
+  const [sortBy, setSortBy]           = useState<'fresh' | 'rating' | 'purchases'>(() => restored?.filters.sortBy ?? 'fresh')
+  const [farmerFilter, setFarmerFilter] = useState(() => restored?.filters.farmerFilter ?? 'all')
+  const [loading, setLoading]         = useState(!restored)
+  const [farmerCount, setFarmerCount] = useState(() => restored?.data.farmerCount ?? 0)
 
   // Consumer location
-  const [consumerLat, setConsumerLat]           = useState<number | null>(null)
-  const [consumerLng, setConsumerLng]           = useState<number | null>(null)
-  const [consumerLocationName, setConsumerLocationName] = useState('')
+  const [consumerLat, setConsumerLat]           = useState<number | null>(() => restored?.consumerLat ?? null)
+  const [consumerLng, setConsumerLng]           = useState<number | null>(() => restored?.consumerLng ?? null)
+  const [consumerLocationName, setConsumerLocationName] = useState(() => restored?.consumerLocationName ?? '')
   const [showLocationSheet, setShowLocationSheet]       = useState(false)
   // Local · Far Away · All (client 2026-11-13, replacing "Delivers to me" and
   // the 5 / 10 / 25 km chips). Default Local: the point of the app is buying
   // from a farmer near you. Only bites once a location is set — without one
   // the feed shows everything (src/lib/feedLocation.ts).
-  const [distanceFilter, setDistanceFilterState]        = useState<FeedLocationFilter>(DEFAULT_FEED_LOCATION_FILTER)
+  const [distanceFilter, setDistanceFilterState]        = useState<FeedLocationFilter>(
+    // On a restore there is no server render to match, so read it straight away.
+    () => (restored ? loadFeedLocationFilter(sessionStore()) : DEFAULT_FEED_LOCATION_FILTER),
+  )
   // The buyer's pick sticks until the app is closed (sessionStorage). Read
   // after mount so the server render and the first client render agree.
   useEffect(() => {
@@ -230,7 +246,7 @@ export default function ConsumerPage() {
 
   // When the feed was last fetched, so tab-focus refetches can be skipped if
   // the data is still fresh (flicking between apps used to refetch every time).
-  const lastFetchAt = useRef(0)
+  const lastFetchAt = useRef(restored?.fetchedAt ?? 0)
 
   const fetchData = useCallback(async (silent = false) => {
     lastFetchAt.current = Date.now()
@@ -286,7 +302,9 @@ export default function ConsumerPage() {
   }, [])
 
   useEffect(() => {
-    fetchData()
+    // A restored feed is drawn already: refresh it quietly, and only if stale.
+    if (!restored) fetchData()
+    else if (snapshotIsStale(restored.fetchedAt, Date.now())) fetchData(true)
     // Background refreshes — no skeleton flash
     const onVisible = () => {
       if (document.visibilityState === 'visible' && Date.now() - lastFetchAt.current > 30_000) fetchData(true)
@@ -310,7 +328,7 @@ export default function ConsumerPage() {
       if (debounceTimer) clearTimeout(debounceTimer)
       supabase.removeChannel(channel)
     }
-  }, [fetchData])
+  }, [fetchData, restored])
 
   // Search/method/category filtering, done entirely client-side over the
   // already-loaded `available` list. Everything needed (name, variety,
@@ -474,10 +492,16 @@ export default function ConsumerPage() {
   // Back to the first page only when the buyer changes what they're looking
   // at — NOT on the silent background refetches, which would collapse the
   // list under someone who has scrolled down.
-  const [visibleCount, setVisibleCount] = useState(FEED_PAGE_SIZE)
+  // Compared by value, so a remount that restores the same view (or the
+  // location arriving from storage unchanged) keeps the restored count.
+  const [visibleCount, setVisibleCount] = useState(() => restored?.visibleCount ?? FEED_PAGE_SIZE)
+  const viewKey = feedViewKey({ search, method, category, farmerFilter, distanceFilter, sortBy, consumerLat, consumerLng })
+  const lastViewKey = useRef(viewKey)
   useEffect(() => {
+    if (lastViewKey.current === viewKey) return
+    lastViewKey.current = viewKey
     setVisibleCount(FEED_PAGE_SIZE)
-  }, [search, method, category, farmerFilter, distanceFilter, sortBy, consumerLat, consumerLng])
+  }, [viewKey])
 
   // Sentinel sits under the drawn cards; FEED_PREFETCH_MARGIN makes it fire
   // ~2 screens early so the next batch is ready before the buyer gets there.
@@ -518,6 +542,101 @@ export default function ConsumerPage() {
     const t = setTimeout(warm, 500)
     return () => clearTimeout(t)
   }, [displayItems, visibleCount, hasMore])
+
+  // ── Keep the place for when the buyer comes back (src/lib/feedRestore.ts) ──
+  const gridRef = useRef<HTMLDivElement>(null)
+  // While the restore is lining the feed up, the scroll it causes must not be
+  // saved as the buyer's own position.
+  const restoringRef = useRef(false)
+  const posRef = useRef<{ anchor: FeedAnchor | null; scrollY: number }>({ anchor: restored?.anchor ?? null, scrollY: restored?.scrollY ?? 0 })
+
+  // The card at the top of the screen. Stops at the first one still on screen.
+  const measureAnchor = useCallback((): FeedAnchor | null => {
+    const grid = gridRef.current
+    if (!grid) return null
+    const cards: { key: string; top: number; bottom: number }[] = []
+    for (const el of grid.querySelectorAll<HTMLElement>('[data-feed-key]')) {
+      const r = el.getBoundingClientRect()
+      cards.push({ key: el.dataset.feedKey ?? '', top: r.top, bottom: r.bottom })
+      if (r.bottom > 0) break
+    }
+    return pickAnchor(cards)
+  }, [])
+
+  const recordPosition = useCallback(() => {
+    if (restoringRef.current) return
+    const anchor = measureAnchor()
+    // No grid (unmounting, skeleton, empty) — keep the last good position.
+    if (!anchor) return
+    posRef.current = { anchor, scrollY: window.scrollY }
+    updateFeedSnapshot(posRef.current)
+  }, [measureAnchor])
+
+  // Saved as the feed changes…
+  useEffect(() => {
+    if (loading) return
+    saveFeedSnapshot<FeedData>({
+      data: { available, comingSoon, harvestsByListing, farmerCount },
+      fetchedAt: lastFetchAt.current,
+      filters: { search, method, category, sortBy, farmerFilter },
+      consumerLat, consumerLng, consumerLocationName,
+      visibleCount,
+      anchor: posRef.current.anchor,
+      scrollY: posRef.current.scrollY,
+    })
+  }, [loading, available, comingSoon, harvestsByListing, farmerCount, search, method, category, sortBy, farmerFilter, consumerLat, consumerLng, consumerLocationName, visibleCount])
+
+  // …and the position as the buyer scrolls (settled, not every frame).
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | null = null
+    const onScroll = () => {
+      if (t) clearTimeout(t)
+      t = setTimeout(recordPosition, 120)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (t) clearTimeout(t)
+    }
+  }, [recordPosition])
+
+  // Back to the same card at the same height. Kept lined up while the boxes
+  // above the grid (fresh / upcoming harvests) load and push it down, until
+  // the buyer touches the screen or 2.5 s pass.
+  useLayoutEffect(() => {
+    if (!restored) return
+    restoringRef.current = true
+    const align = () => {
+      const a = restored.anchor
+      const el = a ? gridRef.current?.querySelector<HTMLElement>(`[data-feed-key="${CSS.escape(a.key)}"]`) : null
+      if (a && el) {
+        const d = scrollDeltaFor(a, el.getBoundingClientRect().top)
+        if (Math.abs(d) >= 1) window.scrollBy(0, d)
+      } else if (Math.abs(window.scrollY - restored.scrollY) >= 1) {
+        // That card is gone (sold out, filtered): the same height instead.
+        window.scrollTo(0, restored.scrollY)
+      }
+    }
+    align()
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(align)
+    ro?.observe(document.body)
+    const userEvents = ['touchstart', 'wheel', 'keydown', 'mousedown'] as const
+    let stopped = false
+    const stop = () => {
+      if (stopped) return
+      stopped = true
+      ro?.disconnect()
+      clearTimeout(timer)
+      window.removeEventListener('scroll', align)
+      userEvents.forEach((ev) => window.removeEventListener(ev, stop, true))
+      restoringRef.current = false
+    }
+    const timer = setTimeout(stop, 2500)
+    // The browser's own scroll restore can land after this; put it back.
+    window.addEventListener('scroll', align, { passive: true })
+    userEvents.forEach((ev) => window.addEventListener(ev, stop, { capture: true, passive: true }))
+    return stop
+  }, [restored])
 
   return (
     <main className="min-h-screen bg-[#f8f8f8] pb-12">
@@ -657,10 +776,12 @@ export default function ConsumerPage() {
             <EmptyState />
           )
         ) : (
-          <div className={PRODUCE_GRID_CLASS}>
+          // Tapping a card saves exactly where the buyer was, before leaving.
+          <div ref={gridRef} onClickCapture={recordPosition} className={PRODUCE_GRID_CLASS}>
             {displayItems.slice(0, visibleCount).map((card, i) => (
               <ProduceCard
                 key={card.key}
+                anchorKey={card.key}
                 item={card.item}
                 harvest={card.harvest}
                 soldOut={card.soldOut}
@@ -729,7 +850,7 @@ export default function ConsumerPage() {
 // come from there for the collapsed tile: nothing decrements the template's
 // stock_qty when a harvest sells out, so the listing's own number would still
 // claim kilos that are gone.
-function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, transport, priority }: { item: ProduceListing; harvest?: GridHarvest; soldOut?: boolean; distanceKm?: number | null; distanceApprox?: boolean; transport?: { charge: number; state: 'AP' | 'TG' } | null; priority?: boolean }) {
+function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, transport, priority, anchorKey }: { item: ProduceListing; harvest?: GridHarvest; soldOut?: boolean; distanceKm?: number | null; distanceApprox?: boolean; transport?: { charge: number; state: 'AP' | 'TG' } | null; priority?: boolean; anchorKey?: string }) {
   const emoji       = item.emoji ?? '🌿'
   const method      = item.method?.toLowerCase() ?? 'natural'
   const methodPill  = METHOD_PILL[method]  ?? 'bg-green-600 text-white'
@@ -914,6 +1035,7 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, trans
 
   return (
     <ProduceTile
+      anchorKey={anchorKey}
       href={produceHref}
       name={localizeName(item.name, lang)}
       variety={item.variety ? localizeName(item.variety, lang) : null}
