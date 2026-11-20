@@ -19,7 +19,14 @@ import type { Language } from './translations'
 export const TRANSLATED_FIELDS = ['name', 'variety', 'description', 'how_we_grow'] as const
 export type TranslatedField = (typeof TRANSLATED_FIELDS)[number]
 
-export type FieldTranslation = { of: string; en: string; te: string }
+/**
+ * Which version of the translator instructions made a copy. Raise it when the
+ * instructions improve: older copies keep showing, and the background sweep
+ * quietly redoes them (2: Telugu in English letters → real English, 2026-11-20).
+ */
+export const TRANSLATION_VERSION = 2
+
+export type FieldTranslation = { of: string; en: string; te: string; v?: number }
 export type Translations = Partial<Record<TranslatedField, FieldTranslation>>
 
 const TELUGU_LETTER = /[ఀ-౿]/g
@@ -57,9 +64,9 @@ export function translationFor(
   if (!text || !translations || typeof translations !== 'object') return null
   const t = (translations as Record<string, unknown>)[field]
   if (!t || typeof t !== 'object') return null
-  const { of, en, te } = t as Record<string, unknown>
+  const { of, en, te, v } = t as Record<string, unknown>
   if (clean(of) !== text) return null
-  return { of: text, en: clean(en), te: clean(te) }
+  return { of: text, en: clean(en), te: clean(te), ...(typeof v === 'number' ? { v } : {}) }
 }
 
 /**
@@ -87,10 +94,15 @@ export function localizeText(
  * Fields of a listing whose text has no current translation yet — what the
  * translator still has to do. A field tried before and failed is stored with
  * empty copies and counts as done, so it is not sent again and again; editing
- * the text makes it due once more.
+ * the text makes it due once more, and so does a copy made by older
+ * instructions (TRANSLATION_VERSION).
  */
 export function pendingFields(row: Record<string, unknown>): TranslatedField[] {
-  return TRANSLATED_FIELDS.filter((f) => clean(row[f]) && !translationFor(row.translations, f, clean(row[f])))
+  return TRANSLATED_FIELDS.filter((f) => {
+    if (!clean(row[f])) return false
+    const t = translationFor(row.translations, f, clean(row[f]))
+    return !t || (t.v ?? 1) < TRANSLATION_VERSION
+  })
 }
 
 /**

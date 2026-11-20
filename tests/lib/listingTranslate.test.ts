@@ -9,6 +9,7 @@ import {
   type ListingStore,
 } from '@/lib/listingTranslate'
 import {
+  TRANSLATION_VERSION,
   localizeText,
   pendingFields,
   pickTranslations,
@@ -22,7 +23,7 @@ import { touchesTranslatedText } from '@/lib/translateAfterSave'
 // English reader no longer sees the Telugu a farmer typed, and the other way.
 
 const KANDI = 'కందిపప్పు'
-const tr = { name: { of: KANDI, en: 'Toor dal', te: KANDI } }
+const tr = { name: { of: KANDI, en: 'Toor dal', te: KANDI, v: TRANSLATION_VERSION } }
 
 describe('showing a farmer-typed text', () => {
   it('English reader sees the English copy of a Telugu name', () => {
@@ -78,8 +79,14 @@ describe('what still needs translating', () => {
   })
 
   it('a field tried before (empty copies) is not sent again', () => {
-    const row = { name: KANDI, translations: { name: { of: KANDI, en: '', te: '' } } }
+    const row = { name: KANDI, translations: { name: { of: KANDI, en: '', te: '', v: TRANSLATION_VERSION } } }
     expect(pendingFields(row)).toEqual([])
+  })
+
+  it('a copy made by older instructions is redone, but still shown meanwhile', () => {
+    const row = { name: 'Boppayi', translations: { name: { of: 'Boppayi', en: 'Boppayi', te: 'బొప్పాయి' } } }
+    expect(pendingFields(row)).toEqual(['name'])
+    expect(localizeName('Boppayi', 'te', row.translations)).toBe('బొప్పాయి')
   })
 
   it('itemsFor keys each text by row index and field', () => {
@@ -170,7 +177,27 @@ describe('fillListingTranslations', () => {
     const translate = vi.fn(async () => ({ ok: true as const, out: new Map([['0.description', { en: 'Naturally', te: 'సహజంగా' }]]) }))
     expect(await fillListingTranslations(store, ['a'], translate)).toEqual({ translated: 1, pending: 0 })
     expect(translate).toHaveBeenCalledWith([{ k: '0.description', text: 'సహజంగా' }])
-    expect(writes[0].translations).toEqual({ ...tr, description: { of: 'సహజంగా', en: 'Naturally', te: 'సహజంగా' } })
+    expect(writes[0].translations).toEqual({ ...tr, description: { of: 'సహజంగా', en: 'Naturally', te: 'సహజంగా', v: TRANSLATION_VERSION } })
+  })
+
+  it('redoing an old copy: Boppayi becomes Papaya, a blank side keeps the old one', async () => {
+    const { store, writes } = memoryStore([
+      { id: 'a', name: 'Boppayi', translations: { name: { of: 'Boppayi', en: 'Boppayi', te: 'బొప్పాయి' } } },
+    ])
+    const translate = async () => ({ ok: true as const, out: new Map([['0.name', { en: 'Papaya', te: '' }]]) })
+    expect(await fillListingTranslations(store, ['a'], translate)).toEqual({ translated: 1, pending: 0 })
+    expect(writes[0].translations).toEqual({ name: { of: 'Boppayi', en: 'Papaya', te: 'బొప్పాయి', v: TRANSLATION_VERSION } })
+    expect(localizeName('Boppayi', 'en', writes[0].translations)).toBe('Papaya')
+  })
+
+  it('the instructions tell Gemini that Telugu in English letters is not English', async () => {
+    const fetch = reply([])
+    await translateBatch([{ k: '0.name', text: 'Boppayi' }], { apiKey: 'k', fetch })
+    const body = JSON.parse((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)
+    const prompt = body.systemInstruction.parts[0].text as string
+    expect(prompt).toContain('Boppayi → Papaya')
+    expect(prompt).toContain('బియ్యం')
+    expect(prompt).toContain('Never repeat it')
   })
 
   it('nothing to do: no request', async () => {
