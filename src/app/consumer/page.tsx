@@ -70,6 +70,8 @@ type Farmer = {
 }
 
 type ProduceListing = {
+  // English + Telugu copies of name / variety (src/lib/textTranslations.ts).
+  translations?: unknown
   id: string
   name: string
   variety?: string
@@ -1037,8 +1039,8 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, trans
     <ProduceTile
       anchorKey={anchorKey}
       href={produceHref}
-      name={localizeName(item.name, lang)}
-      variety={item.variety ? localizeName(item.variety, lang) : null}
+      name={localizeName(item.name, lang, item.translations)}
+      variety={item.variety ? localizeName(item.variety, lang, item.translations, 'variety') : null}
       // The grower, on its own line directly under the crop name: three
       // aggregator tiles of the same crop are three different farmers' produce.
       growerLine={isAggregator && sourceName ? `${L('from', 'నుండి')} ${sourceName}${sourceVillage ? `, ${sourceVillage}` : ''}` : null}
@@ -1164,14 +1166,14 @@ function ProduceCard({ item, harvest, soldOut, distanceKm, distanceApprox, trans
       {showReviews && (
         <ProduceReviewsModal
           listingId={item.id}
-          produceName={localizeName(item.name, lang)}
+          produceName={localizeName(item.name, lang, item.translations)}
           onClose={() => setShowReviews(false)}
         />
       )}
 
       {askPreorder && (
         <PreorderConfirm
-          produceName={localizeName(item.name, lang)}
+          produceName={localizeName(item.name, lang, item.translations)}
           expectedDate={nextHarvestAt}
           onConfirm={() => { setAskPreorder(false); void doAdd(true) }}
           onCancel={() => setAskPreorder(false)}
@@ -1204,9 +1206,9 @@ function ComingSoonCard({ item }: { item: ProduceListing }) {
       </Link>
 
       <div className="p-3 flex flex-col flex-1 min-w-0">
-        <h3 className="font-bold text-[15px] leading-[1.2] text-gray-700 truncate">{localizeName(item.name, lang)}</h3>
+        <h3 className="font-bold text-[15px] leading-[1.2] text-gray-700 truncate">{localizeName(item.name, lang, item.translations)}</h3>
         {item.variety && (
-          <p className="text-[12px] text-[#666] truncate mt-0.5">{localizeName(item.variety, lang)}</p>
+          <p className="text-[12px] text-[#666] truncate mt-0.5">{localizeName(item.variety, lang, item.translations, 'variety')}</p>
         )}
         {farmer && (
           <p className="text-[11px] text-[#666] truncate mt-1">👨‍🌾 {farmer.name} · {farmer.village}</p>

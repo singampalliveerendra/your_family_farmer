@@ -9,6 +9,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
+import { localizeText } from '@/lib/textTranslations'
 import { localizeName } from '@/lib/localizeName'
 import { useCart, EditableQty } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
@@ -36,6 +37,7 @@ type Produce = {
   pesticide_result?: string
   soil_ph?: number
   how_we_grow?: string
+  translations?: unknown
   shelf_life_days?: number
   available_to?: string
   description?: string
@@ -497,8 +499,8 @@ function ProduceCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <Link href={detailHref} className="min-w-0">
-              <h3 className="font-bold text-gray-900 text-sm hover:underline">{localizeName(item.name, lang)}</h3>
-              {item.variety && <p className="text-xs text-gray-500">{localizeName(item.variety, lang)}</p>}
+              <h3 className="font-bold text-gray-900 text-sm hover:underline">{localizeName(item.name, lang, item.translations)}</h3>
+              {item.variety && <p className="text-xs text-gray-500">{localizeName(item.variety, lang, item.translations, 'variety')}</p>}
             </Link>
             {soldOut ? (
               <span className="text-[11px] font-semibold text-red-600 bg-red-50 rounded-full px-2 py-0.5 flex-shrink-0">
@@ -545,13 +547,13 @@ function ProduceCard({
           </div>
           {item.description && (
             <p className="text-xs text-gray-600 mt-2 leading-snug whitespace-pre-line">
-              {item.description}
+              {localizeText(item.description, lang, item.translations, 'description')}
             </p>
           )}
           {item.how_we_grow && (
             <div className="mt-2">
               <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide">🌱 {L('How we grow', 'మేము ఎలా పండిస్తాము')}</p>
-              <p className="text-xs text-gray-600 leading-snug whitespace-pre-line">{item.how_we_grow}</p>
+              <p className="text-xs text-gray-600 leading-snug whitespace-pre-line">{localizeText(item.how_we_grow, lang, item.translations, 'how_we_grow')}</p>
             </div>
           )}
           {review?.latest?.text && (
@@ -672,7 +674,7 @@ function ComingSoonCard({ item, farmerId, onDelete }: { item: Produce; farmerId:
     <div className="bg-white rounded-xl border-2 border-dashed border-gray-200 p-4">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <h3 className="font-bold text-gray-700 text-sm">{item.emoji ?? '🌱'} {localizeName(item.name, lang)}</h3>
+          <h3 className="font-bold text-gray-700 text-sm">{item.emoji ?? '🌱'} {localizeName(item.name, lang, item.translations)}</h3>
           {item.available_to && (
             <p className="text-xs text-gray-500 mt-0.5">
               {tx.expected} {new Date(item.available_to).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}

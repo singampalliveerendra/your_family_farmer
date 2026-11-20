@@ -1,5 +1,6 @@
 import { Language } from './translations'
 import { produceNameToTe } from './produceNamesTe'
+import { localizeText, translationFor } from './textTranslations'
 
 /**
  * Produce names and varieties are stored bilingually as "English / తెలుగు".
@@ -11,7 +12,14 @@ import { produceNameToTe } from './produceNamesTe'
  * so common crops show Telugu when the Telugu toggle is on. Unknown names fall
  * back to the English text unchanged.
  */
-export function localizeName(value: string | null | undefined, lang: Language): string {
+export function localizeName(
+  value: string | null | undefined,
+  lang: Language,
+  // The listing's `translations` column (src/lib/textTranslations.ts). When it
+  // has a current copy, a name typed in one language reads in the other.
+  translations?: unknown,
+  field: 'name' | 'variety' = 'name',
+): string {
   if (!value) return ''
   const sepIdx = value.indexOf('/')
   if (sepIdx !== -1) {
@@ -20,6 +28,12 @@ export function localizeName(value: string | null | undefined, lang: Language): 
     return lang === 'te' ? te || en : en || te
   }
   const trimmed = value.trim()
+  // The farmer wrote both sides themselves (above) → that wins. Next the AI
+  // copy, then the built-in dictionary for a Telugu reader.
+  if (translationFor(translations, field, trimmed)) {
+    const shown = localizeText(trimmed, lang, translations, field)
+    if (shown !== trimmed || lang !== 'te') return shown
+  }
   if (lang !== 'te') return trimmed
   return produceNameToTe(trimmed) ?? localizeSegments(trimmed)
 }

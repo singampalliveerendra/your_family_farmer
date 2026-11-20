@@ -14,6 +14,8 @@ import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
 
 type ProduceItem = {
+  // English + Telugu copies of name / variety (src/lib/textTranslations.ts).
+  translations?: unknown
   id: string
   name: string
   variety?: string
@@ -156,9 +158,9 @@ export default function BrowseProduceTab({
               <div key={item.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
                 <Link href={`/farmer/${farmer.slug}#produce`} className="block p-3">
                   <div className="text-3xl mb-2">{item.emoji ?? '🌿'}</div>
-                  <h3 className="text-sm font-bold text-gray-900 leading-tight">{localizeName(item.name, lang)}</h3>
+                  <h3 className="text-sm font-bold text-gray-900 leading-tight">{localizeName(item.name, lang, item.translations)}</h3>
                   {item.variety && (
-                    <p className="text-[10px] text-gray-500 mt-0.5 truncate">{localizeName(item.variety, lang)}</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5 truncate">{localizeName(item.variety, lang, item.translations, 'variety')}</p>
                   )}
                   <p className="text-xs text-green-700 font-semibold mt-1 truncate">
                     {farmer.name}

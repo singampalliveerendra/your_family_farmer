@@ -153,8 +153,8 @@ function BulkTile({ it, buying, priority }: { it: MarketItem; buying: boolean; p
   return (
     <ProduceTile
       href={href}
-      name={localizeName(it.name, lang)}
-      variety={it.variety ? localizeName(it.variety, lang) : null}
+      name={localizeName(it.name, lang, it.translations)}
+      variety={it.variety ? localizeName(it.variety, lang, it.translations, 'variety') : null}
       growerLine={it.grower ? `${L('from', 'నుండి')} ${it.grower.name}${it.grower.village ? `, ${it.grower.village}` : ''}` : null}
       images={it.images.length ? it.images : it.image ? [it.image] : []}
       emoji={it.emoji ?? '🌾'}

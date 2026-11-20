@@ -10,6 +10,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
 import { useLang } from '@/lib/LanguageContext'
+import { localizeText } from '@/lib/textTranslations'
 import { methodLabel, categoryLabel } from '@/lib/produceLabels'
 import LanguageToggle from '@/components/LanguageToggle'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
@@ -63,6 +64,7 @@ type Listing = {
   soil_ph?: number | null
   pesticide_result?: string | null
   how_we_grow?: string | null
+  translations?: unknown
   video_url?: string | null
   availability_from?: string | null
   availability_to?: string | null
@@ -426,8 +428,8 @@ export default function ProduceDetailPage() {
       <div className="px-4 -mt-4 relative space-y-3">
         {/* Name + price card */}
         <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-          <h1 className="text-xl font-extrabold text-gray-900 leading-tight">{localizeName(item.name, lang)}</h1>
-          {item.variety && <p className="text-sm text-gray-500 mt-0.5">{localizeName(item.variety, lang)}</p>}
+          <h1 className="text-xl font-extrabold text-gray-900 leading-tight">{localizeName(item.name, lang, item.translations)}</h1>
+          {item.variety && <p className="text-sm text-gray-500 mt-0.5">{localizeName(item.variety, lang, item.translations, 'variety')}</p>}
 
           {/* Farmer doesn't deliver this one — said here, not first in the cart. */}
           {transport && (
@@ -602,7 +604,7 @@ export default function ProduceDetailPage() {
           {item.how_we_grow && (
             <div>
               <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">🌱 {L('How we grow', 'మేము ఎలా పండిస్తాము')}</p>
-              <p className="text-sm text-gray-600 leading-snug whitespace-pre-line mt-0.5">{item.how_we_grow}</p>
+              <p className="text-sm text-gray-600 leading-snug whitespace-pre-line mt-0.5">{localizeText(item.how_we_grow, lang, item.translations, 'how_we_grow')}</p>
             </div>
           )}
 
@@ -629,7 +631,7 @@ export default function ProduceDetailPage() {
           {item.description && (
             <div>
               <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide">{L('Description', 'వివరణ')}</p>
-              <p className="text-sm text-gray-600 leading-snug whitespace-pre-line mt-0.5">{item.description}</p>
+              <p className="text-sm text-gray-600 leading-snug whitespace-pre-line mt-0.5">{localizeText(item.description, lang, item.translations, 'description')}</p>
             </div>
           )}
         </div>
@@ -680,7 +682,7 @@ export default function ProduceDetailPage() {
       <CartFab raised />
 
       {viewerAt !== null && gallery.length > 0 && (
-        <ImageViewer images={gallery} startIndex={viewerAt} alt={localizeName(item.name, lang)} onClose={() => setViewerAt(null)} />
+        <ImageViewer images={gallery} startIndex={viewerAt} alt={localizeName(item.name, lang, item.translations)} onClose={() => setViewerAt(null)} />
       )}
 
       {showReviews && (
@@ -689,7 +691,7 @@ export default function ProduceDetailPage() {
 
       {askPreorder && (
         <PreorderConfirm
-          produceName={localizeName(item.name, lang)}
+          produceName={localizeName(item.name, lang, item.translations)}
           expectedDate={nextHarvestAt}
           onConfirm={() => { setAskPreorder(false); void doAdd(true) }}
           onCancel={() => setAskPreorder(false)}

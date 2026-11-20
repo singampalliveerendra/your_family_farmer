@@ -12,6 +12,8 @@
 export const PROTECTED_LISTING_KEYS = new Set([
   'id', 'farmer_id', 'created_at', 'updated_at',
   'rating_avg', 'review_count', 'purchase_count', 'buyer_count',
+  // Written only by the server's translator (src/lib/listingTranslate.ts).
+  'translations',
 ])
 
 /** Statuses a seller may put a listing into themselves. */

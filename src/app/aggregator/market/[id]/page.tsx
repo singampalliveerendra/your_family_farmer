@@ -15,6 +15,7 @@ import BulkCheckout from '@/components/aggregator/BulkCheckout'
 import { deliveryCostText, deliveryLabel } from '@/lib/bulkOrder'
 import { placeOf, type MarketItem } from '@/lib/bulkMarket'
 import { localizeName, localizeUnit } from '@/lib/localizeName'
+import { localizeText } from '@/lib/textTranslations'
 import { methodLabel } from '@/lib/produceLabels'
 import { formatQty } from '@/lib/saleStep'
 import { harvestClock } from '@/lib/harvest'
@@ -111,8 +112,8 @@ export default function BulkListingPage() {
 
         <div className="space-y-4 px-4 pt-4">
           <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/10">
-            <h1 className="brand-wordmark text-2xl font-bold leading-tight">{localizeName(it.name, lang)}</h1>
-            {it.variety && <p className="text-sm text-black/60">{localizeName(it.variety, lang)}</p>}
+            <h1 className="brand-wordmark text-2xl font-bold leading-tight">{localizeName(it.name, lang, it.translations)}</h1>
+            {it.variety && <p className="text-sm text-black/60">{localizeName(it.variety, lang, it.translations, 'variety')}</p>}
             <div className="mt-4"><Price it={it} unitLabel={unitLabel} L={L} big /></div>
             <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
               <Fact icon="scale" label={L('Order size', 'ఆర్డర్ పరిమాణం')} value={quantityText(it, L, unitLabel)} />
@@ -129,7 +130,7 @@ export default function BulkListingPage() {
                 ))}
               </ul>
             )}
-            {it.description && <p className="mt-4 whitespace-pre-line border-t border-black/10 pt-4 text-sm leading-relaxed text-black/70">{it.description}</p>}
+            {it.description && <p className="mt-4 whitespace-pre-line border-t border-black/10 pt-4 text-sm leading-relaxed text-black/70">{localizeText(it.description, lang, it.translations, 'description')}</p>}
           </section>
 
           {/* Buying — Phase 6 */}

@@ -8,6 +8,7 @@ import { isModeratorRequest, getModeratorZone } from '@/lib/moderator-session'
 import { normalizeUrl } from '@/lib/links'
 import { bothPricesError, resolveWholesaleBody, isWholesaleColumnMissing, withoutWholesale, WHOLESALE_NOT_READY } from '@/lib/wholesale'
 import { SELLING_PLAN_REQUIRED_MODERATOR, isSellingPlanError } from '@/lib/sellingLock'
+import { translateListingAfterSave } from '@/lib/translateAfterSave'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -335,5 +336,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (hErr) console.error('[YFF moderator/listings PUT] harvest sync failed:', hErr.message)
   }
 
+  // English + Telugu copies of the edited name and texts, in the background.
+  translateListingAfterSave(updated.id as string)
   return NextResponse.json({ id: updated.id })
 }

@@ -4,6 +4,8 @@ import { farmAreas } from '@/lib/farmArea'
 import { purchaseCountsFor } from '@/lib/purchaseCounts'
 import { CONSUMER_VISIBLE_STATUSES, FEED_STATUSES } from '@/lib/produceStatus'
 import { retailRows } from '@/lib/wholesaleVisibility'
+import { pickTranslations } from '@/lib/textTranslations'
+import { sweepFeedAfterResponse } from '@/lib/translateAfterSave'
 
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
@@ -42,6 +44,9 @@ export async function GET(request: NextRequest) {
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // Produce with no English/Telugu copy yet get one in the background (also
+  // the backfill for older produce) — src/lib/listingTranslate.ts.
+  sweepFeedAfterResponse(allProduce ?? [])
   // Household buyers only (web feed + Android app): wholesale-only produce is
   // dropped and "both" loses its wholesale price (src/lib/wholesaleVisibility.ts).
   const produce = retailRows(allProduce)
@@ -68,7 +73,13 @@ export async function GET(request: NextRequest) {
 
   // Popularity count for the consumer "sort by Purchases" option.
   const counts = await purchaseCountsFor(result.map((p) => p.id as string))
-  const withCounts = result.map((p) => ({ ...p, purchase_count: counts[p.id as string] ?? 0 }))
+  // The cards show only the name and variety, so only those copies are sent:
+  // the long description copies stay on the produce page.
+  const withCounts = result.map((p) => ({
+    ...p,
+    ...('translations' in p ? { translations: pickTranslations(p.translations, ['name', 'variety']) } : {}),
+    purchase_count: counts[p.id as string] ?? 0,
+  }))
 
   return NextResponse.json(withCounts, { headers: { 'Cache-Control': FEED_CACHE } })
 }

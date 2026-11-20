@@ -5,6 +5,7 @@ import { getFarmerSessionFromRequest } from '@/lib/farmer-session'
 import { RETAIL_PRICE_KEYS, bothPricesError, resolveWholesaleColumns, touchesBothPriceRule, withoutWholesale } from '@/lib/wholesale'
 import { SELLING_PLAN_REQUIRED, isSellingPlanError } from '@/lib/sellingLock'
 import { reqLang, tr } from '@/lib/serverLang'
+import { touchesTranslatedText, translateListingAfterSave } from '@/lib/translateAfterSave'
 import { checkSellerStatusChange, sellerListingPayload } from '@/lib/sellerWriteRules'
 import { COURIER_NOT_READY, applyCourierColumns, isCourierColumnMissing, withoutCourier } from '@/lib/courierOptions'
 import { PACKS_NOT_READY, applyRetailPackColumns, isPackColumnMissing } from '@/lib/packPricing'
@@ -157,6 +158,9 @@ export async function POST(request: NextRequest) {
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!updated?.length) return NextResponse.json({ error: 'Update failed' }, { status: 500 })
+
+  // New or changed name / texts get English + Telugu copies in the background.
+  if (touchesTranslatedText(cleanPayload)) translateListingAfterSave(listingId)
 
   // Return the resolved status/stock so the dashboard card can update instantly
   // (the form merges this into local state before the background refetch lands).

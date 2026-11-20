@@ -55,6 +55,7 @@ export type MarketListingRow = {
   source_farmer_id?: string | null
   method?: string | null
   description?: string | null
+  translations?: unknown
 }
 
 export type MarketHarvestRow = StockHarvest & { produce_listing_id: string; harvested_at?: string | null; paused?: boolean | null }
@@ -86,6 +87,8 @@ export type MarketItem = {
   images: string[]
   method: string | null
   description: string | null
+  /** English + Telugu copies of name / variety / description (src/lib/textTranslations.ts). */
+  translations: unknown
   saleMode: 'wholesale' | 'both'
   price: number
   minQty: number
@@ -174,6 +177,7 @@ export function toMarketItem(
     images,
     method: clean(l.method),
     description: clean(l.description),
+    translations: l.translations ?? null,
     saleMode: parseSaleMode(l.sale_mode) === 'wholesale' ? 'wholesale' : 'both',
     price: num(l.wholesale_price) as number,
     minQty: rules.min,

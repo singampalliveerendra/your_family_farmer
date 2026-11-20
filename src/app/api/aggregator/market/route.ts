@@ -46,7 +46,10 @@ export async function GET(req: NextRequest) {
   }
   // Bulk delivery follows the Courier setting (2026-11-13); a database
   // without those columns falls back to the old per-state rates only.
-  let { data: listings, error } = await read(`${LISTING_COLUMNS}, wholesale_transport_rates, ${BULK_COURIER_COLUMNS}`)
+  // `translations` (scripts/listing-translations-migration.sql) is asked for
+  // first and dropped on a database that does not have it yet.
+  let { data: listings, error } = await read(`${LISTING_COLUMNS}, translations, wholesale_transport_rates, ${BULK_COURIER_COLUMNS}`)
+  if (error) ({ data: listings, error } = await read(`${LISTING_COLUMNS}, wholesale_transport_rates, ${BULK_COURIER_COLUMNS}`))
   if (error) ({ data: listings, error } = await read(`${LISTING_COLUMNS}, wholesale_transport_rates`))
   if (error) ({ data: listings, error } = await read(LISTING_COLUMNS))
   if (error) {

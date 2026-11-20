@@ -8,6 +8,7 @@ import { bothPricesError, isWholesaleColumnMissing, resolveWholesaleColumns, wit
 import { SELLING_PLAN_REQUIRED, isSellingPlanError } from '@/lib/sellingLock'
 import { isMissingColumnError } from '@/lib/missingColumn'
 import { reqLang, tr } from '@/lib/serverLang'
+import { translateListingAfterSave } from '@/lib/translateAfterSave'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -87,5 +88,7 @@ export async function POST(req: NextRequest) {
     console.error('[YFF farmer/listings POST] insert failed:', error?.message)
     return NextResponse.json({ error: t('Could not add the produce. Please try again.', 'ఉత్పత్తి చేర్చలేకపోయాం. మళ్లీ ప్రయత్నించండి.') }, { status: 500 })
   }
+  // English + Telugu copies of the name and texts, in the background.
+  translateListingAfterSave((data as { id?: string }).id)
   return NextResponse.json({ ok: true, listing: data, stepNotSaved })
 }

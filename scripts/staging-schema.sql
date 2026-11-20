@@ -1247,3 +1247,7 @@ ALTER TABLE public.produce_listings DROP CONSTRAINT IF EXISTS produce_listings_r
 ALTER TABLE public.produce_listings ADD CONSTRAINT produce_listings_retail_rates_check
   CHECK (jsonb_typeof(retail_transport_rates) = 'object');
 
+
+-- English + Telugu copies of farmer-typed produce text (scripts/listing-translations-migration.sql, 2026-11-20).
+ALTER TABLE public.produce_listings
+  ADD COLUMN IF NOT EXISTS translations jsonb;
