@@ -5,6 +5,14 @@ import { supabase } from '@/lib/supabase'
 import { useLang } from '@/lib/LanguageContext'
 import { farmerFetch, isFarmerSessionExpired } from '@/lib/farmer-auth-client'
 import { formatQty } from '@/lib/saleStep'
+import {
+  dismiss,
+  isDismissed,
+  pruneDismissals,
+  readDismissals,
+  writeDismissals,
+  type LowStockDismissals,
+} from '@/lib/lowStockDismissals'
 import { offersWholesale, parseSaleMode } from '@/lib/wholesale'
 import {
   LOW_STOCK_CHOICES,
@@ -21,6 +29,8 @@ import {
 // lower the minimum, move it to retail, or add more stock. Shown for as long as
 // the stock stays low (it is computed, so it clears itself when stock comes
 // back). The WhatsApp message is only the nudge; this is where it gets fixed.
+// The farmer can also dismiss a card to keep the produce as it is (see
+// src/lib/lowStockDismissals.ts for when it comes back).
 
 type Row = {
   id: string
@@ -57,6 +67,7 @@ export default function WholesaleLowStockAlerts({
   // Wholesale-only produce moving to retail needs a retail price first.
   const [askPrice, setAskPrice] = useState<string | null>(null)
   const [price, setPrice] = useState('')
+  const [dismissed, setDismissed] = useState<LowStockDismissals>({})
 
   const load = useCallback(async () => {
     // select('*'): before the wholesale migration there are no such columns,
@@ -73,8 +84,22 @@ export default function WholesaleLowStockAlerts({
     for (const h of (hv ?? []) as Array<StockHarvest & { produce_listing_id: string }>) {
       byListing.set(h.produce_listing_id, [...(byListing.get(h.produce_listing_id) ?? []), { id: h.id, stock_qty: h.stock_qty }])
     }
-    setItems(ws.map((row) => ({ row, harvests: byListing.get(row.id) ?? [] })).filter((i) => isWholesaleLowStock(i.row, i.harvests)))
+    const low = ws.map((row) => ({ row, harvests: byListing.get(row.id) ?? [] })).filter((i) => isWholesaleLowStock(i.row, i.harvests))
+    // Forget dismissals for produce whose stock recovered, so a new drop alerts again.
+    const saved = readDismissals(typeof window === 'undefined' ? null : window.localStorage, farmerId)
+    const pruned = pruneDismissals(saved, low.map((i) => i.row.id))
+    if (pruned !== saved) writeDismissals(window.localStorage, farmerId, pruned)
+    setDismissed(pruned)
+    setItems(low)
   }, [farmerId])
+
+  const dismissItem = (item: LowItem) => {
+    const next = dismiss(dismissed, item.row.id, Number(item.row.wholesale_min_qty))
+    writeDismissals(window.localStorage, farmerId, next)
+    setDismissed(next)
+    if (askPrice === item.row.id) setAskPrice(null)
+    if (error?.id === item.row.id) setError(null)
+  }
 
   useEffect(() => { void load() }, [load, refreshKey])
 
@@ -112,19 +137,28 @@ export default function WholesaleLowStockAlerts({
     }
   }
 
-  if (items.length === 0) return null
+  const visible = items.filter((i) => !isDismissed(dismissed, i.row.id, Number(i.row.wholesale_min_qty)))
+  if (visible.length === 0) return null
 
   return (
     <div className="space-y-2">
-      {items.map((item) => {
+      {visible.map((item) => {
         const { row } = item
         const unit = row.unit || 'kg'
         const left = wholesaleStock(row, item.harvests) ?? 0
         const lower = suggestedMinimum(row, item.harvests)
         const working = busy === row.id
         return (
-          <div key={row.id} className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-3 space-y-2.5" role="alert">
-            <div className="flex items-start gap-2.5">
+          <div key={row.id} className="relative bg-amber-50 border-2 border-amber-300 rounded-2xl p-3 space-y-2.5" role="alert">
+            <button
+              type="button"
+              onClick={() => dismissItem(item)}
+              aria-label={L(`Dismiss alert for ${row.name}`, `${row.name} హెచ్చరికను మూసివేయండి`)}
+              className="absolute top-1 right-1 flex h-11 w-11 items-center justify-center rounded-full text-xl leading-none text-amber-800 active:bg-amber-100"
+            >
+              <span aria-hidden>✕</span>
+            </button>
+            <div className="flex items-start gap-2.5 pr-8">
               <span className="text-2xl leading-none" aria-hidden>🚚</span>
               <div className="min-w-0">
                 <p className="font-extrabold text-amber-900 text-sm leading-tight">
@@ -192,6 +226,15 @@ export default function WholesaleLowStockAlerts({
                 className="w-full min-h-[44px] rounded-xl bg-amber-600 px-3 py-2 text-sm font-bold text-white text-left disabled:opacity-50"
               >
                 ➕ {L(LOW_STOCK_CHOICES.add_stock.en, LOW_STOCK_CHOICES.add_stock.te)}
+              </button>
+
+              <button
+                type="button"
+                disabled={working}
+                onClick={() => dismissItem(item)}
+                className="w-full min-h-[44px] rounded-xl px-3 py-2 text-sm font-semibold text-amber-800 underline underline-offset-2 disabled:opacity-50"
+              >
+                {L('Keep it as it is — hide this alert', 'ఇలాగే ఉంచండి — ఈ హెచ్చరికను దాచండి')}
               </button>
             </div>
 
