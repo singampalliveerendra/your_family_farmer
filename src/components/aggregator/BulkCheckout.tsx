@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import Icon from '@/components/home/Icon'
 import { SLATE } from '@/components/aggregator/MarketParts'
-import { checkBulkOrder, deliveryCostText, deliveryLabel, type BulkListing, type Delivery } from '@/lib/bulkOrder'
+import { checkBulkOrder, deliveryCostText, deliveryLabel, transportSummaryText, type BulkListing, type Delivery } from '@/lib/bulkOrder'
 import { payBulkOrder, placeBulkOrder } from '@/lib/bulkCheckout'
 import type { MarketItem } from '@/lib/bulkMarket'
 import { formatQty, roundQty } from '@/lib/saleStep'
@@ -36,6 +36,8 @@ export default function BulkCheckout({ it, feePercent, unitLabel, L }: { it: Mar
   }), [it])
   const max = it.stock
   const quote = checkBulkOrder(listing, qty, delivery, feePercent)
+  // The chosen option, for the Transport line (cargo ToPay is not "Free").
+  const transportLine = quote.ok ? transportSummaryText(it.delivery.find((d) => d.delivery === delivery), quote, L) : null
   const canUp = max === null || roundQty(qty + it.step) <= max + 1e-9
   const canDown = roundQty(qty - it.step) >= it.minQty - 1e-9
 
@@ -134,18 +136,16 @@ export default function BulkCheckout({ it, feePercent, unitLabel, L }: { it: Mar
       {quote.ok ? (
         <dl className="mt-5 space-y-1.5 border-t border-black/10 pt-4 text-sm">
           <Row label={L(`Produce (${formatQty(quote.qty)} ${unitLabel} × ${inr(quote.unitPrice)})`, `ఉత్పత్తి (${formatQty(quote.qty)} ${unitLabel} × ${inr(quote.unitPrice)})`)} value={inr(quote.goods)} />
-          <Row
-            label={L('Transport', 'రవాణా')}
-            value={delivery === 'pickup' ? L('Pickup', 'పికప్')
-              : quote.transportMode === 'per_km' ? L(`₹${formatQty(quote.transportRate ?? 0)}/km · after delivery`, `కి.మీ.కు ₹${formatQty(quote.transportRate ?? 0)} · డెలివరీ తర్వాత`)
-              : quote.transportMode === 'cargo_bill' ? L('Cargo bill · after delivery', 'కార్గో బిల్లు · డెలివరీ తర్వాత')
-              : quote.transport === 0 ? L('Free', 'ఉచితం') : inr(quote.transport)}
-          />
+          <Row label={L('Transport', 'రవాణా')} value={transportLine?.value ?? ''} />
           <Row label={L(`Platform fee (${feePercent}%)`, `ప్లాట్‌ఫామ్ ఫీజు (${feePercent}%)`)} value={inr(quote.fee)} />
           <div className="flex items-baseline justify-between gap-3 border-t-2 border-black pt-2">
             <dt className="font-bold">{L('You pay', 'మీరు చెల్లించేది')}</dt>
             <dd className="brand-wordmark text-2xl font-bold" style={{ color: SLATE }}>{inr(quote.total)}</dd>
           </div>
+          {/* Cargo ToPay (2026-11-27): paid to the cargo company, not here. */}
+          {transportLine?.note && (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-900">{transportLine.note}</p>
+          )}
           {/* Per km / cargo bill (2026-11-05): not in this payment. */}
           {quote.transportMode === 'per_km' || quote.transportMode === 'cargo_bill' ? (
             <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-900">

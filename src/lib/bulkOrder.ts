@@ -315,3 +315,29 @@ export function bulkOrderStage(o: BulkOrderRow): BulkStage {
     : { key: 'approved', en: 'Confirmed — seller will deliver', te: 'ఖరారు — అమ్మకందారు డెలివరీ చేస్తారు', tone: 'blue' }
   return { key: 'waiting', en: 'Paid — waiting for the seller to confirm', te: 'చెల్లించారు — అమ్మకందారు ఖరారు కోసం', tone: 'amber' }
 }
+
+/**
+ * The "Transport" line of the bulk checkout's price summary. Cargo is never
+ * paid online, so ₹0 there does NOT mean free: ToPay means the buyer pays the
+ * cargo company on delivery (bug 2026-11-27: it read "Free").
+ */
+export function transportSummaryText(
+  option: DeliveryOption | undefined,
+  quote: { transport: number; transportMode?: string | null; transportRate?: number | null },
+  L: (en: string, te: string) => string,
+): { value: string; note: string | null } {
+  if (!option || option.delivery === 'pickup') return { value: L('Pickup', 'పికప్'), note: null }
+  if (option.courier?.kind === 'cargo') {
+    return option.courier.paidBy === 'buyer'
+      ? {
+          value: L('ToPay · on delivery', 'ToPay · డెలివరీ సమయంలో'),
+          note: L('Cargo is ToPay: you pay the cargo company when the parcel reaches you. It is not part of this payment.', 'కార్గో ToPay: పార్సెల్ మీకు చేరినప్పుడు కార్గో కంపెనీకి మీరు చెల్లిస్తారు. ఇది ఈ చెల్లింపులో లేదు.'),
+        }
+      : { value: L('Free · seller pays cargo', 'ఉచితం · కార్గో అమ్మకందారుదే'), note: null }
+  }
+  if (quote.transportMode === 'per_km') {
+    return { value: L(`₹${formatQty(quote.transportRate ?? 0)}/km · after delivery`, `కి.మీ.కు ₹${formatQty(quote.transportRate ?? 0)} · డెలివరీ తర్వాత`), note: null }
+  }
+  if (quote.transportMode === 'cargo_bill') return { value: L('Cargo bill · after delivery', 'కార్గో బిల్లు · డెలివరీ తర్వాత'), note: null }
+  return { value: quote.transport === 0 ? L('Free', 'ఉచితం') : `₹${quote.transport.toLocaleString('en-IN')}`, note: null }
+}

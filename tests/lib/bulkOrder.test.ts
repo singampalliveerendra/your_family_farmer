@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { bulkOrderStage, checkBulkAddress, checkBulkOrder, deliveryCostText, deliveryLabel, deliveryOptions, pickHarvest, rateText, transportCharge, type BulkListing } from '@/lib/bulkOrder'
+import { bulkOrderStage, checkBulkAddress, checkBulkOrder, deliveryCostText, deliveryLabel, deliveryOptions, pickHarvest, rateText, transportCharge, transportSummaryText, type BulkListing } from '@/lib/bulkOrder'
 
 const L = (x: Partial<BulkListing> = {}): BulkListing => ({
   name: 'Tomato', unit: 'kg', sale_mode: 'wholesale', sale_step: 1, wholesale_price: 30, wholesale_min_qty: 100, wholesale_pack_size: 25,
@@ -228,5 +228,27 @@ describe('bulk delivery follows the Courier setting (2026-11-13)', () => {
     const route = readFileSync(join(process.cwd(), 'src/app/api/aggregator/bulk-orders/place/route.ts'), 'utf8')
     expect(route).toMatch(/delivery_options: undefined/)
     expect(route).toMatch(/body\.delivery === 'local'/)
+  })
+})
+
+// Bug 2026-11-27: a cargo lot where the BUYER pays (ToPay) showed "Transport:
+// Free" in the bulk checkout — ₹0 online is not free.
+describe('transportSummaryText — the checkout’s Transport line', () => {
+  const L = (en: string) => en
+  const cargo = (paidBy: 'buyer' | 'farmer') => ({ delivery: 'IN' as const, rate: { mode: 'per_order' as const, amount: 0, free_above: null }, courier: { kind: 'cargo' as const, paidBy, services: ['SRMT'], radiusKm: null } })
+  it('cargo ToPay: the buyer pays the cargo company, with a note', () => {
+    const t = transportSummaryText(cargo('buyer'), { transport: 0, transportMode: 'per_order' }, L)
+    expect(t.value).toBe('ToPay · on delivery')
+    expect(t.note).toMatch(/you pay the cargo company/)
+  })
+  it('cargo paid by the seller: free', () => {
+    expect(transportSummaryText(cargo('farmer'), { transport: 0 }, L)).toEqual({ value: 'Free · seller pays cargo', note: null })
+  })
+  it('pickup, a real charge, a free local delivery, per km', () => {
+    expect(transportSummaryText({ delivery: 'pickup', rate: null }, { transport: 0 }, L).value).toBe('Pickup')
+    const local = { delivery: 'local' as const, rate: { mode: 'per_order' as const, amount: 200, free_above: null }, courier: { kind: 'local' as const, paidBy: 'buyer' as const, services: [], radiusKm: null } }
+    expect(transportSummaryText(local, { transport: 200, transportMode: 'per_order' }, L).value).toBe('₹200')
+    expect(transportSummaryText(local, { transport: 0, transportMode: 'per_order' }, L).value).toBe('Free')
+    expect(transportSummaryText(local, { transport: 0, transportMode: 'per_km', transportRate: 12 }, L).value).toBe('₹12/km · after delivery')
   })
 })
