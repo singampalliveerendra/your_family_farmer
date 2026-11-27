@@ -154,11 +154,13 @@ SELECT * FROM (
       WHERE table_name='orders' AND column_name='buyer_aggregator_id')
       THEN 'PRESENT' ELSE 'MISSING' END
   UNION ALL
-  -- selling-lock-migration.sql. Without it a new aggregator can put produce
-  -- on sale with no Selling plan (the app has no other gate).
-  SELECT 24, 'selling-lock', 'trigger produce_listings_selling_plan',
+  -- selling-lock-migration.sql. Its trigger is DROPPED again by #36
+  -- (selling-visibility, 2026-11-27), so it counts as done once #36 ran.
+  SELECT 24, 'selling-lock', 'trigger produce_listings_selling_plan (or #36)',
     CASE WHEN EXISTS (SELECT 1 FROM pg_trigger
       WHERE tgname='produce_listings_selling_plan' AND NOT tgisinternal)
+      OR EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_name='farmers' AND column_name='selling_until')
       THEN 'PRESENT' ELSE 'MISSING' END
   UNION ALL
   -- seller-writes-lockdown.sql. Run it only AFTER the code that moves seller
@@ -228,6 +230,14 @@ SELECT * FROM (
     CASE WHEN EXISTS (SELECT 1 FROM pg_constraint
       WHERE conname='produce_listings_wholesale_transport_check'
         AND pg_get_constraintdef(oid) LIKE '%IN%')
+      THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  -- selling-visibility-migration.sql (needs subscription + selling-lock first).
+  -- Without it aggregators WITHOUT a Selling plan stay visible to buyers (the
+  -- app falls back to showing everyone), and the old lock still blocks adding.
+  SELECT 36, 'selling-visibility', 'farmers.selling_until',
+    CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_name='farmers' AND column_name='selling_until')
       THEN 'PRESENT' ELSE 'MISSING' END
 
 ) checks ORDER BY ord;

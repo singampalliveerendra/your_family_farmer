@@ -1,4 +1,5 @@
 import { randomInt } from 'crypto'
+import { readWithSellingUntil } from '@/lib/sellerVisibility'
 import { isBilledAfterDelivery } from '@/lib/wholesale'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAggregator, svc } from '@/lib/aggregator-auth'
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
   const l = { ...(listing as unknown as MarketListingRow & BulkListing), delivery_options: undefined }
 
   const [{ data: sellerRow }, { data: harvestRows }, { data: me }] = await Promise.all([
-    supabase.from('farmers').select('id, name, village, district, state, phone, farm_address, account_type, active, pickup_locations').eq('id', l.farmer_id).maybeSingle(),
+    readWithSellingUntil((withVis) => supabase.from('farmers').select(withVis ? 'id, name, village, district, state, phone, farm_address, account_type, active, pickup_locations, selling_until' : 'id, name, village, district, state, phone, farm_address, account_type, active, pickup_locations').select('id, name, village, district, state, phone, farm_address, account_type, active, pickup_locations').eq('id', l.farmer_id).maybeSingle()),
     supabase.from('harvests').select('id, produce_listing_id, stock_qty, paused, harvested_at').eq('produce_listing_id', l.id).eq('paused', false),
     supabase.from('farmers').select('id, name, phone').eq('id', agg.id).maybeSingle(),
   ])

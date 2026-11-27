@@ -9,6 +9,8 @@ type Listing = {
   id: string
   farmer_id: string
   farmer_name: string
+  /** The seller is an aggregator without a Selling plan (sellerVisibility.ts). */
+  hidden_from_buyers?: boolean
   name: string
   variety: string | null
   method: string | null
@@ -218,6 +220,11 @@ export default function ModeratorListingsPage() {
                   <p className="text-xs text-gray-500 mt-0.5">
                     {l.farmer_name} · Submitted {timeAgo(l.created_at)}
                   </p>
+                  {l.hidden_from_buyers && (
+                    <p className="mt-1 inline-block rounded-full bg-[#f8e1d6] px-2 py-0.5 text-[10px] font-bold text-[#7a2a0c]">
+                      🚫 Hidden from buyers – no Selling plan
+                    </p>
+                  )}
                 </div>
                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${
                   l.status === 'pending_review' ? 'bg-amber-100 text-amber-700'

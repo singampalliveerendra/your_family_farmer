@@ -11,8 +11,11 @@
  *    full price, or starts when the current plan ends.
  *  - ₹0 plan = starts at once without payment.
  *  - WhatsApp reminder 3 days before a plan ends; no auto-debit.
- *  - After a plan ends, listings stay visible 10 days; then the moderator
- *    may hide them. The app never hides them on its own.
+ *  - Changed 2026-11-27: the in-app "plan ending" warning starts 7 days
+ *    before (WARN_DAYS), and an aggregator's produce is hidden from buyers
+ *    the moment their Selling plan ends (src/lib/sellerVisibility.ts) — it no
+ *    longer waits 10 days for a moderator. The moderator's Hide stays as a
+ *    manual tool.
  */
 
 import {
@@ -28,6 +31,8 @@ import {
 } from '@/lib/subscriptionPlans'
 
 export const REMINDER_DAYS = 3
+/** The dashboard / subscription page warn this many days before a plan ends. */
+export const WARN_DAYS = 7
 export const HIDE_AFTER_DAYS = 10
 const DAY = 86_400_000
 
@@ -165,7 +170,7 @@ const daysBetween = (a: number, b: number) => Math.floor((b - a) / DAY)
 
 /**
  * The aggregator's overall standing, for the dashboard banner and the
- * moderator list. "Ending" = within REMINDER_DAYS of the last live end, with
+ * moderator list. "Ending" = within WARN_DAYS of the last live end, with
  * nothing bought to follow it.
  */
 export function standingOf(subs: readonly SubscriptionRow[], now: Date = new Date()): Standing {
@@ -176,7 +181,7 @@ export function standingOf(subs: readonly SubscriptionRow[], now: Date = new Dat
   if (live.length) {
     const end = chain.reduce((m, s) => (s.ends_at! > m ? s.ends_at! : m), live[0].ends_at ?? '')
     const daysLeft = Math.max(0, Math.ceil((new Date(end).getTime() - now.getTime()) / DAY))
-    return daysLeft <= REMINDER_DAYS ? { state: 'ending', endsAt: end, daysLeft } : { state: 'active', endsAt: end, daysLeft }
+    return daysLeft <= WARN_DAYS ? { state: 'ending', endsAt: end, daysLeft } : { state: 'active', endsAt: end, daysLeft }
   }
   const ended = subs
     .filter((s) => s.status === 'active' && isPlanKind(s.kind) && s.ends_at && new Date(s.ends_at).getTime() <= now.getTime())
@@ -220,4 +225,19 @@ export function reminderDue(row: SubscriptionRow, allSubs: readonly Subscription
 /** What a kind unlocks, as a short list for banners. */
 export function unlocks(kind: PlanKind): { buying: boolean; selling: boolean } {
   return { buying: unlocksBuying(kind), selling: unlocksSelling(kind) }
+}
+
+/**
+ * When an aggregator's produce will drop off the buyer screens, if that is
+ * within WARN_DAYS: the end of their selling cover (Selling or Combined,
+ * including anything bought to follow it). null = not soon, never, or no plan.
+ */
+export function sellingEndsSoon(subs: readonly SubscriptionRow[], now: Date = new Date()): { endsAt: string; daysLeft: number } | null {
+  const sells = subs.some((s) => subscriptionLive(s, now) && isPlanKind(s.kind) && unlocksSelling(s.kind as PlanKind))
+  if (!sells) return null
+  const cover = currentCoverEnd(subs, 'selling', now)
+  if (cover.forever || !cover.endsAt) return null
+  const left = new Date(cover.endsAt).getTime() - now.getTime()
+  if (left <= 0 || left > WARN_DAYS * DAY) return null
+  return { endsAt: cover.endsAt, daysLeft: Math.max(1, Math.ceil(left / DAY)) }
 }

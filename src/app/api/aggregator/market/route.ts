@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { readWithSellingUntil } from '@/lib/sellerVisibility'
 import { requireAggregator, svc } from '@/lib/aggregator-auth'
 import { buildMarket, type MarketGrowerRow, type MarketHarvestRow, type MarketListingRow, type MarketSellerRow } from '@/lib/bulkMarket'
 import { accessOf, type SubscriptionRow } from '@/lib/subscriptionPlans'
@@ -66,7 +67,7 @@ export async function GET(req: NextRequest) {
       ? supabase.from('harvests').select('id, produce_listing_id, stock_qty, paused, harvested_at').in('produce_listing_id', listingIds).eq('paused', false)
       : Promise.resolve({ data: [] }),
     sellerIds.length
-      ? supabase.from('farmers').select('id, name, village, district, state, phone, farm_address, account_type, active').in('id', sellerIds)
+      ? readWithSellingUntil((withVis) => supabase.from('farmers').select(withVis ? 'id, name, village, district, state, phone, farm_address, account_type, active, selling_until' : 'id, name, village, district, state, phone, farm_address, account_type, active').select('id, name, village, district, state, phone, farm_address, account_type, active').in('id', sellerIds))
       : Promise.resolve({ data: [] }),
     growerIds.length
       ? supabase.from('source_farmers').select('id, name, village').in('id', growerIds)

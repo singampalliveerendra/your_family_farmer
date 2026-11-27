@@ -130,11 +130,12 @@ export default function AggregatorSubscriptionPage() {
               {standing.state === 'ending' && (
                 <p className="mt-3 border-l-4 border-[#d99a1e] bg-[#fdf4df] px-3 py-2 text-sm font-bold text-[#6b4a07]">
                   {L(`Your plan ends on ${fmt(standing.endsAt)} (${standing.daysLeft} days). Renew below to keep going.`, `మీ ప్లాన్ ${fmt(standing.endsAt)}న ముగుస్తుంది (${standing.daysLeft} రోజులు). కొనసాగించడానికి కింద రీన్యూ చేయండి.`)}
+                  {access.selling && L(' After that, buyers won’t see your produce.', ' ఆ తర్వాత కొనుగోలుదారులకు మీ ఉత్పత్తులు కనిపించవు.')}
                 </p>
               )}
               {standing.state === 'expired' && (
                 <p className="mt-3 border-l-4 border-[#b4532a] bg-[#f8e7de] px-3 py-2 text-sm font-bold text-[#6e2c12]">
-                  {L(`Your plan ended on ${fmt(standing.endedAt)}. Your listings stay visible for 10 days after a plan ends — renew to keep them up.`, `మీ ప్లాన్ ${fmt(standing.endedAt)}న ముగిసింది. ప్లాన్ ముగిసాక 10 రోజులు మీ లిస్టింగ్‌లు కనిపిస్తాయి — కొనసాగించడానికి రీన్యూ చేయండి.`)}
+                  {L(`Your plan ended on ${fmt(standing.endedAt)}. Buyers can’t see your produce now — renew to show it again.`, `మీ ప్లాన్ ${fmt(standing.endedAt)}న ముగిసింది. ఇప్పుడు కొనుగోలుదారులకు మీ ఉత్పత్తులు కనిపించవు — మళ్ళీ చూపించడానికి రీన్యూ చేయండి.`)}
                 </p>
               )}
             </section>

@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { CONSUMER_VISIBLE_STATUSES } from '@/lib/produceStatus'
 import { pickGrowText } from '@/lib/farmersTab'
+import { closedSellerIds } from '@/lib/sellerVisibility'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -61,6 +62,11 @@ export async function GET() {
       listings.set(fid, Math.max(0, (listings.get(fid) ?? 0) - n))
     }
   }
+
+  // An aggregator without a live Selling plan shows no produce to buyers
+  // (src/lib/sellerVisibility.ts), so none is counted for them.
+  const closed = ids.length ? await closedSellerIds(supabase) : new Set<string>()
+  for (const fid of closed) listings.delete(fid)
 
   // "How we grow" is written per produce; newest wins (rows come newest first).
   const growByFarmer = new Map<string, string>()

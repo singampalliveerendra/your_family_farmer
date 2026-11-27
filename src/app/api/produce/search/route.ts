@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { retailRows } from '@/lib/wholesaleVisibility'
+import { readWithSellingUntil, sellerOpen } from '@/lib/sellerVisibility'
 import { NextRequest, NextResponse } from 'next/server'
 import { farmAreas } from '@/lib/farmArea'
 import { purchaseCountsFor } from '@/lib/purchaseCounts'
@@ -79,18 +80,23 @@ export async function GET(request: NextRequest) {
 
   const farmerIds = [...new Set(filtered.map((p) => p.farmer_id))]
 
-  const { data: farmers } = await supabase
+  const { data: farmers, checked } = await readWithSellingUntil((withVis) => (supabase
     .from('farmers')
     // No phone, pickup-point phones or exact location: since the security fix
     // (2026-11-04) those are not public. Distance uses the village instead.
-    .select('id, name, village, slug, method, pickup_locations, pickup_slots, account_type')
+    .select(withVis ? 'id, name, village, slug, method, pickup_locations, pickup_slots, account_type, selling_until' : 'id, name, village, slug, method, pickup_locations, pickup_slots, account_type')
     .in('id', farmerIds)
-    .eq('active', true)
+    .eq('active', true)) as unknown as PromiseLike<{ data: Array<{ id: string; account_type?: string | null; selling_until?: string | null } & Record<string, unknown>> | null; error: { message: string } | null }>)
 
   // A rough farm point (~5 km grid, never the exact farm) for the buyer's
   // distance and "delivers here?" — src/lib/farmArea.ts (2026-11-05).
   const areas = await farmAreas((farmers ?? []).map((f) => f.id as string))
-  const farmerMap = Object.fromEntries((farmers ?? []).map((f) => [f.id, { ...f, area: areas[f.id as string] ?? null }]))
+  // An aggregator without a live Selling plan is not shown to buyers
+  // (src/lib/sellerVisibility.ts); selling_until itself is not sent on.
+  const now = new Date()
+  const farmerMap = Object.fromEntries((farmers ?? [])
+    .filter((f) => !checked || sellerOpen(f, now))
+    .map(({ selling_until: _s, ...f }) => [f.id, { ...f, area: areas[f.id as string] ?? null }]))
 
   const result = filtered
     .map((p) => ({ ...p, farmer: farmerMap[p.farmer_id] ?? null }))

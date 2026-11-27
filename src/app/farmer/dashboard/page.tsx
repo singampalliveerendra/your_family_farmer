@@ -42,6 +42,7 @@ import { localizeName, localizeUnit } from '@/lib/localizeName'
 import ShareProduceButton from '@/components/farmer/ShareProduceButton'
 import WholesaleLowStockAlerts from '@/components/farmer/WholesaleLowStockAlerts'
 import SubscriptionStatusCard from '@/components/farmer/SubscriptionStatusCard'
+import HiddenFromBuyersTag, { useHiddenFromBuyers } from '@/components/farmer/HiddenFromBuyersTag'
 import { sellingLockText } from '@/lib/sellingLock'
 import { uploadFarmImage } from '@/lib/farmImageUpload'
 import { useBackToClose } from '@/lib/useBackToClose'
@@ -3800,6 +3801,8 @@ function ManageListingsModal({
   const [error, setError] = useState('')
   const [editingRow, setEditingRow] = useState<ListingRow | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
+  // An aggregator without a Selling plan: every produce is hidden from buyers.
+  const hiddenFromBuyers = useHiddenFromBuyers(farmerId)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -3924,6 +3927,7 @@ function ManageListingsModal({
               key={row.id}
               row={row}
               farmerId={farmerId}
+              hiddenFromBuyers={hiddenFromBuyers}
               deleting={deletingId === row.id}
               onDelete={() => handleDelete(row)}
               onEdit={() => setEditingRow(row)}
@@ -4001,6 +4005,7 @@ function ManageListingsModal({
 function ListingRowCard({
   row,
   farmerId,
+  hiddenFromBuyers = false,
   deleting,
   onDelete,
   onEdit,
@@ -4008,6 +4013,7 @@ function ListingRowCard({
 }: {
   row: ListingRow
   farmerId: string
+  hiddenFromBuyers?: boolean
   deleting: boolean
   onDelete: () => void
   onEdit: () => void
@@ -4085,6 +4091,7 @@ function ListingRowCard({
               </span>
             )}
           </div>
+          {hiddenFromBuyers && <div className="mt-2"><HiddenFromBuyersTag /></div>}
         </div>
       </div>
 

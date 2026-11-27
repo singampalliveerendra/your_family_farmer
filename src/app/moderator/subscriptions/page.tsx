@@ -15,7 +15,7 @@ import {
   type PlanRowKind,
   type SubscriptionRow,
 } from '@/lib/subscriptionPlans'
-import { HIDE_AFTER_DAYS, hideDue, standingOf } from '@/lib/subscriptionLifecycle'
+import { HIDE_AFTER_DAYS, WARN_DAYS, hideDue, standingOf } from '@/lib/subscriptionLifecycle'
 
 // Moderator → Subscriptions (decision 2026-11-04). Moderators are the
 // super-users for now, so this screen is platform-wide, not per zone.
@@ -349,7 +349,7 @@ function AggregatorList({ aggs, subs, counts, busy, onGrant, onSwitchOff, onList
   return (
     <div className="space-y-3">
       <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter">
-        {([['all', `All (${aggs.length})`], ['ending', `Ending in 3 days (${n.ending})`], ['expired', `Expired ${HIDE_AFTER_DAYS}+ days (${n.expired})`]] as const).map(([k, label]) => (
+        {([['all', `All (${aggs.length})`], ['ending', `Ending in ${WARN_DAYS} days (${n.ending})`], ['expired', `Expired ${HIDE_AFTER_DAYS}+ days (${n.expired})`]] as const).map(([k, label]) => (
           <button
             key={k}
             type="button"

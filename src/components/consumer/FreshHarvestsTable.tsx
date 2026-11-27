@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { readWithSaleMode } from '@/lib/wholesaleVisibility'
+import { closedSellerIds } from '@/lib/sellerVisibility'
 import { useCart, EditableQty } from '@/components/consumer/Cart'
 import { useConsumerAuth } from '@/lib/ConsumerAuthContext'
 import { useLang } from '@/lib/LanguageContext'
@@ -84,7 +85,7 @@ function HarvestTable({ variant }: { variant: Variant }) {
     const build = (withMode: boolean) => {
       const base0 = supabase
         .from('harvests')
-        .select('id, harvested_at, produce_listing_id, stock_qty, shelf_life_days, produce_listings!inner(id, name, emoji, status, shelf_life_days)')
+        .select('id, harvested_at, produce_listing_id, stock_qty, shelf_life_days, produce_listings!inner(id, farmer_id, name, emoji, status, shelf_life_days)')
         // A harvest has its own stock, so a 'sold_out' template must not hide it —
         // only a genuine takedown (paused/suspended) should. See produceStatus.ts.
         .in('produce_listings.status', CONSUMER_VISIBLE_STATUSES)
@@ -113,9 +114,15 @@ function HarvestTable({ variant }: { variant: Variant }) {
               .order('harvested_at', { ascending: true })
       return q.limit(60)
     }
-    void readWithSaleMode(build).then(({ data }) => {
+    // Aggregators without a live Selling plan are hidden from buyers
+    // (src/lib/sellerVisibility.ts) — fetched alongside, not after.
+    void Promise.all([readWithSaleMode(build), closedSellerIds(supabase)]).then(([{ data }, closed]) => {
       if (cancelled) return
-      const all = (data ?? []) as HarvestRow[]
+      const all = ((data ?? []) as HarvestRow[]).filter((r) => {
+        const l = r.produce_listings as unknown as { farmer_id?: string } | { farmer_id?: string }[] | null
+        const fid = Array.isArray(l) ? l[0]?.farmer_id : l?.farmer_id
+        return !fid || !closed.has(fid)
+      })
       // Fresh shows only today's and yesterday's picks (and still inside shelf
       // life). The full 90-day fetch stays: `all` below also decides whether a
       // crop has stock left in an older pick.

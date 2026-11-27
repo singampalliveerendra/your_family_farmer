@@ -22,6 +22,7 @@ import { parseSaleMode, normalizeStates, type TransportState } from '@/lib/whole
 import { wholesaleQtyRules } from '@/lib/wholesaleOrder'
 import { deliveryOptions, type DeliveryOption } from '@/lib/bulkOrder'
 import { isWholesaleLowStock, wholesaleStock, type StockHarvest } from '@/lib/wholesaleVisibility'
+import { sellerOpen } from '@/lib/sellerVisibility'
 
 export type MarketListingRow = {
   id: string
@@ -70,6 +71,8 @@ export type MarketSellerRow = {
   farm_address?: string | null
   account_type?: string | null
   active?: boolean | null
+  /** End of an aggregator's selling cover (src/lib/sellerVisibility.ts); absent = not read. */
+  selling_until?: string | null
 }
 
 export type MarketGrowerRow = { id: string; name?: string | null; village?: string | null }
@@ -146,6 +149,8 @@ export function onMarket(
   if (mode !== 'wholesale' && mode !== 'both') return false
   if (l.status !== 'available') return false
   if (!seller || seller.active === false || seller.id === viewerId || l.farmer_id === viewerId) return false
+  // An aggregator selling without a live Selling plan is off the market too.
+  if ('selling_until' in seller && !sellerOpen(seller)) return false
   const price = num(l.wholesale_price)
   const min = num(l.wholesale_min_qty)
   if (price === null || price <= 0 || min === null || min <= 0) return false

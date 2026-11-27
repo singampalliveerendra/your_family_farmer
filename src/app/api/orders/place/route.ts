@@ -21,6 +21,7 @@ import { normalizePickupPhones } from '@/lib/pickup-slots'
 import { rateLimit } from '@/lib/rate-limit'
 import { notifyOrdersPlaced } from '@/lib/orderNotify'
 import { isRetailVisible, readWithSaleMode } from '@/lib/wholesaleVisibility'
+import { sellerOpen, SELLER_CLOSED_MSG, type SellerVis } from '@/lib/sellerVisibility'
 import { scheduleWholesaleLowStockCheck } from '@/lib/wholesaleLowStockAlert'
 import { BULK_FOR_AGGREGATORS_ONLY } from '@/lib/wholesaleOrder'
 
@@ -316,6 +317,21 @@ export async function POST(req: NextRequest) {
   // MARKED (is_self_order, below) so the farmer's list and report can tell
   // "sold to buyers" from "taken by me" while the quantity totals count both.
   const selfOrder = isSelfOrder(buyerPhone, farmer.phone)
+  // An aggregator without a live Selling plan is hidden from buyers, and a
+  // cart filled before the plan ended can't buy from them either
+  // (src/lib/sellerVisibility.ts). Their own self-orders still go through.
+  // Read on its own: before scripts/selling-visibility-migration.sql the
+  // column is missing, and that must not stop every order.
+  if (!selfOrder) {
+    const { data: vis, error: visErr } = await supabase
+      .from('farmers')
+      .select('account_type, selling_until')
+      .eq('id', farmerId)
+      .maybeSingle()
+    if (!visErr && vis && !sellerOpen(vis as SellerVis)) {
+      return bad(SELLER_CLOSED_MSG.en)
+    }
+  }
   if (paymentMethod === 'cod' && farmer.cod_enabled !== true) {
     return bad('This farmer is not accepting Cash on Delivery.')
   }

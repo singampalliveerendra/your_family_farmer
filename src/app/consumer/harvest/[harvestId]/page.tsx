@@ -18,6 +18,7 @@ import { useCart, CartFab, EditableQty } from '@/components/consumer/Cart'
 import { BOTTOM_NAV_OFFSET } from '@/lib/bottomNav'
 import { supabase } from '@/lib/supabase'
 import { isRetailVisible } from '@/lib/wholesaleVisibility'
+import { readWithSellingUntil, sellerOpen, type SellerVis } from '@/lib/sellerVisibility'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
 import { formatHarvestDate, nextHarvestDate } from '@/lib/harvestSchedule'
 import PreorderConfirm from '@/components/consumer/PreorderConfirm'
@@ -173,12 +174,15 @@ export default function HarvestDetailPage() {
     // Explicit columns, never '*': `farmers` carries password_hash, the
     // activation code and the legacy bank columns, and this response is
     // world-readable.
-    const { data: f } = await supabase
+    const { data: f, checked: visChecked } = await readWithSellingUntil((withVis) => supabase
       .from('farmers')
-      .select('id, name, village, slug, method, pickup_locations, pickup_slots, account_type')
+      .select(`id, name, village, slug, method, pickup_locations, pickup_slots, account_type${withVis ? ', selling_until' : ''}`)
       .eq('id', (l as Listing).farmer_id)
-      .maybeSingle()
-    setFarmer((f as Farmer) ?? null)
+      .maybeSingle())
+    // An aggregator without a live Selling plan is hidden from buyers
+    // (src/lib/sellerVisibility.ts).
+    if (visChecked && f && !sellerOpen(f as unknown as SellerVis)) { setItem(null); setNotFound(true); setLoading(false); return }
+    setFarmer((f as unknown as Farmer) ?? null)
     setLoading(false)
   }, [harvestId])
 

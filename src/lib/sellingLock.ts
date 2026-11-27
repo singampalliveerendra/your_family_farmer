@@ -7,6 +7,11 @@
  * every screen and route that saves produce.
  *
  * Farmers are never affected; nor is anything already on sale.
+ *
+ * 2026-11-27: the trigger is DROPPED by scripts/selling-visibility-migration.sql
+ * — adding produce is always allowed now, and buyers simply don't see an
+ * aggregator's produce without a plan (src/lib/sellerVisibility.ts). These
+ * words stay for a database where the old trigger is still in place.
  */
 
 export type Msg = { en: string; te: string }

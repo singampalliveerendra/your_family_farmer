@@ -18,6 +18,7 @@ import { useCart, CartFab, EditableQty } from '@/components/consumer/Cart'
 import { BOTTOM_NAV_OFFSET } from '@/lib/bottomNav'
 import { supabase } from '@/lib/supabase'
 import { isRetailVisible } from '@/lib/wholesaleVisibility'
+import { readWithSellingUntil, sellerOpen, type SellerVis } from '@/lib/sellerVisibility'
 import { normalizePickupSchedule } from '@/lib/pickup-slots'
 import { isSoldOutWithHarvests } from '@/lib/produceStatus'
 import { formatHarvestDate, nextHarvestDate } from '@/lib/harvestSchedule'
@@ -158,12 +159,14 @@ export default function ProduceDetailPage() {
     // Farmer columns are explicit, never '*': `farmers` carries password_hash,
     // the activation code and the legacy bank columns, and this response is
     // world-readable.
-    const [{ data: lf }, harvestsRes] = await Promise.all([
-      supabase
+    const [{ data: lf, checked: visChecked }, harvestsRes] = await Promise.all([
+      // selling_until hides an aggregator without a Selling plan; a database
+      // without the column yet reads without it (sellerVisibility.ts).
+      readWithSellingUntil((withVis) => supabase
         .from('produce_listings')
-        .select('*, farmer:farmers!farmer_id(id, name, village, slug, method, pickup_locations, pickup_slots, account_type)')
+        .select(`*, farmer:farmers!farmer_id(id, name, village, slug, method, pickup_locations, pickup_slots, account_type${withVis ? ', selling_until' : ''})`)
         .eq('id', id)
-        .maybeSingle(),
+        .maybeSingle()),
       // Every unpaused pick, newest first: the first row drives the clock, the
       // whole set decides whether this produce still has anything left.
       // Fetching only the newest one was enough for the clock but blind to
@@ -181,7 +184,10 @@ export default function ProduceDetailPage() {
     // Wholesale-only produce is not for household buyers: a direct or shared
     // link to it reads exactly like a produce that no longer exists.
     if (!lf || !isRetailVisible(lf)) { setNotFound(true); setLoading(false); return }
-    const { farmer: f, ...l } = lf as Listing & { farmer: Farmer | null }
+    const { farmer: f, ...l } = lf as Listing & { farmer: (Farmer & SellerVis) | null }
+    // An aggregator without a live Selling plan: hidden from buyers, same as
+    // a produce that no longer exists (src/lib/sellerVisibility.ts).
+    if (visChecked && f && !sellerOpen(f)) { setNotFound(true); setLoading(false); return }
     setItem(l as Listing)
     setLiveStock((l as Listing).stock_qty ?? null)
     setFarmer(f ?? null)

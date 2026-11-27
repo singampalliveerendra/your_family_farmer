@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { farmAreas } from '@/lib/farmArea'
 import { retailRows } from '@/lib/wholesaleVisibility'
+import { sellerOpen, type SellerVis } from '@/lib/sellerVisibility'
 import { FARMER_PUBLIC_COLUMNS } from '@/lib/farmerColumns'
 import { notFound } from 'next/navigation'
 
@@ -87,9 +88,18 @@ export default async function FarmerPage({ params }: { params: Promise<{ slug: s
     .select('*')
     .eq('farmer_id', farmer.id)
     .order('created_at', { ascending: false })
+  // An aggregator without a live Selling plan keeps the page but shows no
+  // produce to buyers (src/lib/sellerVisibility.ts). Read on its own so the
+  // public column list stays as it is.
+  const isAggregator = (farmer as { account_type?: string | null }).account_type === 'aggregator'
+  const { data: vis, error: visErr } = isAggregator
+    ? await supabase.from('farmers').select('account_type, selling_until').eq('id', farmer.id).maybeSingle()
+    : { data: null, error: null }
+  // A read error (the column not there yet) hides nothing: the old behaviour.
+  const shopOpen = !isAggregator || !!visErr || sellerOpen(vis as SellerVis | null)
   // The public farmer page is for household buyers: no wholesale-only produce,
   // and no wholesale price on a "both" one (src/lib/wholesaleVisibility.ts).
-  const produce = retailRows(allProduce)
+  const produce = shopOpen ? retailRows(allProduce) : []
 
   const { data: reviews } = await supabase
     .from('reviews')

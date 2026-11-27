@@ -10,6 +10,7 @@ import { normalizeUrl } from '@/lib/links'
 import { parseDeliveryMode } from '@/lib/fulfillment'
 import { bothPricesError, resolveWholesaleBody, isWholesaleColumnMissing, WHOLESALE_NOT_READY } from '@/lib/wholesale'
 import { SELLING_PLAN_REQUIRED_MODERATOR, isSellingPlanError } from '@/lib/sellingLock'
+import { readWithSellingUntil, sellerOpen, type SellerVis } from '@/lib/sellerVisibility'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -42,15 +43,19 @@ export async function GET(req: NextRequest) {
   const statuses = TAB_STATUS[tab] ?? TAB_STATUS.pending
 
   // Farmers in this zone — listings are scoped through them.
-  const { data: zoneFarmers, error: fErr } = await supabase
+  // account_type + selling_until: an aggregator without a Selling plan is
+  // hidden from buyers, and the card says so (src/lib/sellerVisibility.ts).
+  const { data: zoneFarmers, error: fErr, checked: visChecked } = await readWithSellingUntil((withVis) => (supabase
     .from('farmers')
-    .select('id, name')
-    .eq('region_slug', zone)
+    .select(withVis ? 'id, name, account_type, selling_until' : 'id, name')
+    .eq('region_slug', zone)) as unknown as PromiseLike<{ data: Array<{ id: string; name: string } & SellerVis> | null; error: { message: string } | null }>)
   if (fErr) {
     console.error('[YFF moderator/listings] farmers query failed:', fErr.message)
     return NextResponse.json({ error: fErr.message }, { status: 500 })
   }
   const nameById = new Map((zoneFarmers ?? []).map((f) => [f.id, f.name]))
+  const now = new Date()
+  const hiddenIds = new Set(visChecked ? (zoneFarmers ?? []).filter((f) => !sellerOpen(f, now)).map((f) => f.id) : [])
   const farmerIds = (zoneFarmers ?? []).map((f) => f.id)
   if (farmerIds.length === 0) return NextResponse.json({ listings: [] })
 
@@ -72,6 +77,7 @@ export async function GET(req: NextRequest) {
   const rows = (listings ?? []).map((l) => ({
     ...l,
     farmer_name: nameById.get(l.farmer_id) ?? '—',
+    hidden_from_buyers: hiddenIds.has(l.farmer_id),
     purchase_count: counts[l.id as string] ?? 0,
   }))
   return NextResponse.json({ listings: rows })
