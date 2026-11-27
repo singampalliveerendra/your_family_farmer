@@ -148,6 +148,13 @@ vi.mock('@/lib/wholesaleLowStockAlert', () => ({
   scheduleWholesaleLowStockCheck: (...a: unknown[]) => scheduleWholesaleLowStockCheck(...a),
 }))
 
+// The farm's rough area for the 20 km cargo rule (2026-11-27): the farm sits
+// at Tadepalligudem unless a test clears it.
+let farmArea: { lat: number; lng: number } | null = { lat: 16.81, lng: 81.53 }
+vi.mock('@/lib/farmArea', () => ({
+  farmAreas: async (ids: string[]) => (farmArea ? Object.fromEntries(ids.map((id) => [id, { ...farmArea, approximate: true }])) : {}),
+}))
+
 const { POST } = await import('@/app/api/orders/place/route')
 
 // Each request gets its own IP so the route's rate limiter never interferes.
@@ -625,5 +632,63 @@ describe('cargo anywhere in India', () => {
     const r = await place(courier('560001', { cargoService: undefined }))
     expect(r.status).toBe(400)
     expect((await r.json()).error).toMatch(/Andhra Pradesh or Telangana pincode/)
+  })
+})
+
+// 2026-11-27: cargo produce goes by cargo only for a buyer more than 20 km
+// from the farm (or whose location is unknown); nearer it is the normal home
+// delivery and no cargo service is asked.
+describe('cargo only for far buyers (20 km)', () => {
+  const NEAR = { buyerLat: 16.85, buyerLng: 81.56 } // ~5 km from the farm
+  const FAR = { buyerLat: 17.69, buyerLng: 83.22 } // Visakhapatnam, ~200 km
+  const home = (extra: Record<string, unknown> = {}) => order({
+    paymentMethod: 'cod',
+    deliveryType: 'home_delivery',
+    items: [{ listingId: LISTING_ID, qty: 2, deliveryType: 'home_delivery' }],
+    deliveryAddress: '12 Main Road, Near Temple', deliveryCity: 'Tadepalligudem', deliveryPincode: '534101',
+    ...extra,
+  })
+  const cargo = () => Object.assign(db.listings[0], {
+    retail_reach: 'transport', retail_transport_rates: { AP: 0, TG: 0 },
+    courier_type: 'cargo', cargo_services: ['VRL Logistics'], delivery_paid_by: 'buyer',
+  })
+  beforeEach(() => { farmArea = { lat: 16.81, lng: 81.53 } })
+
+  it('within 20 km: normal home delivery, no cargo service needed', async () => {
+    cargo()
+    const r = await place(home(NEAR))
+    expect(r.status).toBe(200)
+    expect(db.orders[0]).toMatchObject({ delivery_type: 'home_delivery' })
+    expect(db.orders[0]).not.toHaveProperty('cargo_service')
+  })
+  it('more than 20 km: home delivery is refused — it must go by cargo', async () => {
+    cargo()
+    const r = await place(home(FAR))
+    expect(r.status).toBe(400)
+    expect((await r.json()).error).toMatch(/comes to you by cargo.*20 km/)
+  })
+  it('buyer location unknown: cargo, to be safe', async () => {
+    cargo()
+    expect((await place(home())).status).toBe(400)
+  })
+  it('farm point unknown: cargo, to be safe', async () => {
+    cargo()
+    farmArea = null
+    expect((await place(home(NEAR))).status).toBe(400)
+  })
+  it('far buyers still order by cargo as before', async () => {
+    cargo()
+    const r = await place(order({
+      paymentMethod: 'cod', deliveryType: 'courier',
+      items: [{ listingId: LISTING_ID, qty: 2, deliveryType: 'courier' }],
+      deliveryAddress: '12 Main Road', deliveryCity: 'Gajuwaka', deliveryPincode: '530026',
+      cargoService: 'VRL Logistics', ...FAR,
+    }))
+    expect(r.status).toBe(200)
+    expect(db.orders[0]).toMatchObject({ delivery_type: 'courier', cargo_service: 'VRL Logistics' })
+  })
+  it('non-cargo produce is not affected, wherever the buyer is', async () => {
+    const r = await place(home(FAR))
+    expect(r.status).toBe(200)
   })
 })

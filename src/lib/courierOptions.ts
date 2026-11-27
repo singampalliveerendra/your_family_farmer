@@ -32,6 +32,7 @@
  */
 
 import { isMissingColumnError } from '@/lib/missingColumn'
+import { haversineKm } from '@/lib/location'
 
 export type Msg = { en: string; te: string }
 export type CourierType = 'local' | 'cargo'
@@ -298,4 +299,31 @@ export function checkCargoChoice(
   const service = common.find((s) => s.toLowerCase() === pick)
   if (!service) return { ok: false, error: `Choose the cargo service that works in your area: ${common.join(', ')}.` }
   return { ok: true, service, paidBy: parcelPaidBy(lines) }
+}
+
+// ── Cargo only for far buyers (client card 2026-11-27) ─────────────
+
+/**
+ * A cargo produce goes by cargo only when the buyer is FAR from the farm.
+ * Within this distance home delivery is the normal local delivery (no cargo
+ * service asked). Only for the cargo decision — the produce's own local
+ * radius (retailReach.ts) is unchanged.
+ */
+export const CARGO_LOCAL_KM = 20
+
+type Point = { lat: number; lng: number } | null | undefined
+
+/**
+ * Must this buyer's home delivery of a cargo produce go by cargo? Yes when
+ * they are more than CARGO_LOCAL_KM away — and also when we can't tell (no
+ * saved buyer location, or no farm point), to be safe (decision 2026-11-27).
+ * The farm point is the rough ~5 km area (farmArea.ts), so the line is soft by
+ * a few km.
+ */
+export function cargoNeeded(farm: Point, buyer: Point): boolean {
+  if (!farm || !buyer) return true
+  const ok = (n: unknown) => typeof n === 'number' && Number.isFinite(n)
+  if (!ok(farm.lat) || !ok(farm.lng) || !ok(buyer.lat) || !ok(buyer.lng)) return true
+  if (buyer.lat === 0 && buyer.lng === 0) return true
+  return haversineKm(buyer.lat, buyer.lng, farm.lat, farm.lng) > CARGO_LOCAL_KM
 }

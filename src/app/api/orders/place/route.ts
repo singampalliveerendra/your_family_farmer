@@ -7,7 +7,8 @@ import { getConsumerSessionFromRequest } from '@/lib/session'
 import { createGuestOrderToken } from '@/lib/guest-order-token'
 import { getTierPrice } from '@/lib/pricing'
 import { packLinePrice } from '@/lib/packPricing'
-import { checkCargoChoice } from '@/lib/courierOptions'
+import { CARGO_LOCAL_KM, cargoNeeded, checkCargoChoice } from '@/lib/courierOptions'
+import { farmAreas } from '@/lib/farmArea'
 import { normalizePhone } from '@/lib/phone'
 import { isSelfOrder } from '@/lib/sellerBuyerLink'
 import { markSelfOrder, withoutSelfOrderFlag } from '@/lib/selfOrder'
@@ -131,6 +132,10 @@ export async function POST(req: NextRequest) {
         // Cargo produce (2026-11-10): the cargo service the buyer picked from
         // the farmer's list — checked against the listings below.
         cargoService?: string | null
+        // The buyer's saved location (2026-11-27): a cargo produce goes by
+        // normal home delivery only within 20 km of the farm (cargoNeeded).
+        buyerLat?: number | null
+        buyerLng?: number | null
       }
     | null
 
@@ -576,6 +581,25 @@ export async function POST(req: NextRequest) {
       const fee = computePlatformFee(Number(r.total_price) || 0, feePercent)
       r.platform_fee = fee
       platformFee += fee
+    }
+  }
+
+  // Cargo only for far buyers (2026-11-27): a cargo produce may come by the
+  // normal home delivery only when the buyer is within 20 km of the farm. Far
+  // away — or distance unknown — it must go by cargo (the courier rows below).
+  // The farm point is the rough area (farmArea.ts); the buyer's point is what
+  // their browser saved. A missing column (migration not run) skips this.
+  const homeIds = [...new Set(items.filter((it) => rowDeliveryTypeOf(it) === 'home_delivery').map((it) => it.listingId))]
+  if (homeIds.length) {
+    const { data: ctRows, error: ctErr } = await supabase.from('produce_listings').select('id, name, courier_type').in('id', homeIds)
+    const cargoHome = ctErr ? [] : ((ctRows ?? []) as Array<{ id: string; name: string; courier_type?: string | null }>).filter((r) => r.courier_type === 'cargo')
+    if (cargoHome.length) {
+      const area = (await farmAreas([farmerId]))[farmerId] ?? null
+      const bLat = Number(body.buyerLat), bLng = Number(body.buyerLng)
+      const buyerPoint = body.buyerLat != null && body.buyerLng != null && Number.isFinite(bLat) && Number.isFinite(bLng) ? { lat: bLat, lng: bLng } : null
+      if (cargoNeeded(area, buyerPoint)) {
+        return bad(`${cargoHome[0].name} comes to you by cargo — you are more than ${CARGO_LOCAL_KM} km from the farm (or your location is not set). Please choose a cargo service in the cart.`)
+      }
     }
   }
 

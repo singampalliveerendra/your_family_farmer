@@ -10,6 +10,7 @@ import {
   EMPTY_COURIER_FORM,
 } from '@/lib/courierOptions'
 import { parseRetailReachSave } from '@/lib/retailReach'
+import { CARGO_LOCAL_KM, cargoNeeded } from '@/lib/courierOptions'
 
 // Client card 2026-11-10: Delivery step — Pickup only / I will courier / Both;
 // courier = Local (radius, who pays) or Cargo (ToPay services, who pays).
@@ -203,5 +204,24 @@ describe('all-india-transport migration', () => {
       expect(s).toContain("CHECK (wholesale_transport_states <@ ARRAY['AP', 'TG', 'IN']::text[])")
       expect(s).toContain("CHECK (transport_state IS NULL OR transport_state IN ('AP', 'TG', 'IN'))")
     }
+  })
+})
+
+describe('cargoNeeded — cargo only for buyers more than 20 km away (2026-11-27)', () => {
+  const farm = { lat: 16.81, lng: 81.53 }
+  it('20 km is the line', () => expect(CARGO_LOCAL_KM).toBe(20))
+  it('a buyer within 20 km gets normal delivery', () => {
+    expect(cargoNeeded(farm, { lat: 16.85, lng: 81.56 })).toBe(false) // ~5 km
+    expect(cargoNeeded(farm, { lat: 16.95, lng: 81.53 })).toBe(false) // ~15.6 km
+  })
+  it('a buyer further than 20 km needs cargo', () => {
+    expect(cargoNeeded(farm, { lat: 17.0, lng: 81.53 })).toBe(true) // ~21 km
+    expect(cargoNeeded(farm, { lat: 17.69, lng: 83.22 })).toBe(true) // Vizag
+  })
+  it('unknown buyer or farm → cargo, to be safe', () => {
+    expect(cargoNeeded(farm, null)).toBe(true)
+    expect(cargoNeeded(null, { lat: 16.85, lng: 81.56 })).toBe(true)
+    expect(cargoNeeded(farm, { lat: 0, lng: 0 })).toBe(true)
+    expect(cargoNeeded(farm, { lat: Number.NaN, lng: 81.5 })).toBe(true)
   })
 })

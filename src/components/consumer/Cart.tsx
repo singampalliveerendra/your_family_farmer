@@ -62,7 +62,8 @@ import { formatPickupSlots, type PickupSchedule, type PickupPhones } from '@/lib
 import { loadCashfreeScript, runCashfreeCheckout } from '@/lib/cashfreeCheckout'
 import { withoutBulkLines } from '@/lib/cartLine'
 import { packLabel, packPerUnit, packsText, type CartPackFields } from '@/lib/packPricing'
-import { commonCargoServices, parcelPaidBy, type CartCargoFields } from '@/lib/courierOptions'
+import { cargoNeeded, commonCargoServices, parcelPaidBy, type CartCargoFields } from '@/lib/courierOptions'
+import { useSavedBuyer } from '@/lib/savedBuyer'
 
 export type CartItem = {
   listingId: string
@@ -783,6 +784,22 @@ export function CartSheet({
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [])
 
+  // Cargo only for far buyers (2026-11-27): each farm's rough area, to tell a
+  // buyer within 20 km (normal home delivery) from one further away (cargo).
+  // No buyer location, or no farm point → cargo, to be safe (cargoNeeded).
+  const savedBuyer = useSavedBuyer()
+  const [farmAreaById, setFarmAreaById] = useState<Record<string, { lat: number; lng: number }>>({})
+  const cargoFarmerKey = [...new Set(items.filter((i) => i.courierType === 'cargo').map((i) => i.farmerId).filter(Boolean))].sort().join(',')
+  useEffect(() => {
+    if (!cargoFarmerKey) return
+    let cancelled = false
+    fetch(`/api/farm-areas?ids=${encodeURIComponent(cargoFarmerKey)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!cancelled && j?.areas) setFarmAreaById(j.areas) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [cargoFarmerKey])
+
   // Fetch whether each farmer in the cart accepts cash, when the sheet opens.
   // (UPI ID / QR are no longer read: buyers pay online through Cashfree, and
   // since the security fix (2026-11-04) those columns are not public. Asking
@@ -869,9 +886,12 @@ export function CartSheet({
   // Address form is needed as soon as any line is home delivery.
   const anyDelivery = items.some((it) => deliveryOf(it) === 'home_delivery')
   // A delivered transportable line goes by the farmer's courier, not our rider.
-  // Cargo lines always go by cargo, anywhere in India (2026-11-11) — even
-  // without a saved buyer state; nothing for transport is charged online.
-  const isTransported = (it: CartItem) => (it.transportCharge != null || it.courierType === 'cargo') && deliveryOf(it) === 'home_delivery'
+  // Cargo lines go by cargo, anywhere in India (2026-11-11) — but only for a
+  // buyer more than 20 km from the farm, or whose distance we can't tell
+  // (2026-11-27); nearer, it is the normal home delivery. Nothing for
+  // transport is charged online.
+  const goesByCargo = (it: CartItem) => it.courierType === 'cargo' && cargoNeeded(farmAreaById[it.farmerId], savedBuyer)
+  const isTransported = (it: CartItem) => (it.transportCharge != null || goesByCargo(it)) && deliveryOf(it) === 'home_delivery'
   const anyRiderDelivery = items.some((it) => deliveryOf(it) === 'home_delivery' && !isTransported(it))
   const needsAddress = anyDelivery
 
@@ -999,6 +1019,10 @@ export function CartSheet({
         pickupPhone: pickupPhoneByFarmer[f.farmerId]?.replace(/\D/g, '').slice(-10) || null,
         pickupLocationPhone: f.farmerPickupPhones?.[pickupByFarmer[f.farmerId] ?? ''] || null,
         cargoService: cargoLinesOf(group).length ? (cargoByFarmer[f.farmerId] || null) : null,
+        // The buyer's saved location, so the server can apply the same 20 km
+        // cargo rule (it re-checks; nothing here is trusted for prices).
+        buyerLat: savedBuyer?.lat ?? null,
+        buyerLng: savedBuyer?.lng ?? null,
         items: group.map((it) => ({
           listingId: it.listingId,
           harvestId: it.harvestId,
