@@ -7,73 +7,103 @@ import {
   normalizeCargoServices,
   resolveCourier,
   withoutCourier,
+  cartCargoFields,
+  checkCargoChoice,
+  sendsByCargo,
   EMPTY_COURIER_FORM,
+  type ProfileDelivery,
 } from '@/lib/courierOptions'
-import { parseRetailReachSave } from '@/lib/retailReach'
+import { parseRetailReachSave, reachFor } from '@/lib/retailReach'
 import { CARGO_LOCAL_KM, cargoNeeded } from '@/lib/courierOptions'
 
-// Client card 2026-11-10: Delivery step — Pickup only / I will courier / Both;
-// courier = Local (radius, who pays) or Cargo (ToPay services, who pays).
+// Client card 2026-11-10: Delivery step — Pickup only / I will courier / Both.
+// 2026-11-27: each produce only picks Local / Cargo / Both; the services, who
+// pays, the local charge and radius come from the farmer's profile.
 
 const errOf = (r: ReturnType<typeof resolveCourier>) => (r.ok ? '' : r.error.en)
+const PROFILE: ProfileDelivery = { cargoServices: ['VRL Logistics', 'SRMT'], cargoPaidBy: 'buyer', localPaidBy: 'buyer', localCharge: 40, localRadiusKm: 10 }
+const resolve = (type: string, settings: ProfileDelivery | null | undefined = PROFILE, mode = 'courier') =>
+  resolveCourier({ deliveryMode: mode, courierType: type, settings })
 
 describe('pickup only', () => {
   it('clears every courier field and keeps the produce local', () => {
-    expect(resolveCourier({ deliveryMode: 'pickup', courierType: 'cargo', cargoServices: ['VRL Logistics'], paidBy: 'buyer', charge: '50' })).toEqual({
+    expect(resolve('cargo', PROFILE, 'pickup')).toEqual({
       ok: true,
       columns: { courier_type: null, cargo_services: [], delivery_paid_by: null, delivery_charge: null, delivery_radius_km: null, retail_reach: 'local', retail_transport_rates: {} },
     })
   })
   it('no delivery method → asked to choose', () => {
-    expect(errOf(resolveCourier({ deliveryMode: '', courierType: '', paidBy: '' }))).toMatch(/Choose a delivery method/)
+    expect(errOf(resolve('', PROFILE, ''))).toMatch(/Choose a delivery method/)
   })
 })
 
-describe('local delivery', () => {
-  const local = (x: object = {}) => resolveCourier({ deliveryMode: 'courier', courierType: 'local', paidBy: 'buyer', charge: '40', radius: '10', ...x })
-  it('buyer pays: the charge is kept, radius rounded', () => {
-    expect(local({ radius: '10.4' })).toEqual({ ok: true, columns: {
+describe('Local / Cargo / Both from the profile', () => {
+  it('local: the profile’s payer, charge and radius', () => {
+    expect(resolve('local')).toEqual({ ok: true, columns: {
       courier_type: 'local', cargo_services: [], delivery_paid_by: 'buyer', delivery_charge: 40, delivery_radius_km: 10, retail_reach: 'local', retail_transport_rates: {},
     } })
   })
-  it('farmer pays: free for the buyer, any typed charge ignored', () => {
-    expect(local({ paidBy: 'farmer', charge: '99' })).toMatchObject({ ok: true, columns: { delivery_paid_by: 'farmer', delivery_charge: 0 } })
+  it('local, farmer pays: free for the buyer', () => {
+    expect(resolve('local', { ...PROFILE, localPaidBy: 'farmer', localCharge: null })).toMatchObject({ ok: true, columns: { delivery_paid_by: 'farmer', delivery_charge: 0 } })
   })
-  it('radius is optional', () => {
-    expect(local({ radius: '' })).toMatchObject({ ok: true, columns: { delivery_radius_km: null } })
-  })
-  it.each([
-    [{ courierType: '' }, /Local delivery or Cargo/],
-    [{ paidBy: '' }, /Who pays for delivery/],
-    [{ charge: '' }, /Enter the delivery charge/],
-    [{ charge: '0' }, /above 0.*Farmer pays/],
-    [{ charge: 'abc' }, /above 0/],
-    [{ radius: '0' }, /radius/],
-    [{ radius: '9999' }, /radius/],
-  ])('refuses %o', (x, msg) => {
-    const r = local(x)
-    expect(errOf(r)).toMatch(msg)
-    if (!r.ok) expect(r.error.te).toMatch(/[ఀ-౿]/)
-  })
-})
-
-describe('cargo', () => {
-  const cargo = (x: object = {}) => resolveCourier({ deliveryMode: 'both', courierType: 'cargo', cargoServices: ['VRL Logistics'], otherCargo: '', paidBy: 'buyer', ...x })
-  it('ToPay: services saved, nothing charged online, offered across AP and TG', () => {
-    expect(cargo({ otherCargo: 'Sri Durga Parcels, vrl logistics' })).toEqual({ ok: true, columns: {
-      courier_type: 'cargo', cargo_services: ['VRL Logistics', 'Sri Durga Parcels'], delivery_paid_by: 'buyer',
+  it('cargo: the profile’s services and payer, nothing charged online', () => {
+    expect(resolve('cargo')).toEqual({ ok: true, columns: {
+      courier_type: 'cargo', cargo_services: ['VRL Logistics', 'SRMT'], delivery_paid_by: 'buyer',
       delivery_charge: 0, delivery_radius_km: null, retail_reach: 'transport', retail_transport_rates: { AP: 0, TG: 0 },
     } })
   })
-  it('farmer pays the cargo: still nothing online', () => {
-    expect(cargo({ paidBy: 'farmer' })).toMatchObject({ ok: true, columns: { delivery_paid_by: 'farmer', delivery_charge: 0 } })
+  it('both: cargo services + payer, and the local charge and radius', () => {
+    expect(resolve('both')).toEqual({ ok: true, columns: {
+      courier_type: 'both', cargo_services: ['VRL Logistics', 'SRMT'], delivery_paid_by: 'buyer',
+      delivery_charge: 40, delivery_radius_km: 10, retail_reach: 'transport', retail_transport_rates: { AP: 0, TG: 0 },
+    } })
   })
-  it('at least one service', () => {
-    expect(errOf(cargo({ cargoServices: [], otherCargo: ' , ' }))).toMatch(/at least one cargo service/)
+  it('what the type needs must be set on the profile', () => {
+    const noCargo = { ...PROFILE, cargoServices: [], cargoPaidBy: null }
+    const noLocal = { ...PROFILE, localPaidBy: null }
+    expect(errOf(resolve('cargo', noCargo))).toMatch(/cargo services in your profile/)
+    expect(errOf(resolve('both', noCargo))).toMatch(/cargo services in your profile/)
+    expect(errOf(resolve('local', noLocal))).toMatch(/local delivery in your profile/)
+    expect(errOf(resolve('both', noLocal))).toMatch(/local delivery in your profile/)
+    expect(resolve('local', noCargo).ok).toBe(true)
+    expect(resolve('cargo', noLocal).ok).toBe(true)
+    const r = resolve('cargo', noCargo)
+    if (!r.ok) expect(r.error.te).toMatch(/[ఀ-౿]/)
+  })
+  it('an unknown type is refused', () => {
+    expect(errOf(resolve(''))).toMatch(/Local, Cargo or Both/)
+  })
+  it('in the browser before the profile loads: only the type is checked', () => {
+    expect(resolve('cargo', undefined)).toMatchObject({ ok: true, columns: { courier_type: 'cargo' } })
+  })
+  it('no profile columns yet (migration not run): Local saves free, Cargo / Both refused', () => {
+    expect(resolve('local', null)).toMatchObject({ ok: true, columns: { courier_type: 'local', delivery_paid_by: 'farmer', delivery_charge: 0 } })
+    expect(errOf(resolve('cargo', null))).toMatch(/not switched on/)
+    expect(errOf(resolve('both', null))).toMatch(/not switched on/)
   })
   it('the reach it writes passes the shop’s reach rules', () => {
-    const r = cargo()
+    const r = resolve('cargo')
     expect(r.ok && parseRetailReachSave(r.columns, 'both')).toMatchObject({ ok: true, reach: 'transport', rates: { AP: 0, TG: 0 } })
+  })
+})
+
+describe('both behaves as cargo for far buyers', () => {
+  it('sendsByCargo', () => {
+    expect(sendsByCargo('cargo')).toBe(true)
+    expect(sendsByCargo('both')).toBe(true)
+    expect(sendsByCargo('local')).toBe(false)
+    expect(sendsByCargo(null)).toBe(false)
+  })
+  it('the cart line and the checkout choice', () => {
+    const row = { name: 'Tomato', courier_type: 'both', cargo_services: ['VRL Logistics'], delivery_paid_by: 'buyer' }
+    expect(cartCargoFields(row)).toEqual({ courierType: 'cargo', cargoServices: ['VRL Logistics'], deliveryPaidBy: 'buyer' })
+    expect(checkCargoChoice([row], 'vrl logistics')).toEqual({ ok: true, service: 'VRL Logistics', paidBy: 'buyer' })
+  })
+  it('the feed: local inside the radius, cargo beyond', () => {
+    const l = { courier_type: 'both', delivery_radius_km: 10, retail_reach: 'transport' }
+    const farm = { lat: 16.81, lng: 81.53 }
+    expect(reachFor(l, farm, { lat: 16.85, lng: 81.56, state: 'AP' }).kind).toBe('local')
+    expect(reachFor(l, farm, { lat: 17.69, lng: 83.22, state: 'AP' }).kind).toBe('transport')
   })
 })
 
@@ -87,42 +117,38 @@ describe('normalizeCargoServices', () => {
 })
 
 describe('the form ↔ the row', () => {
-  it('a cargo row: known names ticked, others in the Other box', () => {
-    expect(courierFormFromRow({ delivery_mode: 'courier', courier_type: 'cargo', cargo_services: ['VRL Logistics', 'Sri Durga Parcels'], delivery_paid_by: 'buyer' }))
-      .toEqual({ courierType: 'cargo', cargoServices: ['VRL Logistics'], otherCargo: 'Sri Durga Parcels', paidBy: 'buyer', charge: '', radius: '' })
+  it('reads the type', () => {
+    expect(courierFormFromRow({ delivery_mode: 'courier', courier_type: 'cargo' })).toEqual({ courierType: 'cargo' })
+    expect(courierFormFromRow({ delivery_mode: 'both', courier_type: 'both' })).toEqual({ courierType: 'both' })
   })
-  it('a row from before this step: a charge meant the buyer paid, none meant free', () => {
-    expect(courierFormFromRow({ delivery_mode: 'courier', delivery_charge: 30, delivery_radius_km: 8 })).toMatchObject({ courierType: 'local', paidBy: 'buyer', charge: '30', radius: '8' })
-    expect(courierFormFromRow({ delivery_mode: 'both', delivery_charge: null })).toMatchObject({ courierType: 'local', paidBy: 'farmer' })
-  })
-  it('an old "Transportable across AP & TG" listing opens on Cargo, to be finished', () => {
-    expect(courierFormFromRow({ delivery_mode: 'courier', retail_reach: 'transport' })).toMatchObject({ courierType: 'cargo', cargoServices: [], paidBy: '' })
+  it('older rows: a courier row with no type is Local; an old "Transportable" one opens on Cargo', () => {
+    expect(courierFormFromRow({ delivery_mode: 'courier', delivery_charge: 30 })).toEqual({ courierType: 'local' })
+    expect(courierFormFromRow({ delivery_mode: 'courier', retail_reach: 'transport' })).toEqual({ courierType: 'cargo' })
   })
   it('pickup-only and empty rows', () => {
-    expect(courierFormFromRow({ delivery_mode: 'pickup' })).toMatchObject({ courierType: '' })
+    expect(courierFormFromRow({ delivery_mode: 'pickup' })).toEqual({ courierType: '' })
     expect(courierFormFromRow(null)).toEqual(EMPTY_COURIER_FORM)
   })
   it('round trip through the request body', () => {
-    const f = courierFormFromRow({ delivery_mode: 'courier', courier_type: 'cargo', cargo_services: ['VRL Logistics', 'Sri Durga Parcels'], delivery_paid_by: 'farmer' })
-    const body = { delivery_mode: 'courier', ...courierRequestBody(f) }
-    expect(applyCourierColumns(body)).toBeNull()
-    expect(body).toMatchObject({ courier_type: 'cargo', cargo_services: ['VRL Logistics', 'Sri Durga Parcels'], delivery_paid_by: 'farmer', delivery_charge: 0 })
+    const body = { delivery_mode: 'courier', ...courierRequestBody({ courierType: 'both' }) }
+    expect(applyCourierColumns(body, PROFILE)).toBeNull()
+    expect(body).toMatchObject({ courier_type: 'both', cargo_services: ['VRL Logistics', 'SRMT'], delivery_charge: 40 })
   })
 })
 
 describe('server helpers', () => {
   it('a payload without courier columns is left alone', () => {
     const p = { delivery_mode: 'courier', delivery_charge: 30 }
-    expect(applyCourierColumns(p)).toBeNull()
+    expect(applyCourierColumns(p, PROFILE)).toBeNull()
     expect(p).toEqual({ delivery_mode: 'courier', delivery_charge: 30 })
   })
-  it('a crafted cargo payload with an online charge is normalised to ₹0', () => {
-    const p: Record<string, unknown> = { delivery_mode: 'courier', courier_type: 'cargo', cargo_services: ['VRL Logistics'], delivery_paid_by: 'buyer', delivery_charge: 500, retail_transport_rates: { AP: 500 } }
-    expect(applyCourierColumns(p)).toBeNull()
-    expect(p).toMatchObject({ delivery_charge: 0, retail_transport_rates: { AP: 0, TG: 0 } })
+  it('whatever a crafted request sends, the profile decides', () => {
+    const p: Record<string, unknown> = { delivery_mode: 'courier', courier_type: 'cargo', cargo_services: ['Fake Co'], delivery_paid_by: 'farmer', delivery_charge: 500, retail_transport_rates: { AP: 500 } }
+    expect(applyCourierColumns(p, PROFILE)).toBeNull()
+    expect(p).toMatchObject({ cargo_services: ['VRL Logistics', 'SRMT'], delivery_paid_by: 'buyer', delivery_charge: 0, retail_transport_rates: { AP: 0, TG: 0 } })
   })
   it('a broken payload returns the message', () => {
-    expect(applyCourierColumns({ delivery_mode: 'courier', courier_type: 'local' })?.en).toMatch(/Who pays/)
+    expect(applyCourierColumns({ delivery_mode: 'courier', courier_type: 'local' }, { ...PROFILE, localPaidBy: null })?.en).toMatch(/local delivery in your profile/)
   })
   it('missing-column detection and stripping', () => {
     expect(isCourierColumnMissing("Could not find the 'courier_type' column of 'produce_listings' in the schema cache")).toBe(true)

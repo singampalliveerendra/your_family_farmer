@@ -35,7 +35,8 @@ import { isMissingColumnError } from '@/lib/missingColumn'
 import { haversineKm } from '@/lib/location'
 
 export type Msg = { en: string; te: string }
-export type CourierType = 'local' | 'cargo'
+/** 'both' (2026-11-27): local for buyers within 20 km, cargo further away. */
+export type CourierType = 'local' | 'cargo' | 'both'
 export type PaidBy = 'farmer' | 'buyer'
 
 /** Cargo / parcel services common in AP & TG (they ship India-wide). "Other" names are typed in. */
@@ -55,18 +56,50 @@ export const MAX_RADIUS_KM = 500
 
 export const COURIER_COLUMNS = ['courier_type', 'cargo_services', 'delivery_paid_by'] as const
 
-/** What the form holds (strings from the inputs). */
-export type CourierForm = {
-  courierType: CourierType | ''
+/**
+ * What the produce form holds. Since 2026-11-27 only HOW it goes: the
+ * services, who pays, the local charge and radius are set once on the
+ * farmer's profile (src/lib/deliverySettings.ts).
+ */
+export type CourierForm = { courierType: CourierType | '' }
+
+export const EMPTY_COURIER_FORM: CourierForm = { courierType: '' }
+
+/** Does this courier type send by cargo (to buyers beyond 20 km)? */
+export const sendsByCargo = (t: unknown): boolean => t === 'cargo' || t === 'both'
+
+/** The farmer's profile delivery settings (src/lib/deliverySettings.ts). */
+export type ProfileDelivery = {
   cargoServices: string[]
-  /** The "Other" box: comma- or line-separated names. */
-  otherCargo: string
-  paidBy: PaidBy | ''
-  charge: string
-  radius: string
+  cargoPaidBy: PaidBy | null
+  localPaidBy: PaidBy | null
+  /** ₹ per order when the buyer pays for local delivery. */
+  localCharge: number | null
+  /** null = the default 25 km. */
+  localRadiusKm: number | null
 }
 
-export const EMPTY_COURIER_FORM: CourierForm = { courierType: '', cargoServices: [], otherCargo: '', paidBy: '', charge: '', radius: '' }
+/** Is cargo ready to be chosen on a produce? */
+export const cargoReady = (s: ProfileDelivery): boolean => s.cargoServices.length > 0 && s.cargoPaidBy !== null
+/** Is local delivery ready to be chosen on a produce? */
+export const localReady = (s: ProfileDelivery): boolean =>
+  s.localPaidBy === 'farmer' || (s.localPaidBy === 'buyer' && s.localCharge !== null && s.localCharge > 0)
+
+export const CARGO_SETTINGS_MISSING: Msg = {
+  en: 'Add your cargo services in your profile first (Delivery settings).',
+  te: 'ముందు మీ ప్రొఫైల్‌లో కార్గో సర్వీసులు జోడించండి (డెలివరీ సెట్టింగ్స్).',
+}
+export const LOCAL_SETTINGS_MISSING: Msg = {
+  en: 'Set your local delivery in your profile first (Delivery settings).',
+  te: 'ముందు మీ ప్రొఫైల్‌లో లోకల్ డెలివరీ సెట్ చేయండి (డెలివరీ సెట్టింగ్స్).',
+}
+
+/** What a courier type still needs from the profile; null = ready. */
+export function missingFor(type: unknown, s: ProfileDelivery): Msg | null {
+  if (sendsByCargo(type) && !cargoReady(s)) return CARGO_SETTINGS_MISSING
+  if ((type === 'local' || type === 'both') && !localReady(s)) return LOCAL_SETTINGS_MISSING
+  return null
+}
 
 const fail = (en: string, te: string) => ({ ok: false as const, error: { en, te } })
 
@@ -85,12 +118,6 @@ export function normalizeCargoServices(raw: unknown): string[] {
   return out.slice(0, MAX_CARGO_SERVICES)
 }
 
-const num = (v: unknown): number | null => {
-  if (v === null || v === undefined || v === '') return null
-  const n = typeof v === 'number' ? v : Number(String(v).trim())
-  return Number.isFinite(n) ? n : NaN
-}
-
 export type CourierColumns = {
   courier_type: CourierType | null
   cargo_services: string[]
@@ -103,17 +130,17 @@ export type CourierColumns = {
 }
 
 /**
- * Check the Delivery step and turn it into columns. Mirrors the migration's
- * CHECKs. `deliveryMode` is the existing pickup / courier / both choice.
+ * Check the Delivery step and turn it into columns. `deliveryMode` is the
+ * pickup / courier / both choice; `courierType` is Local / Cargo / Both. The
+ * rest comes from the farmer's profile (`settings`) — the same copy the
+ * database trigger makes (scripts/delivery-settings-migration.sql). `settings`
+ * undefined = only the type is checked (the browser); null = a database without that migration: Local saves as free delivery,
+ * Cargo / Both are refused (COURIER_NOT_READY).
  */
 export function resolveCourier(input: {
   deliveryMode: unknown
   courierType: unknown
-  cargoServices?: unknown
-  otherCargo?: unknown
-  paidBy: unknown
-  charge?: unknown
-  radius?: unknown
+  settings?: ProfileDelivery | null
 }): { ok: true; columns: CourierColumns } | { ok: false; error: Msg } {
   const mode = input.deliveryMode
   if (mode === 'pickup') {
@@ -123,91 +150,52 @@ export function resolveCourier(input: {
     return fail('Choose a delivery method: Pickup only, I will courier, or Both.', 'డెలివరీ విధానం ఎంచుకోండి: పికప్ మాత్రమే, నేను డెలివరీ చేస్తా, లేదా రెండూ.')
   }
   const type = input.courierType
-  if (type !== 'local' && type !== 'cargo') {
-    return fail('How will you send it? Choose Local delivery or Cargo.', 'ఎలా పంపుతారు? లోకల్ డెలివరీ లేదా కార్గో ఎంచుకోండి.')
+  if (type !== 'local' && type !== 'cargo' && type !== 'both') {
+    return fail('How will you send it? Choose Local, Cargo or Both.', 'ఎలా పంపుతారు? లోకల్, కార్గో లేదా రెండూ ఎంచుకోండి.')
   }
-  const paidBy = input.paidBy
-  if (paidBy !== 'farmer' && paidBy !== 'buyer') {
-    return fail('Who pays for delivery? Choose Farmer or Buyer.', 'డెలివరీ ఖర్చు ఎవరు భరిస్తారు? రైతు లేదా కొనుగోలుదారు ఎంచుకోండి.')
+  // Not given (the browser before the profile has loaded): the type alone is
+  // checked here — the server fills the rest from the profile.
+  if (input.settings === undefined) {
+    return { ok: true, columns: { courier_type: type, cargo_services: [], delivery_paid_by: null, delivery_charge: null, delivery_radius_km: null } }
   }
-
-  if (type === 'cargo') {
-    const services = normalizeCargoServices([
-      ...(Array.isArray(input.cargoServices) ? input.cargoServices : normalizeCargoServices(input.cargoServices)),
-      ...normalizeCargoServices(input.otherCargo),
-    ])
-    if (services.length === 0) {
-      return fail('Choose at least one cargo service in your area that takes ToPay.', 'మీ ప్రాంతంలో ToPay తీసుకునే కనీసం ఒక కార్గో సర్వీస్ ఎంచుకోండి.')
-    }
-    return {
-      ok: true,
-      columns: {
-        courier_type: 'cargo', cargo_services: services, delivery_paid_by: paidBy,
-        // Nothing for cargo is paid online: ToPay, or the farmer pays it.
-        delivery_charge: 0, delivery_radius_km: null,
-        retail_reach: 'transport', retail_transport_rates: { AP: 0, TG: 0 },
-      },
-    }
+  const s = input.settings
+  if (!s) {
+    if (type !== 'local') return { ok: false, error: COURIER_NOT_READY }
+    return { ok: true, columns: { courier_type: 'local', cargo_services: [], delivery_paid_by: 'farmer', delivery_charge: 0, delivery_radius_km: null, retail_reach: 'local', retail_transport_rates: {} } }
   }
-
-  // Local delivery.
-  const radius = num(input.radius)
-  if (radius !== null && (Number.isNaN(radius) || radius <= 0 || radius > MAX_RADIUS_KM)) {
-    return fail(`Delivery radius must be 1 to ${MAX_RADIUS_KM} km, or left blank.`, `డెలివరీ పరిధి 1 నుండి ${MAX_RADIUS_KM} కి.మీ. ఉండాలి, లేదా ఖాళీగా వదలండి.`)
-  }
-  let charge = 0
-  if (paidBy === 'buyer') {
-    const c = num(input.charge)
-    if (c === null) return fail('Enter the delivery charge the buyer pays.', 'కొనుగోలుదారు చెల్లించే డెలివరీ ఛార్జ్ నమోదు చేయండి.')
-    if (Number.isNaN(c) || c <= 0 || c > MAX_COURIER_CHARGE) {
-      return fail('Delivery charge must be a number above 0. If it is free, choose "Farmer pays".', 'డెలివరీ ఛార్జ్ 0 కంటే ఎక్కువ ఉండాలి. ఉచితమైతే "రైతు భరిస్తారు" ఎంచుకోండి.')
-    }
-    charge = Math.round(c)
-  }
+  const missing = missingFor(type, s)
+  if (missing) return { ok: false, error: missing }
+  const cargo = sendsByCargo(type)
+  const local = type === 'local' || type === 'both'
   return {
     ok: true,
     columns: {
-      courier_type: 'local', cargo_services: [], delivery_paid_by: paidBy,
-      delivery_charge: charge, delivery_radius_km: radius === null ? null : Math.round(radius),
-      retail_reach: 'local', retail_transport_rates: {},
+      courier_type: type,
+      cargo_services: cargo ? s.cargoServices : [],
+      delivery_paid_by: (cargo ? s.cargoPaidBy : s.localPaidBy) as PaidBy,
+      // Nothing for cargo is paid online: ToPay, or the farmer pays it.
+      delivery_charge: local && s.localPaidBy === 'buyer' ? Math.round(s.localCharge ?? 0) : 0,
+      delivery_radius_km: local ? s.localRadiusKm : null,
+      retail_reach: cargo ? 'transport' : 'local',
+      retail_transport_rates: cargo ? { AP: 0, TG: 0 } : {},
     },
   }
 }
 
-/** A saved listing → form strings. An old "Transportable" listing opens on Cargo, to be finished. */
+/** A saved listing → the form. An old "Transportable" listing opens on Cargo. */
 export function courierFormFromRow(row: Record<string, unknown> | null | undefined): CourierForm {
   if (!row) return { ...EMPTY_COURIER_FORM }
-  const saved = normalizeCargoServices(row.cargo_services)
-  const known = new Set<string>(KNOWN_CARGO_SERVICES)
   const type: CourierType | '' =
-    row.courier_type === 'local' || row.courier_type === 'cargo' ? row.courier_type
+    row.courier_type === 'local' || row.courier_type === 'cargo' || row.courier_type === 'both' ? row.courier_type
     : row.retail_reach === 'transport' ? 'cargo'
     : row.delivery_mode === 'courier' || row.delivery_mode === 'both' ? 'local'
     : ''
-  const charge = num(row.delivery_charge)
-  const paidBy: PaidBy | '' = row.delivery_paid_by === 'farmer' || row.delivery_paid_by === 'buyer'
-    ? row.delivery_paid_by
-    // Before this step existed: a charge meant the buyer paid it, ₹0 / none meant free.
-    : type === 'local' ? (charge !== null && charge > 0 ? 'buyer' : 'farmer') : ''
-  return {
-    courierType: type,
-    cargoServices: saved.filter((s) => known.has(s)),
-    otherCargo: saved.filter((s) => !known.has(s)).join(', '),
-    paidBy,
-    charge: charge !== null && !Number.isNaN(charge) && charge > 0 ? String(charge) : '',
-    radius: row.delivery_radius_km != null ? String(row.delivery_radius_km) : '',
-  }
+  return { courierType: type }
 }
 
-/** The columns as a request body (moderator API / farmer payload). */
+/** The form as a request body (moderator API / farmer payload). */
 export function courierRequestBody(f: CourierForm): Record<string, unknown> {
-  return {
-    courier_type: f.courierType || null,
-    cargo_services: [...f.cargoServices, ...normalizeCargoServices(f.otherCargo)],
-    delivery_paid_by: f.paidBy || null,
-    delivery_charge: f.charge,
-    delivery_radius_km: f.radius,
-  }
+  return { courier_type: f.courierType || null }
 }
 
 /** Shown when cargo is saved on a server without scripts/courier-options-migration.sql. */
@@ -226,16 +214,9 @@ export function isCourierColumnMissing(msg: string | null | undefined): boolean 
  * the form's rules and normalised (charge, radius and reach included), so a
  * crafted request can't, say, save cargo with a paid online charge. Mutates.
  */
-export function applyCourierColumns(payload: Record<string, unknown>): Msg | null {
+export function applyCourierColumns(payload: Record<string, unknown>, settings: ProfileDelivery | null): Msg | null {
   if (!COURIER_COLUMNS.some((c) => c in payload)) return null
-  const r = resolveCourier({
-    deliveryMode: payload.delivery_mode,
-    courierType: payload.courier_type,
-    cargoServices: payload.cargo_services,
-    paidBy: payload.delivery_paid_by,
-    charge: payload.delivery_charge,
-    radius: payload.delivery_radius_km,
-  })
+  const r = resolveCourier({ deliveryMode: payload.delivery_mode, courierType: payload.courier_type, settings })
   if (!r.ok) return r.error
   Object.assign(payload, r.columns)
   return null
@@ -259,7 +240,8 @@ export type CartCargoFields = {
 
 /** The cargo fields for a cart line (nothing for local / pickup produce). */
 export function cartCargoFields(l: { courier_type?: unknown; cargo_services?: unknown; delivery_paid_by?: unknown } | null | undefined): CartCargoFields {
-  if (!l || l.courier_type !== 'cargo') return {}
+  // 'both' (2026-11-27) goes by cargo to far buyers too.
+  if (!l || !sendsByCargo(l.courier_type)) return {}
   const services = normalizeCargoServices(l.cargo_services)
   if (!services.length) return {}
   return { courierType: 'cargo', cargoServices: services, deliveryPaidBy: l.delivery_paid_by === 'farmer' ? 'farmer' : 'buyer' }
@@ -290,7 +272,7 @@ export function checkCargoChoice(
   rows: ReadonlyArray<{ name: string; courier_type?: unknown; cargo_services?: unknown; delivery_paid_by?: unknown }>,
   chosen: unknown,
 ): null | { ok: true; service: string; paidBy: PaidBy } | { ok: false; error: string } {
-  const cargo = rows.filter((r) => r.courier_type === 'cargo')
+  const cargo = rows.filter((r) => sendsByCargo(r.courier_type))
   if (!cargo.length) return null
   const lines = cargo.map((r) => cartCargoFields(r))
   const common = commonCargoServices(lines)

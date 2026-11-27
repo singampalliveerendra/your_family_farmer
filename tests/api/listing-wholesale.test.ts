@@ -504,25 +504,38 @@ describe('retail packs through the save routes', () => {
 // ---------------------------------------------------------------------------
 // Delivery step (client card 2026-11-10): courier type, cargo services, who pays.
 describe('delivery choices through the save routes', () => {
+  // 2026-11-27: the services, who pays, the local charge and radius come from
+  // the farmer's profile; the produce only says Local / Cargo / Both.
   const farmerEdit = (payload: Row, lang: 'en' | 'te' = 'en') =>
     updateListing(req('/api/farmer/update-listing', { listingId: LISTING_ID, payload }, 'POST', lang))
+  const profile = (p: Row) => Object.assign(db.tables.farmers[0], p)
+  beforeEach(() => profile({
+    cargo_services: ['VRL Logistics', 'Sri Durga Parcels'], cargo_paid_by: 'buyer',
+    local_paid_by: 'buyer', local_delivery_charge: 40, local_radius_km: 12,
+  }))
 
-  it('cargo (ToPay): services saved, nothing charged online, offered across AP and TG', async () => {
-    const res = await farmerEdit({ delivery_mode: 'courier', courier_type: 'cargo', cargo_services: ['VRL Logistics', ' Sri Durga Parcels '], delivery_paid_by: 'buyer', delivery_charge: 400 })
+  it('cargo: the profile’s services and payer, whatever the request says; nothing charged online', async () => {
+    const res = await farmerEdit({ delivery_mode: 'courier', courier_type: 'cargo', cargo_services: ['Fake Co'], delivery_paid_by: 'farmer', delivery_charge: 400 })
     expect(res.status).toBe(200)
     expect(listing()).toMatchObject({
       courier_type: 'cargo', cargo_services: ['VRL Logistics', 'Sri Durga Parcels'], delivery_paid_by: 'buyer',
       delivery_charge: 0, retail_reach: 'transport', retail_transport_rates: { AP: 0, TG: 0 },
     })
   })
-  it('local, buyer pays: the charge is kept', async () => {
-    const res = await farmerEdit({ delivery_mode: 'both', courier_type: 'local', delivery_paid_by: 'buyer', delivery_charge: 40, delivery_radius_km: 12 })
+  it('local: the profile’s payer, charge and radius', async () => {
+    const res = await farmerEdit({ delivery_mode: 'both', courier_type: 'local' })
     expect(res.status).toBe(200)
     expect(listing()).toMatchObject({ courier_type: 'local', delivery_paid_by: 'buyer', delivery_charge: 40, delivery_radius_km: 12, retail_reach: 'local' })
   })
-  it('local, farmer pays: free for the buyer', async () => {
-    await farmerEdit({ delivery_mode: 'courier', courier_type: 'local', delivery_paid_by: 'farmer', delivery_charge: 40 })
+  it('local, farmer pays on the profile: free for the buyer', async () => {
+    profile({ local_paid_by: 'farmer', local_delivery_charge: null })
+    await farmerEdit({ delivery_mode: 'courier', courier_type: 'local', delivery_charge: 40 })
     expect(listing()).toMatchObject({ delivery_paid_by: 'farmer', delivery_charge: 0 })
+  })
+  it('both: cargo services + the local charge and radius', async () => {
+    const res = await farmerEdit({ delivery_mode: 'courier', courier_type: 'both' })
+    expect(res.status).toBe(200)
+    expect(listing()).toMatchObject({ courier_type: 'both', cargo_services: ['VRL Logistics', 'Sri Durga Parcels'], delivery_charge: 40, delivery_radius_km: 12, retail_reach: 'transport' })
   })
   it('pickup only clears the courier fields', async () => {
     Object.assign(listing(), { courier_type: 'cargo', cargo_services: ['VRL Logistics'], delivery_paid_by: 'buyer' })
@@ -530,13 +543,15 @@ describe('delivery choices through the save routes', () => {
     expect(res.status).toBe(200)
     expect(listing()).toMatchObject({ courier_type: null, cargo_services: [], delivery_paid_by: null, retail_reach: 'local' })
   })
-  it('cargo without a service is refused, nothing written', async () => {
-    const res = await farmerEdit({ delivery_mode: 'courier', courier_type: 'cargo', cargo_services: [], delivery_paid_by: 'buyer' })
+  it('cargo with no services on the profile is refused, nothing written', async () => {
+    profile({ cargo_services: [], cargo_paid_by: null })
+    const res = await farmerEdit({ delivery_mode: 'courier', courier_type: 'cargo' })
     expect(res.status).toBe(400)
-    expect((await res.json()).error).toMatch(/at least one cargo service/)
+    expect((await res.json()).error).toMatch(/cargo services in your profile/)
     expect(listing()).not.toHaveProperty('courier_type')
   })
   it('the error is in Telugu by default', async () => {
+    profile({ local_paid_by: null })
     const res = await farmerEdit({ delivery_mode: 'courier', courier_type: 'local' }, 'te')
     expect((await res.json()).error).toMatch(/[ఀ-౿]/)
   })
@@ -545,17 +560,19 @@ describe('delivery choices through the save routes', () => {
     await farmerEdit({ stock_qty: 20 })
     expect(listing()).toMatchObject({ courier_type: 'cargo', cargo_services: ['VRL Logistics'] })
   })
-  it('moderator create: cargo saved the same way', async () => {
+  it('moderator create: cargo from the farmer’s profile', async () => {
+    profile({ cargo_services: ['APSRTC Cargo'], cargo_paid_by: 'farmer' })
     const res = await moderatorCreate(req('/api/moderator/listings', createBody({
-      delivery_mode: 'courier', courier_type: 'cargo', cargo_services: ['APSRTC Cargo'], delivery_paid_by: 'farmer', delivery_charge: '99',
+      delivery_mode: 'courier', courier_type: 'cargo', delivery_charge: '99',
     })))
     expect(res.status).toBe(200)
     const row = db.writes.find((w) => w.table === 'produce_listings' && w.kind === 'insert')?.row
     expect(row).toMatchObject({ courier_type: 'cargo', cargo_services: ['APSRTC Cargo'], delivery_paid_by: 'farmer', delivery_charge: 0, retail_reach: 'transport' })
   })
-  it('moderator create: local without "who pays" is refused', async () => {
+  it('moderator create: local with no local settings on the profile is refused', async () => {
+    profile({ local_paid_by: null })
     const res = await moderatorCreate(req('/api/moderator/listings', createBody({ delivery_mode: 'courier', courier_type: 'local' })))
     expect(res.status).toBe(400)
-    expect((await res.json()).error).toMatch(/Who pays/)
+    expect((await res.json()).error).toMatch(/local delivery in the farmer’s profile/)
   })
 })

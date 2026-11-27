@@ -90,7 +90,8 @@ export function reachFor(
   if (distKm !== null && distKm <= radius) return { show: true, kind: 'local', distKm, charge: null }
   // Cargo (2026-11-11): sent anywhere in India, nothing charged online (ToPay
   // to the cargo company, or paid by the farmer) — no state needed.
-  if (listing.courier_type === 'cargo') return { show: true, kind: 'transport', distKm, charge: 0 }
+  // 'both' (2026-11-27): local within the radius above, cargo beyond it.
+  if (listing.courier_type === 'cargo' || listing.courier_type === 'both') return { show: true, kind: 'transport', distKm, charge: 0 }
   if (parseReach(listing.retail_reach) === 'transport' && buyer.state) {
     const charge = normalizeRetailRates(listing.retail_transport_rates)[buyer.state]
     if (charge !== undefined) return { show: true, kind: 'transport', distKm, charge }

@@ -7,7 +7,7 @@ import { getConsumerSessionFromRequest } from '@/lib/session'
 import { createGuestOrderToken } from '@/lib/guest-order-token'
 import { getTierPrice } from '@/lib/pricing'
 import { packLinePrice } from '@/lib/packPricing'
-import { CARGO_LOCAL_KM, cargoNeeded, checkCargoChoice } from '@/lib/courierOptions'
+import { CARGO_LOCAL_KM, cargoNeeded, checkCargoChoice, sendsByCargo } from '@/lib/courierOptions'
 import { farmAreas } from '@/lib/farmArea'
 import { normalizePhone } from '@/lib/phone'
 import { isSelfOrder } from '@/lib/sellerBuyerLink'
@@ -592,7 +592,8 @@ export async function POST(req: NextRequest) {
   const homeIds = [...new Set(items.filter((it) => rowDeliveryTypeOf(it) === 'home_delivery').map((it) => it.listingId))]
   if (homeIds.length) {
     const { data: ctRows, error: ctErr } = await supabase.from('produce_listings').select('id, name, courier_type').in('id', homeIds)
-    const cargoHome = ctErr ? [] : ((ctRows ?? []) as Array<{ id: string; name: string; courier_type?: string | null }>).filter((r) => r.courier_type === 'cargo')
+    const cargoHome = ctErr ? [] : ((ctRows ?? []) as Array<{ id: string; name: string; courier_type?: string | null }>)
+      .filter((r) => sendsByCargo(r.courier_type))
     if (cargoHome.length) {
       const area = (await farmAreas([farmerId]))[farmerId] ?? null
       const bLat = Number(body.buyerLat), bLng = Number(body.buyerLng)
@@ -630,7 +631,7 @@ export async function POST(req: NextRequest) {
       // Cargo goes anywhere in India for ₹0 online (ToPay or farmer-paid,
       // 2026-11-11): any valid pincode. Only the older "Transportable" produce
       // is priced per state (AP / TG).
-      const perState = transported.filter((r) => r.courier_type !== 'cargo')
+      const perState = transported.filter((r) => !sendsByCargo(r.courier_type))
       if (transported.length > perState.length && !/^[1-9]\d{5}$/.test(String(deliveryPincode ?? '').trim())) {
         return bad('Enter a valid 6-digit pincode for cargo delivery.')
       }
@@ -648,7 +649,7 @@ export async function POST(req: NextRequest) {
       const cargo = checkCargoChoice(transported, body.cargoService)
       if (cargo && !cargo.ok) return bad(cargo.error)
       if (cargo && cargo.ok) {
-        const cargoIds = new Set(transported.filter((r) => r.courier_type === 'cargo').map((r) => r.id))
+        const cargoIds = new Set(transported.filter((r) => sendsByCargo(r.courier_type)).map((r) => r.id))
         rows.forEach((r, i) => {
           if (rowDeliveryTypeOf(items[i]) === 'courier' && cargoIds.has(String(r.produce_listing_id))) {
             r.cargo_service = cargo.service

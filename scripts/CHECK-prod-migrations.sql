@@ -239,6 +239,14 @@ SELECT * FROM (
     CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
       WHERE table_name='farmers' AND column_name='selling_until')
       THEN 'PRESENT' ELSE 'MISSING' END
+  UNION ALL
+  -- delivery-settings-migration.sql (needs courier-options first). Without it
+  -- a produce can't be saved as Cargo / Both (the farmer has nowhere to keep
+  -- their cargo services) and the profile's Delivery settings stay hidden.
+  SELECT 37, 'delivery-settings', 'farmers.cargo_paid_by',
+    CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_name='farmers' AND column_name='cargo_paid_by')
+      THEN 'PRESENT' ELSE 'MISSING' END
 
 ) checks ORDER BY ord;
 

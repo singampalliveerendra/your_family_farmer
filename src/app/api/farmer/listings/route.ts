@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { applyRetailReach } from '@/lib/retailReach'
 import { requireSeller, svc } from '@/lib/sellerAuth'
 import { checkSellerStatusChange, sellerListingPayload } from '@/lib/sellerWriteRules'
-import { COURIER_NOT_READY, applyCourierColumns, isCourierColumnMissing, withoutCourier } from '@/lib/courierOptions'
+import { COURIER_NOT_READY, isCourierColumnMissing, withoutCourier, sendsByCargo } from '@/lib/courierOptions'
+import { applyProfileCourier, isCargoProfileError, CARGO_SETTINGS_MISSING } from '@/lib/deliverySettings'
 import { PACKS_NOT_READY, applyRetailPackColumns, isPackColumnMissing } from '@/lib/packPricing'
 import { bothPricesError, isWholesaleColumnMissing, resolveWholesaleColumns, withoutWholesale, WHOLESALE_NOT_READY } from '@/lib/wholesale'
 import { SELLING_PLAN_REQUIRED, isSellingPlanError } from '@/lib/sellingLock'
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
   if (packErr) return NextResponse.json({ error: t(packErr.en, packErr.te) }, { status: 400 })
   // Delivery step (2026-11-10): the form's rules; normalises charge, radius
   // and reach too. The reach check below reads `payload`, so it sees them.
-  const courierErr = applyCourierColumns(row)
+  const courierErr = await applyProfileCourier(supabase, me.id, row)
   if (courierErr) return NextResponse.json({ error: t(courierErr.en, courierErr.te) }, { status: 400 })
   if (row.courier_type !== undefined) Object.assign(payload, { retail_reach: row.retail_reach, retail_transport_rates: row.retail_transport_rates })
   // Both: wholesale must be cheaper than every retail price (2026-11-05).
@@ -64,10 +65,12 @@ export async function POST(req: NextRequest) {
   // A server without scripts/courier-options-migration.sql: Local / Pickup
   // publish without the new columns; Cargo is refused.
   if (error && isCourierColumnMissing(error.message)) {
-    if (row.courier_type === 'cargo') return NextResponse.json({ error: t(COURIER_NOT_READY.en, COURIER_NOT_READY.te) }, { status: 503 })
+    if (sendsByCargo(row.courier_type)) return NextResponse.json({ error: t(COURIER_NOT_READY.en, COURIER_NOT_READY.te) }, { status: 503 })
     row = withoutCourier(row)
     ;({ data, error } = await insert(row))
   }
+  // The profile has no cargo services (the DB trigger, scripts/delivery-settings-migration.sql).
+  if (error && isCargoProfileError(error.message)) return NextResponse.json({ error: t(CARGO_SETTINGS_MISSING.en, CARGO_SETTINGS_MISSING.te) }, { status: 400 })
   // Same pre-migration fallback the dashboard used: publish without the step
   // rather than refuse the whole listing.
   if (error && isMissingColumnError(error.message, 'sale_step') && 'sale_step' in row) {

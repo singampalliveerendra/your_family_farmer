@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import ModeratorShell, { useModeratorAuth } from '../../../ModeratorShell'
 import ModeratorFarmerForm, { type FarmerInitial } from '@/components/moderator/ModeratorFarmerForm'
+import { DeliverySettingsCard } from '@/components/DeliverySettings'
 import SourceFarmersManager from '@/components/SourceFarmersManager'
 import { normalizePickupSchedule, normalizePickupPhones } from '@/lib/pickup-slots'
 
@@ -152,6 +153,12 @@ export default function EditFarmerPage() {
             onSaved={() => router.push('/moderator/farmers')}
             onCancel={() => router.push('/moderator/farmers')}
           />
+
+          {/* The farmer's delivery settings (2026-11-27) — the same editor the
+              farmer has in their profile; every produce uses them. */}
+          <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-4">
+            <DeliverySettingsCard endpoint={`/api/moderator/farmers/${farmer.id}/delivery-settings`} L={(en) => en} />
+          </div>
 
           {/* Full CRUD over the aggregator's source-farmer list — the same
               component and the same server-side rules the aggregator gets, per

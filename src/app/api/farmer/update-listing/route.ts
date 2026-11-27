@@ -7,7 +7,8 @@ import { SELLING_PLAN_REQUIRED, isSellingPlanError } from '@/lib/sellingLock'
 import { reqLang, tr } from '@/lib/serverLang'
 import { touchesTranslatedText, translateListingAfterSave } from '@/lib/translateAfterSave'
 import { checkSellerStatusChange, sellerListingPayload } from '@/lib/sellerWriteRules'
-import { COURIER_NOT_READY, applyCourierColumns, isCourierColumnMissing, withoutCourier } from '@/lib/courierOptions'
+import { COURIER_NOT_READY, isCourierColumnMissing, withoutCourier, sendsByCargo } from '@/lib/courierOptions'
+import { applyProfileCourier, isCargoProfileError, CARGO_SETTINGS_MISSING } from '@/lib/deliverySettings'
 import { PACKS_NOT_READY, applyRetailPackColumns, isPackColumnMissing } from '@/lib/packPricing'
 
 export const runtime = 'nodejs'
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
 
   // Delivery step (2026-11-10): courier type, cargo services, who pays — the
   // form's rules; also normalises the charge, radius and reach to match.
-  const courierErr = applyCourierColumns(cleanPayload)
+  const courierErr = await applyProfileCourier(supabaseAdmin, session.farmerId, cleanPayload)
   if (courierErr) return NextResponse.json({ error: tr(reqLang(request), courierErr.en, courierErr.te) }, { status: 400 })
 
   // Local only / Transportable across AP & TG (2026-11-05).
@@ -141,11 +142,13 @@ export async function POST(request: NextRequest) {
   // A server without scripts/courier-options-migration.sql: Local / Pickup
   // save without the new columns; Cargo is refused rather than silently lost.
   if (error && isCourierColumnMissing(error.message)) {
-    if (cleanPayload.courier_type === 'cargo') {
+    if (sendsByCargo(cleanPayload.courier_type)) {
       return NextResponse.json({ error: tr(reqLang(request), COURIER_NOT_READY.en, COURIER_NOT_READY.te) }, { status: 503 })
     }
     ;({ data: updated, error } = await save(withoutCourier(cleanPayload)))
   }
+  // The profile has no cargo services (the DB trigger, scripts/delivery-settings-migration.sql).
+  if (error && isCargoProfileError(error.message)) return NextResponse.json({ error: tr(reqLang(request), CARGO_SETTINGS_MISSING.en, CARGO_SETTINGS_MISSING.te) }, { status: 400 })
 
   if (error && isPackColumnMissing(error.message)) {
     return NextResponse.json({ error: tr(reqLang(request), PACKS_NOT_READY.en, PACKS_NOT_READY.te) }, { status: 503 })

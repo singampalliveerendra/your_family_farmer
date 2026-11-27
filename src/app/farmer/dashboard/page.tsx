@@ -48,6 +48,8 @@ import { uploadFarmImage } from '@/lib/farmImageUpload'
 import { useBackToClose } from '@/lib/useBackToClose'
 import DeliveryFields from '@/components/DeliveryFields'
 import PickupPointsEditor from '@/components/farmer/PickupPointsEditor'
+import { DeliverySettingsCard, DeliverySettingsSummary } from '@/components/DeliverySettings'
+import type { DeliverySettings } from '@/lib/deliverySettings'
 import { COURIER_NOT_READY, courierFormFromRow, isCourierColumnMissing, resolveCourier, type CourierForm } from '@/lib/courierOptions'
 import { clearDraft, draftHasContent, draftKey, draftPhotos, readDraft, writeDraft } from '@/lib/formDraft'
 import {
@@ -2122,6 +2124,12 @@ function ProfileEditModal({
             )}
           </div>
 
+          {/* Delivery settings (2026-11-27): set once here, used by every
+              produce — its own Save, so it never waits on the profile form. */}
+          <div className="rounded-2xl border border-gray-200 p-3">
+            <DeliverySettingsCard endpoint="/api/farmer/delivery-settings" fetcher={farmerFetch} L={L} />
+          </div>
+
           {error && (
             <p className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2">{error}</p>
           )}
@@ -2360,6 +2368,9 @@ function ProduceListingForm({
   // Courier: Local (radius, who pays, charge) or Cargo (ToPay services, who
   // pays) — the Delivery step (client card 2026-11-10, src/lib/courierOptions.ts).
   const [courier, setCourier] = useState<CourierForm>(() => courierFormFromRow(editData as Record<string, unknown> | null | undefined))
+  // The profile's delivery settings (2026-11-27), once loaded by the summary
+  // in the Delivery step: undefined = not loaded yet (the server checks).
+  const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null | undefined>(undefined)
   // Local only / Transportable across AP & TG (2026-11-05).
   // Retail / Wholesale / Both, and the wholesale details (src/lib/wholesale.ts).
   const [wholesale, setWholesale] = useState<WholesaleForm>(() => {
@@ -2544,7 +2555,7 @@ function ProduceListingForm({
       return
     }
     // Delivery step: same rules as the server, which checks them again.
-    const courierResult = resolveCourier({ deliveryMode, ...courier })
+    const courierResult = resolveCourier({ deliveryMode, ...courier, settings: deliverySettings })
     if (!courierResult.ok) { setError(L(courierResult.error.en, courierResult.error.te)); return }
     const courierCols = courierResult.columns
     setLoading(true)
@@ -3204,6 +3215,9 @@ function ProduceListingForm({
           onCourier={setCourier}
           L={L}
           pickup={<PickupPointsEditor L={L} />}
+          settings={courier.courierType ? (
+            <DeliverySettingsSummary endpoint="/api/farmer/delivery-settings" fetcher={farmerFetch} courierType={courier.courierType} L={L} onSettings={setDeliverySettings} />
+          ) : null}
         />
         </FormStep>
 

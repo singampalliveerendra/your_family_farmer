@@ -440,7 +440,7 @@ export default function ProduceDetailPage() {
           {/* Farmer doesn't deliver this one — said here, not first in the cart. */}
           {transport && (
             <p className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-[#27486a] bg-[#e5ecf3] rounded-full px-2.5 py-1">
-              🚚 {(item as { courier_type?: unknown }).courier_type === 'cargo'
+              🚚 {['cargo', 'both'].includes(String((item as { courier_type?: unknown }).courier_type))
                 // Cargo, anywhere in India (2026-11-11): ToPay, or the farmer pays.
                 ? ((item as { delivery_paid_by?: unknown }).delivery_paid_by === 'farmer'
                     ? L('Sent by cargo · free delivery', 'కార్గో ద్వారా పంపుతారు · ఉచిత డెలివరీ')

@@ -1,4 +1,5 @@
-import { COURIER_NOT_READY, COURIER_COLUMNS, applyCourierColumns, isCourierColumnMissing, withoutCourier } from '@/lib/courierOptions'
+import { COURIER_NOT_READY, COURIER_COLUMNS, isCourierColumnMissing, withoutCourier, sendsByCargo } from '@/lib/courierOptions'
+import { applyProfileCourier, forModerator, isCargoProfileError } from '@/lib/deliverySettings'
 import { PACKS_NOT_READY, RETAIL_PACK_COLUMNS, applyRetailPackColumns, isPackColumnMissing } from '@/lib/packPricing'
 import { createClient } from '@supabase/supabase-js'
 import { applyRetailReach } from '@/lib/retailReach'
@@ -212,8 +213,8 @@ export async function POST(req: NextRequest) {
   // older caller leaves the courier fields alone. The reach check below reads
   // the body, so the normalised reach is copied back onto it.
   for (const k of COURIER_COLUMNS) if (k in b) insert[k] = b[k]
-  const courierErr = applyCourierColumns(insert)
-  if (courierErr) return NextResponse.json({ error: courierErr.en }, { status: 400 })
+  const courierErr = await applyProfileCourier(supabase, farmer_id, insert)
+  if (courierErr) return NextResponse.json({ error: forModerator(courierErr.en) }, { status: 400 })
   if ('courier_type' in insert) Object.assign(b, { retail_reach: insert.retail_reach, retail_transport_rates: insert.retail_transport_rates })
   for (const k of RETAIL_PACK_COLUMNS) if (k in b) insert[k] = b[k]
   const packErr = applyRetailPackColumns(insert, unit)
@@ -235,9 +236,11 @@ export async function POST(req: NextRequest) {
   // No courier columns yet (scripts/courier-options-migration.sql): Local /
   // Pickup save without them; Cargo is refused rather than silently lost.
   if (error && isCourierColumnMissing(error.message)) {
-    if (insert.courier_type === 'cargo') return NextResponse.json({ error: COURIER_NOT_READY.en }, { status: 503 })
+    if (sendsByCargo(insert.courier_type)) return NextResponse.json({ error: COURIER_NOT_READY.en }, { status: 503 })
     ;({ data: created, error } = await create(withoutCourier(insert)))
   }
+  // The profile has no cargo services (the DB trigger, scripts/delivery-settings-migration.sql).
+  if (error && isCargoProfileError(error.message)) return NextResponse.json({ error: 'This farmer has no cargo services in their profile yet. Add them in the farmer’s Delivery settings first.' }, { status: 400 })
   if (error && isPackColumnMissing(error.message)) return NextResponse.json({ error: PACKS_NOT_READY.en }, { status: 503 })
   if (error && isWholesaleColumnMissing(error.message)) {
     return NextResponse.json({ error: WHOLESALE_NOT_READY.en }, { status: 503 })

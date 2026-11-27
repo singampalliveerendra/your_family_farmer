@@ -117,7 +117,8 @@ export function courierOption(l: BulkListing): DeliveryOption | null {
     services: normalizeCargoServices(l.cargo_services),
     radiusKm: radius !== null && radius > 0 ? radius : null,
   }
-  if (l.courier_type === 'cargo') {
+  // 'both' (2026-11-27): a bulk lot goes by cargo, anywhere in India.
+  if (l.courier_type === 'cargo' || l.courier_type === 'both') {
     return { delivery: 'IN', rate: { mode: 'per_order', amount: 0, free_above: null }, courier: { kind: 'cargo', ...courier } }
   }
   if (l.courier_type === 'local') {

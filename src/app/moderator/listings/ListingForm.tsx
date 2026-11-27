@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { uploadFarmImage } from '@/lib/farmImageUpload'
 import DeliveryFields, { type DeliveryMode } from '@/components/DeliveryFields'
+import { DeliverySettingsSummary } from '@/components/DeliverySettings'
+import type { DeliverySettings } from '@/lib/deliverySettings'
 import PickupPointsSummary from '@/components/moderator/PickupPointsSummary'
 import { EMPTY_COURIER_FORM, resolveCourier, type CourierForm } from '@/lib/courierOptions'
 import { clearDraft, draftHasContent, draftKey, draftPhotos, readDraft, writeDraft } from '@/lib/formDraft'
@@ -157,6 +159,8 @@ export default function ListingForm({
   const [done, setDone] = useState(false)
   const [wholesale, setWholesale] = useState<WholesaleForm>(initialWholesale)
   const [courier, setCourier] = useState<CourierForm>(initialCourier)
+  // The farmer's profile delivery settings (2026-11-27), once the summary loads them.
+  const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null | undefined>(undefined)
   const [retailPack, setRetailPack] = useState<{ packSize: string; packPrice: string; packTiers: PackTierForm[] }>({
     packSize: initialRetailPack.packSize, packPrice: initialRetailPack.packPrice, packTiers: initialRetailPack.tiers,
   })
@@ -272,7 +276,7 @@ export default function ListingForm({
       setError('Choose a delivery method: Pickup only, I will courier, or Both.'); return
     }
     // Delivery step: same rules as the farmer form; the API checks them again.
-    const courierResult = resolveCourier({ deliveryMode: form.delivery_mode, ...courier })
+    const courierResult = resolveCourier({ deliveryMode: form.delivery_mode, ...courier, settings: deliverySettings })
     if (!courierResult.ok) { setError(courierResult.error.en); return }
     // Same wholesale rules as the farmer form; the API checks them again.
     const wholesaleResult = resolveWholesaleForm(wholesale, form.unit)
@@ -585,6 +589,9 @@ export default function ListingForm({
         onCourier={setCourier}
         L={EN}
         pickup={<PickupPointsSummary farmerId={farmerId} />}
+        settings={courier.courierType && farmerId ? (
+          <DeliverySettingsSummary key={farmerId} endpoint={`/api/moderator/farmers/${farmerId}/delivery-settings`} courierType={courier.courierType} L={EN} onSettings={setDeliverySettings} />
+        ) : null}
       />
       </ModStep>
 
